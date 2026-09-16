@@ -1,0 +1,27 @@
+services:
+  # 🐘 Base de Datos PostgreSQL
+  postgres-db:
+    image: postgres:16
+    container_name: mirroria_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: mirroria
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mirroria_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - mirroria_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mirroria -d mirroria_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Backend NestJS y Frontend React se agregan a este compose cuando estén listos
+  # para correr en contenedor (por ahora se corren en local con `npm run start:dev` / `npm run dev`
+  # apuntando a este Postgres vía localhost:5435 — ver mirroria-backend/AGENTS.md).
+
+volumes:
+  mirroria_pgdata:

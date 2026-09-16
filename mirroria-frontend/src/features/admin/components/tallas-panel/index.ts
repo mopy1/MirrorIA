@@ -1,0 +1,1 @@
+export * from "./tallas-panel"

@@ -1,0 +1,53 @@
+# ==========================================
+# 🪞 Monorepo Root .gitignore (MirrorIA Project)
+# ==========================================
+
+# --- Node (Backend NestJS / Frontend React) ---
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+*.log
+npm-debug.log*
+coverage/
+.vite/
+
+# --- IDEs & Editors ---
+.idea/
+**/.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+# --- Operating System & Temporary ---
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# --- Secrets & Local Environments ---
+.env
+.env.local
+.env.*.local
+
+# --- Docker & DB local volumes ---
+mirroria_pgdata/
+data/
+
+# --- AI & Agent Local Files ---
+.agents/
+**/.agents/
+.claude/
+**/.claude/
+cloudflared*.log
+

@@ -1,0 +1,399 @@
+# 🪞 MirrorIA Backend — Arquitectura y Convenciones
+
+Fuente de verdad técnica exclusiva de `mirroria-backend`. El `AGENTS.md` de la raíz del
+repo (`../AGENTS.md`) solo enlaza para acá y hacia `mirroria-frontend/AGENTS.md`. El diseño
+de base de datos completo (23 tablas, DBML) vive en el vault, no acá:
+`/mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/Database/Diseño_BD.md`.
+
+## Stack
+
+NestJS 12 (Node 24, TypeScript 6, **ESM real** — no CommonJS), TypeORM 1.x + PostgreSQL 16,
+Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`, Swagger
+(`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual).
+
+> [!IMPORTANT]
+> **Este proyecto es ESM puro** (`"type": "module"` en `package.json`, `tsconfig.json` con
+> `module`/`moduleResolution: nodenext`). Todo import **relativo** dentro de `src/` debe
+> terminar en `.js` (no `.ts`), aunque el archivo real sea `.ts` — es la convención de
+> TypeScript para ESM con `nodenext`, y el build falla sin ella. Ejemplo correcto:
+> `import { Usuario } from '../entities/usuario.entity.js';`. Los imports de paquetes de
+> npm (`@nestjs/common`, `typeorm`, etc.) van sin extensión, como siempre.
+
+## 🏛️ Arquitectura: Monolito Modular (Package-by-Feature), igual criterio que `erp-backend`
+
+```text
+src/
+├── main.ts                    # bootstrap: prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs
+├── app.module.ts               # wiring: Config + TypeORM + los 10 módulos de negocio
+├── app.controller.ts           # GET /api/v1/health (health-check, no "Hello World")
+├── app.service.ts
+│
+├── core/                        # 🌐 Infraestructura transversal — CERO lógica de negocio,
+│   │                             # y CERO import de nada bajo modules/ (ver regla de desacoplo abajo)
+│   ├── config/
+│   │   ├── typeorm.config.ts    # factory de TypeOrmModuleOptions (lee ConfigService)
+│   │   └── cors.config.ts       # orígenes permitidos vía env CORS_ORIGINS
+│   ├── database/
+│   │   └── base.entity.ts       # BaseEntity abstracta: id uuid (gen_random_uuid), createdAt, updatedAt
+│   ├── security/
+│   │   ├── jwt-payload.interface.ts
+│   │   ├── jwt-auth.guard.ts    # @UseGuards(JwtAuthGuard) — genérico, reutilizable por cualquier módulo
+│   │   ├── roles.decorator.ts   # @Roles('ADMIN', ...)
+│   │   ├── roles.guard.ts       # exige @UseGuards(JwtAuthGuard, RolesGuard) en ese orden
+│   │   ├── current-user.decorator.ts  # @CurrentUser() user: JwtPayload
+│   │   └── express.d.ts         # augmenta Request.user con JwtPayload
+│   └── exception/
+│       ├── business.exception.ts           # base abstracta de toda excepción de negocio
+│       ├── recurso-no-encontrado.exception.ts  # 404
+│       ├── recurso-duplicado.exception.ts      # 409
+│       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }
+│
+└── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
+                                  # TableGroups de Diseño_BD.md en el vault)
+    ├── seguridad/                # ✅ implementado — auth (registro/login/perfil)
+    ├── proveedores/               # ✅ implementado — proveedores (CRUD mínimo: crear + listar)
+    ├── catalogo/                  # ✅ implementado — categorias, temporadas, colecciones, tallas, colores, productos, variantes_producto
+    ├── sucursales/                # ✅ implementado — ciudades, sucursales
+    ├── inventario/                # ✅ implementado — inventario_sucursal, movimientos_inventario, ordenes_compra
+    ├── reservas/                  # ✅ implementado — reservas, reserva_items (RF09-12, transiciones de estado, integración con ventas)
+    ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
+    ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
+    ├── pagos/                     # 🚧 placeholder — pagos
+    └── ia/                        # 🚧 placeholder — interacciones_ia
+```
+
+Cada módulo `🚧 placeholder` hoy es solo un `<nombre>.module.ts` con `@Module({})` vacío,
+importado en `app.module.ts` (para que el árbol de la app ya refleje la arquitectura final)
+y con un comentario `TODO` apuntando a la sección correspondiente de `Diseño_BD.md`.
+
+## 📂 Convención interna de cada módulo (una vez implementado)
+
+Mismo criterio de `erp-backend`/`case-backend`, adaptado a NestJS — carpeta por **capa
+técnica**, nunca archivos sueltos en la raíz del módulo. `modules/seguridad/` es la
+referencia real a copiar:
+
+```text
+modules/<nombre_modulo>/
+├── <nombre_modulo>.module.ts   # @Module: imports/controllers/providers/exports
+├── controller/                 # @Controller(), rutas bajo /api/v1/<modulo>/...
+├── dto/                        # clases con class-validator (@IsString, @IsUUID, etc.)
+├── entities/                   # @Entity() de TypeORM, extienden core/database/base.entity.ts
+├── exception/                  # excepciones específicas del dominio (extienden BusinessException)
+├── security/                   # solo si el módulo tiene su propia Strategy (caso de seguridad/)
+└── service/                    # lógica de negocio, @Injectable(), inyecta @InjectRepository()
+```
+
+No existe carpeta `repository/`: a diferencia de Spring/JPA, en TypeORM el patrón repositorio
+ya lo da `@InjectRepository(Entidad)` dentro del `service/` — no hace falta una interfaz propia
+salvo que un módulo necesite queries muy custom (ahí sí, un `repository/` con un
+`@EntityRepository`/repositorio custom es válido).
+
+## 🛡️ Reglas invariables (mismo espíritu que erp-backend, adaptado)
+
+1. **Desacoplamiento entre módulos de negocio:** ningún módulo bajo `modules/` importa una
+   `entity`, `service` o `controller` de otro módulo de negocio directamente. Si un módulo
+   necesita un dato de otro (ej. `ventas` necesita saber el `sucursal_id` de `seguridad`),
+   se guarda como **columna simple** (uuid) sin relación `@ManyToOne` cruzando módulos — así
+   se hizo ya en `Usuario.sucursalId` (ver `entities/usuario.entity.ts`). Cuando el proyecto
+   crezca más allá del examen y se necesite reaccionar a eventos entre módulos (ej. una venta
+   confirmada que descuenta inventario), usar `EventEmitterModule` de `@nestjs/event-emitter`
+   — no inyectar servicios de otro módulo directo (análogo a `ApplicationEventPublisher` en
+   erp-backend).
+2. **`core/` nunca importa nada de `modules/`.** La única excepción real de este proyecto es
+   `JwtStrategy`, que sí necesita conocer `Usuario` para revalidar contra BD — por eso
+   **no** vive en `core/security/`, vive en `modules/seguridad/security/jwt.strategy.ts`.
+   `core/security/jwt-auth.guard.ts` es agnóstico (solo `extends AuthGuard('jwt')`) y sí es
+   reutilizable desde cualquier módulo.
+3. **Nunca exponer entidades `@Entity` directo en un controller.** Los controllers reciben y
+   devuelven DTOs (`dto/*.dto.ts`), nunca la entidad de TypeORM.
+4. **Todas las excepciones de negocio extienden `BusinessException`** (`core/exception/`), no
+   se lanza `HttpException` genérica desde un `service`. El `GlobalExceptionFilter` da el
+   shape único de error a toda la API: `{ status, message, timestamp }`.
+5. **`id` siempre `uuid` con default `gen_random_uuid()`**, nunca `uuid_generate_v4()`
+   (extensión `uuid-ossp`, la que usa TypeORM por defecto con `@PrimaryGeneratedColumn('uuid')`
+   — por eso `BaseEntity` usa `@PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })`
+   en su lugar). Ver nota siguiente.
+6. **Todo `Entity` extiende `core/database/base.entity.ts`** (da `id`, `createdAt`,
+   `updatedAt`). Simplificación consciente frente al diseño del vault: `refresh_tokens` ahí
+   documenta solo `created_at`, acá también recibe `updatedAt` por venir gratis de la base
+   compartida — columna sin uso real, no rompe nada.
+7. **Roles válidos de `usuarios.role`:** `CUSTOMER | ADMIN | ENCARGADO_SUCURSAL | CAJERO`
+   (enum `RolUsuario` en `modules/seguridad/entities/usuario.entity.ts`). Endpoint restringido
+   por rol: `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles('ADMIN')` sobre el método.
+8. **Catálogo exclusivamente de moda femenina** (decisión del usuario, no del enunciado): no
+   agregar campo/tabla de género a `productos` ni a ninguna entidad de `catalogo/`.
+
+## 🔧 Decisión real (2026-09-12): `gen_random_uuid()` vs `uuid_generate_v4()`
+
+Al levantar el proyecto por primera vez con `@PrimaryGeneratedColumn('uuid')` (el default
+"obvio" de TypeORM para PK uuid), TypeORM creó solo la extensión `uuid-ossp` y usó
+`uuid_generate_v4()` como default de columna — funciona, pero **no coincide** con el diseño
+documentado en el vault (`Diseño_BD.md`/`dbdiagram.dbml`), que especifica `pgcrypto` +
+`gen_random_uuid()` explícitamente en todas las tablas. Se cambió `BaseEntity` para usar
+`@PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })` en vez del generador
+automático, y se agregó `db/init/001-extensions.sql` en la raíz del monorepo (mount de
+`docker-entrypoint-initdb.d`) para que `pgcrypto` quede creado automáticamente la primera vez
+que se levanta el volumen de Postgres. Verificado end-to-end: `CREATE TABLE "usuarios" (...
+DEFAULT gen_random_uuid() ...)` en el log de arranque.
+
+## 🔧 Gotcha real (2026-09-12): columnas nullable de tipo string necesitan `type` explícito
+
+Al armar `Proveedor`/`Producto`/`Color` con campos como `nit!: string | null` y
+`@Column({ length: 30, nullable: true })` (sin `type`), TypeORM tira
+`DataTypeNotSupportedError: Data type "Object" ... is not supported`: con un tipo unión
+(`string | null`) el metadata de diseño de TypeScript que lee `emitDecoratorMetadata` ya no es
+`String`, es `Object`, y TypeORM no puede inferir la columna Postgres a partir de eso. **Toda
+columna nullable de tipo string necesita `type: 'varchar'` (o el que corresponda) explícito en
+las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ejemplo correcto:
+`@Column({ type: 'varchar', length: 30, nullable: true }) nit!: string | null;`. Las columnas
+`not null` (`string` a secas, sin `| null`) sí se infieren bien sin este problema.
+
+## ✅ Estado actual: `modules/seguridad/` (único módulo real)
+
+- **Entidades:** `Usuario` (tabla `usuarios`: email único, password_hash, full_name, role,
+  sucursal_id nullable, is_active) y `RefreshToken` (tabla `refresh_tokens`: token único,
+  expires_at, revoked, `@ManyToOne` a `Usuario` con `onDelete: CASCADE`). El flujo de refresh
+  token en sí (rotación, endpoint `/refresh`) **no está implementado todavía** — la entidad
+  existe pero `AuthService` hoy solo emite `accessToken` (JWT de 1h, sin rotación).
+- **Endpoints (`/api/v1/seguridad/auth`):**
+  - `POST /register` (público) — crea usuario con `role: CUSTOMER` siempre. Igual que en
+    erp-backend/case-backend, es la vía de **bootstrap/desarrollo**; en producción real el
+    alta de personal interno (ADMIN/ENCARGADO_SUCURSAL/CAJERO) debería quedar detrás de un
+    endpoint protegido por rol ADMIN, no de este registro público.
+  - `POST /login` (público) — valida con `bcrypt.compare`, devuelve el mismo shape que
+    `register` (`AuthResponseDto`: `accessToken` + `usuario`).
+  - `GET /me` (protegido, `JwtAuthGuard`) — perfil del usuario autenticado.
+- **JwtStrategy revalida contra BD en cada request** (no solo confía en la firma del token):
+  si el usuario fue desactivado (`is_active = false`) o borrado, el token deja de servir de
+  inmediato aunque no haya expirado. Trade-off consciente: una query extra por request
+  autenticado, aceptable para el volumen de un examen/MVP.
+- **Verificado end-to-end (2026-09-12)** contra Postgres real (docker, puerto 5435 en host):
+  registro → 201 con JWT, registro duplicado → 409, login correcto → 200, login con password
+  incorrecta → 401 (`{"status":401,"message":"Credenciales incorrectas",...}`), `/me` sin
+  token → 401, `/me` con token → 200 con el perfil.
+
+## ✅ Estado actual: `modules/proveedores/` y `modules/catalogo/`
+
+- **`proveedores`**: CRUD mínimo (`POST`/`GET /api/v1/proveedores`, `GET /:id`). Sin
+  relación hacia ningún otro módulo — es una tabla hoja, no depende de nada.
+- **`catalogo`**: implementa las 7 tablas del TableGroup Catálogo. Un controller por
+  recurso (`categorias`, `temporadas`, `colecciones`, `tallas`, `colores`, `productos`),
+  todos bajo `/api/v1/catalogo/*`. `productos` expone además `GET /:id` (con sus variantes
+  anidadas), `POST /:id/variantes` y `PATCH /:id` (edición de prenda: categoría, colección,
+  título, slug, descripción, precio en centavos, protegido con `JwtAuthGuard`, `RolesGuard` y `@Roles('ADMIN')`).
+  - **`productos.imagenes`** es `jsonb` (`ImagenProducto[]`: `{url, varianteId?, esArAsset,
+    orden}`) — se guarda y devuelve como array real de objetos, no como texto.
+  - **`productos.precioCents`** es `bigint` en Postgres pero el driver `pg` lo devuelve como
+    `string` por defecto — se agregó un `transformer` en la entidad para que la API siempre
+    entregue un `number` real. Buen ejemplo a copiar si otro módulo (`ventas`, `pagos`) usa
+    columnas `bigint`.
+  - **`colecciones.proveedorId`** es columna simple (no relación ORM) hacia el módulo
+    `proveedores` — para validar que exista, `ColeccionesService` inyecta el
+    `ProveedoresService` **exportado** (no su entidad ni su repositorio) y llama
+    `proveedoresService.findOne(id)`. Este es el patrón a seguir cuando un módulo necesita
+    validar contra otro sin romper el desacoplo de la regla 1 de arriba.
+  - Los `POST` de ambos módulos están **sin proteger a propósito** (ver TODO en cada
+    controller) — se necesita poder sembrar `proveedor → temporada → colección → categoría →
+    producto → variante` sin fricción mientras no exista provisioning real de ADMIN.
+- **Verificado end-to-end (2026-09-12)**: cadena completa de seed vía `curl` contra Postgres
+  real, `GET /catalogo/productos` (listado) y `GET /catalogo/productos/:id` (detalle con
+  variante anidada) devolviendo el JSON esperado — este es el endpoint que consume el front
+  para el inicio/vitrina.
+
+## ✅ Estado actual: `modules/sucursales/`, `modules/inventario/` y `modules/ventas/` (2026-09-13)
+
+Construidos los tres juntos en una sola sesión (decisión del usuario: priorizar esta cadena
+completa antes que `reservas`/`pagos`/`promociones`/`ia`).
+
+- **`sucursales`**: dueño de `ciudades` y `sucursales` (Diseño_BD.md sección B). `Sucursal.ciudad`
+  es relación real (`@ManyToOne`, mismo módulo). Exporta `SucursalesService` con
+  `assertExists(id)`/`findOne(id)` para que `inventario`/`ventas` validen `sucursalId` sin
+  importar la entidad — mismo patrón que `ProveedoresService`.
+- **`catalogo`** ganó un método nuevo: `ProductosService.findVarianteById(id)` (devuelve la
+  variante con `producto` cargado, para leer `precioCents`), y ahora **exporta**
+  `ProductosService` — antes `CatalogoModule` no exportaba nada.
+- **`inventario`**: dueño de `inventario_sucursal`, `movimientos_inventario` y `ordenes_compra`.
+  - `InventarioSucursalService.ajustarStock(...)` es el **único punto de entrada** para tocar
+    `cantidadDisponible`: valida que variante/sucursal existan, rechaza si el resultado
+    quedaría negativo (`StockInsuficienteException`, 409) y escribe el `MovimientoInventario`
+    correspondiente en la misma operación. Acepta un `manager` de TypeORM opcional para
+    participar de una transacción abierta por el llamador (así lo usan `ventas` y la recepción
+    de `ordenes_compra`).
+  - `ajustarTransito(...)` mueve solo `cantidadEnTransito`, sin movimiento (el movimiento real
+    se escribe recién al recibir, vía `ajustarStock` con `RECEPCION_PROVEEDOR`).
+  - `OrdenesCompraService.create()` valida proveedor/sucursal/variantes, crea la orden en
+    `PENDIENTE` y sube `cantidadEnTransito` de cada item.
+  - `OrdenesCompraService.recibir(id, dto)` acepta recepción **parcial**: por cada item
+    recibido baja `cantidadEnTransito` y sube `cantidadDisponible` (vía `ajustarStock`), y
+    recalcula el estado de la orden a `RECIBIDA_PARCIAL` o `RECIBIDA` según cuánto se recibió
+    en total (RF11/RF12). Todo dentro de una única transacción (`DataSource.transaction`).
+  - `venta_item_id` y `usuario_id` en `MovimientoInventario` son columnas sin relación ORM ni
+    validación de existencia (no hay `UsuariosService` expuesto por `seguridad` todavía) — son
+    trazabilidad de auditoría, no integridad referencial estricta.
+  - Exporta `InventarioSucursalService` para que `ventas` descuente stock al vender.
+- **`ventas`**: dueño de `carritos`, `ventas` y `venta_items`.
+  - `Carrito.usuarioId` tiene índice **unique** (decisión propia, no está así en
+    `Diseño_BD.md`): un solo carrito activo por usuario, se muta el mismo row en cada
+    add-to-cart en vez de crear filas nuevas — evita necesitar un campo `activo` o manejar
+    duplicados.
+  - `VentasService.registrarVenta(...)` (privado, compartido por los dos flujos de compra)
+    resuelve el precio real de cada variante (`producto.precioCents` al momento de la venta,
+    no un precio cacheado), descuenta stock vía `InventarioSucursalService.ajustarStock` con
+    `tipoMovimiento: VENTA` (esto es **RF20**: inventario se actualiza automáticamente tras una
+    venta), y guarda `venta` + `venta_items` en una sola transacción — si el stock alcanza para
+    algún item pero no para otro, se revierte todo (probado: vender 999 unidades con 5
+    disponibles devuelve 409 y el stock queda intacto).
+  - **Compra presencial** (`POST /ventas/presenciales`, RF17/RF18): recibe `items` explícitos +
+    `cajeroId`, arranca en `estado: PAGADA` directo — el cajero ya cobró en el punto de caja,
+    no hay pasarela de por medio.
+  - **Compra digital** (`POST /ventas/carrito/:usuarioId/checkout`, RF14/RF15/RF16): toma los
+    items del carrito activo del usuario, arranca en `estado: PENDIENTE` (el cobro real
+    depende del módulo `pagos`, que todavía no existe) y vacía el carrito al terminar.
+  - `reservaId`/`cuponId` en `Venta` son columnas nullable sin relación ni validación (los
+    módulos `reservas`/`promociones` todavía no existen) — mismo criterio que
+    `venta_item_id` en `inventario`.
+- **Verificado end-to-end (2026-09-13)** contra Postgres real: ciudad → sucursal → orden de
+  compra (10 unidades) → recepción parcial (6) → recepción total (4, orden pasa a `RECIBIDA`)
+  → venta presencial (3 unidades, stock 10→7) → agregar 2 al carrito → checkout digital (stock
+  7→5, carrito queda vacío) → intento de vender 999 con 5 disponibles → 409 y stock sin cambios
+  (rollback transaccional confirmado) → ajuste manual de -1 por merma (stock 5→4, 201).
+
+## ✅ Estado actual: guards reales, `modules/reservas/` y gestión de usuarios (2026-09-14)
+
+Instrucción explícita del usuario para esta sesión: avanzar todo lo posible de forma autónoma,
+**dejando `pagos` e `ia` como placeholders en blanco** (el usuario los completará después con
+credenciales/API key reales), y sin desviarse de la arquitectura/patrones ya acordados.
+
+- **Seguridad real (antes solo existía a nivel de infraestructura, sin aplicar a ningún
+  controller):** `JwtAuthGuard`/`RolesGuard`/`@Roles(...)`/`@CurrentUser()` (ya vivían en
+  `core/security/`) se aplicaron por fin a **todos** los controllers existentes. Convención:
+  `@Roles(...)` recibe **strings literales** (`'ADMIN'`, `'CAJERO'`, etc.), nunca el enum
+  `RolUsuario` importado de `seguridad/entities/usuario.entity.ts` — eso violaría la regla 1
+  (no importar entidades/enums de otro módulo). La única excepción legítima es
+  `UsuariosController`, que sí puede usar `RolUsuario` porque vive en el propio módulo
+  `seguridad`.
+  - **Gotcha de DI descubierto:** `AuthGuard('jwt')` (mixin del que hereda `JwtAuthGuard`)
+    necesita `AuthModuleOptions`, que solo `PassportModule.register(...)` provee. Como ese
+    `register` vivía únicamente en `SeguridadModule`, usar `@UseGuards(JwtAuthGuard)` en
+    cualquier otro módulo tiraba `UnknownDependenciesException`. Se resolvió con un
+    `CoreSecurityModule` nuevo (`@Global()`, registra `PassportModule` una sola vez, se importa
+    en `AppModule`) — no hace falta re-importar `PassportModule` en cada módulo de negocio.
+  - Patrón de "dueño de su propio recurso" (no es un chequeo de rol): `assertOwnUser(usuarioId,
+    user)` en `core/security/assert-own-user.ts`, usa `ForbiddenException` de Nest. Se comparte
+    entre `CarritosController` y `VentasController` (carrito propio, checkout propio).
+  - `POST /ventas/presenciales` ahora exige rol `ADMIN`/`CAJERO` y **ya no confía en un
+    `cajeroId` del body** — se toma de `@CurrentUser()` (el JWT).
+- **`modules/seguridad` ganó `UsuariosController`/`UsuariosService` (RF02):** `GET
+  /usuarios` (listado, solo `ADMIN`), `PATCH /:id/rol` (valida que `CAJERO`/
+  `ENCARGADO_SUCURSAL` traigan `sucursalId`, si no 409 `OperacionInvalidaException`), `PATCH
+  /:id/estado` (activar/desactivar cuenta — combinado con la revalidación de `is_active` que ya
+  hacía `JwtStrategy`, desactivar a alguien le invalida la sesión en el siguiente request).
+- **`modules/reservas/` nuevo (RF09-12), sigue el mismo patrón de módulo que `ventas`:**
+  - `Reserva` (`clienteId`/`sucursalId` como columnas planas, no relación — mismo criterio que
+    `ventas.reservaId`) + `ReservaItem` (`@ManyToOne` real a `Reserva`, mismo módulo,
+    `onDelete: CASCADE`).
+  - Máquina de estados (`EstadoReserva`: `PENDIENTE → CONFIRMADA → EN_TIENDA → COMPLETADA`,
+    más `CANCELADA`/`EXPIRADA`/`NO_SHOW`) con un mapa `TRANSICIONES_MANUALES` que restringe qué
+    transición puede disparar el staff desde qué estado. **`COMPLETADA` nunca es una transición
+    manual** — solo se llega ahí vía `completarPorVenta(reservaId, manager)`, que
+    `VentasService.registrarVenta()` invoca (dentro de la misma transacción de la venta) cuando
+    una venta presencial trae `reservaId`. Así, cobrar en caja una reserva cierra la reserva y
+    libera el stock reservado atómicamente con el descuento de stock vendido.
+  - `InventarioSucursalService` ganó `ajustarReserva(...)`: mueve `cantidadReservada` (columna
+    separada de `cantidadDisponible`) sin tocar el stock disponible real — reservar valida
+    `cantidadDisponible - cantidadReservada >= cantidad` (deja ver la disponibilidad real de
+    "alguien que entra a la tienda"), liberar (cancelar/expirar/no-show) resta con clamp a 0.
+  - Ownership: `cancelar(id, clienteId)` usa `ForbiddenActionException` (nueva, extiende
+    `BusinessException`, 403) si el que cancela no es el dueño de la reserva — distinto del 403
+    por rol de `RolesGuard`.
+  - `ReservasModule` exporta `ReservasService`; lo consume `VentasModule` (import agregado).
+- **Verificado end-to-end (2026-09-13/14)** contra Postgres real vía `curl`: guards (público vs
+  401 vs 403 vs 200 en los tres casos, por rol y por ownership), gestión de roles (409 sin
+  `sucursalId` para `CAJERO`, 200 con `sucursalId`), ciclo completo de reserva → confirmar → en
+  tienda → venta presencial con `reservaId` → reserva pasa sola a `COMPLETADA` → stock
+  disponible baja y reservado se libera en la misma operación; cancelación con ownership (dueño
+  puede, otro usuario no puede — 403; re-cancelar ya cancelada — 409).
+
+## ✅ Estado actual: `modules/promociones/` y descuentos en ventas (2026-09-15)
+
+- **Entidad `Cupon` (`cupones`)**: código único en mayúsculas (`codigo`), tipo de descuento (`PORCENTAJE` o `MONTO_FIJO`), `valor` (porcentaje 1-100 o monto en centavos), vigencia (`fechaInicio`, `fechaFin`), `usosMaximos` nullable, `usosActuales`, `montoMinimoCents` y `activo`.
+- **Endpoints (`/api/v1/promociones/cupones`)**:
+  - `POST /` (protegido, `ADMIN`): creación con validaciones de fechas lógicas y unicidad.
+  - `GET /` (protegido, `ADMIN`): listado completo para el panel.
+  - `GET /:id` (protegido, `ADMIN`): detalle de cupón.
+  - `PATCH /:id/estado` (protegido, `ADMIN`): alternar estado activo/inactivo.
+  - `POST /validar` (público): valida el código contra el subtotal actual en centavos y calcula el descuento y el total resultante.
+- **Integración transaccional con `Ventas`**:
+  - `CheckoutCarritoDto` y `CreateVentaPresencialDto` reciben `codigoCupon?: string`.
+  - `VentasService.registrarVenta()` invoca `promocionesService.consumirCupon(codigoCupon, subtotalCents, manager)` dentro de la transacción de venta, asociando `cuponId`, descontando el monto y persistiendo el total final (`subtotalCents - descuentoCents`).
+- **Pruebas unitarias completas** en `src/modules/promociones/service/promociones.service.spec.ts` verificando cálculo porcentual, monto fijo acotado al subtotal, validación de estado activo, vigencia, límite de canjes y montos mínimos.
+
+- **Pendiente, a propósito (instrucción explícita del usuario, no un olvido):** `pagos` e `ia`
+  quedan sin implementar — placeholders listos para completar cuando el usuario traiga
+  credenciales de pasarela reales y una API key de IA real, respectivamente.
+
+## 🗺️ Roadmap de los módulos que faltan
+
+```mermaid
+flowchart LR
+    A["🏬 sucursales ✅"] --> D["📊 inventario ✅"]
+    B["📦 catalogo ✅"] --> D
+    D --> E["🗓️ reservas ✅"]
+    D --> F["🛒 ventas ✅"]
+    F --> G["💳 pagos"]
+    B --> H["🏷️ promociones ✅<br/>cupones"]
+    F --> I["🤖 ia<br/>interacciones_ia"]
+    D --> I
+```
+
+Quedan `pagos`, `promociones` e `ia` (`pagos`/`ia` en blanco a propósito, ver sección de arriba
+— esperan credenciales/API key del usuario). Ninguno bloquea a otro entre sí (son hojas del
+árbol de dependencias) — se pueden construir en el orden que convenga. `promociones` no
+depende de nada de esto y se puede dejar para el final — es aditivo, no bloquea nada más.
+
+**`ia` (decisión 2026-09-13, ver Backend.md del vault):** el alcance real de la IA en este
+proyecto quedó acotado a **reportes dinámicos** (consulta en lenguaje natural, texto o voz
+transcrita en el frontend → reporte generado), no recomendación de productos ni chatbot de
+cliente. Por eso `ia` depende de `ventas`/`inventario` (de ahí saca los datos reales del
+reporte) y no de `catalogo`. `interacciones_ia.usuario_id` (renombrado desde `cliente_id`)
+apunta a un `ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. El modelo de IA solo hace
+extracción de intención/parámetros sobre el texto de entrada — nunca genera ni ejecuta SQL
+directo; el backend corre la query paramétrica real (endpoint de reporte ya existente en
+`ventas`/`inventario`) y, si se quiere, le pide al modelo que narre el resultado para
+`output_text`.
+
+Al implementar cualquiera de estos: seguir la convención de carpetas de arriba, extender
+`BaseEntity`, y revisar primero la sección correspondiente de `Diseño_BD.md` en el vault —
+ahí están los campos exactos, los jsonb embebidos (`carritos.items`, `ordenes_compra.items`)
+y las columnas que reemplazan tablas que se fusionaron (`ventas.cupon_id`,
+`pagos.monto_reembolsado_cents`, `movimientos_inventario.venta_item_id`/`motivo`).
+
+## ⚡ Desarrollo local
+
+```bash
+# 1. Levantar Postgres (desde la raíz del monorepo, no acá)
+cd .. && docker compose up -d postgres-db
+
+# 2. Instalar dependencias y copiar env (valores por defecto ya apuntan a localhost:5435)
+cd mirroria-backend
+npm install
+cp .env.example .env   # ya viene con los defaults correctos, no hace falta editarlo en dev
+
+# 3. Correr en watch mode (puerto 3000, prefijo /api/v1)
+npm run start:dev
+
+# Swagger / OpenAPI interactivo
+open http://localhost:3000/api/docs
+
+# Lint (oxlint) y tests (vitest)
+npm run lint
+npm test           # unitarios
+npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule completo)
+```
+
+**Credenciales de desarrollo por defecto** (ver `.env.example` / `../.env`):
+- PostgreSQL: user `mirroria`, password `mirroria_password123`, db `mirroria_db`, puerto host `5435`
+- JWT secret dev: `dev_secret_change_me` (cambiar en producción)
+- `synchronize: true` en TypeORM mientras no haya nada en producción (ver `core/config/typeorm.config.ts`)
+  — análogo a `ddl-auto=update` en erp-backend. Si el proyecto pasa de examen a algo real,
+  reemplazar por migraciones (`typeorm migration:generate`) y apagar `synchronize`.
