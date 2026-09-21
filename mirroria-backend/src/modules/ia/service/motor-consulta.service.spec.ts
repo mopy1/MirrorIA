@@ -57,6 +57,17 @@ describe('MotorConsultaService', () => {
     expect(paramsDeLaLlamada()).toContain('2026-08-01');
   });
 
+  it('hasta incluye el dia entero, no se corta en su medianoche', async () => {
+    await service.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { hasta: '2026-08-31' } }),
+    );
+    // `v."createdAt" <= '2026-08-31'` compara contra la medianoche del 31 y borra
+    // el ultimo dia entero del periodo. Ver el comentario del motor.
+    expect(sqlDeLaLlamada()).toContain(`v."createdAt" < ($1::date + INTERVAL '1 day')`);
+    expect(sqlDeLaLlamada()).not.toContain('v."createdAt" <= $');
+    expect(paramsDeLaLlamada()).toContain('2026-08-31');
+  });
+
   it('rechaza agrupar stock por dia', async () => {
     await expect(
       service.ejecutar(ficha({ metrica: 'stock_disponible', agruparPor: 'dia' })),

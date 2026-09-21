@@ -34,6 +34,7 @@ const ID = {
   venta4: '00000000-0000-4000-8000-000000000015', // PAGADA, julio, suc1, 20000
   venta5: '00000000-0000-4000-8000-000000000019', // PAGADA, agosto, suc1, SIN cliente
   venta6: '00000000-0000-4000-8000-00000000001a', // PAGADA, agosto, suc1, cliente1 otra vez
+  venta7: '00000000-0000-4000-8000-00000000001b', // PAGADA, 31-ago 16:45, suc1, cliente2
   reserva1: '00000000-0000-4000-8000-000000000016',
   reserva2: '00000000-0000-4000-8000-000000000017',
   orden1: '00000000-0000-4000-8000-000000000018',
@@ -70,10 +71,28 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    // A mano: venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000) = 50000.
+    // A mano: venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000)
+    //       + venta7 (10000, el 31 a las 16:45) = 60000.
     // venta3 esta PENDIENTE (99999) y NO entra. venta4 es de julio.
     expect(filas).toHaveLength(1);
-    expect(filas[0].valor).toBe(50000);
+    expect(filas[0].valor).toBe(60000);
+  });
+
+  it('el ultimo dia del rango entra COMPLETO, no solo su medianoche', async () => {
+    // venta7 es del 2026-08-31 a las 16:45. `hasta` se pide en YYYY-MM-DD y las
+    // columnas son timestamp: con `v."createdAt" <= '2026-08-31'` Postgres compara
+    // contra la MEDIANOCHE del 31 y esa venta queda afuera. El reporte de agosto
+    // daria 50000 y nadie notaria que falta el ultimo dia entero.
+    const agosto = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: AGOSTO }),
+    );
+    expect(agosto[0].valor).toBe(60000);
+
+    // Y el dia siguiente sigue afuera: el arreglo incluye el 31 completo, no corre el borde.
+    const hastaEl30 = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { desde: '2026-08-01', hasta: '2026-08-30' } }),
+    );
+    expect(hastaEl30[0].valor).toBe(50000);
   });
 
   it('ingresos por sucursal: dos filas con los totales de cada una', async () => {
@@ -82,8 +101,8 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     );
     const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
     expect(porNombre['Sucursal Sur']).toBe(30000);   // venta2
-    // venta1 (10000) + venta5 (5000) + venta6 (5000); la PENDIENTE no suma
-    expect(porNombre['Sucursal Norte']).toBe(20000);
+    // venta1 (10000) + venta5 (5000) + venta6 (5000) + venta7 (10000); la PENDIENTE no suma
+    expect(porNombre['Sucursal Norte']).toBe(30000);
   });
 
   it('unidades por categoria: solo las de ventas pagadas', async () => {
@@ -95,11 +114,11 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(porNombre['Vestidos']).toBe(2);  // venta1; las 40 de la PENDIENTE no entran
   });
 
-  it('ticket promedio de agosto: (10000 + 30000 + 5000 + 5000) / 4', async () => {
+  it('ticket promedio de agosto: (10000 + 30000 + 5000 + 5000 + 10000) / 5', async () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'ticket_promedio', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    expect(filas[0].valor).toBe(12500);
+    expect(filas[0].valor).toBe(12000);
   });
 
   it('stock disponible por sucursal, sin dimension temporal', async () => {
@@ -167,8 +186,9 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'clientes_activos', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    // En agosto hay 4 ventas PAGADAS: una sin cliente, y cliente1 aparece en dos.
-    // Un COUNT(v.id) daria 4. Solo contar clientes DISTINTOS da 2.
+    // En agosto hay 5 ventas PAGADAS: una sin cliente, cliente1 aparece en dos
+    // (venta1, venta6) y cliente2 en dos (venta2, venta7).
+    // Un COUNT(v.id) daria 5. Solo contar clientes DISTINTOS da 2.
     expect(filas[0].valor).toBe(2);
   });
 
@@ -200,12 +220,13 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
       { sub: ID.cliente1, email: 'admin@test.com', role: 'ADMIN', sucursalId: null },
     );
 
-    // A mano: agosto = venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000) = 50000.
-    //         julio  = venta4 (20000). Variacion = +30000, o sea +150%.
-    expect(res.filas[0].valor).toBe(50000);
+    // A mano: agosto = venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000)
+    //                + venta7 (10000) = 60000.
+    //         julio  = venta4 (20000). Variacion = +40000, o sea +200%.
+    expect(res.filas[0].valor).toBe(60000);
     expect(res.comparacion).not.toBeNull();
     expect(res.comparacion?.variaciones[0]).toMatchObject({
-      actual: 50000, anterior: 20000, deltaAbsoluto: 30000, deltaPorcentual: 150,
+      actual: 60000, anterior: 20000, deltaAbsoluto: 40000, deltaPorcentual: 200,
     });
   });
 });
@@ -291,6 +312,12 @@ async function sembrar(ds: DataSource): Promise<void> {
   // que COUNT(DISTINCT v.cliente_id). Con venta5 (PAGADA, sin cliente) y venta6
   // (PAGADA, cliente1 de nuevo), agosto tiene 4 ventas pagadas pero solo 2
   // clientes distintos, y ahora si discrimina.
+  //
+  // venta7 es la unica sembrada con HORA: 2026-08-31 a las 16:45, el ultimo dia
+  // del rango de agosto. Todas las demas estan a medianoche, que era el unico
+  // instante que el viejo filtro `hasta <= '2026-08-31'` dejaba pasar — por eso
+  // el defecto de `hasta` era invisible. Si alguien vuelve a poner `<=`, esta
+  // venta desaparece de agosto y las pruebas de ingresos rompen.
   await q(`INSERT INTO ventas (id, cliente_id, sucursal_id, canal, estado,
                                subtotal_cents, descuento_cents, total_cents, cupon_id, "createdAt")
            VALUES ($1,  $5,   $7, 'WEB',        'PAGADA',    11000, 1000, 10000, $9,   '2026-08-10'),
@@ -298,10 +325,11 @@ async function sembrar(ds: DataSource): Promise<void> {
                   ($3,  NULL, $7, 'WEB',        'PENDIENTE', 99999,    0, 99999, NULL, '2026-08-25'),
                   ($4,  $5,   $7, 'WEB',        'PAGADA',    20000,    0, 20000, NULL, '2026-07-15'),
                   ($10, NULL, $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-12'),
-                  ($11, $5,   $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-14')`,
+                  ($11, $5,   $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-14'),
+                  ($12, $6,   $7, 'WEB',        'PAGADA',    10000,    0, 10000, NULL, '2026-08-31 16:45:00')`,
     [
       ID.venta1, ID.venta2, ID.venta3, ID.venta4, ID.cliente1, ID.cliente2, ID.suc1, ID.suc2, ID.cupon,
-      ID.venta5, ID.venta6,
+      ID.venta5, ID.venta6, ID.venta7,
     ]);
 
   // Items: venta1 lleva 2 unidades de Vestidos; venta2 lleva 5 de Blusas;

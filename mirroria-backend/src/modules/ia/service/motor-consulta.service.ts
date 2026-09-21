@@ -77,7 +77,13 @@ export class MotorConsultaService {
     }
     if (hasta && columnaFecha) {
       params.push(hasta);
-      condiciones.push(`${columnaFecha} <= $${params.length}`);
+      // `< hasta + 1 dia`, NUNCA `<= hasta`. Las fechas llegan en YYYY-MM-DD (asi se
+      // las pide la instruccion del modelo) y las columnas son `timestamp`: con `<=`,
+      // Postgres compara contra la MEDIANOCHE del ultimo dia y descarta el dia entero
+      // (`'2026-08-31 16:45' <= '2026-08-31'` es falso). En "cuanto vendi este mes"
+      // eso borra el dia de hoy. La forma `< ($n::date + INTERVAL '1 day')` incluye el
+      // dia completo y funciona igual si la columna es `date` o `timestamp`.
+      condiciones.push(`${columnaFecha} < ($${params.length}::date + INTERVAL '1 day')`);
     }
 
     // 4. Joins, sin duplicar.
