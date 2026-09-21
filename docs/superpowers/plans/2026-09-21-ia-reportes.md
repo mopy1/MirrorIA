@@ -3592,12 +3592,41 @@ Expected: el archivo nuevo falla (o la siembra rompe) porque todavía no está e
       motor.ejecutar(ficha({ metrica: 'stock_disponible', agruparPor: 'sucursal', filtros: AGOSTO })),
     ).rejects.toThrow();
   });
+
+  it('comparar agosto contra julio da la variacion real', async () => {
+    // La comparacion vive en IaService, no en el motor: corre la MISMA consulta
+    // dos veces con distinto rango. Esta prueba verifica que los dos periodos se
+    // calculan igual contra datos reales, que es justamente lo que esa estrategia
+    // busca garantizar.
+    const ia = app.get(IaService);
+    const res = await ia.consultar(
+      ficha({
+        metrica: 'ingresos', agruparPor: 'ninguno',
+        filtros: AGOSTO, compararCon: JULIO,
+      }),
+      { sub: ID.cliente1, email: 'admin@test.com', role: 'ADMIN', sucursalId: null },
+    );
+
+    // A mano: agosto = venta1 (10000) + venta2 (30000) = 40000.
+    //         julio  = venta4 (20000). Variacion = +20000, o sea +100%.
+    expect(res.filas[0].valor).toBe(40000);
+    expect(res.comparacion).not.toBeNull();
+    expect(res.comparacion?.variaciones[0]).toMatchObject({
+      actual: 40000, anterior: 20000, deltaAbsoluto: 20000, deltaPorcentual: 100,
+    });
+  });
+```
+
+Para esa última prueba hay que importar el servicio arriba del archivo:
+
+```ts
+import { IaService } from './../src/modules/ia/service/ia.service.js';
 ```
 
 - [ ] **Step 4: Verificar que todo pasa**
 
 Run: `npm run test:e2e`
-Expected: PASS — las 12 pruebas nuevas, más las que ya existían.
+Expected: PASS — las 13 pruebas nuevas, más las que ya existían.
 
 Si alguna falla, **el fallo es real**: es un número equivocado o un nombre de columna
 inexistente, no una prueba mal escrita. Arreglá el catálogo o el motor, no la aserción,
