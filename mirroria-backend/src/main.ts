@@ -6,7 +6,7 @@ import { buildCorsOptions } from './core/config/cors.config.js';
 import { GlobalExceptionFilter } from './core/exception/global-exception.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api/v1');
   app.enableCors(buildCorsOptions());

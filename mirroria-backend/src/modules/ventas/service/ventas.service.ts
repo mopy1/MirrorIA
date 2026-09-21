@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
@@ -110,6 +110,109 @@ export class VentasService {
       throw new RecursoNoEncontradoException('Venta', id);
     }
     return this.cargarYMapear(venta);
+  }
+
+  /**
+   * Lleva una venta de PENDIENTE a PAGADA. La llama el modulo `pagos` cuando un
+   * cobro se aprueba — por webhook de Stripe o por confirmacion de un cajero.
+   *
+   * Idempotente a proposito: Stripe reintenta los webhooks, y una venta que ya
+   * esta PAGADA tiene que quedarse quieta en vez de fallar. Pero una venta
+   * CANCELADA si es un error: significa que su stock ya volvio al inventario y
+   * cobrarla dejaria vendida mercaderia que el sistema cree tener.
+   */
+  async marcarPagada(ventaId: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Venta) : this.ventaRepository;
+    const venta = await repo.findOne({ where: { id: ventaId } });
+    if (!venta) {
+      throw new RecursoNoEncontradoException('Venta', ventaId);
+    }
+    if (venta.estado === EstadoVenta.PAGADA) {
+      return;
+    }
+    if (venta.estado !== EstadoVenta.PENDIENTE) {
+      throw new OperacionInvalidaException(
+        `No se puede cobrar una venta en estado ${venta.estado}`,
+      );
+    }
+    venta.estado = EstadoVenta.PAGADA;
+    await repo.save(venta);
+  }
+
+  /**
+   * Las ventas todavia PENDIENTE, las mas viejas primero. La usa la barrida de
+   * vencimientos del modulo `pagos`, que antes partia de la tabla `pagos` y por
+   * eso no veia nunca una venta que nunca llego a crear una fila de pago: su
+   * stock y su cupon no volvian jamas.
+   *
+   * El orden ascendente importa: con mas pendientes que el tope, sin `order` las
+   * mas viejas — las que mas tiempo llevan reteniendo stock — podian quedar
+   * afuera para siempre.
+   */
+  async findPendientesMasViejasPrimero(limite: number): Promise<Venta[]> {
+    return this.ventaRepository.find({
+      where: { estado: EstadoVenta.PENDIENTE },
+      order: { createdAt: 'ASC' },
+      take: limite,
+    });
+  }
+
+  /**
+   * Deshace un checkout que nunca se pago: devuelve el stock, devuelve el uso del
+   * cupon y deja la venta CANCELADA. Todo en una transaccion: o se deshacen las
+   * dos cosas o no se deshace ninguna.
+   *
+   * El movimiento se registra como AJUSTE y no como DEVOLUCION porque la
+   * mercaderia nunca salio — nadie pago ni retiro nada. Llamarlo devolucion
+   * inflaria la metrica de devoluciones con ventas que jamas ocurrieron.
+   */
+  async cancelarPorPagoNoCompletado(ventaId: string, motivo: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const ventaRepo = manager.getRepository(Venta);
+      // SELECT ... FOR UPDATE, dentro de la transaccion: sin el bloqueo, dos
+      // barridas simultaneas leian las dos la venta en PENDIENTE y las dos
+      // devolvian el stock, porque el estado recien se escribe al final. El
+      // inventario ganaba unidades que no existen, registradas como ajustes
+      // legitimos. No es teorico: no hay planificador, asi que la barrida
+      // corre al inicio de tres endpoints de uso normal y alcanza con dos
+      // clientas operando a la vez. Con el bloqueo, la segunda espera a que la
+      // primera cierre y encuentra la venta ya CANCELADA.
+      const venta = await ventaRepo.findOne({
+        where: { id: ventaId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!venta) {
+        throw new RecursoNoEncontradoException('Venta', ventaId);
+      }
+      if (venta.estado !== EstadoVenta.PENDIENTE) {
+        throw new OperacionInvalidaException(
+          `Solo se cancela una venta PENDIENTE, y esta esta en ${venta.estado}`,
+        );
+      }
+
+      const items = await manager.getRepository(VentaItem).find({
+        where: { venta: { id: ventaId } },
+      });
+
+      for (const item of items) {
+        await this.inventarioSucursalService.ajustarStock({
+          varianteId: item.varianteId,
+          sucursalId: venta.sucursalId,
+          cantidad: item.cantidad, // positivo: devuelve lo que el checkout resto
+          tipoMovimiento: TipoMovimientoInventario.AJUSTE,
+          motivo: `Liberacion por venta no pagada: ${motivo}`,
+          usuarioId: venta.clienteId,
+          manager,
+        });
+      }
+
+      if (venta.cuponId) {
+        await this.promocionesService.liberarCupon(venta.cuponId, manager);
+      }
+
+      venta.estado = EstadoVenta.CANCELADA;
+      await ventaRepo.save(venta);
+    });
   }
 
   /**

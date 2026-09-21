@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { useCart } from "@/hooks/useCart"
 import { ApiError } from "@/lib/api"
+import { paymentsApi } from "@/features/payments/api/paymentsApi"
+import type { MetodoPago } from "@/features/payments/types/payments.types"
 import { checkoutApi } from "../api/checkoutApi"
 
 export function useCheckout() {
@@ -13,14 +15,44 @@ export function useCheckout() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function confirmar(codigoCupon?: string) {
+  async function confirmar(metodo: MetodoPago, codigoCupon?: string) {
     if (!user || !sucursalId) return
     setIsLoading(true)
     setError(null)
     try {
       const venta = await checkoutApi.checkout(user.id, sucursalId, codigoCupon)
       await refresh()
-      navigate(`/checkout/${venta.id}/confirmacion`)
+
+      if (metodo === "TARJETA") {
+        try {
+          const { url } = await paymentsApi.iniciarTarjeta(venta.id)
+          // La pasarela vuelve a una URL fija (sin la venta en la ruta ni en
+          // query params) — guardamos de cuál venta se trata para poder
+          // consultar su estado real al volver, en vez de confiar en la URL.
+          sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
+          window.location.href = url
+          return
+        } catch (err) {
+          // El servidor de la demo puede no tener claves de Stripe (503): es un
+          // caso esperado, no un error random. Pero dejarla acá era un callejón
+          // sin salida: el checkout ya creó la venta, descontó el stock, consumió
+          // el cupón y VACIÓ EL CARRITO, así que no puede reintentar nada desde
+          // esta pantalla — no queda carrito que comprar. Se la manda al pago de
+          // la venta ya creada, que es el único camino que sigue abierto: QR o
+          // efectivo no necesitan carrito.
+          navigate(`/pago/${venta.id}`, {
+            state: {
+              motivo:
+                err instanceof ApiError
+                  ? err.message
+                  : "No se pudo iniciar el pago con tarjeta",
+            },
+          })
+          return
+        }
+      }
+
+      navigate(`/pago/${venta.id}?metodo=${metodo}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo completar la compra")
     } finally {

@@ -1,5 +1,5 @@
 import {
-  ArrowSquareOut, CalendarBlank, ChartBar, Package,
+  ArrowSquareOut, CalendarBlank, ChartBar, Money, Package,
   SignOut, Sparkle, Storefront, Ticket, Truck, Users, Warehouse, X, type Icon,
 } from "@phosphor-icons/react"
 import { Link, useLocation } from "react-router-dom"
@@ -33,6 +33,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     title: "Ventas y Promociones",
     items: [
       { label: "Ventas", href: "/admin/ventas", icon: ChartBar },
+      { label: "Cobros", href: "/admin/cobros", icon: Money },
       { label: "Reservas", href: "/admin/reservas", icon: CalendarBlank },
       { label: "Cupones", href: "/admin/cupones", icon: Ticket, badge: "Promo" },
       { label: "Reportes IA", href: "/admin/reportes", icon: Sparkle, badge: "IA" },

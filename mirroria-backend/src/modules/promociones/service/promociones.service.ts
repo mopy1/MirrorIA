@@ -216,6 +216,22 @@ export class PromocionesService {
     return { cupon, descuentoCents };
   }
 
+  /**
+   * Devuelve un uso del cupon. Lo llama la cancelacion de una venta que nunca se
+   * pago: sin esto, una clienta que abandona tres checkouts quema tres usos sin
+   * haber comprado nada, y un cupon con tope se agota solo.
+   *
+   * Piso en 0 y silencio si el cupon ya no existe: cancelar una venta no puede
+   * fallar porque alguien borro un cupon viejo.
+   */
+  async liberarCupon(cuponId: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Cupon) : this.cuponRepository;
+    const cupon = await repo.findOne({ where: { id: cuponId } });
+    if (!cupon) return;
+    cupon.usosActuales = Math.max(0, cupon.usosActuales - 1);
+    await repo.save(cupon);
+  }
+
   private calcularDescuento(cupon: Cupon, subtotalCents: number): number {
     if (cupon.tipoDescuento === TipoDescuentoCupon.PORCENTAJE) {
       const desc = Math.round(subtotalCents * (cupon.valor / 100));

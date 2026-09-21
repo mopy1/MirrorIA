@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { CatalogoAdminPage } from "@/features/admin/pages/CatalogoAdminPage"
+import { CobrosAdminPage } from "@/features/admin/pages/CobrosAdminPage"
 import { CuponesAdminPage } from "@/features/admin/pages/CuponesAdminPage"
 import { InventarioAdminPage } from "@/features/admin/pages/InventarioAdminPage"
 import { ProveedoresAdminPage } from "@/features/admin/pages/ProveedoresAdminPage"
@@ -18,6 +19,7 @@ import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
 import { CartPage } from "@/features/cart/pages/CartPage"
 import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
 import { OrderConfirmationPage } from "@/features/checkout/pages/OrderConfirmationPage"
+import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import { AdminLayout } from "@/layouts/AdminLayout"
 import { StorefrontLayout } from "@/layouts/StorefrontLayout"
@@ -98,6 +100,36 @@ function App() {
             <StorefrontLayout>
               <ProtectedRoute>
                 <OrderConfirmationPage />
+              </ProtectedRoute>
+            </StorefrontLayout>
+          }
+        />
+        <Route
+          path="/pago/:ventaId"
+          element={
+            <StorefrontLayout>
+              <ProtectedRoute>
+                <PagoPage />
+              </ProtectedRoute>
+            </StorefrontLayout>
+          }
+        />
+        <Route
+          path="/pago/exito"
+          element={
+            <StorefrontLayout>
+              <ProtectedRoute>
+                <PagoPage />
+              </ProtectedRoute>
+            </StorefrontLayout>
+          }
+        />
+        <Route
+          path="/pago/cancelado"
+          element={
+            <StorefrontLayout>
+              <ProtectedRoute>
+                <PagoPage />
               </ProtectedRoute>
             </StorefrontLayout>
           }
@@ -192,6 +224,16 @@ function App() {
             <AdminPage>
               <UsuariosAdminPage />
             </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/cobros"
+          element={
+            <StaffRoute allowedRoles={["ADMIN", "CAJERO"]}>
+              <AdminLayout>
+                <CobrosAdminPage />
+              </AdminLayout>
+            </StaffRoute>
           }
         />
         <Route

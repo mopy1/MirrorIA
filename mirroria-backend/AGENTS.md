@@ -58,7 +58,7 @@ src/
     ├── reservas/                  # ✅ implementado — reservas, reserva_items (RF09-12, transiciones de estado, integración con ventas)
     ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
     ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
-    ├── pagos/                     # 🚧 placeholder — pagos
+    ├── pagos/                     # ✅ implementado — pagos (RF19: Stripe con webhook firmado + cobro manual QR/efectivo)
     └── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
 ```
 
@@ -328,9 +328,8 @@ credenciales/API key reales), y sin desviarse de la arquitectura/patrones ya aco
   - `VentasService.registrarVenta()` invoca `promocionesService.consumirCupon(codigoCupon, subtotalCents, manager)` dentro de la transacción de venta, asociando `cuponId`, descontando el monto y persistiendo el total final (`subtotalCents - descuentoCents`).
 - **Pruebas unitarias completas** en `src/modules/promociones/service/promociones.service.spec.ts` verificando cálculo porcentual, monto fijo acotado al subtotal, validación de estado activo, vigencia, límite de canjes y montos mínimos.
 
-- **Pendiente, a propósito (instrucción explícita del usuario, no un olvido):** `pagos`
-  queda sin implementar — placeholder listo para completar cuando el usuario traiga
-  credenciales de pasarela reales.
+- **`pagos` (implementado 2026-09-21):** lo que acá quedaba anotado como pendiente a propósito
+  se cerró — ver la sección de estado dedicada más abajo, después de `ia`.
 
 ## ✅ Estado actual: `modules/ia/` — reportes dinámicos por IA (CU24, 2026-09-21)
 
@@ -414,6 +413,93 @@ Lo más valioso para quien toque `catalogo-metricas.ts` después:
   necesitan `CROSS JOIN LATERAL jsonb_array_elements(oc.items) AS it(item)` y castear
   `(it.item->>'cantidadPedida')::int` a mano — no hay `orden_compra_items` que joinear.
 
+## ✅ Estado actual: `modules/pagos/` — RF19 cerrado (2026-09-21)
+
+Antes de este módulo **ninguna venta digital llegaba nunca a `PAGADA`**: el checkout la dejaba
+`PENDIENTE` y no existía nada que la cobrara, así que los reportes de ingresos de `ia` (CU24)
+solo veían el canal presencial. `pagos` cierra ese circuito.
+
+- **Dos caminos de cobro para tres métodos.** `MetodoPago` tiene `TARJETA`, `QR` y `EFECTIVO`,
+  pero solo hay dos mecanismos: **QR y efectivo son el mismo flujo con distinta pantalla**
+  (`iniciarManual`/`confirmarManual`, `ProveedorPago.MANUAL`) porque en los dos casos ningún
+  banco le avisa al sistema — un `CAJERO` o `ADMIN` confirma que el dinero llegó. **Tarjeta** va
+  por Stripe en modo de prueba (`ProveedorPago.STRIPE`), con página de pago alojada
+  (`checkout.sessions.create`, `PasarelaStripe.crearSesion`) — el formulario de tarjeta nunca
+  toca este código.
+- **El aviso firmado de la pasarela es la única autoridad sobre un cobro con tarjeta.** El
+  regreso del navegador a `PAGOS_URL_EXITO` no prueba nada: esa URL se puede escribir a mano y
+  visitarla no cobra nada. Solo `POST /pagos/webhook` (`PagosService.procesarEvento`), verificado
+  contra el cuerpo crudo con `Stripe.webhooks.constructEvent`
+  (`PasarelaStripe.verificarEvento`), puede mover un pago a `APROBADO`. El endpoint no lleva
+  guard a propósito — la pasarela no manda JWT — y su única defensa es la firma.
+- **Idempotencia:** `pagos.event_id` es `UNIQUE NOT NULL` (`Pago.eventId`) y además
+  `procesarEvento` corta si el pago ya no está `PENDIENTE`. Hacen falta las dos cosas porque
+  Stripe reintenta el webhook: el índice evita que dos pagos reclamen el mismo evento y el
+  chequeo de estado evita reprocesar el mismo evento sobre un pago que ya se resolvió. Antes de
+  que llegue el evento real, la fila vive con `eventId: sesion:<id de la sesión>` (creado en
+  `iniciarTarjeta`); un cobro manual usa `manual:<uuid>` — el unique exige un valor siempre y
+  ninguno de los dos tiene todavía un evento real de pasarela.
+- **Un cobro con tarjeta no se puede confirmar a mano.** `confirmarManual` rechaza con
+  `VentaNoPagableException` si `pago.metodo === TARJETA` — si se pudiera, un cajero marcaría
+  como cobrada una compra que la pasarela nunca aprobó.
+- **Cancelar una venta impaga devuelve el stock y el uso del cupón, en una sola transacción**
+  (`VentasService.cancelarPorPagoNoCompletado`, invocada por
+  `ExpiracionService.expirarVencidas`): recorre los `venta_items`, llama
+  `InventarioSucursalService.ajustarStock` con cantidad positiva y `TipoMovimiento.AJUSTE` —
+  **no `DEVOLUCION`**, porque la mercadería nunca salió del depósito, no hay nada físico que
+  devolver, solo una reserva contable que se deshace — y si la venta traía cupón,
+  `PromocionesService.liberarCupon` le resta el uso.
+- **Sin claves de Stripe el cobro manual sigue funcionando.** `PasarelaStripe.estaConfigurada()`
+  exige `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`; sin ellas, **solo** `iniciarTarjeta`
+  devuelve 503 (`PasarelaNoConfiguradaException`). `iniciarManual`/`confirmarManual` no dependen
+  de la pasarela en absoluto, así que el sistema entero se demuestra sin ninguna credencial —
+  mismo criterio que `ia` demostrándose sin `IA_API_KEY` por la vía manual.
+- **No hay planificador.** `ExpiracionService.expirarVencidas` se dispara desde tres puntos del
+  uso normal — `iniciarManual`, `iniciarTarjeta` y `confirmarManual`, siempre antes de tocar
+  cualquier otra cosa — y desde `POST /pagos/expirar-vencidas` (`ADMIN`). Costo aceptado y
+  declarado en el spec: un sistema ocioso no libera stock hasta que alguien lo use. Los plazos
+  son distintos por método (`PAGOS_MINUTOS_VENCIMIENTO`, 30 min por defecto, para tarjeta;
+  `PAGOS_MINUTOS_VENCIMIENTO_MANUAL`, 1440, para QR/efectivo), porque pagar en el momento y
+  pagar al retirar en sucursal son plazos de negocio distintos.
+- **`main.ts` necesita recibir el cuerpo crudo** (`NestFactory.create(AppModule, { rawBody:
+  true })`) o la firma del webhook no valida nunca — Stripe firma sobre los bytes exactos, y si
+  el framework los parsea antes, `req.rawBody` llega vacío. **Hay una prueba que vigila
+  justo esa línea** (`test/bootstrap.e2e-spec.ts`): lee `main.ts` de archivo y busca
+  `rawBody:true` sin espacios, porque ningún otro `.e2e-spec` arranca la app por `bootstrap()`
+  —todos crean su propio `TestingModule`— así que ninguna otra prueba detectaría la regresión.
+- **Si una clienta paga y la venta ya fue cancelada** (la expiración le ganó de mano mientras
+  tenía la sesión de pago abierta), **el pago se guarda igual, marcado para reembolso**
+  (`motivoReembolso`) en vez de descartarse o revertirse: el dinero entró de verdad —la pasarela
+  ya cobró— y perder esa constancia sería peor que la inconsistencia. Se devuelve `200` al
+  webhook a propósito, no un error: ningún reintento de la pasarela va a arreglar esto solo, lo
+  resuelve una persona viendo el registro.
+- **La moneda de Stripe es configurable** (`STRIPE_MONEDA`) y cae en `usd` — el boliviano puede
+  no estar habilitado en una cuenta de prueba de Stripe.
+
+**El QR no es una integración.** Es una imagen del equipo (`PAGOS_QR_URL`) y la confirmación la
+hace una persona; el mismo QR sirve para todas las ventas, así que el sistema **no puede
+vincular un pago con una compra concreta** salvo por monto y hora — no hay forma de que el
+sistema sepa por sí solo qué transferencia corresponde a qué venta. Además mueve **dinero real a
+una cuenta personal** del equipo, lo que se aparta de la exclusión de "dinero real" del capítulo
+1 del documento del proyecto (pendiente de declarar ahí, ver aviso al usuario).
+
+**Verificado (2026-09-21):** 150 unitarias + 50 e2e en verde (`npm test` / `npm run test:e2e`),
+`npm run lint` y `npm run build` limpios en el backend, `tsc --noEmit` y `npm run build` limpios
+en el frontend, **23 de 23 tablas del diseño completas por primera vez** (antes de esta tarea:
+22).
+
+**No probado en este entorno:** el flujo contra Stripe real (no hay claves de una cuenta real
+acá, solo modo test), el QR escaneado con un banco de verdad, y las pantallas de pago vistas por
+una persona.
+
+### Hallazgo preexistente, ajeno a este trabajo: `ventas.numeroComprobante`
+
+Campo muerto: se crea siempre en `null` (`VentasService.registrarVenta`/`registrarPresencial`) y
+ningún punto del backend lo escribe nunca, ni siquiera al cobrar — no se tocó en esta tarea
+porque no era su alcance. Por eso la referencia que ve la clienta (`InstruccionesResponseDto`
+hace `venta.numeroComprobante ?? venta.id`, igual que `iniciarTarjeta` en la descripción de la
+sesión de Stripe) cae siempre al identificador de la venta. Vale avisarle a Leonardo.
+
 ## 🗺️ Roadmap de los módulos que faltan
 
 ```mermaid
@@ -422,14 +508,15 @@ flowchart LR
     B["📦 catalogo ✅"] --> D
     D --> E["🗓️ reservas ✅"]
     D --> F["🛒 ventas ✅"]
-    F --> G["💳 pagos"]
+    F --> G["💳 pagos ✅"]
     B --> H["🏷️ promociones ✅<br/>cupones"]
     F --> I["🤖 ia ✅<br/>interacciones_ia"]
     D --> I
 ```
 
-Queda solo `pagos` (en blanco a propósito, ver sección de arriba — espera credenciales de
-pasarela reales del usuario). No bloquea a nada más: es una hoja del árbol de dependencias.
+**Los 10 módulos del diseño están implementados.** `pagos` era la única hoja pendiente del
+árbol de dependencias y se cerró el 2026-09-21 (ver la sección de estado de arriba) — depende de
+`ventas` (para `marcarPagada`/`cancelarPorPagoNoCompletado`), como muestra el diagrama.
 
 **`ia` (decisión 2026-09-13, implementado 2026-09-21, ver Backend.md del vault):** el alcance
 real de la IA en este proyecto quedó acotado a **reportes dinámicos** (consulta en lenguaje
@@ -440,11 +527,13 @@ productos ni chatbot de cliente. Por eso `ia` depende de `ventas`/`inventario`/`
 `ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. Ver la sección de estado de arriba para
 el detalle real de la implementación.
 
-Al implementar `pagos`: seguir la convención de carpetas de arriba, extender
-`BaseEntity`, y revisar primero la sección correspondiente de `Diseño_BD.md` en el vault —
-ahí están los campos exactos, los jsonb embebidos (`carritos.items`, `ordenes_compra.items`)
-y las columnas que reemplazan tablas que se fusionaron (`ventas.cupon_id`,
-`pagos.monto_reembolsado_cents`, `movimientos_inventario.venta_item_id`/`motivo`).
+Nota histórica (ya resuelta): al planificar `pagos` se dejó dicho acá seguir la convención de
+carpetas de arriba, extender `BaseEntity`, y revisar primero la sección correspondiente de
+`Diseño_BD.md` en el vault — los campos exactos, los jsonb embebidos (`carritos.items`,
+`ordenes_compra.items`) y las columnas que reemplazan tablas que se fusionaron
+(`ventas.cupon_id`, `pagos.monto_reembolsado_cents`,
+`movimientos_inventario.venta_item_id`/`motivo`). Se siguió tal cual; ver la sección de estado
+de `pagos` de arriba para el resultado real.
 
 ## ⚡ Desarrollo local
 
