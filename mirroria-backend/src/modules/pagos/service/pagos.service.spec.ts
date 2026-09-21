@@ -178,6 +178,55 @@ describe('PagosService — cobro manual', () => {
     expect(primero).not.toBe(segundo);
   });
 
+  describe('reutilizacion de un pago manual pendiente (no duplicar por refresh)', () => {
+    it('dos llamadas seguidas sobre la misma venta dejan una sola fila: la segunda reutiliza la existente', async () => {
+      // Primera llamada: no hay ningun pago pendiente todavia.
+      // Segunda llamada: ya existe la fila que creo la primera.
+      pagoRepo.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'p1', ventaId: 'v1', metodo: MetodoPago.QR,
+          estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL,
+          eventId: 'manual:existente',
+        });
+
+      const primera = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+      const segunda = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+
+      expect(segunda.pagoId).toBe(primera.pagoId);
+      // La primera llamada crea (entidad sin id todavia); la segunda guarda
+      // la fila YA existente (con su id), no una entidad nueva.
+      expect(pagoRepo.save.mock.calls[0][0]).not.toHaveProperty('id');
+      expect(pagoRepo.save.mock.calls[1][0]).toMatchObject({ id: 'p1' });
+    });
+
+    it('si la clienta cambia de metodo (QR a efectivo), se actualiza la fila existente en vez de crear otra', async () => {
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', metodo: MetodoPago.QR,
+        estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL,
+        eventId: 'manual:existente',
+      });
+
+      const res = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
+
+      expect(res.pagoId).toBe('p1');
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'p1', metodo: MetodoPago.EFECTIVO }),
+      );
+    });
+
+    it('si no hay ningun pago pendiente para la venta, se crea uno nuevo', async () => {
+      pagoRepo.findOne.mockResolvedValue(null);
+
+      await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+
+      expect(pagoRepo.save.mock.calls[0][0]).not.toHaveProperty('id');
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ ventaId: 'v1', estado: EstadoPago.PENDIENTE }),
+      );
+    });
+  });
+
   describe('cobro con tarjeta', () => {
     it('sin pasarela configurada devuelve 503 y NO crea ningun pago', async () => {
       pasarela.estaConfigurada.mockReturnValue(false);

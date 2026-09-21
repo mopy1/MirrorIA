@@ -48,19 +48,32 @@ export class PagosService {
       throw new VentaNoPagableException(`su estado es ${venta.estado}`);
     }
 
-    const pago = await this.pagoRepository.save(
-      this.pagoRepository.create({
-        ventaId,
-        proveedorPago: ProveedorPago.MANUAL,
-        metodo: dto.metodo,
-        montoCents: venta.totalCents,
-        estado: EstadoPago.PENDIENTE,
-        // El unique de event_id exige un valor siempre. Para un cobro manual no
-        // hay evento de ninguna pasarela, asi que se genera uno propio.
-        eventId: `manual:${randomUUID()}`,
-        referenciaExterna: null,
-      }),
-    );
+    // Reutiliza la fila pendiente si ya existe, en vez de crear otra: un
+    // refresh de la pantalla de pago no debe duplicarla. Sin esto, el panel
+    // de cobros del equipo acumula filas indistinguibles para una sola venta
+    // y, si la expiracion cancela la venta con la primera, las duplicadas
+    // fallan al cancelar y quedan pendientes para siempre.
+    const existente = await this.pagoRepository.findOne({
+      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL },
+    });
+
+    // Si la clienta cambio de metodo (de QR a efectivo, por ejemplo), se
+    // actualiza la misma fila en vez de crear una nueva.
+    const pago = existente
+      ? await this.pagoRepository.save({ ...existente, metodo: dto.metodo })
+      : await this.pagoRepository.save(
+          this.pagoRepository.create({
+            ventaId,
+            proveedorPago: ProveedorPago.MANUAL,
+            metodo: dto.metodo,
+            montoCents: venta.totalCents,
+            estado: EstadoPago.PENDIENTE,
+            // El unique de event_id exige un valor siempre. Para un cobro manual no
+            // hay evento de ninguna pasarela, asi que se genera uno propio.
+            eventId: `manual:${randomUUID()}`,
+            referenciaExterna: null,
+          }),
+        );
 
     const esQr = dto.metodo === MetodoPago.QR;
     return {
