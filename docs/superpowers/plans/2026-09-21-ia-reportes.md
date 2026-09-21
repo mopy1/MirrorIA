@@ -2385,7 +2385,7 @@ export class GeminiProveedor implements ProveedorIa {
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('IA_API_KEY');
-    this.modelo = config.get<string>('IA_MODELO') ?? 'gemini-2.0-flash';
+    this.modelo = config.get<string>('IA_MODELO') ?? 'gemini-3.8-flash';
   }
 
   estaConfigurado(): boolean {
@@ -2450,7 +2450,7 @@ export class GeminiProveedor implements ProveedorIa {
 ```
 
 > **Verificar contra la documentación vigente de Google** el nombre del modelo
-> (`IA_MODELO`, por defecto `gemini-2.0-flash`) y que el header de autenticación siga siendo
+> (`IA_MODELO`, por defecto `gemini-3.8-flash`) y que el header de autenticación siga siendo
 > `x-goog-api-key`. Si cambió, ajustar acá: está todo en un solo archivo a propósito.
 
 En `ia.service.ts`, el bloque de imports queda así (los seis de abajo son nuevos):
@@ -2552,7 +2552,7 @@ En `.env.example`, al final:
 # pero POST /ia/reportes/consulta sigue funcionando con una ficha armada a mano.
 # Sacar una clave propia del proyecto en https://aistudio.google.com/apikey
 IA_API_KEY=
-IA_MODELO=gemini-2.0-flash
+IA_MODELO=gemini-3.8-flash
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
