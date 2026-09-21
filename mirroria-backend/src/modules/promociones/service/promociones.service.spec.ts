@@ -163,4 +163,30 @@ describe('PromocionesService', () => {
       expect(mockCuponRepo.save).toHaveBeenCalledWith(cuponMock);
     });
   });
+
+  describe('liberarCupon', () => {
+    it('devuelve un uso del cupon', async () => {
+      const cupon = { id: 'c1', usosActuales: 5 } as Cupon;
+      mockCuponRepo.findOne = vi.fn().mockResolvedValue(cupon);
+      await service.liberarCupon('c1');
+      expect(mockCuponRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ usosActuales: 4 }),
+      );
+    });
+
+    it('no deja el contador en negativo', async () => {
+      const cupon = { id: 'c1', usosActuales: 0 } as Cupon;
+      mockCuponRepo.findOne = vi.fn().mockResolvedValue(cupon);
+      await service.liberarCupon('c1');
+      expect(mockCuponRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ usosActuales: 0 }),
+      );
+    });
+
+    it('un cupon inexistente no rompe: cancelar una venta no puede fallar por esto', async () => {
+      mockCuponRepo.findOne = vi.fn().mockResolvedValue(null);
+      await expect(service.liberarCupon('no-existe')).resolves.toBeUndefined();
+      expect(mockCuponRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });

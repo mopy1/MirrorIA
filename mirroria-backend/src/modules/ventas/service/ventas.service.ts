@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
@@ -110,6 +110,80 @@ export class VentasService {
       throw new RecursoNoEncontradoException('Venta', id);
     }
     return this.cargarYMapear(venta);
+  }
+
+  /**
+   * Lleva una venta de PENDIENTE a PAGADA. La llama el modulo `pagos` cuando un
+   * cobro se aprueba — por webhook de Stripe o por confirmacion de un cajero.
+   *
+   * Idempotente a proposito: Stripe reintenta los webhooks, y una venta que ya
+   * esta PAGADA tiene que quedarse quieta en vez de fallar. Pero una venta
+   * CANCELADA si es un error: significa que su stock ya volvio al inventario y
+   * cobrarla dejaria vendida mercaderia que el sistema cree tener.
+   */
+  async marcarPagada(ventaId: string, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Venta) : this.ventaRepository;
+    const venta = await repo.findOne({ where: { id: ventaId } });
+    if (!venta) {
+      throw new RecursoNoEncontradoException('Venta', ventaId);
+    }
+    if (venta.estado === EstadoVenta.PAGADA) {
+      return;
+    }
+    if (venta.estado !== EstadoVenta.PENDIENTE) {
+      throw new OperacionInvalidaException(
+        `No se puede cobrar una venta en estado ${venta.estado}`,
+      );
+    }
+    venta.estado = EstadoVenta.PAGADA;
+    await repo.save(venta);
+  }
+
+  /**
+   * Deshace un checkout que nunca se pago: devuelve el stock, devuelve el uso del
+   * cupon y deja la venta CANCELADA. Todo en una transaccion: o se deshacen las
+   * dos cosas o no se deshace ninguna.
+   *
+   * El movimiento se registra como AJUSTE y no como DEVOLUCION porque la
+   * mercaderia nunca salio — nadie pago ni retiro nada. Llamarlo devolucion
+   * inflaria la metrica de devoluciones con ventas que jamas ocurrieron.
+   */
+  async cancelarPorPagoNoCompletado(ventaId: string, motivo: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const ventaRepo = manager.getRepository(Venta);
+      const venta = await ventaRepo.findOne({ where: { id: ventaId } });
+      if (!venta) {
+        throw new RecursoNoEncontradoException('Venta', ventaId);
+      }
+      if (venta.estado !== EstadoVenta.PENDIENTE) {
+        throw new OperacionInvalidaException(
+          `Solo se cancela una venta PENDIENTE, y esta esta en ${venta.estado}`,
+        );
+      }
+
+      const items = await manager.getRepository(VentaItem).find({
+        where: { venta: { id: ventaId } },
+      });
+
+      for (const item of items) {
+        await this.inventarioSucursalService.ajustarStock({
+          varianteId: item.varianteId,
+          sucursalId: venta.sucursalId,
+          cantidad: item.cantidad, // positivo: devuelve lo que el checkout resto
+          tipoMovimiento: TipoMovimientoInventario.AJUSTE,
+          motivo: `Liberacion por venta no pagada: ${motivo}`,
+          usuarioId: venta.clienteId,
+          manager,
+        });
+      }
+
+      if (venta.cuponId) {
+        await this.promocionesService.liberarCupon(venta.cuponId, manager);
+      }
+
+      venta.estado = EstadoVenta.CANCELADA;
+      await ventaRepo.save(venta);
+    });
   }
 
   /**
