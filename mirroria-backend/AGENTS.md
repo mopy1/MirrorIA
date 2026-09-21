@@ -364,6 +364,21 @@ parametrizado — nunca hay texto de un LLM concatenado en una query.
   (`IaService.preguntar`, el camino con lenguaje natural) exige la key — si falta, devuelve
   `IaNoConfiguradaException`, **503**, con el mensaje señalando el endpoint manual como
   alternativa.
+- **⚠️ Datos que salen hacia un tercero (Google), y en qué paso.** El modelo entra dos
+  veces y en cada una sale algo distinto. En `extraerFicha` sale **la pregunta tal cual la
+  escribió o dictó la usuaria** (nada de la base: todavía no se consultó nada). En `narrar`
+  salen **las filas ya calculadas** — etiqueta y valor de cada una — y, si la ficha compara
+  períodos, también la serie anterior y las variaciones. Esas etiquetas son datos del
+  negocio, y con `agruparPor: 'cliente'` son el **nombre y apellido reales de las clientas**
+  (`usuarios.full_name`) junto con lo que cada una gastó: un reporte de "mis mejores
+  clientas" manda esa lista a la API de Google. **No sale** SQL, ni filas crudas, ni `uuid`
+  (la clave de fila se usa solo del lado del servidor para casar los dos períodos), ni
+  correos, ni el JWT. La narración es opcional por diseño: sin clave o ante un fallo el
+  reporte se devuelve con `narrativa: null`, y `POST /ia/reportes/consulta` no toca al
+  proveedor — hay un camino completo en el que ningún dato sale. Lo que **falta** es el
+  aviso a la usuaria y el respaldo legal de ese envío; si no se puede sostener, la salida
+  simple es quitar la dimensión `cliente` del paso de narración, porque los números los
+  calcula el motor y no dependen del modelo. Ver §3.4 del spec.
 - **No probado:** el flujo contra el modelo real de Gemini no se pudo verificar en este
   entorno porque no hay `IA_API_KEY` configurada; tampoco se probó el dictado por voz
   (`feat(reportes): dictado por voz con la Web Speech API`) en un navegador real. Lo que sí

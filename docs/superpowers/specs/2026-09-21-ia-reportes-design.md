@@ -87,6 +87,36 @@ uno rompa el otro. Va en `mirroria-backend/.env` como `IA_API_KEY` — verificad
 `.gitignore` de la raíz lo cubre (`.gitignore:39`), así que no puede llegar al repo. En
 `.env.example` se agrega la variable **vacía y comentada**, nunca con un valor real.
 
+#### Qué datos salen hacia Google, y en qué paso
+
+Declararlo explícitamente, porque Gemini es un **tercero** y esto es un flujo de datos
+hacia afuera del sistema (nota agregada el 2026-09-21; el comportamiento no cambió, estaba
+sin documentar). El modelo entra **dos veces** y en cada entrada sale algo distinto:
+
+1. **Extracción de la ficha** (`extraerFicha`): sale la **pregunta tal cual la escribió o
+   dictó la usuaria**, más la instrucción derivada del catálogo. No sale ningún dato de la
+   base: en este paso todavía no se consultó nada.
+2. **Narración** (`narrar`): salen **las filas ya calculadas del reporte** — la etiqueta y
+   el valor de cada una — y, cuando la ficha compara dos períodos, también la serie
+   anterior y las variaciones. Las etiquetas **son datos del negocio**: nombres de
+   sucursal, de categoría, de producto, de cupón… y, con `agruparPor: 'cliente'`, el
+   **nombre y apellido reales de las clientas** (`usuarios.full_name`) junto con lo que
+   cada una gastó. Un reporte de *"mis mejores clientas"* manda esa lista a la API de
+   Google.
+
+Lo que **nunca** sale: SQL, filas crudas de la base, identificadores (los `uuid` no viajan:
+la clave de la fila se usa solo del lado del servidor para casar los dos períodos), correos,
+teléfonos, contraseñas, ni el JWT. La narración es además **opcional por diseño**: si falla
+o no hay clave, el reporte se devuelve igual con `narrativa: null`, y `POST
+/ia/reportes/consulta` no toca al proveedor en ningún punto — o sea que existe un camino
+completo en el que ningún dato sale del sistema.
+
+**Pendiente, y hay que decirlo:** no está resuelto el aviso a la usuaria ni el respaldo
+legal de ese envío (consentimiento, política de privacidad, contrato de tratamiento de
+datos con el proveedor). Si eso no se puede sostener, la salida más simple es **quitar la
+dimensión `cliente` del paso de narración** — los números se siguen calculando igual,
+porque el motor no depende del modelo.
+
 **El sistema funciona sin clave.** Sin `IA_API_KEY`, `POST /ia/reportes` responde 503 con
 mensaje claro, porque sin modelo no hay forma de interpretar la pregunta. Pero
 `POST /ia/reportes/consulta` **sigue funcionando**: recibe la ficha ya armada, corre la
