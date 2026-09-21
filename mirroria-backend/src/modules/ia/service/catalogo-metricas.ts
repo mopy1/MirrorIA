@@ -4,7 +4,8 @@ export type Metrica =
   | 'ingresos' | 'unidades' | 'cantidad_ventas' | 'ticket_promedio' | 'descuentos'
   | 'stock_disponible' | 'stock_reservado' | 'stock_en_transito'
   | 'movimientos_unidades' | 'movimientos_conteo'
-  | 'cantidad_reservas' | 'unidades_reservadas';
+  | 'cantidad_reservas' | 'unidades_reservadas'
+  | 'canjes_cupon' | 'descuento_por_cupon';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
@@ -222,6 +223,42 @@ function definicionReservas(seleccion: string, joinsBase: string[]): DefinicionM
   };
 }
 
+/**
+ * Los canjes salen de `ventas`, agrupando por cupon_id. NO de
+ * `cupones.usos_actuales`: ese contador es un acumulado sin fecha, y usarlo
+ * devolveria el mismo numero para cualquier periodo. Ver spec 4-bis.1.
+ *
+ * El JOIN a cupones es INNER: ya descarta por si solo las ventas sin cupon,
+ * pase lo que pase con el filtro de estado.
+ */
+function definicionCupones(seleccion: string): DefinicionMetrica {
+  return {
+    dominio: 'cupones',
+    from: 'ventas v',
+    joinsBase: ['JOIN cupones cu ON cu.id = v.cupon_id'],
+    seleccion,
+    columnaFecha: 'v."createdAt"',
+    filtros: { sucursalId: 'v.sucursal_id = $', canal: 'v.canal = $', estado: 'v.estado = $' },
+    dimensiones: {
+      ninguno: DIM_NINGUNO,
+      cupon: { grupo: 'cu.id', etiqueta: 'cu.codigo', joins: [] },
+      sucursal: {
+        grupo: 'v.sucursal_id',
+        etiqueta: 's.nombre',
+        joins: ['JOIN sucursales s ON s.id = v.sucursal_id'],
+      },
+      mes: {
+        grupo: "date_trunc('month', v.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('month', v.\"createdAt\"), 'YYYY-MM')",
+        joins: [],
+      },
+    },
+    estadoValido: ESTADOS_VENTA,
+    filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
+    permiteComparacion: true,
+  };
+}
+
 const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   sucursalId: 'v.sucursal_id = $',
   canal: 'v.canal = $',
@@ -308,6 +345,8 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   movimientos_conteo: definicionKardex('COUNT(m.id)'),
   cantidad_reservas: definicionReservas('COUNT(DISTINCT r.id)', []),
   unidades_reservadas: definicionReservas('COALESCE(SUM(ri.cantidad), 0)', [JOIN_RESERVA_ITEMS]),
+  canjes_cupon: definicionCupones('COUNT(DISTINCT v.id)'),
+  descuento_por_cupon: definicionCupones('COALESCE(SUM(v.descuento_cents), 0)'),
 };
 
 export const METRICAS = Object.keys(CATALOGO_METRICAS) as readonly Metrica[];

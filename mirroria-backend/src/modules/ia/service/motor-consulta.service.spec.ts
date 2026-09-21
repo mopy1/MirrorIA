@@ -127,4 +127,27 @@ describe('MotorConsultaService', () => {
       ).rejects.toThrow(CombinacionInvalidaException);
     });
   });
+
+  describe('metricas de cupones', () => {
+    it('cuenta canjes desde ventas, nunca desde cupones.usos_actuales', async () => {
+      await service.ejecutar(ficha({ metrica: 'canjes_cupon', agruparPor: 'cupon' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('FROM ventas v');
+      // usos_actuales es un acumulado sin fecha: usarlo daria el mismo numero
+      // para cualquier rango que se pida. Ver spec 4-bis.1.
+      expect(sql).not.toContain('usos_actuales');
+    });
+
+    it('solo mira ventas que efectivamente usaron cupon', async () => {
+      await service.ejecutar(ficha({ metrica: 'canjes_cupon', agruparPor: 'cupon' }));
+      expect(sqlDeLaLlamada()).toContain('JOIN cupones cu ON cu.id = v.cupon_id');
+    });
+
+    it('acepta filtro de fechas, que es el punto de contarlo desde ventas', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'canjes_cupon', agruparPor: 'cupon', filtros: { desde: '2026-08-01' } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('v."createdAt" >= $');
+    });
+  });
 });
