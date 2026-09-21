@@ -14,6 +14,7 @@ const CAJERO = { sub: 'caj1', email: 'b@b.com', role: 'CAJERO', sucursalId: 's1'
 describe('PagosService — cobro manual', () => {
   let pagoRepo: Record<string, ReturnType<typeof vi.fn>>;
   let ventas: { findOne: ReturnType<typeof vi.fn>; marcarPagada: ReturnType<typeof vi.fn> };
+  let expiracion: { expirarVencidas: ReturnType<typeof vi.fn> };
   let service: PagosService;
 
   beforeEach(() => {
@@ -37,7 +38,7 @@ describe('PagosService — cobro manual', () => {
     const dataSource = {
       transaction: (cb: (m: unknown) => unknown) => cb(manager),
     } as unknown as DataSource;
-    const expiracion = { expirarVencidas: vi.fn().mockResolvedValue(0) };
+    expiracion = { expirarVencidas: vi.fn().mockResolvedValue(0) };
     service = new PagosService(
       pagoRepo as unknown as Repository<Pago>,
       dataSource,
@@ -45,6 +46,21 @@ describe('PagosService — cobro manual', () => {
       config,
       expiracion as unknown as ExpiracionService,
     );
+  });
+
+  it('iniciar un cobro libera antes el stock de las compras vencidas', async () => {
+    // Sin planificador, esta llamada ES el mecanismo de liberacion: si se borra,
+    // el inventario vuelve a retenerse para siempre y nada mas lo notaria.
+    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+    expect(expiracion.expirarVencidas).toHaveBeenCalled();
+  });
+
+  it('confirmar un cobro tambien dispara la liberacion', async () => {
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+    });
+    await service.confirmarManual('p1', CAJERO);
+    expect(expiracion.expirarVencidas).toHaveBeenCalled();
   });
 
   it('iniciar un cobro por QR crea un pago PENDIENTE por el total de la venta', async () => {

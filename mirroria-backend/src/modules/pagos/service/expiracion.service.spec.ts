@@ -44,6 +44,13 @@ describe('ExpiracionService', () => {
     expect(ventas.cancelarPorPagoNoCompletado).not.toHaveBeenCalled();
   });
 
+  it('un pago de exactamente 30 minutos ya vence', async () => {
+    // Fija la semantica del borde: con "<" 30 vence, con "<=" no. Sin esta
+    // prueba, cambiar el operador no rompe nada y el plazo se corre en silencio.
+    pagoRepo.find.mockResolvedValue([pagoDeHace(30, MetodoPago.TARJETA)]);
+    expect(await service.expirarVencidas()).toBe(1);
+  });
+
   it('una tarjeta de hace 45 minutos vence y devuelve su stock', async () => {
     pagoRepo.find.mockResolvedValue([pagoDeHace(45, MetodoPago.TARJETA)]);
     const cuantas = await service.expirarVencidas();
