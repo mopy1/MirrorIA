@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { construirInstruccion, ESQUEMA_FICHA } from './esquema-ficha.js';
-import { CATALOGO_METRICAS, METRICAS } from '../catalogo-metricas.js';
+import { METRICAS, type DefinicionMetrica } from '../catalogo-metricas.js';
 
 describe('esquema y prompt derivados del catalogo', () => {
   it('el esquema enumera exactamente las metricas del catalogo', () => {
@@ -18,11 +18,38 @@ describe('esquema y prompt derivados del catalogo', () => {
     expect(lineaStock).not.toContain('dia');
   });
 
-  it('agregar una metrica al catalogo la agrega al prompt sin tocar el prompt', () => {
-    // Garantia estructural: la instruccion se deriva, no se escribe a mano.
-    const cantidadEnPrompt = construirInstruccion()
-      .split('\n')
-      .filter((l) => l.startsWith('- ')).length;
-    expect(cantidadEnPrompt).toBe(Object.keys(CATALOGO_METRICAS).length);
+  it('la instruccion se DERIVA del catalogo: con otro catalogo, otro texto', () => {
+    // Esto es lo que garantiza que el prompt no se pueda escribir a mano y
+    // quedar desfasado: si la funcion ignorara el catalogo, este texto no
+    // mencionaria una metrica que no existe en el catalogo real.
+    const falso = {
+      metrica_inventada: {
+        dominio: 'ventas',
+        from: 'x',
+        joinsBase: [],
+        seleccion: 'COUNT(*)',
+        columnaFecha: null,
+        filtros: {},
+        dimensiones: { ninguno: { grupo: "'t'", etiqueta: "'T'", joins: [] } },
+        estadoValido: null,
+        filtroEstadoPorDefecto: null,
+        permiteComparacion: false,
+      },
+    } as unknown as Record<string, DefinicionMetrica>;
+
+    const texto = construirInstruccion(falso);
+    expect(texto).toContain('metrica_inventada');
+    expect(texto).toContain('SIN fechas');      // refleja columnaFecha: null
+    expect(texto).toContain('NO comparable');   // refleja permiteComparacion: false
+    expect(texto).not.toContain('ingresos');    // NO filtro nada del catalogo real
+  });
+
+  it('el esquema NO le ofrece al modelo los filtros por identificador', () => {
+    // El modelo no conoce los uuid de la base, y el alcance por sucursal lo
+    // impone el backend desde el JWT. Ofrecerselos seria invitarlo a inventar.
+    const filtros = Object.keys(ESQUEMA_FICHA.properties.filtros.properties);
+    for (const prohibido of ['sucursalId', 'categoriaId', 'productoId', 'clienteId', 'proveedorId']) {
+      expect(filtros).not.toContain(prohibido);
+    }
   });
 });
