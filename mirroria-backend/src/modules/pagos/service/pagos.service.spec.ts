@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PagosService } from './pagos.service.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
+import { CobroSobreVentaMuertaException } from '../exception/cobro-sobre-venta-muerta.exception.js';
 import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
 import { FirmaWebhookInvalidaException } from '../exception/firma-webhook-invalida.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
@@ -161,16 +162,35 @@ describe('PagosService — cobro manual', () => {
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
   });
 
-  it('si la venta ya no se puede cobrar, el pago NO queda aprobado', async () => {
+  describe('si la venta ya no se puede cobrar cuando el cajero confirma', () => {
     // Pasa de verdad: la expiracion cancela una venta vencida mientras el cajero
-    // tiene la pantalla abierta. Un cobro aprobado sobre una venta cancelada
-    // cuyo stock ya volvio seria plata que el sistema dice haber recibido.
-    pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+    // tiene la pantalla abierta. Antes la transaccion revertia entera y el
+    // cajero se quedaba con la plata en la mano y sin ninguna constancia — la
+    // misma asimetria que el webhook ya tenia resuelta, pero del otro lado.
+    beforeEach(() => {
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      });
+      ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
     });
-    ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
 
-    await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow();
+    it('el pago queda guardado y marcado para reembolso', async () => {
+      await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow();
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ motivoReembolso: expect.stringContaining('reembolso') }),
+      );
+    });
+
+    it('el cajero recibe un error que le dice que tiene que devolver el dinero', async () => {
+      // A diferencia del webhook, aca SI se propaga: hay una persona esperando
+      // una respuesta y tiene que enterarse.
+      // Una sola llamada: el doble de `findOne` devuelve siempre el MISMO
+      // objeto, y confirmar lo deja en APROBADO, asi que una segunda llamada
+      // saldria por la guarda de idempotencia y no probaria nada.
+      const error: unknown = await service.confirmarManual('p1', CAJERO).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(CobroSobreVentaMuertaException);
+      expect((error as Error).message).toContain('Devolvele el cobro a la clienta');
+    });
   });
 
   it('dos cobros manuales generan event_id distintos', async () => {

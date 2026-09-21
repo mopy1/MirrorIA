@@ -12,6 +12,7 @@ import type { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import type { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
 import type { PagoResponseDto } from '../dto/pago-response.dto.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
+import { CobroSobreVentaMuertaException } from '../exception/cobro-sobre-venta-muerta.exception.js';
 import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
 import { ExpiracionService } from './expiracion.service.js';
@@ -264,12 +265,28 @@ export class PagosService {
     // (por ejemplo, la expiracion la canceló mientras el cajero tenía la
     // pantalla abierta), el pago tampoco queda aprobado — o quedan las dos, o
     // ninguna.
-    const guardado = await this.dataSource.transaction(async (manager) => {
-      const pagoGuardado = await manager.getRepository(Pago).save(pago);
-      await this.ventasService.marcarPagada(pago.ventaId, manager);
-      return pagoGuardado;
-    });
-    return this.aDto(guardado);
+    try {
+      const guardado = await this.dataSource.transaction(async (manager) => {
+        const pagoGuardado = await manager.getRepository(Pago).save(pago);
+        await this.ventasService.marcarPagada(pago.ventaId, manager);
+        return pagoGuardado;
+      });
+      return this.aDto(guardado);
+    } catch (error) {
+      // Mismo criterio que el webhook: la plata ya esta en la mano del cajero.
+      // Dejar que la transaccion revierta entera lo dejaba con el dinero y sin
+      // ninguna constancia. El pago se guarda igual, marcado para reembolso.
+      this.logger.error(
+        `Pago ${pago.id} cobrado a mano sobre la venta ${pago.ventaId}, que ya no es pagable: ${String(error)}`,
+      );
+      pago.motivoReembolso =
+        'Dinero recibido en mano sobre una venta ya cancelada: requiere reembolso';
+      await this.pagoRepository.save(pago);
+      // La diferencia deliberada con el webhook: aca hay una persona esperando
+      // una respuesta, asi que el error SI se muestra — tiene que enterarse de
+      // que le toca devolver el dinero.
+      throw new CobroSobreVentaMuertaException(pago.id, String(error));
+    }
   }
 
   /** Lo que ve el panel de cobros del equipo. */
