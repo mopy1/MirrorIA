@@ -2,7 +2,8 @@ export type Dominio = 'ventas' | 'inventario' | 'kardex' | 'reservas' | 'cupones
 
 export type Metrica =
   | 'ingresos' | 'unidades' | 'cantidad_ventas' | 'ticket_promedio' | 'descuentos'
-  | 'stock_disponible' | 'stock_reservado' | 'stock_en_transito';
+  | 'stock_disponible' | 'stock_reservado' | 'stock_en_transito'
+  | 'movimientos_unidades' | 'movimientos_conteo';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
@@ -123,6 +124,57 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
   };
 }
 
+export const TIPOS_MOVIMIENTO = [
+  'RESERVA', 'LIBERACION_RESERVA', 'VENTA', 'DEVOLUCION', 'RECEPCION_PROVEEDOR', 'AJUSTE',
+] as const;
+
+const JOIN_PRODUCTO_DESDE_MOV =
+  'JOIN variantes_producto vp ON vp.id = m.variante_id JOIN productos p ON p.id = vp.producto_id';
+
+function definicionKardex(seleccion: string): DefinicionMetrica {
+  return {
+    dominio: 'kardex',
+    from: 'movimientos_inventario m',
+    joinsBase: [],
+    seleccion,
+    // `movimientos_inventario` tiene columna `fecha` propia, distinta del
+    // created_at que hereda de BaseEntity. Ver spec 4-bis.3.
+    columnaFecha: 'm.fecha',
+    filtros: {
+      sucursalId: 'm.sucursal_id = $',
+      tipoMovimiento: 'm.tipo_movimiento = $',
+    },
+    dimensiones: {
+      ninguno: DIM_NINGUNO,
+      sucursal: {
+        grupo: 'm.sucursal_id',
+        etiqueta: 's.nombre',
+        joins: ['JOIN sucursales s ON s.id = m.sucursal_id'],
+      },
+      tipo_movimiento: { grupo: 'm.tipo_movimiento', etiqueta: 'm.tipo_movimiento', joins: [] },
+      producto: { grupo: 'p.id', etiqueta: 'p.titulo', joins: [JOIN_PRODUCTO_DESDE_MOV] },
+      categoria: {
+        grupo: 'c.id',
+        etiqueta: 'c.nombre',
+        joins: [JOIN_PRODUCTO_DESDE_MOV, 'JOIN categorias c ON c.id = p.categoria_id'],
+      },
+      dia: {
+        grupo: "date_trunc('day', m.fecha)",
+        etiqueta: "to_char(date_trunc('day', m.fecha), 'YYYY-MM-DD')",
+        joins: [],
+      },
+      mes: {
+        grupo: "date_trunc('month', m.fecha)",
+        etiqueta: "to_char(date_trunc('month', m.fecha), 'YYYY-MM')",
+        joins: [],
+      },
+    },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: true,
+  };
+}
+
 const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   sucursalId: 'v.sucursal_id = $',
   canal: 'v.canal = $',
@@ -205,6 +257,8 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   stock_disponible: definicionInventario('COALESCE(SUM(i.cantidad_disponible), 0)'),
   stock_reservado: definicionInventario('COALESCE(SUM(i.cantidad_reservada), 0)'),
   stock_en_transito: definicionInventario('COALESCE(SUM(i.cantidad_en_transito), 0)'),
+  movimientos_unidades: definicionKardex('COALESCE(SUM(m.cantidad), 0)'),
+  movimientos_conteo: definicionKardex('COUNT(m.id)'),
 };
 
 export const METRICAS = Object.keys(CATALOGO_METRICAS) as readonly Metrica[];

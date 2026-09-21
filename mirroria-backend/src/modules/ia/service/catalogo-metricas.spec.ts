@@ -41,3 +41,21 @@ describe('CATALOGO_METRICAS', () => {
     expect(porMes?.grupo).not.toContain('created_at');
   });
 });
+
+describe('metricas de kardex', () => {
+  it('filtran por la columna fecha propia, no por created_at', () => {
+    expect(CATALOGO_METRICAS.movimientos_unidades.columnaFecha).toBe('m.fecha');
+  });
+
+  it('admiten agrupar por tipo_movimiento', () => {
+    expect(CATALOGO_METRICAS.movimientos_unidades.dimensiones.tipo_movimiento).toBeDefined();
+  });
+
+  it('las metricas de ventas NO admiten tipo_movimiento', () => {
+    expect(CATALOGO_METRICAS.ingresos.dimensiones.tipo_movimiento).toBeUndefined();
+  });
+
+  it('no tienen estado por defecto: un movimiento no tiene estado', () => {
+    expect(CATALOGO_METRICAS.movimientos_unidades.filtroEstadoPorDefecto).toBeNull();
+  });
+});
