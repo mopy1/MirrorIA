@@ -101,22 +101,25 @@ cd mirroria-frontend && npm run dev
 ## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-14)
 
 - ✅ Postgres dockerizado y funcionando.
-- ✅ Backend NestJS: `core/` completo y 8 módulos de negocio implementados y verificados
+- ✅ Backend NestJS: `core/` completo y 9 módulos de negocio implementados y verificados
   end-to-end contra Postgres real: `seguridad` (registro/login/perfil + gestión de
   usuarios/roles RF02), `proveedores`, `catalogo`, `sucursales`, `inventario`, `ventas`
-  (digital + presencial), `reservas` (RF09-12) y `promociones` (cupones porcentuales y monto
-  fijo, validación pública, consumo transaccional en ventas con cálculo de descuento).
-- 🚧 Quedan `pagos` e `ia` sin implementar como placeholders a propósito (esperan credenciales
-  de pasarela y API key de IA del usuario).
+  (digital + presencial), `reservas` (RF09-12), `promociones` (cupones porcentuales y monto
+  fijo, validación pública, consumo transaccional en ventas con cálculo de descuento) e `ia`
+  (CU24, reportes dinámicos por lenguaje natural — el modelo nunca escribe SQL, ver
+  `mirroria-backend/AGENTS.md` para el detalle real).
+- 🚧 Queda `pagos` sin implementar como placeholder a propósito (espera credenciales de
+  pasarela del usuario).
 - ✅ `mirroria-frontend/` — e-commerce completo funcionando de punta a punta contra el backend
   real: inicio, tienda, ficha de producto, carrito, checkout (ahora con soporte de cupones de
   descuento y cálculo reactivo de ahorros), `/reservas` del cliente, y panel de administración
   (`/admin/*`) con catálogo, proveedores, sucursales, inventario, ventas, reservas, usuarios/roles
-  y promociones/cupones (`/admin/cupones`). Stack visual 100% compuesto con shadcn/ui.
+  y promociones/cupones (`/admin/cupones`), más una pantalla de reportes por IA (CU24) para
+  staff con ficha interpretada, tabla, comparación y dictado por voz vía Web Speech API — esto
+  último no se probó todavía en un navegador real. Stack visual 100% compuesto con shadcn/ui.
 - 🚧 Frontend: falta una pantalla de punto de caja (POS) para el rol `CAJERO` (el endpoint del
-  backend ya existe y está protegido por rol, pero no hay UI todavía), reportes básicos más
-  allá de las tablas planas actuales, y toda la parte de `promociones`/`pagos`/`ia` (pendiente
-  por lo mismo que en el backend).
+  backend ya existe y está protegido por rol, pero no hay UI todavía), y toda la parte de
+  `pagos` (pendiente por lo mismo que en el backend).
 - ✅ `mirroria-mobile/` (React Native + Expo SDK 57 + NativeWind v4 + React Native Reusables):
   scaffold base modular, diseño boutique con acento vino de marca, persistencia con
   `expo-secure-store`, feature `auth` (Login y Register) con validación Zod y React Hook Form

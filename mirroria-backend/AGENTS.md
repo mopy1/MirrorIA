@@ -59,7 +59,7 @@ src/
     ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
     ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
     ├── pagos/                     # 🚧 placeholder — pagos
-    └── ia/                        # 🚧 placeholder — interacciones_ia
+    └── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
 ```
 
 Cada módulo `🚧 placeholder` hoy es solo un `<nombre>.module.ts` con `@Module({})` vacío,
@@ -328,9 +328,70 @@ credenciales/API key reales), y sin desviarse de la arquitectura/patrones ya aco
   - `VentasService.registrarVenta()` invoca `promocionesService.consumirCupon(codigoCupon, subtotalCents, manager)` dentro de la transacción de venta, asociando `cuponId`, descontando el monto y persistiendo el total final (`subtotalCents - descuentoCents`).
 - **Pruebas unitarias completas** en `src/modules/promociones/service/promociones.service.spec.ts` verificando cálculo porcentual, monto fijo acotado al subtotal, validación de estado activo, vigencia, límite de canjes y montos mínimos.
 
-- **Pendiente, a propósito (instrucción explícita del usuario, no un olvido):** `pagos` e `ia`
-  quedan sin implementar — placeholders listos para completar cuando el usuario traiga
-  credenciales de pasarela reales y una API key de IA real, respectivamente.
+- **Pendiente, a propósito (instrucción explícita del usuario, no un olvido):** `pagos`
+  queda sin implementar — placeholder listo para completar cuando el usuario traiga
+  credenciales de pasarela reales.
+
+## ✅ Estado actual: `modules/ia/` — reportes dinámicos por IA (CU24, 2026-09-21)
+
+Decisión de arquitectura central: **el modelo nunca escribe ni ejecuta SQL.** Alguien del
+equipo pregunta por su negocio en lenguaje natural (texto, o voz transcrita en el frontend
+con la Web Speech API) y recibe un reporte con datos reales. El modelo entra dos veces
+(`GeminiProveedor.extraerFicha`/`narrar`) y en el medio corre exclusivamente el motor con SQL
+parametrizado — nunca hay texto de un LLM concatenado en una query.
+
+- **`catalogo-metricas.ts` declara 18 métricas en 7 dominios** (`ventas`, `inventario`,
+  `kardex`, `reservas`, `cupones`, `compras`, `clientes`): de qué tabla sale cada una
+  (`from`/`joinsBase`), qué agregación usa (`seleccion`, siempre envuelta en `COALESCE` para
+  que "sin filas" sea `0` y no `null`), qué columna de fecha filtra `desde`/`hasta`, qué
+  filtros y dimensiones admite, y si permite comparación entre periodos. `MotorConsultaService`
+  arma el `SELECT` a partir de esa definición — nunca a partir de texto libre.
+- **El prompt del modelo se deriva del catálogo** (`esquema-ficha.ts`, `construirInstruccion`):
+  recorre `CATALOGO_METRICAS` y genera una línea por métrica con sus dimensiones válidas,
+  si admite fechas y si es comparable. Agregar una métrica nueva al catálogo actualiza el
+  prompt solo, sin tocar el texto de la instrucción a mano. El `responseSchema` que se le pasa
+  a Gemini (`ESQUEMA_FICHA`) también sale de `METRICAS`, así el modelo no puede devolver una
+  métrica que el motor no tenga.
+- **Un `ENCARGADO_SUCURSAL` queda acotado a su propia sucursal desde el servidor**, no desde lo
+  que el modelo entienda: `IaService.forzarAlcance` pisa `ficha.filtros.sucursalId` con la
+  `sucursalId` del JWT antes de correr el motor, sea cual sea lo que pidió la pregunta. Si esa
+  cuenta no tiene sucursal asignada, no se deja el filtro vacío (eso abriría *todas* las
+  sucursales) — se corta con `SinSucursalAsignadaException`, **403**.
+- **Sin `IA_API_KEY` el endpoint de ficha manual sigue funcionando.** `POST
+  /ia/reportes/consulta` (`IaService.consultar`) no toca al proveedor de IA en ningún punto:
+  es la vía que usan las pruebas y permite probar el motor completo (catálogo + SQL
+  parametrizado + comparación de periodos) sin modelo y sin red. Solo `POST /ia/reportes`
+  (`IaService.preguntar`, el camino con lenguaje natural) exige la key — si falta, devuelve
+  `IaNoConfiguradaException`, **503**, con el mensaje señalando el endpoint manual como
+  alternativa.
+- **No probado:** el flujo contra el modelo real de Gemini no se pudo verificar en este
+  entorno porque no hay `IA_API_KEY` configurada; tampoco se probó el dictado por voz
+  (`feat(reportes): dictado por voz con la Web Speech API`) en un navegador real. Lo que sí
+  está verificado de punta a punta (71 unitarias + 19 e2e en verde, ver sección de
+  verificación) es el motor de consulta, el catálogo, el alcance por rol y la vía manual.
+
+### Trampas del esquema descubiertas al construir el catálogo (§4-bis del spec)
+
+Lo más valioso para quien toque `catalogo-metricas.ts` después:
+
+- **`createdAt`/`updatedAt` son camelCase en la base** (vienen de `BaseEntity`, con
+  `synchronize: true` TypeORM las crea tal cual, sin `snake_case`) y en SQL crudo necesitan
+  comillas dobles: `v."createdAt"`, nunca `v.created_at` — sin comillas, Postgres las
+  minusculiza a una columna que no existe.
+- **`proveedores` usa `razon_social`, no `nombre`** — la dimensión `proveedor` de compras
+  etiqueta con `pr.razon_social`.
+- **`cupones.usos_actuales` es un acumulado sin fecha:** usarlo para "canjes este mes" daría
+  el mismo número sin importar el periodo pedido. Por eso `canjes_cupon`/`descuento_por_cupon`
+  se calculan desde `ventas` (agrupando por `cupon_id`, con `JOIN cupones` para el filtro),
+  nunca leyendo ese contador.
+- **`reservas` tiene dos fechas con significado distinto:** `createdAt` (cuándo se hizo la
+  reserva) y `fecha_hora_prevista` (cuándo la clienta va a la tienda) son preguntas de negocio
+  distintas — de ahí `columnaFechaAlterna`, elegible con `ficha.campoFecha`.
+- **`movimientos_inventario` tiene columna `fecha` propia**, distinta del `createdAt` que
+  hereda de `BaseEntity` — el kardex filtra y agrupa por `m.fecha`, no por `m."createdAt"`.
+- **`ordenes_compra.items` es `jsonb`, no una tabla.** `unidades_pedidas`/`unidades_recibidas`
+  necesitan `CROSS JOIN LATERAL jsonb_array_elements(oc.items) AS it(item)` y castear
+  `(it.item->>'cantidadPedida')::int` a mano — no hay `orden_compra_items` que joinear.
 
 ## 🗺️ Roadmap de los módulos que faltan
 
@@ -342,27 +403,23 @@ flowchart LR
     D --> F["🛒 ventas ✅"]
     F --> G["💳 pagos"]
     B --> H["🏷️ promociones ✅<br/>cupones"]
-    F --> I["🤖 ia<br/>interacciones_ia"]
+    F --> I["🤖 ia ✅<br/>interacciones_ia"]
     D --> I
 ```
 
-Quedan `pagos`, `promociones` e `ia` (`pagos`/`ia` en blanco a propósito, ver sección de arriba
-— esperan credenciales/API key del usuario). Ninguno bloquea a otro entre sí (son hojas del
-árbol de dependencias) — se pueden construir en el orden que convenga. `promociones` no
-depende de nada de esto y se puede dejar para el final — es aditivo, no bloquea nada más.
+Queda solo `pagos` (en blanco a propósito, ver sección de arriba — espera credenciales de
+pasarela reales del usuario). No bloquea a nada más: es una hoja del árbol de dependencias.
 
-**`ia` (decisión 2026-09-13, ver Backend.md del vault):** el alcance real de la IA en este
-proyecto quedó acotado a **reportes dinámicos** (consulta en lenguaje natural, texto o voz
-transcrita en el frontend → reporte generado), no recomendación de productos ni chatbot de
-cliente. Por eso `ia` depende de `ventas`/`inventario` (de ahí saca los datos reales del
-reporte) y no de `catalogo`. `interacciones_ia.usuario_id` (renombrado desde `cliente_id`)
-apunta a un `ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. El modelo de IA solo hace
-extracción de intención/parámetros sobre el texto de entrada — nunca genera ni ejecuta SQL
-directo; el backend corre la query paramétrica real (endpoint de reporte ya existente en
-`ventas`/`inventario`) y, si se quiere, le pide al modelo que narre el resultado para
-`output_text`.
+**`ia` (decisión 2026-09-13, implementado 2026-09-21, ver Backend.md del vault):** el alcance
+real de la IA en este proyecto quedó acotado a **reportes dinámicos** (consulta en lenguaje
+natural, texto o voz transcrita en el frontend → reporte generado), no recomendación de
+productos ni chatbot de cliente. Por eso `ia` depende de `ventas`/`inventario`/`reservas`
+(de ahí saca los datos reales del reporte) y no de `catalogo` directamente.
+`interacciones_ia.usuario_id` (renombrado desde `cliente_id`) apunta a un
+`ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. Ver la sección de estado de arriba para
+el detalle real de la implementación.
 
-Al implementar cualquiera de estos: seguir la convención de carpetas de arriba, extender
+Al implementar `pagos`: seguir la convención de carpetas de arriba, extender
 `BaseEntity`, y revisar primero la sección correspondiente de `Diseño_BD.md` en el vault —
 ahí están los campos exactos, los jsonb embebidos (`carritos.items`, `ordenes_compra.items`)
 y las columnas que reemplazan tablas que se fusionaron (`ventas.cupon_id`,
