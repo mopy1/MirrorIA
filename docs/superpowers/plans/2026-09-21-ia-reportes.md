@@ -597,8 +597,8 @@ export class RangoDto {
 
 /**
  * El contrato que rellena el LLM. Es CERRADA a proposito
- * (`forbidNonWhitelisted` en el ValidationPipe global): cualquier propiedad
- * que el modelo invente es 400, no algo que llegue a la base.
+ * (ValidationPipe con `forbidNonWhitelisted` propio del controller de ia, ver Task 5):
+ * cualquier propiedad que el modelo invente es 400, no algo que llegue a la base.
  */
 export class FichaConsultaDto {
   @ApiProperty({ enum: METRICAS })
