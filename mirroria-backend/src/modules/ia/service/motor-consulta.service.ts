@@ -57,18 +57,27 @@ export class MotorConsultaService {
     // 3. Rango de fechas. `rango` (comparacion) pisa al de los filtros.
     const desde = rango?.desde ?? filtros.desde;
     const hasta = rango?.hasta ?? filtros.hasta;
-    if ((desde || hasta) && !def.columnaFecha) {
+
+    if (ficha.campoFecha && !def.columnaFechaAlterna) {
+      throw new CombinacionInvalidaException(
+        `la metrica "${ficha.metrica}" no tiene un campo de fecha alternativo`,
+      );
+    }
+    const columnaFecha =
+      ficha.campoFecha === 'prevista' ? def.columnaFechaAlterna : def.columnaFecha;
+
+    if ((desde || hasta) && !columnaFecha) {
       throw new CombinacionInvalidaException(
         `la metrica "${ficha.metrica}" no tiene dimension temporal: no admite filtro de fechas`,
       );
     }
-    if (desde && def.columnaFecha) {
+    if (desde && columnaFecha) {
       params.push(desde);
-      condiciones.push(`${def.columnaFecha} >= $${params.length}`);
+      condiciones.push(`${columnaFecha} >= $${params.length}`);
     }
-    if (hasta && def.columnaFecha) {
+    if (hasta && columnaFecha) {
       params.push(hasta);
-      condiciones.push(`${def.columnaFecha} <= $${params.length}`);
+      condiciones.push(`${columnaFecha} <= $${params.length}`);
     }
 
     // 4. Joins, sin duplicar.

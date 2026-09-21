@@ -89,4 +89,42 @@ describe('MotorConsultaService', () => {
     ).rejects.toThrow(CombinacionInvalidaException);
     expect(query).not.toHaveBeenCalled();
   });
+
+  describe('reservas y campoFecha', () => {
+    it('por defecto filtra por la fecha de creacion de la reserva', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'cantidad_reservas', agruparPor: 'estado', filtros: { desde: '2026-08-01' } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('r."createdAt" >= $');
+    });
+
+    it('campoFecha prevista filtra por fecha_hora_prevista', async () => {
+      await service.ejecutar(
+        ficha({
+          metrica: 'cantidad_reservas', agruparPor: 'estado',
+          campoFecha: 'prevista', filtros: { desde: '2026-08-01' },
+        }),
+      );
+      expect(sqlDeLaLlamada()).toContain('r.fecha_hora_prevista >= $');
+      expect(sqlDeLaLlamada()).not.toContain('r."createdAt" >= $');
+    });
+
+    it('campoFecha sobre una metrica que no es de reservas es invalido', async () => {
+      await expect(
+        service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno', campoFecha: 'prevista' })),
+      ).rejects.toThrow(CombinacionInvalidaException);
+    });
+
+    it('NO_SHOW es estado valido de reserva pero no de venta', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'cantidad_reservas', agruparPor: 'ninguno', filtros: { estado: 'NO_SHOW' } }),
+      );
+      expect(paramsDeLaLlamada()).toContain('NO_SHOW');
+
+      query.mockClear();
+      await expect(
+        service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { estado: 'NO_SHOW' } })),
+      ).rejects.toThrow(CombinacionInvalidaException);
+    });
+  });
 });

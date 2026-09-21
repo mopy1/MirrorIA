@@ -3,7 +3,8 @@ export type Dominio = 'ventas' | 'inventario' | 'kardex' | 'reservas' | 'cupones
 export type Metrica =
   | 'ingresos' | 'unidades' | 'cantidad_ventas' | 'ticket_promedio' | 'descuentos'
   | 'stock_disponible' | 'stock_reservado' | 'stock_en_transito'
-  | 'movimientos_unidades' | 'movimientos_conteo';
+  | 'movimientos_unidades' | 'movimientos_conteo'
+  | 'cantidad_reservas' | 'unidades_reservadas';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
@@ -33,6 +34,8 @@ export interface DefinicionMetrica {
   seleccion: string;
   /** Columna por la que filtran `desde`/`hasta`. null = la metrica no tiene tiempo. */
   columnaFecha: string | null;
+  /** Segunda columna de fecha, elegible con `ficha.campoFecha`. Solo reservas. Ver spec 4-bis.2. */
+  columnaFechaAlterna?: string;
   /** Filtro admitido -> expresion SQL comparable contra el parametro. */
   filtros: Partial<Record<NombreFiltro, string>>;
   dimensiones: Partial<Record<Dimension, DimensionSpec>>;
@@ -175,6 +178,50 @@ function definicionKardex(seleccion: string): DefinicionMetrica {
   };
 }
 
+export const ESTADOS_RESERVA = [
+  'PENDIENTE', 'CONFIRMADA', 'EN_TIENDA', 'COMPLETADA', 'CANCELADA', 'EXPIRADA', 'NO_SHOW',
+] as const;
+
+const JOIN_RESERVA_ITEMS = 'JOIN reserva_items ri ON ri.reserva_id = r.id';
+
+function definicionReservas(seleccion: string, joinsBase: string[]): DefinicionMetrica {
+  return {
+    dominio: 'reservas',
+    from: 'reservas r',
+    joinsBase,
+    seleccion,
+    // created_at = cuando se hizo la reserva. fecha_hora_prevista = cuando la
+    // clienta va a la tienda. Son preguntas distintas. Ver spec 4-bis.2.
+    columnaFecha: 'r."createdAt"',
+    columnaFechaAlterna: 'r.fecha_hora_prevista',
+    filtros: { sucursalId: 'r.sucursal_id = $', estado: 'r.estado = $', clienteId: 'r.cliente_id = $' },
+    dimensiones: {
+      ninguno: DIM_NINGUNO,
+      estado: { grupo: 'r.estado', etiqueta: 'r.estado', joins: [] },
+      sucursal: {
+        grupo: 'r.sucursal_id',
+        etiqueta: 's.nombre',
+        joins: ['JOIN sucursales s ON s.id = r.sucursal_id'],
+      },
+      dia: {
+        grupo: "date_trunc('day', r.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('day', r.\"createdAt\"), 'YYYY-MM-DD')",
+        joins: [],
+      },
+      mes: {
+        grupo: "date_trunc('month', r.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('month', r.\"createdAt\"), 'YYYY-MM')",
+        joins: [],
+      },
+    },
+    estadoValido: ESTADOS_RESERVA,
+    // Una reserva PENDIENTE es una reserva real: no hay estado "correcto" por
+    // defecto como si lo hay en ventas.
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: true,
+  };
+}
+
 const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   sucursalId: 'v.sucursal_id = $',
   canal: 'v.canal = $',
@@ -259,6 +306,8 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   stock_en_transito: definicionInventario('COALESCE(SUM(i.cantidad_en_transito), 0)'),
   movimientos_unidades: definicionKardex('COALESCE(SUM(m.cantidad), 0)'),
   movimientos_conteo: definicionKardex('COUNT(m.id)'),
+  cantidad_reservas: definicionReservas('COUNT(DISTINCT r.id)', []),
+  unidades_reservadas: definicionReservas('COALESCE(SUM(ri.cantidad), 0)', [JOIN_RESERVA_ITEMS]),
 };
 
 export const METRICAS = Object.keys(CATALOGO_METRICAS) as readonly Metrica[];
