@@ -88,7 +88,7 @@ describe('IaService.consultar', () => {
 describe('comparacion de periodos', () => {
   let motor: { ejecutar: ReturnType<typeof vi.fn> };
   let service: IaService;
-  const ADMIN = { sub: 'u1', role: 'ADMIN', sucursalId: null };
+  const ADMIN = { sub: 'u1', email: 'a@a.com', role: 'ADMIN', sucursalId: null };
 
   beforeEach(() => {
     motor = { ejecutar: vi.fn() };
@@ -186,7 +186,7 @@ describe('comparacion de periodos', () => {
 });
 
 describe('preguntar (con LLM)', () => {
-  const ADMIN = { sub: 'u1', role: 'ADMIN', sucursalId: null };
+  const ADMIN = { sub: 'u1', email: 'a@a.com', role: 'ADMIN', sucursalId: null };
   let motor: { ejecutar: ReturnType<typeof vi.fn> };
   let proveedor: { extraerFicha: ReturnType<typeof vi.fn>; narrar: ReturnType<typeof vi.fn>; estaConfigurado: ReturnType<typeof vi.fn> };
   let repo: { create: ReturnType<typeof vi.fn>; save: ReturnType<typeof vi.fn> };
@@ -305,7 +305,7 @@ describe('historial', () => {
 
   it('un ADMIN ve todas las interacciones', async () => {
     repo.find = vi.fn().mockResolvedValue([]);
-    await service.historial({ sub: 'u1', role: 'ADMIN', sucursalId: null });
+    await service.historial({ sub: 'u1', email: 'a@a.com', role: 'ADMIN', sucursalId: null });
     expect(repo.find).toHaveBeenCalledWith(
       expect.objectContaining({ order: { createdAt: 'DESC' }, take: 50 }),
     );
@@ -314,7 +314,7 @@ describe('historial', () => {
 
   it('un ENCARGADO_SUCURSAL solo ve las suyas', async () => {
     repo.find = vi.fn().mockResolvedValue([]);
-    await service.historial({ sub: 'u2', role: 'ENCARGADO_SUCURSAL', sucursalId: 's1' });
+    await service.historial({ sub: 'u2', email: 'b@b.com', role: 'ENCARGADO_SUCURSAL', sucursalId: 's1' });
     expect(repo.find.mock.calls[0][0].where).toEqual({ usuarioId: 'u2' });
   });
 
@@ -323,7 +323,7 @@ describe('historial', () => {
       { id: 'i1', tipo: 'REPORTE_VOZ', inputText: 'x', outputText: 'y',
         createdAt: new Date('2026-09-21'), updatedAt: new Date('2026-09-21'), usuarioId: 'u1' },
     ]);
-    const res = await service.historial({ sub: 'u1', role: 'ADMIN', sucursalId: null });
+    const res = await service.historial({ sub: 'u1', email: 'a@a.com', role: 'ADMIN', sucursalId: null });
     expect(res[0]).not.toHaveProperty('updatedAt');
     expect(res[0]).not.toHaveProperty('usuarioId');
   });
