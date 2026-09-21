@@ -6,6 +6,7 @@ import { PagosService } from './pagos.service.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
+import type { ExpiracionService } from './expiracion.service.js';
 
 const DUENO = { sub: 'cli1', email: 'a@a.com', role: 'CUSTOMER', sucursalId: null };
 const CAJERO = { sub: 'caj1', email: 'b@b.com', role: 'CAJERO', sucursalId: 's1' };
@@ -36,11 +37,13 @@ describe('PagosService — cobro manual', () => {
     const dataSource = {
       transaction: (cb: (m: unknown) => unknown) => cb(manager),
     } as unknown as DataSource;
+    const expiracion = { expirarVencidas: vi.fn().mockResolvedValue(0) };
     service = new PagosService(
       pagoRepo as unknown as Repository<Pago>,
       dataSource,
       ventas as unknown as VentasService,
       config,
+      expiracion as unknown as ExpiracionService,
     );
   });
 

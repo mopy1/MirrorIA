@@ -13,6 +13,7 @@ import type { InstruccionesResponseDto } from '../dto/instrucciones-response.dto
 import type { PagoResponseDto } from '../dto/pago-response.dto.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
+import { ExpiracionService } from './expiracion.service.js';
 
 @Injectable()
 export class PagosService {
@@ -21,6 +22,7 @@ export class PagosService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
+    private readonly expiracionService: ExpiracionService,
   ) {}
 
   /**
@@ -33,6 +35,7 @@ export class PagosService {
     dto: IniciarPagoDto,
     user: JwtPayload,
   ): Promise<InstruccionesResponseDto> {
+    await this.expiracionService.expirarVencidas();
     const venta = await this.ventasService.findOne(ventaId);
     assertOwnUser(venta.clienteId ?? '', user);
     if (venta.estado !== 'PENDIENTE') {
@@ -71,6 +74,7 @@ export class PagosService {
    * cobros manuales, porque ningun banco le avisa al sistema.
    */
   async confirmarManual(pagoId: string, user: JwtPayload): Promise<PagoResponseDto> {
+    await this.expiracionService.expirarVencidas();
     const pago = await this.pagoRepository.findOne({ where: { id: pagoId } });
     if (!pago) {
       throw new RecursoNoEncontradoException('Pago', pagoId);

@@ -8,12 +8,16 @@ import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
 import { PagoResponseDto } from '../dto/pago-response.dto.js';
+import { ExpiracionService } from '../service/expiracion.service.js';
 import { PagosService } from '../service/pagos.service.js';
 
 @ApiTags('Pagos')
 @Controller('pagos')
 export class PagosController {
-  constructor(private readonly pagosService: PagosService) {}
+  constructor(
+    private readonly pagosService: PagosService,
+    private readonly expiracionService: ExpiracionService,
+  ) {}
 
   @Post('ventas/:ventaId/manual')
   @HttpCode(HttpStatus.CREATED)
@@ -48,5 +52,15 @@ export class PagosController {
   @ApiOperation({ summary: 'Cobros manuales esperando confirmación' })
   pendientes(): Promise<PagoResponseDto[]> {
     return this.pagosService.pendientes();
+  }
+
+  @Post('expirar-vencidas')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Liberar el stock de las compras vencidas sin pagar' })
+  async expirar(): Promise<{ canceladas: number }> {
+    return { canceladas: await this.expiracionService.expirarVencidas() };
   }
 }
