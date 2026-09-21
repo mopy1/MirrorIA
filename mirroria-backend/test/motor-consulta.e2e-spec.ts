@@ -7,6 +7,7 @@ import { AppModule } from './../src/app.module.js';
 import { FichaConsultaDto } from './../src/modules/ia/dto/ficha-consulta.dto.js';
 import { MotorConsultaService } from './../src/modules/ia/service/motor-consulta.service.js';
 import { IaService } from './../src/modules/ia/service/ia.service.js';
+import { CombinacionInvalidaException } from './../src/modules/ia/exception/combinacion-invalida.exception.js';
 
 // uuid fijos: hacen la siembra determinista y las aserciones legibles.
 const ID = {
@@ -31,6 +32,8 @@ const ID = {
   venta2: '00000000-0000-4000-8000-000000000013', // PAGADA, agosto, suc2, 30000
   venta3: '00000000-0000-4000-8000-000000000014', // PENDIENTE, agosto, suc1, 99999
   venta4: '00000000-0000-4000-8000-000000000015', // PAGADA, julio, suc1, 20000
+  venta5: '00000000-0000-4000-8000-000000000019', // PAGADA, agosto, suc1, SIN cliente
+  venta6: '00000000-0000-4000-8000-00000000001a', // PAGADA, agosto, suc1, cliente1 otra vez
   reserva1: '00000000-0000-4000-8000-000000000016',
   reserva2: '00000000-0000-4000-8000-000000000017',
   orden1: '00000000-0000-4000-8000-000000000018',
@@ -67,10 +70,10 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    // A mano: venta1 (10000) + venta2 (30000) = 40000.
+    // A mano: venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000) = 50000.
     // venta3 esta PENDIENTE (99999) y NO entra. venta4 es de julio.
     expect(filas).toHaveLength(1);
-    expect(filas[0].valor).toBe(40000);
+    expect(filas[0].valor).toBe(50000);
   });
 
   it('ingresos por sucursal: dos filas con los totales de cada una', async () => {
@@ -79,7 +82,8 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     );
     const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
     expect(porNombre['Sucursal Sur']).toBe(30000);   // venta2
-    expect(porNombre['Sucursal Norte']).toBe(10000); // venta1; la PENDIENTE no suma
+    // venta1 (10000) + venta5 (5000) + venta6 (5000); la PENDIENTE no suma
+    expect(porNombre['Sucursal Norte']).toBe(20000);
   });
 
   it('unidades por categoria: solo las de ventas pagadas', async () => {
@@ -91,11 +95,11 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(porNombre['Vestidos']).toBe(2);  // venta1; las 40 de la PENDIENTE no entran
   });
 
-  it('ticket promedio de agosto: (10000 + 30000) / 2', async () => {
+  it('ticket promedio de agosto: (10000 + 30000 + 5000 + 5000) / 4', async () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'ticket_promedio', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    expect(filas[0].valor).toBe(20000);
+    expect(filas[0].valor).toBe(12500);
   });
 
   it('stock disponible por sucursal, sin dimension temporal', async () => {
@@ -159,11 +163,12 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(recibidas[0].valor).toBe(6);
   });
 
-  it('clientes activos no cuenta la venta sin cliente', async () => {
+  it('clientes activos cuenta clientes distintos y no se infla con ventas sin cliente', async () => {
     const filas = await motor.ejecutar(
       ficha({ metrica: 'clientes_activos', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    // venta1 (cliente1) y venta2 (cliente2) = 2. venta3 no tiene cliente Y esta PENDIENTE.
+    // En agosto hay 4 ventas PAGADAS: una sin cliente, y cliente1 aparece en dos.
+    // Un COUNT(v.id) daria 4. Solo contar clientes DISTINTOS da 2.
     expect(filas[0].valor).toBe(2);
   });
 
@@ -178,7 +183,7 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
   it('un filtro de fecha sobre una metrica de inventario es 400', async () => {
     await expect(
       motor.ejecutar(ficha({ metrica: 'stock_disponible', agruparPor: 'sucursal', filtros: AGOSTO })),
-    ).rejects.toThrow();
+    ).rejects.toThrow(CombinacionInvalidaException);
   });
 
   it('comparar agosto contra julio da la variacion real', async () => {
@@ -195,12 +200,12 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
       { sub: ID.cliente1, email: 'admin@test.com', role: 'ADMIN', sucursalId: null },
     );
 
-    // A mano: agosto = venta1 (10000) + venta2 (30000) = 40000.
-    //         julio  = venta4 (20000). Variacion = +20000, o sea +100%.
-    expect(res.filas[0].valor).toBe(40000);
+    // A mano: agosto = venta1 (10000) + venta2 (30000) + venta5 (5000) + venta6 (5000) = 50000.
+    //         julio  = venta4 (20000). Variacion = +30000, o sea +150%.
+    expect(res.filas[0].valor).toBe(50000);
     expect(res.comparacion).not.toBeNull();
     expect(res.comparacion?.variaciones[0]).toMatchObject({
-      actual: 40000, anterior: 20000, deltaAbsoluto: 20000, deltaPorcentual: 100,
+      actual: 50000, anterior: 20000, deltaAbsoluto: 30000, deltaPorcentual: 150,
     });
   });
 });
@@ -280,13 +285,24 @@ async function sembrar(ds: DataSource): Promise<void> {
     [ID.cupon]);
 
   // Ventas. OJO: "createdAt" va entre comillas, es camelCase en la base.
+  // venta5 y venta6 aislan la prueba de "clientes activos": sin ellas, la unica
+  // venta sin cliente (venta3) coincidia con la unica PENDIENTE, y cada cliente
+  // aparecia en una sola venta pagada, asi que COUNT(v.id) daba el mismo numero
+  // que COUNT(DISTINCT v.cliente_id). Con venta5 (PAGADA, sin cliente) y venta6
+  // (PAGADA, cliente1 de nuevo), agosto tiene 4 ventas pagadas pero solo 2
+  // clientes distintos, y ahora si discrimina.
   await q(`INSERT INTO ventas (id, cliente_id, sucursal_id, canal, estado,
                                subtotal_cents, descuento_cents, total_cents, cupon_id, "createdAt")
-           VALUES ($1, $5, $7, 'WEB',        'PAGADA',    11000, 1000, 10000, $9,   '2026-08-10'),
-                  ($2, $6, $8, 'PRESENCIAL', 'PAGADA',    30000,    0, 30000, NULL, '2026-08-20'),
-                  ($3, NULL, $7, 'WEB',      'PENDIENTE', 99999,    0, 99999, NULL, '2026-08-25'),
-                  ($4, $5, $7, 'WEB',        'PAGADA',    20000,    0, 20000, NULL, '2026-07-15')`,
-    [ID.venta1, ID.venta2, ID.venta3, ID.venta4, ID.cliente1, ID.cliente2, ID.suc1, ID.suc2, ID.cupon]);
+           VALUES ($1,  $5,   $7, 'WEB',        'PAGADA',    11000, 1000, 10000, $9,   '2026-08-10'),
+                  ($2,  $6,   $8, 'PRESENCIAL', 'PAGADA',    30000,    0, 30000, NULL, '2026-08-20'),
+                  ($3,  NULL, $7, 'WEB',        'PENDIENTE', 99999,    0, 99999, NULL, '2026-08-25'),
+                  ($4,  $5,   $7, 'WEB',        'PAGADA',    20000,    0, 20000, NULL, '2026-07-15'),
+                  ($10, NULL, $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-12'),
+                  ($11, $5,   $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-14')`,
+    [
+      ID.venta1, ID.venta2, ID.venta3, ID.venta4, ID.cliente1, ID.cliente2, ID.suc1, ID.suc2, ID.cupon,
+      ID.venta5, ID.venta6,
+    ]);
 
   // Items: venta1 lleva 2 unidades de Vestidos; venta2 lleva 5 de Blusas;
   // venta3 (PENDIENTE) lleva 40, que NO deben contarse nunca.
