@@ -31,4 +31,13 @@ describe('CATALOGO_METRICAS', () => {
       expect(CATALOGO_METRICAS[m].dimensiones.ninguno).toBeDefined();
     }
   });
+
+  it('usa la columna createdAt entre comillas, que es como existe en la base', () => {
+    // BaseEntity no declara name: y no hay namingStrategy -> la columna es camelCase.
+    // Sin comillas dobles Postgres la pliega a minusculas y rompe en ejecucion.
+    expect(CATALOGO_METRICAS.ingresos.columnaFecha).toBe('v."createdAt"');
+    const porMes = CATALOGO_METRICAS.ingresos.dimensiones.mes;
+    expect(porMes?.grupo).toContain('v."createdAt"');
+    expect(porMes?.grupo).not.toContain('created_at');
+  });
 });
