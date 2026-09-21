@@ -67,11 +67,24 @@ export class VentasController {
     return this.ventasService.findAll({ sucursalId });
   }
 
+  // Una clienta vuelve de la pasarela de pago y necesita poder consultar el
+  // estado real de SU compra (la URL se puede escribir a mano, no prueba
+  // nada) — sin esto recibía 403 y nunca sabía si se cobró. El listado
+  // (GET /ventas) sigue siendo solo de staff.
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
-  findOne(@Param('id') id: string): Promise<VentaResponseDto> {
-    return this.ventasService.findOne(id);
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CUSTOMER')
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<VentaResponseDto> {
+    const venta = await this.ventasService.findOne(id);
+    // `?? ''` para que una venta presencial sin cliente (mostrador) no sea
+    // legible por nadie que no sea staff.
+    if (user.role === 'CUSTOMER') {
+      assertOwnUser(venta.clienteId ?? '', user);
+    }
+    return venta;
   }
 }

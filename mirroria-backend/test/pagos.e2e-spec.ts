@@ -317,6 +317,77 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
   });
 });
 
+describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
+  let app: INestApplication<App>;
+  let ds: DataSource;
+
+  const VID = {
+    suc: '00000000-0000-4000-9002-000000000002',
+    venta: '00000000-0000-4000-9002-000000000010',
+  };
+
+  let clienteA: { id: string; email: string; token: string };
+  let clienteB: { id: string; email: string; token: string };
+  let admin: { id: string; email: string; token: string };
+
+  beforeAll(async () => {
+    const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = mod.createNestApplication();
+    // El prefijo lo pone bootstrap() en main.ts, no AppModule — igual que en
+    // el describe del webhook, arriba: se pega por HTTP real.
+    app.setGlobalPrefix('api/v1');
+    await app.init();
+    ds = app.get(DataSource);
+
+    clienteA = await registrarCliente(app, ds);
+    clienteB = await registrarCliente(app, ds);
+    admin = await usuarioConRolGenerico(app, ds, 'ADMIN');
+
+    // Insert directo: ventas.cliente_id/sucursal_id no tienen FK real (ver
+    // \d ventas), asi que no hace falta sembrar producto/sucursal para esta
+    // prueba de autorizacion — solo que cliente_id sea un usuario real (para
+    // que el JWT de clienteA valide contra la tabla usuarios).
+    await ds.query(
+      `INSERT INTO ventas
+         (id, cliente_id, sucursal_id, canal, estado, subtotal_cents, descuento_cents, total_cents)
+       VALUES ($1, $2, $3, 'WEB', 'PAGADA', 1000, 0, 1000)`,
+      [VID.venta, clienteA.id, VID.suc],
+    );
+  });
+
+  afterAll(async () => {
+    await ds.query(`DELETE FROM ventas WHERE id = $1`, [VID.venta]);
+    await ds.query(`DELETE FROM usuarios WHERE id = ANY($1::uuid[])`, [
+      [clienteA.id, clienteB.id, admin.id],
+    ]);
+    await app.close();
+  });
+
+  it('la clienta dueña de la venta puede leerla', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/ventas/${VID.venta}`)
+      .set('Authorization', `Bearer ${clienteA.token}`)
+      .expect(200);
+    expect(res.body.id).toBe(VID.venta);
+  });
+
+  // La que importa: sin este chequeo, agregar CUSTOMER a los roles del
+  // endpoint abriria el acceso de cualquier clienta a cualquier venta.
+  it('otra clienta NO puede leer una venta ajena', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/ventas/${VID.venta}`)
+      .set('Authorization', `Bearer ${clienteB.token}`)
+      .expect(403);
+  });
+
+  it('un ADMIN puede leer cualquier venta', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/ventas/${VID.venta}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+  });
+});
+
 /**
  * Borra solo las filas de esta prueba y en orden de dependencia (hijos antes que
  * padres). `inventario_sucursal`, `movimientos_inventario` y `pagos` tienen id
@@ -445,4 +516,42 @@ async function sembrarWebhook(ds: DataSource): Promise<void> {
   await q(`INSERT INTO usuarios (id, email, password_hash, full_name, role, sucursal_id, is_active)
            VALUES ($1, 'clienta-webhook@test.com', 'x', 'Clienta Webhook', 'CUSTOMER', NULL, true)`,
     [WID.cliente]);
+}
+
+/**
+ * Registra un CUSTOMER real por HTTP (mismo patron que ia.e2e-spec.ts) y
+ * devuelve tambien su id: hace falta para sembrar `ventas.cliente_id` y para
+ * poder borrarlo despues. El registro publico siempre da CUSTOMER.
+ */
+async function registrarCliente(
+  app: INestApplication<App>,
+  ds: DataSource,
+): Promise<{ id: string; email: string; token: string }> {
+  const email = `ventas-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const res = await request(app.getHttpServer())
+    .post('/api/v1/seguridad/auth/register')
+    .send({ email, password: 'Password123', fullName: 'Clienta Ventas E2E' })
+    .expect(201);
+  const filas = (await ds.query('SELECT id FROM usuarios WHERE email = $1', [email])) as Array<{
+    id: string;
+  }>;
+  return { id: filas[0].id, email, token: (res.body as { accessToken: string }).accessToken };
+}
+
+/**
+ * Registra un CUSTOMER, lo promueve al rol pedido por query directa y vuelve a
+ * loguear (el rol viaja firmado dentro del JWT, no alcanza con cambiar la fila).
+ */
+async function usuarioConRolGenerico(
+  app: INestApplication<App>,
+  ds: DataSource,
+  role: string,
+): Promise<{ id: string; email: string; token: string }> {
+  const { id, email } = await registrarCliente(app, ds);
+  await ds.query('UPDATE usuarios SET role = $2 WHERE id = $1', [id, role]);
+  const login = await request(app.getHttpServer())
+    .post('/api/v1/seguridad/auth/login')
+    .send({ email, password: 'Password123' })
+    .expect(200);
+  return { id, email, token: (login.body as { accessToken: string }).accessToken };
 }
