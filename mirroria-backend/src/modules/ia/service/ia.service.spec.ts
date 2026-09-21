@@ -150,6 +150,35 @@ describe('comparacion de periodos', () => {
     ).rejects.toThrow(CombinacionInvalidaException);
   });
 
+  it('la SEGUNDA consulta usa la MISMA ficha acotada, no la que pidio el usuario', async () => {
+    // Sin esto, cambiar `this.motor.ejecutar(fichaEfectiva, ...)` por `ficha` deja
+    // todas las demas pruebas en verde y un ENCARGADO_SUCURSAL veria OTRAS sucursales
+    // en el periodo de comparacion. Se verifican las DOS llamadas, no solo la primera.
+    motor.ejecutar
+      .mockResolvedValueOnce([{ clave: 'a', etiqueta: 'Norte', valor: 150 }])
+      .mockResolvedValueOnce([{ clave: 'a', etiqueta: 'Norte', valor: 100 }]);
+
+    await service.consultar(
+      ficha({
+        metrica: 'ingresos', agruparPor: 'sucursal',
+        filtros: { sucursalId: SUCURSAL_AJENA, desde: '2026-08-01', hasta: '2026-08-31' },
+        compararCon: { desde: '2026-07-01', hasta: '2026-07-31' },
+      }),
+      { sub: 'u2', email: 'b@b.com', role: 'ENCARGADO_SUCURSAL', sucursalId: SUCURSAL_PROPIA },
+    );
+
+    expect(motor.ejecutar).toHaveBeenCalledTimes(2);
+    expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBe(SUCURSAL_PROPIA);
+    expect(motor.ejecutar.mock.calls[1][0].filtros.sucursalId).toBe(SUCURSAL_PROPIA);
+    // Y es literalmente el mismo objeto: asi es imposible que los dos periodos se
+    // calculen con fichas distintas. Ver spec 4.5.
+    expect(motor.ejecutar.mock.calls[1][0]).toBe(motor.ejecutar.mock.calls[0][0]);
+
+    // Lo unico que cambia entre las dos es el rango.
+    expect(motor.ejecutar.mock.calls[0][1]).toBeUndefined();
+    expect(motor.ejecutar.mock.calls[1][1]).toEqual({ desde: '2026-07-01', hasta: '2026-07-31' });
+  });
+
   it('sin compararCon no hay segunda consulta', async () => {
     await service.consultar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno' }), ADMIN);
     expect(motor.ejecutar).toHaveBeenCalledTimes(1);
