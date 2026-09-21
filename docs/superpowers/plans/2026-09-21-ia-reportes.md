@@ -22,6 +22,7 @@ Copiadas del spec y de `mirroria-backend/AGENTS.md`. **Valen para todas las tare
 - **Nunca exponer una `@Entity` desde un controller.** Solo DTOs.
 - **Columna nullable de tipo string necesita `type: 'varchar'` explícito** en `@Column`, o TypeORM tira `DataTypeNotSupportedError`.
 - **Todo SQL va parametrizado** (`$1`, `$2`, …). Jamás interpolar un valor del usuario en la cadena SQL. Los fragmentos SQL solo pueden venir del catálogo de métricas, nunca de la ficha.
+- **`createdAt` y `updatedAt` son camelCase en la base y van SIEMPRE entre comillas dobles en SQL crudo:** `v."createdAt"`, nunca `v.created_at`. `BaseEntity` las declara con `@CreateDateColumn`/`@UpdateDateColumn` sin `name:`, y el proyecto no configura `namingStrategy`, así que TypeORM crea la columna con el nombre de la propiedad tal cual. Postgres pliega a minúsculas cualquier identificador sin comillas, de modo que `v.created_at` falla en tiempo de ejecución con `column does not exist` — y las pruebas con repositorio simulado **no lo detectan**. Verificado contra `information_schema` el 2026-09-21. El resto de las columnas sí llevan `name:` explícito y son snake_case (`total_cents`, `fecha_hora_prevista`, `full_name`, `fecha_pedido`, `fecha`).
 - **Nada de secretos en el repo.** `IA_API_KEY` vive en `mirroria-backend/.env` (ignorado por `.gitignore:39`). En `.env.example` va vacía.
 - Comandos: `npm test` (unitarias), `npm run test:e2e` (requiere Postgres arriba), `npm run lint` (oxlint).
 
@@ -319,13 +320,13 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
     canal: { grupo: 'v.canal', etiqueta: 'v.canal', joins: [] },
     estado: { grupo: 'v.estado', etiqueta: 'v.estado', joins: [] },
     dia: {
-      grupo: "date_trunc('day', v.created_at)",
-      etiqueta: "to_char(date_trunc('day', v.created_at), 'YYYY-MM-DD')",
+      grupo: "date_trunc('day', v."createdAt")",
+      etiqueta: "to_char(date_trunc('day', v."createdAt"), 'YYYY-MM-DD')",
       joins: [],
     },
     mes: {
-      grupo: "date_trunc('month', v.created_at)",
-      etiqueta: "to_char(date_trunc('month', v.created_at), 'YYYY-MM')",
+      grupo: "date_trunc('month', v."createdAt")",
+      etiqueta: "to_char(date_trunc('month', v."createdAt"), 'YYYY-MM')",
       joins: [],
     },
     categoria: {
@@ -354,7 +355,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     from: 'ventas v',
     joinsBase: [],
     seleccion: 'COALESCE(SUM(v.total_cents), 0)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
@@ -366,7 +367,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     from: 'ventas v',
     joinsBase: [],
     seleccion: 'COUNT(DISTINCT v.id)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
@@ -378,7 +379,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     from: 'ventas v',
     joinsBase: [],
     seleccion: 'COALESCE(ROUND(AVG(v.total_cents)), 0)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
@@ -390,7 +391,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     from: 'ventas v',
     joinsBase: [],
     seleccion: 'COALESCE(SUM(v.descuento_cents), 0)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
@@ -404,7 +405,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     from: 'ventas v',
     joinsBase: [JOIN_VENTA_ITEMS],
     seleccion: 'COALESCE(SUM(vi.cantidad), 0)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: {
       ...dimensionesDeVentas(),
@@ -714,7 +715,7 @@ describe('MotorConsultaService', () => {
     await service.ejecutar(
       ficha({ metrica: 'ingresos', agruparPor: 'mes', filtros: { desde: '2026-08-01', hasta: '2026-08-31' } }),
     );
-    expect(sqlDeLaLlamada()).toContain('v.created_at >= $');
+    expect(sqlDeLaLlamada()).toContain('v."createdAt" >= $');
     expect(paramsDeLaLlamada()).toContain('2026-08-01');
   });
 
@@ -1362,7 +1363,7 @@ describe('reservas y campoFecha', () => {
     await service.ejecutar(
       ficha({ metrica: 'cantidad_reservas', agruparPor: 'estado', filtros: { desde: '2026-08-01' } }),
     );
-    expect(sqlDeLaLlamada()).toContain('r.created_at >= $');
+    expect(sqlDeLaLlamada()).toContain('r."createdAt" >= $');
   });
 
   it('campoFecha prevista filtra por fecha_hora_prevista', async () => {
@@ -1373,7 +1374,7 @@ describe('reservas y campoFecha', () => {
       }),
     );
     expect(sqlDeLaLlamada()).toContain('r.fecha_hora_prevista >= $');
-    expect(sqlDeLaLlamada()).not.toContain('r.created_at >= $');
+    expect(sqlDeLaLlamada()).not.toContain('r."createdAt" >= $');
   });
 
   it('campoFecha sobre una metrica que no es de reservas es invalido', async () => {
@@ -1427,7 +1428,7 @@ function definicionReservas(seleccion: string, joinsBase: string[]): DefinicionM
     seleccion,
     // created_at = cuando se hizo la reserva. fecha_hora_prevista = cuando la
     // clienta va a la tienda. Son preguntas distintas. Ver spec 4-bis.2.
-    columnaFecha: 'r.created_at',
+    columnaFecha: 'r."createdAt"',
     columnaFechaAlterna: 'r.fecha_hora_prevista',
     filtros: { sucursalId: 'r.sucursal_id = $', estado: 'r.estado = $', clienteId: 'r.cliente_id = $' },
     dimensiones: {
@@ -1439,13 +1440,13 @@ function definicionReservas(seleccion: string, joinsBase: string[]): DefinicionM
         joins: ['JOIN sucursales s ON s.id = r.sucursal_id'],
       },
       dia: {
-        grupo: "date_trunc('day', r.created_at)",
-        etiqueta: "to_char(date_trunc('day', r.created_at), 'YYYY-MM-DD')",
+        grupo: "date_trunc('day', r."createdAt")",
+        etiqueta: "to_char(date_trunc('day', r."createdAt"), 'YYYY-MM-DD')",
         joins: [],
       },
       mes: {
-        grupo: "date_trunc('month', r.created_at)",
-        etiqueta: "to_char(date_trunc('month', r.created_at), 'YYYY-MM')",
+        grupo: "date_trunc('month', r."createdAt")",
+        etiqueta: "to_char(date_trunc('month', r."createdAt"), 'YYYY-MM')",
         joins: [],
       },
     },
@@ -1541,7 +1542,7 @@ describe('metricas de cupones', () => {
     await service.ejecutar(
       ficha({ metrica: 'canjes_cupon', agruparPor: 'cupon', filtros: { desde: '2026-08-01' } }),
     );
-    expect(sqlDeLaLlamada()).toContain('v.created_at >= $');
+    expect(sqlDeLaLlamada()).toContain('v."createdAt" >= $');
   });
 });
 ```
@@ -1568,7 +1569,7 @@ function definicionCupones(seleccion: string): DefinicionMetrica {
     from: 'ventas v',
     joinsBase: ['JOIN cupones cu ON cu.id = v.cupon_id'],
     seleccion,
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: { sucursalId: 'v.sucursal_id = $', canal: 'v.canal = $', estado: 'v.estado = $' },
     dimensiones: {
       ninguno: DIM_NINGUNO,
@@ -1579,8 +1580,8 @@ function definicionCupones(seleccion: string): DefinicionMetrica {
         joins: ['JOIN sucursales s ON s.id = v.sucursal_id'],
       },
       mes: {
-        grupo: "date_trunc('month', v.created_at)",
-        etiqueta: "to_char(date_trunc('month', v.created_at), 'YYYY-MM')",
+        grupo: "date_trunc('month', v."createdAt")",
+        etiqueta: "to_char(date_trunc('month', v."createdAt"), 'YYYY-MM')",
         joins: [],
       },
     },
@@ -1794,7 +1795,7 @@ Y la métrica nueva:
     from: 'ventas v',
     joinsBase: [],
     seleccion: 'COUNT(DISTINCT v.cliente_id)',
-    columnaFecha: 'v.created_at',
+    columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
@@ -2521,7 +2522,7 @@ curl -s -X POST http://localhost:3000/api/v1/ia/reportes \
 
 Expected: 200 con `ficha.metrica = "ingresos"`, `ficha.agruparPor = "sucursal"`, filas reales
 y una narrativa en español. Confirmar además:
-`psql -c "SELECT input_text, output_text FROM interacciones_ia ORDER BY created_at DESC LIMIT 1"`
+`psql -c "SELECT input_text, output_text FROM interacciones_ia ORDER BY \"createdAt\" DESC LIMIT 1"`
 
 - [ ] **Step 6: Commit**
 
