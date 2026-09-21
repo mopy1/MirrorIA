@@ -31,14 +31,14 @@ const ID = {
 
 const USUARIO_CLIENTE: JwtPayload = {
   sub: ID.cliente,
-  email: 'clienta@test.com',
+  email: 'clienta-pagos@test.com',
   role: 'CUSTOMER',
   sucursalId: null,
 };
 
 const USUARIO_CAJERO: JwtPayload = {
   sub: ID.cajero,
-  email: 'cajero@test.com',
+  email: 'cajero-pagos@test.com',
   role: 'CAJERO',
   sucursalId: ID.suc,
 };
@@ -149,17 +149,34 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     expect(await stockDe(ID.var)).toBe(stockTrasCheckout); // la mercaderia se vendio
   });
 
-  it('una venta cobrada aparece en el reporte de ingresos, que es lo que hoy no pasa', async () => {
-    // Esta prueba cierra el circuito con CU24: antes de este modulo, ninguna
-    // venta digital llegaba a PAGADA y el reporte solo veia el canal presencial.
+  it('una venta digital cobrada suma exactamente su total al reporte de ingresos', async () => {
+    // Antes de este modulo, ninguna venta digital llegaba a PAGADA y el reporte
+    // solo veia el canal presencial. Se mide el delta y se acota por sucursal:
+    // sin las dos cosas, la asercion pasaria por las ventas que siembra otro
+    // archivo de pruebas en la misma base, aunque el cobro estuviera roto.
     const motor = app.get(MotorConsultaService);
-    const filas = await motor.ejecutar(
-      plainToInstance(FichaConsultaDto, {
-        metrica: 'ingresos', agruparPor: 'canal', filtros: {}, orden: 'desc', limite: 10,
-      }),
-    );
-    const porCanal = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
-    expect(porCanal['WEB']).toBeGreaterThan(0);
+    const ingresosWeb = async (): Promise<number> => {
+      const filas = await motor.ejecutar(
+        plainToInstance(FichaConsultaDto, {
+          metrica: 'ingresos', agruparPor: 'canal',
+          filtros: { sucursalId: ID.suc },
+          orden: 'desc', limite: 10,
+        }),
+      );
+      return filas.find((f) => f.etiqueta === 'WEB')?.valor ?? 0;
+    };
+
+    const antes = await ingresosWeb();
+
+    // Una compra nueva, cobrada por la via manual.
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 1 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const instr = await pagos.iniciarManual(venta.id, { metodo: 'QR' } as never, USUARIO_CLIENTE);
+    await pagos.confirmarManual(instr.pagoId, USUARIO_CAJERO);
+
+    expect(await ingresosWeb()).toBe(antes + venta.totalCents);
   });
 });
 
