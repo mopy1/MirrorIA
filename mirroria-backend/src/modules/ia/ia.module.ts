@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { InteraccionIa } from './entities/interaccion-ia.entity.js';
 
-/**
- * TODO: aún no implementado. Dueño de `interacciones_ia` (ver Diseño_BD.md
- * sección J) — asistente/recomendador (RF25) vía API a un servicio de IA externo.
- */
-@Module({})
+@Module({
+  imports: [TypeOrmModule.forFeature([InteraccionIa])],
+})
 export class IaModule {}
