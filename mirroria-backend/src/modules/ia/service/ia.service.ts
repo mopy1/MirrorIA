@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
+import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
 import { MotorConsultaService } from './motor-consulta.service.js';
 
 @Injectable()
@@ -23,9 +24,14 @@ export class IaService {
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {
     if (user.role !== 'ENCARGADO_SUCURSAL') return ficha;
+    // Sin sucursal asignada NO se puede acotar el alcance, y dejar el filtro vacio
+    // abriria TODAS las sucursales — lo contrario de lo que se busca. Se corta aca.
+    if (!user.sucursalId) {
+      throw new SinSucursalAsignadaException();
+    }
     return {
       ...ficha,
-      filtros: { ...ficha.filtros, sucursalId: user.sucursalId ?? undefined },
+      filtros: { ...ficha.filtros, sucursalId: user.sucursalId },
     } as FichaConsultaDto;
   }
 }

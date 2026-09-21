@@ -28,6 +28,25 @@ const PIPE_FICHA = new ValidationPipe({
 export class IaController {
   constructor(private readonly iaService: IaService) {}
 
+  /**
+   * NO cambiar `@Body() body: unknown` por `@Body(PIPE_FICHA) ficha: FichaConsultaDto`:
+   * se ve mas simple pero rompe el 400 de "propiedad inventada" en silencio.
+   *
+   * Los ValidationPipe se ENCADENAN por parametro: primero el GLOBAL de main.ts
+   * (`{ whitelist: true, transform: true }`, sin `forbidNonWhitelisted`), despues
+   * el de esta ruta — cada uno recibe la salida transformada del anterior. Si el
+   * parametro estuviera tipado `FichaConsultaDto`, el pipe global correria
+   * primero, encontraria una clase que validar y borraria en silencio cualquier
+   * propiedad que el modelo invente (whitelist sin forbidNonWhitelisted elimina,
+   * no rechaza) — para cuando PIPE_FICHA corriera, ya no quedaria nada que
+   * rechazar y el endpoint devolveria 200 en vez de 400. Probado en
+   * test/ia.e2e-spec.ts.
+   *
+   * Tipando el body como `unknown` el metatype que ve el pipe global resuelve a
+   * `Object`, y `ValidationPipe.toValidate()` salta la validacion para eso (no es
+   * una clase) dejando el body intacto. Asi PIPE_FICHA, invocado a mano aca abajo,
+   * es el primero en tocarlo de verdad y si puede rechazar con 400.
+   */
   @Post('reportes/consulta')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -36,16 +55,6 @@ export class IaController {
   @ApiOperation({ summary: 'Ejecutar una ficha de consulta ya armada (sin IA)' })
   @ApiBody({ type: FichaConsultaDto })
   async consulta(
-    /**
-     * Los pipes se ENCADENAN (global, luego los de la ruta) y cada uno recibe la
-     * salida del anterior. Si este parametro estuviera tipado `FichaConsultaDto`,
-     * el pipe GLOBAL correria primero, encontraria una clase que validar y
-     * borraria en silencio cualquier propiedad inventada (whitelist sin
-     * forbidNonWhitelisted) ANTES de que PIPE_FICHA la viera — nunca daria 400.
-     * Tipando el body como `unknown`, `ValidationPipe.toValidate()` del pipe
-     * global no encuentra una clase (metatype resuelve a `Object`) y lo deja
-     * intacto, asi PIPE_FICHA es el primero en tocarlo de verdad.
-     */
     @Body() body: unknown,
     @CurrentUser() user: JwtPayload,
   ): Promise<ReporteResponseDto> {

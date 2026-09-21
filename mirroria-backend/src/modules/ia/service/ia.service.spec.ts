@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { plainToInstance } from 'class-transformer';
 import { IaService } from './ia.service.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
+import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
 import type { MotorConsultaService } from './motor-consulta.service.js';
 
 const SUCURSAL_PROPIA = '11111111-1111-1111-1111-111111111111';
@@ -36,12 +37,17 @@ describe('IaService.consultar', () => {
     expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBe(SUCURSAL_PROPIA);
   });
 
-  it('un ENCARGADO_SUCURSAL sin sucursal asignada no ve nada de otras', async () => {
-    await service.consultar(
-      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { sucursalId: SUCURSAL_AJENA } }),
-      { sub: 'u3', email: 'c@c.com', role: 'ENCARGADO_SUCURSAL', sucursalId: null },
-    );
-    expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBeUndefined();
+  it('un ENCARGADO_SUCURSAL sin sucursal asignada es 403, no ve todo', async () => {
+    // Dejar el filtro en undefined seria lo PEOR posible: sin filtro, el motor
+    // devuelve TODAS las sucursales. Un encargado sin sucursal es una cuenta mal
+    // configurada, y ante la duda no se le muestra nada.
+    await expect(
+      service.consultar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { sucursalId: SUCURSAL_AJENA } }),
+        { sub: 'u3', email: 'c@c.com', role: 'ENCARGADO_SUCURSAL', sucursalId: null },
+      ),
+    ).rejects.toThrow(SinSucursalAsignadaException);
+    expect(motor.ejecutar).not.toHaveBeenCalled();
   });
 
   it('devuelve las filas del motor y narrativa nula sin LLM', async () => {
