@@ -1,15 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { Repository } from 'typeorm';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
+import { PromptDto } from '../dto/prompt.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
-import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
+import { InteraccionIa, TipoInteraccion } from '../entities/interaccion-ia.entity.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
-import { MotorConsultaService } from './motor-consulta.service.js';
+import { ConsultaNoComprendidaException } from '../exception/consulta-no-comprendida.exception.js';
+import { IaNoConfiguradaException } from '../exception/ia-no-configurada.exception.js';
+import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
 import { CATALOGO_METRICAS } from './catalogo-metricas.js';
+import { MotorConsultaService } from './motor-consulta.service.js';
+import { PROVEEDOR_IA, type ProveedorIa } from './proveedor-ia/proveedor-ia.interface.js';
 
 @Injectable()
 export class IaService {
-  constructor(private readonly motor: MotorConsultaService) {}
+  constructor(
+    private readonly motor: MotorConsultaService,
+    @Inject(PROVEEDOR_IA) private readonly proveedor: ProveedorIa,
+    @InjectRepository(InteraccionIa) private readonly interacciones: Repository<InteraccionIa>,
+  ) {}
 
   /**
    * Corre una ficha ya armada. Sin LLM: es la via que usan las pruebas y la que
@@ -56,6 +69,43 @@ export class IaService {
       comparacion: { rango: fichaEfectiva.compararCon, filas: anteriores, variaciones },
       narrativa: null,
     };
+  }
+
+  /**
+   * Camino completo de CU24. El modelo entra dos veces (traducir y narrar) y
+   * NUNCA toca la base: entre medio corre el motor con SQL parametrizado.
+   */
+  async preguntar(dto: PromptDto, user: JwtPayload): Promise<ReporteResponseDto> {
+    if (!this.proveedor.estaConfigurado()) {
+      throw new IaNoConfiguradaException();
+    }
+
+    const crudo = await this.proveedor.extraerFicha(dto.prompt);
+    const ficha = plainToInstance(FichaConsultaDto, crudo ?? {});
+    const errores = validateSync(ficha, { whitelist: true, forbidNonWhitelisted: true });
+
+    if (errores.length > 0) {
+      // Una consulta no entendida tambien es dato de producto: se registra.
+      await this.registrar(user, dto.prompt, null);
+      throw new ConsultaNoComprendidaException(dto.prompt);
+    }
+
+    const reporte = await this.consultar(ficha, user);
+    const narrativa = await this.proveedor.narrar(reporte.ficha, reporte.filas);
+    await this.registrar(user, dto.prompt, narrativa);
+
+    return { ...reporte, narrativa };
+  }
+
+  private async registrar(user: JwtPayload, input: string, output: string | null): Promise<void> {
+    await this.interacciones.save(
+      this.interacciones.create({
+        usuarioId: user.sub,
+        tipo: TipoInteraccion.REPORTE_VOZ,
+        inputText: input,
+        outputText: output,
+      }),
+    );
   }
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {

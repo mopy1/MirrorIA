@@ -1,10 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { plainToInstance } from 'class-transformer';
+import type { Repository } from 'typeorm';
 import { IaService } from './ia.service.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
+import { ConsultaNoComprendidaException } from '../exception/consulta-no-comprendida.exception.js';
+import { IaNoConfiguradaException } from '../exception/ia-no-configurada.exception.js';
 import type { MotorConsultaService } from './motor-consulta.service.js';
+import type { ProveedorIa } from './proveedor-ia/proveedor-ia.interface.js';
+import type { InteraccionIa } from '../entities/interaccion-ia.entity.js';
 
 const SUCURSAL_PROPIA = '11111111-1111-1111-1111-111111111111';
 const SUCURSAL_AJENA = '22222222-2222-2222-2222-222222222222';
@@ -13,13 +18,31 @@ function ficha(p: Partial<FichaConsultaDto>): FichaConsultaDto {
   return plainToInstance(FichaConsultaDto, { filtros: {}, orden: 'desc', limite: 20, ...p });
 }
 
+/** Doble minimo del proveedor de IA: nunca se llama en estos tests, pero el
+ * constructor de IaService ya lo exige. */
+function proveedorSinUso(): { extraerFicha: ReturnType<typeof vi.fn>; narrar: ReturnType<typeof vi.fn>; estaConfigurado: ReturnType<typeof vi.fn> } {
+  return {
+    extraerFicha: vi.fn(),
+    narrar: vi.fn(),
+    estaConfigurado: vi.fn().mockReturnValue(true),
+  };
+}
+
+function repoSinUso(): { create: ReturnType<typeof vi.fn>; save: ReturnType<typeof vi.fn> } {
+  return { create: vi.fn((e) => e), save: vi.fn((e) => Promise.resolve(e)) };
+}
+
 describe('IaService.consultar', () => {
   let motor: { ejecutar: ReturnType<typeof vi.fn> };
   let service: IaService;
 
   beforeEach(() => {
     motor = { ejecutar: vi.fn().mockResolvedValue([{ clave: 'x', etiqueta: 'Total', valor: 42 }]) };
-    service = new IaService(motor as unknown as MotorConsultaService);
+    service = new IaService(
+      motor as unknown as MotorConsultaService,
+      proveedorSinUso() as unknown as ProveedorIa,
+      repoSinUso() as unknown as Repository<InteraccionIa>,
+    );
   });
 
   it('un ADMIN consulta la sucursal que pida', async () => {
@@ -69,7 +92,11 @@ describe('comparacion de periodos', () => {
 
   beforeEach(() => {
     motor = { ejecutar: vi.fn() };
-    service = new IaService(motor as unknown as MotorConsultaService);
+    service = new IaService(
+      motor as unknown as MotorConsultaService,
+      proveedorSinUso() as unknown as ProveedorIa,
+      repoSinUso() as unknown as Repository<InteraccionIa>,
+    );
   });
 
   it('corre la misma consulta dos veces, una por rango', async () => {
@@ -126,5 +153,65 @@ describe('comparacion de periodos', () => {
   it('sin compararCon no hay segunda consulta', async () => {
     await service.consultar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno' }), ADMIN);
     expect(motor.ejecutar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('preguntar (con LLM)', () => {
+  const ADMIN = { sub: 'u1', role: 'ADMIN', sucursalId: null };
+  let motor: { ejecutar: ReturnType<typeof vi.fn> };
+  let proveedor: { extraerFicha: ReturnType<typeof vi.fn>; narrar: ReturnType<typeof vi.fn>; estaConfigurado: ReturnType<typeof vi.fn> };
+  let repo: { create: ReturnType<typeof vi.fn>; save: ReturnType<typeof vi.fn> };
+  let service: IaService;
+
+  beforeEach(() => {
+    motor = { ejecutar: vi.fn().mockResolvedValue([{ clave: 'sc', etiqueta: 'Santa Cruz', valor: 150000 }]) };
+    proveedor = {
+      extraerFicha: vi.fn().mockResolvedValue({ metrica: 'ingresos', agruparPor: 'sucursal' }),
+      narrar: vi.fn().mockResolvedValue('Santa Cruz lidera con Bs 1.500.'),
+      estaConfigurado: vi.fn().mockReturnValue(true),
+    };
+    repo = { create: vi.fn((e) => e), save: vi.fn((e) => Promise.resolve(e)) };
+    service = new IaService(
+      motor as unknown as MotorConsultaService,
+      proveedor as unknown as ProveedorIa,
+      repo as unknown as Repository<InteraccionIa>,
+    );
+  });
+
+  it('traduce la pregunta, consulta y narra', async () => {
+    const res = await service.preguntar({ prompt: 'cuanto vendi por sucursal' }, ADMIN);
+    expect(proveedor.extraerFicha).toHaveBeenCalledWith('cuanto vendi por sucursal');
+    expect(res.ficha.metrica).toBe('ingresos');
+    expect(res.narrativa).toBe('Santa Cruz lidera con Bs 1.500.');
+  });
+
+  it('registra la interaccion con el usuario del JWT', async () => {
+    await service.preguntar({ prompt: 'cuanto vendi' }, ADMIN);
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ usuarioId: 'u1', inputText: 'cuanto vendi' }),
+    );
+  });
+
+  it('una ficha invalida del modelo es 422, no una consulta', async () => {
+    proveedor.extraerFicha.mockResolvedValue({ metrica: 'inventada', agruparPor: 'sucursal' });
+    await expect(service.preguntar({ prompt: 'algo raro' }, ADMIN)).rejects.toThrow(
+      ConsultaNoComprendidaException,
+    );
+    expect(motor.ejecutar).not.toHaveBeenCalled();
+  });
+
+  it('registra tambien la consulta que no se entendio, con output nulo', async () => {
+    proveedor.extraerFicha.mockResolvedValue({ metrica: 'inventada', agruparPor: 'sucursal' });
+    await expect(service.preguntar({ prompt: 'algo raro' }, ADMIN)).rejects.toThrow();
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ inputText: 'algo raro', outputText: null }),
+    );
+  });
+
+  it('sin clave configurada devuelve 503', async () => {
+    proveedor.estaConfigurado.mockReturnValue(false);
+    await expect(service.preguntar({ prompt: 'cuanto vendi' }, ADMIN)).rejects.toThrow(
+      IaNoConfiguradaException,
+    );
   });
 });

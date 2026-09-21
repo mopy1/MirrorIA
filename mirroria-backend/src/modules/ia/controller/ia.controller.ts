@@ -8,6 +8,7 @@ import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
+import { PromptDto } from '../dto/prompt.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { IaService } from '../service/ia.service.js';
 
@@ -27,6 +28,16 @@ const PIPE_FICHA = new ValidationPipe({
 @Controller('ia')
 export class IaController {
   constructor(private readonly iaService: IaService) {}
+
+  @Post('reportes')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @ApiOperation({ summary: 'Reporte dinamico a partir de una pregunta en lenguaje natural (CU24)' })
+  reportes(@Body() dto: PromptDto, @CurrentUser() user: JwtPayload): Promise<ReporteResponseDto> {
+    return this.iaService.preguntar(dto, user);
+  }
 
   /**
    * NO cambiar `@Body() body: unknown` por `@Body(PIPE_FICHA) ficha: FichaConsultaDto`:
