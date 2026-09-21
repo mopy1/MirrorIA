@@ -360,6 +360,22 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
     expect((await ventas.findOne(ventaId)).estado).toBe('PENDIENTE');
   });
 
+  it('iniciar el cobro con tarjeta dos veces deja UNA sesion y UNA fila', async () => {
+    // `beforeEach` ya llamo a iniciarTarjeta una vez para esta venta. Antes,
+    // cada llamada abria una sesion nueva en la pasarela y creaba otra fila:
+    // con las dos pagadas quedaban dos cobros reales sobre una sola venta.
+    const { url } = await pagos.iniciarTarjeta(ventaId, USUARIO_CLIENTE_WEBHOOK);
+
+    const filas = await ds.query(
+      `SELECT referencia_externa FROM pagos WHERE venta_id = $1 AND proveedor_pago = 'STRIPE'`,
+      [ventaId],
+    );
+    expect(filas).toHaveLength(1);
+    expect(filas[0].referencia_externa).toBe(sesionId);
+    // Y la clienta vuelve a la MISMA sesion, no a una nueva.
+    expect(url).toContain(sesionId);
+  });
+
   it('el mismo aviso dos veces: el segundo NO vuelve a procesar', async () => {
     const cuerpo = { id: 'evt_1', sesionId };
 

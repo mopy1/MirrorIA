@@ -21,6 +21,7 @@ describe('PagosService — cobro manual', () => {
   let pasarela: {
     estaConfigurada: ReturnType<typeof vi.fn>;
     crearSesion: ReturnType<typeof vi.fn>;
+    recuperarSesion: ReturnType<typeof vi.fn>;
     verificarEvento: ReturnType<typeof vi.fn>;
   };
   let service: PagosService;
@@ -50,6 +51,7 @@ describe('PagosService — cobro manual', () => {
     pasarela = {
       estaConfigurada: vi.fn().mockReturnValue(true),
       crearSesion: vi.fn(),
+      recuperarSesion: vi.fn().mockResolvedValue(null),
       verificarEvento: vi.fn(),
     };
     service = new PagosService(
@@ -267,6 +269,69 @@ describe('PagosService — cobro manual', () => {
       await service.iniciarTarjeta('v1', DUENO);
       const guardado = pagoRepo.save.mock.calls[0][0] as { eventId: string };
       expect(guardado.eventId).toBe('sesion:ses_1');
+    });
+
+    describe('reutilizacion de la sesion pendiente (no abrir dos cobros por una venta)', () => {
+      it('dos llamadas seguidas sobre la misma venta devuelven LA MISMA sesion y una sola fila', async () => {
+        // Antes, cada llamada creaba una fila y una sesion NUEVA en la pasarela.
+        // Con dos sesiones abiertas y las dos pagadas quedaban dos cobros reales
+        // y dos filas aprobadas sobre una sola venta, sin que nada lo detectara
+        // — el panel del equipo tampoco las muestra, porque filtra por cobros
+        // manuales. El camino manual ya reutilizaba su fila pendiente; este no.
+        pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://pasarela/pagar' });
+        pasarela.recuperarSesion.mockResolvedValue({
+          id: 'ses_1', url: 'https://pasarela/pagar',
+        });
+        pagoRepo.findOne
+          .mockResolvedValueOnce(null) // primera llamada: no hay nada
+          .mockResolvedValueOnce({
+            id: 'p1', ventaId: 'v1', metodo: MetodoPago.TARJETA,
+            estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE,
+            referenciaExterna: 'ses_1', eventId: 'sesion:ses_1',
+          });
+
+        const primera = await service.iniciarTarjeta('v1', DUENO);
+        const segunda = await service.iniciarTarjeta('v1', DUENO);
+
+        expect(segunda.url).toBe(primera.url);
+        expect(pasarela.crearSesion).toHaveBeenCalledTimes(1);
+        expect(pagoRepo.save).toHaveBeenCalledTimes(1);
+      });
+
+      it('si la sesion guardada ya caduco se abre otra, pero sobre la MISMA fila', async () => {
+        // Una sesion vencida no puede dejar a la clienta sin poder pagar; pero
+        // tampoco tiene que dejar dos filas pendientes por una sola venta.
+        pasarela.crearSesion.mockResolvedValue({ id: 'ses_2', url: 'https://pasarela/otra' });
+        pasarela.recuperarSesion.mockResolvedValue(null); // caducada
+        pagoRepo.findOne.mockResolvedValue({
+          id: 'p1', ventaId: 'v1', metodo: MetodoPago.TARJETA,
+          estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE,
+          referenciaExterna: 'ses_1', eventId: 'sesion:ses_1',
+        });
+
+        const res = await service.iniciarTarjeta('v1', DUENO);
+
+        expect(res.url).toBe('https://pasarela/otra');
+        expect(pagoRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'p1', referenciaExterna: 'ses_2', eventId: 'sesion:ses_2',
+          }),
+        );
+        // No se creo una entidad nueva: se reescribio la existente.
+        expect(pagoRepo.create).not.toHaveBeenCalled();
+      });
+
+      it('solo busca pagos de STRIPE pendientes de ESA venta', async () => {
+        pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
+        await service.iniciarTarjeta('v1', DUENO);
+        expect(pagoRepo.findOne).toHaveBeenCalledWith({
+          where: {
+            ventaId: 'v1',
+            estado: EstadoPago.PENDIENTE,
+            proveedorPago: ProveedorPago.STRIPE,
+          },
+        });
+      });
     });
 
     it('nadie puede iniciar el cobro de una venta ajena', async () => {

@@ -13,6 +13,9 @@ export const FIRMA_SIMULADA = 'firma-simulada';
  */
 @Injectable()
 export class PasarelaSimulada implements Pasarela {
+  /** Las sesiones abiertas, para poder devolver la MISMA ante un segundo intento. */
+  private readonly sesiones = new Map<string, SesionPago>();
+
   estaConfigurada(): boolean {
     return true;
   }
@@ -22,7 +25,13 @@ export class PasarelaSimulada implements Pasarela {
     urlExito: string; urlCancelacion: string;
   }): Promise<SesionPago> {
     const id = `sim_${randomUUID()}`;
-    return Promise.resolve({ id, url: `${params.urlExito}?sesion=${id}` });
+    const sesion: SesionPago = { id, url: `${params.urlExito}?sesion=${id}` };
+    this.sesiones.set(id, sesion);
+    return Promise.resolve(sesion);
+  }
+
+  recuperarSesion(sesionId: string): Promise<SesionPago | null> {
+    return Promise.resolve(this.sesiones.get(sesionId) ?? null);
   }
 
   verificarEvento(cuerpoCrudo: Buffer, firma: string): EventoPago {

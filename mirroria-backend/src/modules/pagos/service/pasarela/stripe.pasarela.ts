@@ -50,6 +50,27 @@ export class PasarelaStripe implements Pasarela {
     return { id: sesion.id, url: sesion.url ?? params.urlCancelacion };
   }
 
+  async recuperarSesion(sesionId: string): Promise<SesionPago | null> {
+    if (!this.cliente) {
+      throw new Error('Stripe no esta configurado');
+    }
+    try {
+      const sesion = await this.cliente.checkout.sessions.retrieve(sesionId);
+      // `open` es el unico estado en el que la clienta todavia puede pagar; una
+      // sesion `expired` o `complete` ya no sirve para mandarla de vuelta
+      // (valores verificados contra los tipos del SDK: Session.Status).
+      if (sesion.status !== 'open' || !sesion.url) {
+        return null;
+      }
+      return { id: sesion.id, url: sesion.url };
+    } catch (error) {
+      // Que la pasarela no reconozca la sesion no puede dejar a la clienta sin
+      // poder pagar: se anota y quien llama crea una nueva.
+      this.logger.warn(`No se pudo recuperar la sesion ${sesionId}: ${String(error)}`);
+      return null;
+    }
+  }
+
   verificarEvento(cuerpoCrudo: Buffer, firma: string): EventoPago {
     if (!this.cliente || !this.secretoWebhook) {
       throw new FirmaWebhookInvalidaException();

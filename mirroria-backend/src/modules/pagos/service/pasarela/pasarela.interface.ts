@@ -25,6 +25,13 @@ export interface Pasarela {
     urlCancelacion: string;
   }): Promise<SesionPago>;
   /**
+   * La sesion ya creada, si todavia se puede pagar con ella. Devuelve null si
+   * caduco, si ya se completo o si la pasarela no la reconoce — en ese caso hay
+   * que crear una nueva. Sirve para que un segundo intento sobre la misma venta
+   * mande a la clienta a la MISMA sesion en vez de abrir otra.
+   */
+  recuperarSesion(sesionId: string): Promise<SesionPago | null>;
+  /**
    * Verifica la firma del webhook contra el cuerpo CRUDO y devuelve el evento.
    * Si la firma no valida, lanza. Nunca devuelve un evento sin verificar.
    */

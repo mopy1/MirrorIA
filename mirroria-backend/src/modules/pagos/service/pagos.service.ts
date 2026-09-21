@@ -106,6 +106,24 @@ export class PagosService {
       throw new VentaNoPagableException(`su estado es ${venta.estado}`);
     }
 
+    // Mismo criterio que el camino manual: si esta venta ya tiene un cobro con
+    // tarjeta pendiente, se reutiliza. Sin esto, cada llamada abria una sesion
+    // NUEVA en la pasarela, y con dos sesiones abiertas y las dos pagadas
+    // quedaban dos cobros reales y dos filas aprobadas sobre una sola venta,
+    // sin que nada lo detectara — el panel del equipo tampoco las muestra,
+    // porque filtra por cobros manuales.
+    const existente = await this.pagoRepository.findOne({
+      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
+    });
+    if (existente?.referenciaExterna) {
+      const abierta = await this.pasarela.recuperarSesion(existente.referenciaExterna);
+      if (abierta) {
+        return { url: abierta.url };
+      }
+      // La sesion caduco o ya no acepta pagos: hay que crear otra, pero sobre
+      // la MISMA fila (abajo), para no dejar dos pendientes por una venta.
+    }
+
     const sesion = await this.pasarela.crearSesion({
       montoCents: venta.totalCents,
       descripcion: `Compra ${venta.numeroComprobante ?? venta.id}`,
@@ -122,17 +140,24 @@ export class PagosService {
     });
 
     await this.pagoRepository.save(
-      this.pagoRepository.create({
-        ventaId,
-        proveedorPago: ProveedorPago.STRIPE,
-        metodo: MetodoPago.TARJETA,
-        montoCents: venta.totalCents,
-        estado: EstadoPago.PENDIENTE,
-        // Hasta que llegue el evento firmado del webhook, la unicidad la da la
-        // sesion recien creada, no un evento (que todavia no existe).
-        eventId: `sesion:${sesion.id}`,
-        referenciaExterna: sesion.id,
-      }),
+      existente
+        ? {
+            ...existente,
+            montoCents: venta.totalCents,
+            eventId: `sesion:${sesion.id}`,
+            referenciaExterna: sesion.id,
+          }
+        : this.pagoRepository.create({
+            ventaId,
+            proveedorPago: ProveedorPago.STRIPE,
+            metodo: MetodoPago.TARJETA,
+            montoCents: venta.totalCents,
+            estado: EstadoPago.PENDIENTE,
+            // Hasta que llegue el evento firmado del webhook, la unicidad la da
+            // la sesion recien creada, no un evento (que todavia no existe).
+            eventId: `sesion:${sesion.id}`,
+            referenciaExterna: sesion.id,
+          }),
     );
 
     return { url: sesion.url };
