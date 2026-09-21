@@ -879,6 +879,7 @@ Cierra la etapa 1: sin LLM, pero el reporte ya funciona de punta a punta.
 
 **Files:**
 - Create: `mirroria-backend/src/modules/ia/dto/reporte-response.dto.ts`
+- Create: `mirroria-backend/src/modules/ia/exception/sin-sucursal-asignada.exception.ts`
 - Create: `mirroria-backend/src/modules/ia/controller/ia.controller.ts`
 - Create: `mirroria-backend/src/modules/ia/service/ia.service.ts`
 - Modify: `mirroria-backend/src/modules/ia/ia.module.ts`
@@ -930,12 +931,17 @@ describe('IaService.consultar', () => {
     expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBe(SUCURSAL_PROPIA);
   });
 
-  it('un ENCARGADO_SUCURSAL sin sucursal asignada no ve nada de otras', async () => {
-    await service.consultar(
-      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { sucursalId: SUCURSAL_AJENA } }),
-      { sub: 'u3', role: 'ENCARGADO_SUCURSAL', sucursalId: null },
-    );
-    expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBeUndefined();
+  it('un ENCARGADO_SUCURSAL sin sucursal asignada es 403, no ve todo', async () => {
+    // Dejar el filtro en undefined seria lo PEOR posible: sin filtro, el motor
+    // devuelve TODAS las sucursales. Un encargado sin sucursal es una cuenta mal
+    // configurada, y ante la duda no se le muestra nada.
+    await expect(
+      service.consultar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { sucursalId: SUCURSAL_AJENA } }),
+        { sub: 'u3', role: 'ENCARGADO_SUCURSAL', sucursalId: null },
+      ),
+    ).rejects.toThrow(SinSucursalAsignadaException);
+    expect(motor.ejecutar).not.toHaveBeenCalled();
   });
 
   it('devuelve las filas del motor y narrativa nula sin LLM', async () => {
@@ -980,6 +986,27 @@ export class ReporteResponseDto {
 ```
 
 ```ts
+// sin-sucursal-asignada.exception.ts
+import { HttpStatus } from '@nestjs/common';
+import { BusinessException } from '../../../core/exception/business.exception.js';
+
+/**
+ * Un ENCARGADO_SUCURSAL sin `sucursal_id` es una cuenta mal configurada: no hay
+ * forma de acotarle el alcance. Se corta con 403 en vez de dejar el filtro vacio,
+ * porque sin filtro el reporte devolveria TODAS las sucursales.
+ */
+export class SinSucursalAsignadaException extends BusinessException {
+  constructor() {
+    super(
+      'Tu cuenta no tiene una sucursal asignada, asi que no se puede acotar el reporte. ' +
+        'Pedile a un administrador que te asigne una.',
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+```
+
+```ts
 // ia.service.ts
 import { Injectable } from '@nestjs/common';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
@@ -1006,9 +1033,14 @@ export class IaService {
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {
     if (user.role !== 'ENCARGADO_SUCURSAL') return ficha;
+    // Sin sucursal asignada NO se puede acotar el alcance, y dejar el filtro vacio
+    // abriria TODAS las sucursales — lo contrario de lo que se busca. Se corta aca.
+    if (!user.sucursalId) {
+      throw new SinSucursalAsignadaException();
+    }
     return {
       ...ficha,
-      filtros: { ...ficha.filtros, sucursalId: user.sucursalId ?? undefined },
+      filtros: { ...ficha.filtros, sucursalId: user.sucursalId },
     } as FichaConsultaDto;
   }
 }
