@@ -6,6 +6,7 @@ import { PagosService } from './pagos.service.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
 import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
+import { FirmaWebhookInvalidaException } from '../exception/firma-webhook-invalida.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
 import type { ExpiracionService } from './expiracion.service.js';
 import type { Pasarela } from './pasarela/pasarela.interface.js';
@@ -222,6 +223,61 @@ describe('PagosService — cobro manual', () => {
     it('nadie puede iniciar el cobro de una venta ajena', async () => {
       ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'OTRO', estado: 'PENDIENTE', totalCents: 1 });
       await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow();
+    });
+  });
+
+  describe('webhook', () => {
+    const CUERPO = Buffer.from('{}');
+
+    it('una firma invalida es 400 y no cambia NADA', async () => {
+      pasarela.verificarEvento.mockImplementation(() => {
+        throw new FirmaWebhookInvalidaException();
+      });
+      await expect(service.procesarEvento(CUERPO, 'mala')).rejects.toThrow(
+        FirmaWebhookInvalidaException,
+      );
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
+      expect(pagoRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('un evento valido aprueba el pago y cobra la venta', async () => {
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      });
+      const res = await service.procesarEvento(CUERPO, 'buena');
+      expect(res.procesado).toBe(true);
+      expect(ventas.marcarPagada).toHaveBeenCalledWith('v1');
+    });
+
+    it('EL MISMO evento entregado dos veces cobra UNA sola vez', async () => {
+      // Stripe reintenta. Es la promesa explicita del documento entregado.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne
+        .mockResolvedValueOnce({ id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA })
+        .mockResolvedValueOnce({ id: 'p1', ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.TARJETA });
+
+      await service.procesarEvento(CUERPO, 'buena');
+      await service.procesarEvento(CUERPO, 'buena');
+
+      expect(ventas.marcarPagada).toHaveBeenCalledTimes(1);
+    });
+
+    it('un evento que no es de pago se acepta sin hacer nada', async () => {
+      // Stripe manda muchos tipos de evento. Devolver un error haria que reintente
+      // para siempre algo que no nos interesa.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_2', tipo: 'otro', sesionId: null });
+      const res = await service.procesarEvento(CUERPO, 'buena');
+      expect(res.procesado).toBe(false);
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
+    });
+
+    it('un evento para una sesion desconocida no explota', async () => {
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_3', tipo: 'pagado', sesionId: 'no-existe' });
+      pagoRepo.findOne.mockResolvedValue(null);
+      const res = await service.procesarEvento(CUERPO, 'buena');
+      expect(res.procesado).toBe(false);
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
     });
   });
 });

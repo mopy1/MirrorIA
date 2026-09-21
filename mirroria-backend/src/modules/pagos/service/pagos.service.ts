@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -20,6 +20,8 @@ import type { Pasarela } from './pasarela/pasarela.interface.js';
 
 @Injectable()
 export class PagosService {
+  private readonly logger = new Logger(PagosService.name);
+
   constructor(
     @InjectRepository(Pago) private readonly pagoRepository: Repository<Pago>,
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -114,6 +116,42 @@ export class PagosService {
     );
 
     return { url: sesion.url };
+  }
+
+  /**
+   * Unica via por la que una compra con tarjeta se da por cobrada. El regreso de
+   * la clienta desde la pasarela NO prueba nada: esa URL se puede escribir a mano.
+   *
+   * No llama a la expiracion: este camino tiene que ser corto, porque la pasarela
+   * reintenta si tarda.
+   */
+  async procesarEvento(cuerpoCrudo: Buffer, firma: string): Promise<{ procesado: boolean }> {
+    // Si la firma no valida, esto lanza y no se toca nada.
+    const evento = this.pasarela.verificarEvento(cuerpoCrudo, firma);
+
+    if (evento.tipo !== 'pagado' || !evento.sesionId) {
+      return { procesado: false };
+    }
+
+    const pago = await this.pagoRepository.findOne({
+      where: { referenciaExterna: evento.sesionId },
+    });
+    if (!pago) {
+      this.logger.warn(`Evento ${evento.id} para una sesion desconocida`);
+      return { procesado: false };
+    }
+    // Reintento de la pasarela sobre un pago ya aprobado: no se cobra de nuevo.
+    if (pago.estado !== EstadoPago.PENDIENTE) {
+      return { procesado: false };
+    }
+
+    pago.estado = EstadoPago.APROBADO;
+    // Se guarda el id del evento real: el indice unique impide que otro pago
+    // distinto reclame el mismo evento.
+    pago.eventId = evento.id;
+    await this.pagoRepository.save(pago);
+    await this.ventasService.marcarPagada(pago.ventaId);
+    return { procesado: true };
   }
 
   /**

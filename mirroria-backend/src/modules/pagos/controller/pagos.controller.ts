@@ -1,5 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+  type RawBodyRequest,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
@@ -42,6 +55,18 @@ export class PagosController {
     @CurrentUser() user: JwtPayload,
   ): Promise<{ url: string }> {
     return this.pagosService.iniciarTarjeta(ventaId, user);
+  }
+
+  @Post('webhook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Webhook de la pasarela (público, verificado por firma)' })
+  procesarWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('stripe-signature') firma: string,
+  ): Promise<{ procesado: boolean }> {
+    // Sin guard a proposito: la pasarela no puede mandar un JWT. La firma es la
+    // unica defensa, y por eso se verifica contra el cuerpo crudo.
+    return this.pagosService.procesarEvento(req.rawBody ?? Buffer.alloc(0), firma ?? '');
   }
 
   @Post(':pagoId/confirmar')
