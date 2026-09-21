@@ -1,5 +1,5 @@
 import {
-  Body, Controller, HttpCode, HttpStatus, Post, UseGuards, ValidationPipe,
+  Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
@@ -8,6 +8,7 @@ import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
+import { InteraccionResponseDto } from '../dto/interaccion-response.dto.js';
 import { PromptDto } from '../dto/prompt.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { IaService } from '../service/ia.service.js';
@@ -74,5 +75,14 @@ export class IaController {
       metatype: FichaConsultaDto,
     })) as FichaConsultaDto;
     return this.iaService.consultar(ficha, user);
+  }
+
+  @Get('interacciones')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @ApiOperation({ summary: 'Historial de consultas al asistente' })
+  interacciones(@CurrentUser() user: JwtPayload): Promise<InteraccionResponseDto[]> {
+    return this.iaService.historial(user);
   }
 }

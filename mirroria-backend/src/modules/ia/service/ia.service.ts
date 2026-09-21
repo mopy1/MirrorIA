@@ -5,6 +5,7 @@ import { validateSync } from 'class-validator';
 import { Repository } from 'typeorm';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
+import { InteraccionResponseDto } from '../dto/interaccion-response.dto.js';
 import { PromptDto } from '../dto/prompt.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { InteraccionIa, TipoInteraccion } from '../entities/interaccion-ia.entity.js';
@@ -116,6 +117,25 @@ export class IaService {
         outputText: output,
       }),
     );
+  }
+
+  /**
+   * Historial de consultas. Un ADMIN ve las de todos; un ENCARGADO_SUCURSAL
+   * solo las propias — mismo criterio de alcance que el de los reportes.
+   */
+  async historial(user: JwtPayload): Promise<InteraccionResponseDto[]> {
+    const filas = await this.interacciones.find({
+      where: user.role === 'ADMIN' ? undefined : { usuarioId: user.sub },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+    return filas.map((i) => ({
+      id: i.id,
+      tipo: i.tipo,
+      inputText: i.inputText,
+      outputText: i.outputText,
+      createdAt: i.createdAt,
+    }));
   }
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {

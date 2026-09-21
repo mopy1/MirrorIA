@@ -231,3 +231,43 @@ describe('preguntar (con LLM)', () => {
     );
   });
 });
+
+describe('historial', () => {
+  let repo: { find: ReturnType<typeof vi.fn> };
+  let service: IaService;
+
+  beforeEach(() => {
+    const motor = { ejecutar: vi.fn() };
+    repo = { find: vi.fn().mockResolvedValue([]) };
+    service = new IaService(
+      motor as unknown as MotorConsultaService,
+      proveedorSinUso() as unknown as ProveedorIa,
+      repo as unknown as Repository<InteraccionIa>,
+    );
+  });
+
+  it('un ADMIN ve todas las interacciones', async () => {
+    repo.find = vi.fn().mockResolvedValue([]);
+    await service.historial({ sub: 'u1', role: 'ADMIN', sucursalId: null });
+    expect(repo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ order: { createdAt: 'DESC' }, take: 50 }),
+    );
+    expect(repo.find.mock.calls[0][0].where).toBeUndefined();
+  });
+
+  it('un ENCARGADO_SUCURSAL solo ve las suyas', async () => {
+    repo.find = vi.fn().mockResolvedValue([]);
+    await service.historial({ sub: 'u2', role: 'ENCARGADO_SUCURSAL', sucursalId: 's1' });
+    expect(repo.find.mock.calls[0][0].where).toEqual({ usuarioId: 'u2' });
+  });
+
+  it('no devuelve la entidad cruda sino un DTO', async () => {
+    repo.find = vi.fn().mockResolvedValue([
+      { id: 'i1', tipo: 'REPORTE_VOZ', inputText: 'x', outputText: 'y',
+        createdAt: new Date('2026-09-21'), updatedAt: new Date('2026-09-21'), usuarioId: 'u1' },
+    ]);
+    const res = await service.historial({ sub: 'u1', role: 'ADMIN', sucursalId: null });
+    expect(res[0]).not.toHaveProperty('updatedAt');
+    expect(res[0]).not.toHaveProperty('usuarioId');
+  });
+});
