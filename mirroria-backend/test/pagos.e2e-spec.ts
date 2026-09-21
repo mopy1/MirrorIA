@@ -166,6 +166,57 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     expect((await ventas.findOne(venta.id)).estado).toBe('PENDIENTE');
   });
 
+  it('una venta PENDIENTE vieja SIN ningun pago tambien vence y devuelve su stock', async () => {
+    // El defecto: la barrida recorria `pagos`, no `ventas`, asi que una venta
+    // que nunca llego a crear una fila de pago era invisible para siempre y su
+    // stock no volvia jamas. Y el flujo la produce de forma determinista en un
+    // entorno sin claves de Stripe: el checkout crea la venta, descuenta el
+    // stock, consume el cupon y vacia el carrito, y recien despues
+    // `iniciarTarjeta` responde 503.
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 3 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const stockConLaVentaViva = await stockDe(ID.var);
+
+    // A proposito NO se llama a iniciarManual ni a iniciarTarjeta: la venta no
+    // tiene ninguna fila de pago.
+    const sinPagos = await ds.query(`SELECT count(*) FROM pagos WHERE venta_id = $1`, [venta.id]);
+    expect(Number(sinPagos[0].count)).toBe(0);
+
+    // Se retrocede la fecha de la VENTA (no la de un pago, que no existe). Sin
+    // pago se usa el plazo de tarjeta, 30 minutos. Se retrocede un dia entero,
+    // igual que la prueba del cupon de arriba, y por el mismo motivo: las
+    // columnas son `timestamp` SIN zona y el driver las lee como hora local,
+    // asi que en una maquina que no corre en UTC hay un corrimiento de horas
+    // entre la base y el proceso. Un dia lo absorbe con margen.
+    // "createdAt" entre comillas dobles: es camelCase en la base.
+    await ds.query(
+      `UPDATE ventas SET "createdAt" = "createdAt" - INTERVAL '1 day' WHERE id = $1`,
+      [venta.id],
+    );
+
+    expect(await expiracion.expirarVencidas()).toBe(1);
+    expect((await ventas.findOne(venta.id)).estado).toBe('CANCELADA');
+    expect(await stockDe(ID.var)).toBe(stockConLaVentaViva + 3);
+  });
+
+  it('una venta sin pago DENTRO del plazo no se toca', async () => {
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 2 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const stockTrasCheckout = await stockDe(ID.var);
+
+    expect(await expiracion.expirarVencidas()).toBe(0);
+    expect((await ventas.findOne(venta.id)).estado).toBe('PENDIENTE');
+    expect(await stockDe(ID.var)).toBe(stockTrasCheckout);
+
+    // Se limpia a mano: si quedara PENDIENTE, las barridas de las pruebas
+    // siguientes la contarian cuando pase su plazo.
+    await ventas.cancelarPorPagoNoCompletado(venta.id, 'fin de la prueba');
+  });
+
   it('dos cancelaciones SIMULTANEAS devuelven el stock una sola vez', async () => {
     // El defecto: `cancelarPorPagoNoCompletado` leia la venta sin bloqueo,
     // verificaba que estuviera PENDIENTE, devolvia el stock, y recien al final

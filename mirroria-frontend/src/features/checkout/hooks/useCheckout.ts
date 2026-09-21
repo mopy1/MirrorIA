@@ -34,13 +34,20 @@ export function useCheckout() {
           return
         } catch (err) {
           // El servidor de la demo puede no tener claves de Stripe (503): es un
-          // caso esperado, no un error random. El backend ya redacta el mensaje
-          // que explica que se puede pagar por QR o efectivo, así que lo
-          // mostramos tal cual y dejamos a la clienta acá, con la venta ya
-          // creada — no la mandamos a una pantalla en blanco.
-          setError(
-            err instanceof ApiError ? err.message : "No se pudo iniciar el pago con tarjeta"
-          )
+          // caso esperado, no un error random. Pero dejarla acá era un callejón
+          // sin salida: el checkout ya creó la venta, descontó el stock, consumió
+          // el cupón y VACIÓ EL CARRITO, así que no puede reintentar nada desde
+          // esta pantalla — no queda carrito que comprar. Se la manda al pago de
+          // la venta ya creada, que es el único camino que sigue abierto: QR o
+          // efectivo no necesitan carrito.
+          navigate(`/pago/${venta.id}`, {
+            state: {
+              motivo:
+                err instanceof ApiError
+                  ? err.message
+                  : "No se pudo iniciar el pago con tarjeta",
+            },
+          })
           return
         }
       }

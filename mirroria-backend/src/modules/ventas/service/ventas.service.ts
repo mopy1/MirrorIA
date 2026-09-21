@@ -140,6 +140,24 @@ export class VentasService {
   }
 
   /**
+   * Las ventas todavia PENDIENTE, las mas viejas primero. La usa la barrida de
+   * vencimientos del modulo `pagos`, que antes partia de la tabla `pagos` y por
+   * eso no veia nunca una venta que nunca llego a crear una fila de pago: su
+   * stock y su cupon no volvian jamas.
+   *
+   * El orden ascendente importa: con mas pendientes que el tope, sin `order` las
+   * mas viejas — las que mas tiempo llevan reteniendo stock — podian quedar
+   * afuera para siempre.
+   */
+  async findPendientesMasViejasPrimero(limite: number): Promise<Venta[]> {
+    return this.ventaRepository.find({
+      where: { estado: EstadoVenta.PENDIENTE },
+      order: { createdAt: 'ASC' },
+      take: limite,
+    });
+  }
+
+  /**
    * Deshace un checkout que nunca se pago: devuelve el stock, devuelve el uso del
    * cupon y deja la venta CANCELADA. Todo en una transaccion: o se deshacen las
    * dos cosas o no se deshace ninguna.

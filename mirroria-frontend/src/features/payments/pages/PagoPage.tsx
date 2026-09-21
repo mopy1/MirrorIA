@@ -44,20 +44,32 @@ export function PagoPage() {
 
 function InstruccionesPago() {
   const { ventaId } = useParams<{ ventaId: string }>()
-  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const metodo = (searchParams.get("metodo") === "EFECTIVO" ? "EFECTIVO" : "QR") as Exclude<
     MetodoPago,
     "TARJETA"
   >
+  // Por qué llegó acá, cuando no vino eligiendo: el checkout la manda para
+  // este lado si el cobro con tarjeta no se pudo iniciar (503 sin claves de
+  // Stripe). Su carrito ya está vacío, así que este es el único camino abierto.
+  const motivo = (location.state as { motivo?: string } | null)?.motivo ?? null
 
   const [instrucciones, setInstrucciones] = useState<Instrucciones | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const solicitado = useRef(false)
+  // Guarda por venta Y método: sin el método, cambiar de QR a efectivo no
+  // volvería a pedir las instrucciones. El backend reutiliza la misma fila
+  // pendiente, así que cambiar de idea no duplica el cobro.
+  const solicitado = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!ventaId || solicitado.current) return
-    solicitado.current = true
+    if (!ventaId) return
+    const clave = `${ventaId}:${metodo}`
+    if (solicitado.current === clave) return
+    solicitado.current = clave
+    setIsLoading(true)
+    setError(null)
     paymentsApi
       .iniciarManual(ventaId, metodo)
       .then(setInstrucciones)
@@ -99,6 +111,34 @@ function InstruccionesPago() {
         {esQr ? "Pagá con QR" : "Pagá en efectivo"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">{instrucciones.instrucciones}</p>
+
+      {motivo && (
+        <Alert className="mt-6 text-left">
+          <WarningCircle />
+          <AlertDescription>
+            {motivo} Tu compra ya está reservada: podés pagarla por QR o en efectivo desde acá.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Cambiar de idea no crea otro cobro: el backend reutiliza la misma
+          fila pendiente de esta venta y solo le cambia el método. */}
+      <div className="mt-6 flex gap-2">
+        <Button
+          variant={esQr ? "default" : "outline"}
+          onClick={() => setSearchParams({ metodo: "QR" }, { replace: true })}
+        >
+          <QrCode data-icon="inline-start" className="size-4" />
+          <span>Con QR</span>
+        </Button>
+        <Button
+          variant={esQr ? "outline" : "default"}
+          onClick={() => setSearchParams({ metodo: "EFECTIVO" }, { replace: true })}
+        >
+          <Money data-icon="inline-start" className="size-4" />
+          <span>En efectivo</span>
+        </Button>
+      </div>
 
       <Card className="mt-6 w-full">
         <CardContent className="flex flex-col items-center gap-4">
@@ -218,9 +258,13 @@ function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
         <>
           <XCircle className="size-14 text-muted-foreground" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Pago cancelado</h1>
+          {/* Decía "podés volver a intentarlo desde el checkout" y era falso: el
+              checkout ya vació el carrito al crear esta venta, así que no hay
+              nada que volver a comprar. Lo que sí sigue abierto es pagar ESTA
+              compra, que ya existe y tiene el stock reservado. */}
           <p className="mt-2 text-sm text-muted-foreground">
-            No completaste el pago con tarjeta. Tu compra sigue pendiente — podés volver a
-            intentarlo desde el checkout.
+            No completaste el pago con tarjeta. Tu compra sigue pendiente y tu carrito ya se
+            vació al crearla, así que el pago se retoma desde acá — no desde el checkout.
           </p>
         </>
       ) : pendiente ? (
@@ -245,7 +289,12 @@ function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
       </Badge>
       <p className="mt-4 text-lg font-medium text-foreground">{formatMoney(venta.totalCents)}</p>
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        {pendiente && (
+          <Link to={`/pago/${venta.id}`} className={cn(buttonVariants())}>
+            Pagar por QR o efectivo
+          </Link>
+        )}
         {pendiente && (
           <Button variant="outline" onClick={reintentar} disabled={isLoading}>
             <ArrowsClockwise data-icon="inline-start" className="size-4" />
