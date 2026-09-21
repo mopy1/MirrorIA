@@ -97,7 +97,9 @@ export class IaService {
 
     let narrativa: string | null = null;
     try {
-      narrativa = await this.proveedor.narrar(reporte.ficha, reporte.filas);
+      // La comparacion viaja con las filas: cuando la ficha compara dos periodos, es
+      // la respuesta a la pregunta y la narrativa la ignoraba por completo.
+      narrativa = await this.proveedor.narrar(reporte.ficha, reporte.filas, reporte.comparacion);
     } catch (error) {
       // Los numeros ya estan calculados y son correctos: que falle la narracion
       // no invalida el reporte. Se devuelve sin texto y se deja constancia.

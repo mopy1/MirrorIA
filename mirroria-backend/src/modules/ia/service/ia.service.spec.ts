@@ -185,6 +185,34 @@ describe('preguntar (con LLM)', () => {
     expect(res.narrativa).toBe('Santa Cruz lidera con Bs 1.500.');
   });
 
+  it('le pasa la comparacion a la narrativa cuando la ficha compara periodos', async () => {
+    motor.ejecutar
+      .mockReset()
+      .mockResolvedValueOnce([{ clave: 'sc', etiqueta: 'Santa Cruz', valor: 150 }])
+      .mockResolvedValueOnce([{ clave: 'sc', etiqueta: 'Santa Cruz', valor: 100 }]);
+    proveedor.extraerFicha.mockResolvedValue({
+      metrica: 'ingresos', agruparPor: 'sucursal',
+      compararCon: { desde: '2026-07-01', hasta: '2026-07-31' },
+    });
+
+    await service.preguntar({ prompt: 'vendi mas que el mes pasado' }, ADMIN);
+
+    // La comparacion es la RESPUESTA a esa pregunta. Pasarle solo `filas` hacia que
+    // el modelo redactara sobre el mes actual como si la otra mitad no existiera.
+    const comparacion = proveedor.narrar.mock.calls[0][2] as {
+      variaciones: Array<Record<string, unknown>>;
+    };
+    expect(comparacion).toBeTruthy();
+    expect(comparacion.variaciones[0]).toMatchObject({
+      actual: 150, anterior: 100, deltaAbsoluto: 50, deltaPorcentual: 50,
+    });
+  });
+
+  it('sin comparacion le pasa null, no una comparacion vacia', async () => {
+    await service.preguntar({ prompt: 'cuanto vendi' }, ADMIN);
+    expect(proveedor.narrar.mock.calls[0][2]).toBeNull();
+  });
+
   it('registra la interaccion con el usuario del JWT', async () => {
     await service.preguntar({ prompt: 'cuanto vendi' }, ADMIN);
     expect(repo.save).toHaveBeenCalledWith(

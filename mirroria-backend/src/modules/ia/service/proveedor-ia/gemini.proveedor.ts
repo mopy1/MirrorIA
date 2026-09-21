@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FichaConsultaDto } from '../../dto/ficha-consulta.dto.js';
+import type { ComparacionDto } from '../../dto/reporte-response.dto.js';
 import type { FilaReporte } from '../motor-consulta.service.js';
 import { construirInstruccion, ESQUEMA_FICHA } from './esquema-ficha.js';
 import type { ProveedorIa } from './proveedor-ia.interface.js';
@@ -54,22 +55,42 @@ export class GeminiProveedor implements ProveedorIa {
     }
   }
 
-  async narrar(ficha: FichaConsultaDto, filas: FilaReporte[]): Promise<string | null> {
+  async narrar(
+    ficha: FichaConsultaDto,
+    filas: FilaReporte[],
+    comparacion?: ComparacionDto | null,
+  ): Promise<string | null> {
     const datos = filas.map((f) => `${f.etiqueta}: ${f.valor}`).join('; ');
+
+    let instruccion =
+      'Redacta en espanol un resumen ejecutivo de 2 o 3 frases sobre estos datos. ' +
+      'Usa SOLO los numeros que te doy: no estimes, no inventes, no agregues contexto. ' +
+      'Los montos vienen en centavos de boliviano.';
+    let texto = `Metrica: ${ficha.metrica}. Datos: ${datos || 'sin resultados'}`;
+
+    // Si la ficha comparo dos periodos, la variacion ES la respuesta a la pregunta
+    // ("¿vendi mas que el mes pasado?"). Sin esto el modelo la ignoraba y redactaba
+    // sobre el periodo actual como si la otra mitad de la tabla no existiera.
+    if (comparacion) {
+      instruccion +=
+        ' El reporte COMPARA dos periodos: nombra la variacion (si subio o bajo, y cuanto) ' +
+        'porque es lo que se pregunto. Un porcentaje ausente significa que el periodo ' +
+        'anterior fue cero, no que no haya habido cambio.';
+      const variaciones = comparacion.variaciones
+        .map((v) => {
+          const signo = v.deltaAbsoluto >= 0 ? '+' : '';
+          const pct = v.deltaPorcentual === null ? 'sin base anterior' : `${v.deltaPorcentual}%`;
+          return `${v.etiqueta}: antes ${v.anterior}, ahora ${v.actual} (${signo}${v.deltaAbsoluto}, ${pct})`;
+        })
+        .join('; ');
+      texto +=
+        `. Periodo de comparacion (${comparacion.rango.desde} a ${comparacion.rango.hasta}): ` +
+        `${variaciones || 'sin resultados'}`;
+    }
+
     return this.generar({
-      systemInstruction: {
-        parts: [
-          {
-            text:
-              'Redacta en espanol un resumen ejecutivo de 2 o 3 frases sobre estos datos. ' +
-              'Usa SOLO los numeros que te doy: no estimes, no inventes, no agregues contexto. ' +
-              'Los montos vienen en centavos de boliviano.',
-          },
-        ],
-      },
-      contents: [
-        { role: 'user', parts: [{ text: `Metrica: ${ficha.metrica}. Datos: ${datos || 'sin resultados'}` }] },
-      ],
+      systemInstruction: { parts: [{ text: instruccion }] },
+      contents: [{ role: 'user', parts: [{ text: texto }] }],
       generationConfig: { temperature: 0.2 },
     });
   }

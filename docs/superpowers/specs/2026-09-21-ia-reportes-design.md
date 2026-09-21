@@ -198,6 +198,11 @@ mantiene el motor simple y hace imposible que los dos períodos se calculen dist
 Responde *"¿vendí más que el mes pasado?"*, que es la pregunta que más se hace y la que la
 ficha original no podía contestar.
 
+**La narrativa recibe la comparación** (corrección del 2026-09-21): `ProveedorIa.narrar`
+toma un tercer argumento con la comparación, y cuando existe, la instrucción del modelo le
+pide nombrar la variación. Antes se le pasaban solo las filas del período actual, así que
+el resumen redactaba sobre el mes corriente e ignoraba lo único que el usuario preguntó.
+
 ## 4-bis. Trampas de los datos (verificadas en las entidades)
 
 Cinco cosas que el esquema real impone y que hay que respetar o los números salen mal:
