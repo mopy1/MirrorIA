@@ -320,13 +320,13 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
     canal: { grupo: 'v.canal', etiqueta: 'v.canal', joins: [] },
     estado: { grupo: 'v.estado', etiqueta: 'v.estado', joins: [] },
     dia: {
-      grupo: "date_trunc('day', v."createdAt")",
-      etiqueta: "to_char(date_trunc('day', v."createdAt"), 'YYYY-MM-DD')",
+      grupo: "date_trunc('day', v.\"createdAt\")",
+      etiqueta: "to_char(date_trunc('day', v.\"createdAt\"), 'YYYY-MM-DD')",
       joins: [],
     },
     mes: {
-      grupo: "date_trunc('month', v."createdAt")",
-      etiqueta: "to_char(date_trunc('month', v."createdAt"), 'YYYY-MM')",
+      grupo: "date_trunc('month', v.\"createdAt\")",
+      etiqueta: "to_char(date_trunc('month', v.\"createdAt\"), 'YYYY-MM')",
       joins: [],
     },
     categoria: {
@@ -1458,13 +1458,13 @@ function definicionReservas(seleccion: string, joinsBase: string[]): DefinicionM
         joins: ['JOIN sucursales s ON s.id = r.sucursal_id'],
       },
       dia: {
-        grupo: "date_trunc('day', r."createdAt")",
-        etiqueta: "to_char(date_trunc('day', r."createdAt"), 'YYYY-MM-DD')",
+        grupo: "date_trunc('day', r.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('day', r.\"createdAt\"), 'YYYY-MM-DD')",
         joins: [],
       },
       mes: {
-        grupo: "date_trunc('month', r."createdAt")",
-        etiqueta: "to_char(date_trunc('month', r."createdAt"), 'YYYY-MM')",
+        grupo: "date_trunc('month', r.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('month', r.\"createdAt\"), 'YYYY-MM')",
         joins: [],
       },
     },
@@ -1598,8 +1598,8 @@ function definicionCupones(seleccion: string): DefinicionMetrica {
         joins: ['JOIN sucursales s ON s.id = v.sucursal_id'],
       },
       mes: {
-        grupo: "date_trunc('month', v."createdAt")",
-        etiqueta: "to_char(date_trunc('month', v."createdAt"), 'YYYY-MM')",
+        grupo: "date_trunc('month', v.\"createdAt\")",
+        etiqueta: "to_char(date_trunc('month', v.\"createdAt\"), 'YYYY-MM')",
         joins: [],
       },
     },
