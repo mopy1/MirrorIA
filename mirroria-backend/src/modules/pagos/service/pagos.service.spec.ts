@@ -383,6 +383,37 @@ describe('PagosService — cobro manual', () => {
       });
     });
 
+    it('la descripcion que ve la clienta es legible, no un uuid crudo', async () => {
+      // Decia `Compra <numeroComprobante ?? id>` y ese campo no se escribe
+      // nunca, asi que la clienta leia "Compra 8f3a1c9e-4b2d-...".
+      ventas.findOne.mockResolvedValue({
+        id: '8f3a1c9e-4b2d-4f0a-9c11-aaaaaaaaaaaa',
+        clienteId: 'cli1', estado: 'PENDIENTE', totalCents: 25000,
+        numeroComprobante: null,
+      });
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
+
+      await service.iniciarTarjeta('v1', DUENO);
+
+      const { descripcion } = pasarela.crearSesion.mock.calls[0][0] as { descripcion: string };
+      expect(descripcion).toBe('MirrorIA — Compra #8F3A1C9E');
+      expect(descripcion).not.toContain('8f3a1c9e-4b2d');
+    });
+
+    it('si la venta tiene numero de comprobante, se muestra ese', async () => {
+      ventas.findOne.mockResolvedValue({
+        id: '8f3a1c9e-4b2d-4f0a-9c11-aaaaaaaaaaaa',
+        clienteId: 'cli1', estado: 'PENDIENTE', totalCents: 25000,
+        numeroComprobante: 'F-000123',
+      });
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
+
+      await service.iniciarTarjeta('v1', DUENO);
+
+      const { descripcion } = pasarela.crearSesion.mock.calls[0][0] as { descripcion: string };
+      expect(descripcion).toBe('MirrorIA — Compra F-000123');
+    });
+
     it('nadie puede iniciar el cobro de una venta ajena', async () => {
       ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'OTRO', estado: 'PENDIENTE', totalCents: 1 });
       await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow();

@@ -127,7 +127,7 @@ export class PagosService {
 
     const sesion = await this.pasarela.crearSesion({
       montoCents: venta.totalCents,
-      descripcion: `Compra ${venta.numeroComprobante ?? venta.id}`,
+      descripcion: this.descripcionParaLaPasarela(venta),
       referencia: venta.id,
       // Con el id de la venta en la URL, la pantalla de regreso sabe que
       // consultar sin depender solo de sessionStorage (que falla si la
@@ -297,6 +297,17 @@ export class PagosService {
       take: 100,
     });
     return filas.map((p) => this.aDto(p));
+  }
+
+  /**
+   * Lo que la clienta lee en el formulario de la pasarela. Antes era
+   * `Compra <numeroComprobante ?? id>` y, como ese campo no se escribe nunca,
+   * terminaba mostrando el uuid crudo: "Compra 8f3a1c9e-4b2d-...". Se usan los
+   * primeros caracteres en mayusculas, igual que el panel de ventas.
+   */
+  private descripcionParaLaPasarela(venta: { id: string; numeroComprobante: string | null }): string {
+    const referencia = venta.numeroComprobante ?? `#${venta.id.slice(0, 8).toUpperCase()}`;
+    return `MirrorIA — Compra ${referencia}`;
   }
 
   /**
