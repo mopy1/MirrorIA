@@ -96,6 +96,20 @@ Razón: en una devolución la mercadería vuelve físicamente; acá nunca salió
 pagó ni retiró nada. Usar `DEVOLUCION` inflaría la métrica de devoluciones con ventas que
 jamás ocurrieron — otro número equivocado que nadie notaría.
 
+### 3.5-bis El cupón también se devuelve
+
+El checkout no solo descuenta stock: si la compra traía un cupón, `consumirCupon` ya
+incrementó `usos_actuales`. Hoy no existe forma de devolver ese uso.
+
+Es la misma fuga que la del stock, por otra puerta: una clienta que abandona tres checkouts
+con el mismo cupón quema tres usos sin haber comprado nada, y un cupón con tope se agota
+solo. Peor que el stock en un aspecto: el tope de usos es una regla de negocio deliberada
+—una promoción para las primeras 50 clientas— y esta fuga la vacía con carritos abandonados.
+
+Por eso `promociones` gana `liberarCupon(cuponId, manager?)`, que decrementa `usos_actuales`
+con piso en 0, y la cancelación por pago no completado lo llama dentro de la misma
+transacción que devuelve el stock. Las dos cosas se deshacen juntas o no se deshace ninguna.
+
 ### 3.6 Sin planificador: la expiración se dispara sola y también a mano
 
 El plazo por defecto es de **30 minutos** (`PAGOS_MINUTOS_VENCIMIENTO`). La barrida de
@@ -216,6 +230,11 @@ reintentado —Stripe reintenta— choca contra el índice único y no cobra dos
   pendiente que vence devuelve exactamente las unidades que el checkout descontó, deja el
   movimiento `AJUSTE` con su motivo, y la venta queda `CANCELADA`. Verificar el inventario
   antes y después.
+- **Liberación del cupón:** una venta con cupón que se cancela devuelve el uso
+  (`usos_actuales` baja en uno), y una sin cupón no rompe nada. Verificar además que el piso
+  es 0: liberar dos veces el mismo cupón no lo deja en negativo.
+- **Las dos liberaciones son atómicas:** si la devolución del cupón falla, el stock tampoco
+  se devuelve y la venta sigue pendiente. Nada de estados a medias.
 - **Expiración:** una venta dentro del plazo **no** se toca; una vencida sí. Con reloj falso.
 - **Permisos:** crear sesión sobre una venta ajena es 403; confirmar un cobro siendo
   `CUSTOMER` es 403.
