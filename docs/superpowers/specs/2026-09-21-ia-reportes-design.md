@@ -77,8 +77,15 @@ Cumple la regla al pie de la letra pero saca la agregación de SQL y multiplica 
 ### 3.4 Gemini para la extracción
 
 Se usa Gemini por su salida estructurada por esquema (devuelve JSON que cumple el contrato
-o falla) y porque ya hay clave disponible. El adaptador queda detrás de una interfaz
-(`ProveedorIa`) con una única implementación, para que cambiar de proveedor sea un archivo.
+o falla) y por su capa gratuita. El adaptador queda detrás de una interfaz (`ProveedorIa`)
+con una única implementación, para que cambiar de proveedor sea un archivo.
+
+**La clave es propia de este proyecto** (decisión del 2026-09-21): se saca una nueva desde
+Google AI Studio a nombre de MirrorIA, en vez de reutilizar la que ya existe en otro
+proyecto del usuario. Compartir una clave entre proyectos hace que rotarla o quemarla en
+uno rompa el otro. Va en `mirroria-backend/.env` como `IA_API_KEY` — verificado que el
+`.gitignore` de la raíz lo cubre (`.gitignore:39`), así que no puede llegar al repo. En
+`.env.example` se agrega la variable **vacía y comentada**, nunca con un valor real.
 
 **El sistema funciona sin clave.** Sin `IA_API_KEY`, `POST /ia/reportes` responde 503 con
 mensaje claro, porque sin modelo no hay forma de interpretar la pregunta. Pero
