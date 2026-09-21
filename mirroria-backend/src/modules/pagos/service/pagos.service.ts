@@ -160,8 +160,24 @@ export class PagosService {
       this.logger.warn(`Evento ${evento.id} para una sesion desconocida`);
       return { procesado: false };
     }
-    // Reintento de la pasarela sobre un pago ya aprobado: no se cobra de nuevo.
+    // Reintento de la pasarela sobre un pago ya aprobado: no se cobra de nuevo
+    // y no hay nada que anotar. Stripe reintenta de rutina.
+    if (pago.estado === EstadoPago.APROBADO) {
+      return { procesado: false };
+    }
+    // RECHAZADO o REEMBOLSADO es otra cosa completamente: entro dinero sobre
+    // algo muerto. RECHAZADO es justamente el estado que deja la expiracion,
+    // asi que este es el caso de la clienta que se demoro pagando, la
+    // expiracion le cancelo la venta, y ella pago igual — Stripe le cobro de
+    // verdad. Descartarlo en silencio dejaba plata cobrada sin log, sin marca
+    // y sin rastro. Mismo rescate que el de la venta cancelada, abajo.
     if (pago.estado !== EstadoPago.PENDIENTE) {
+      this.logger.error(
+        `Pago ${pago.id} de la venta ${pago.ventaId} recibio el aviso de cobro ${evento.id} estando ya ${pago.estado}: entro dinero sobre un cobro muerto`,
+      );
+      pago.motivoReembolso = `Cobro acreditado por la pasarela sobre un pago ya ${pago.estado}: requiere reembolso`;
+      await this.pagoRepository.save(pago);
+      // 200 igual: ningun reintento de la pasarela arregla esto.
       return { procesado: false };
     }
 

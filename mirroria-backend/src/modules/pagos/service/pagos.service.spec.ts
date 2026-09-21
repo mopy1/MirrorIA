@@ -329,6 +329,52 @@ describe('PagosService — cobro manual', () => {
       expect(ventas.marcarPagada).toHaveBeenCalledTimes(1);
     });
 
+    it('un aviso de cobro sobre un pago ya RECHAZADO deja constancia para reembolso', async () => {
+      // La secuencia real: la clienta se demora, la expiracion le cancela la
+      // venta y deja el pago RECHAZADO, y la clienta paga igual — Stripe le
+      // cobra de verdad. Antes la condicion `estado !== PENDIENTE` metia este
+      // caso en la misma bolsa que el reintento benigno y lo descartaba en
+      // silencio: plata cobrada, cero constancia.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_9', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.RECHAZADO, metodo: MetodoPago.TARJETA,
+      });
+
+      const res = await service.procesarEvento(CUERPO, 'buena');
+
+      expect(res.procesado).toBe(false);
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ motivoReembolso: expect.stringContaining('reembolso') }),
+      );
+      // No se re-aprueba: el estado sigue siendo el que quedo, la marca es la
+      // que avisa a una persona.
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
+    });
+
+    it('ese caso tampoco le devuelve un error a la pasarela', async () => {
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_9', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.REEMBOLSADO, metodo: MetodoPago.TARJETA,
+      });
+      await expect(service.procesarEvento(CUERPO, 'buena')).resolves.toBeDefined();
+    });
+
+    it('un reintento sobre un pago ya APROBADO no toca NADA: es benigno', async () => {
+      // El contrapeso del caso de arriba: un pago aprobado que recibe el mismo
+      // aviso otra vez es rutina de Stripe, y no debe ensuciar la fila con una
+      // marca de reembolso.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.TARJETA,
+      });
+
+      const res = await service.procesarEvento(CUERPO, 'buena');
+
+      expect(res.procesado).toBe(false);
+      expect(pagoRepo.save).not.toHaveBeenCalled();
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
+    });
+
     it('un evento que no es de pago se acepta sin hacer nada', async () => {
       // Stripe manda muchos tipos de evento. Devolver un error haria que reintente
       // para siempre algo que no nos interesa.
