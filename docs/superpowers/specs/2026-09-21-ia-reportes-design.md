@@ -163,6 +163,31 @@ una lista única.
 Validada con `class-validator` **antes** de tocar la base. Una ficha inválida es 400, no
 una consulta.
 
+**`categoriaId` y `productoId` no los admite cualquier métrica** (corrección del
+2026-09-21; antes estaban en el contrato pero ninguna métrica los declaraba, así que
+usarlos siempre daba 400). Dónde valen y con qué forma:
+
+| Métrica | Forma del filtro | Significado |
+|---|---|---|
+| `cantidad_ventas`, `clientes_activos` | `EXISTS` sobre `venta_items` | ventas / clientas que **incluyeron** esa categoría o producto |
+| `unidades` | recorte de la propia línea (`vi.variante_id IN …`) | unidades **de** esa categoría o producto |
+| `stock_disponible` / `stock_reservado` / `stock_en_transito` | recorte por `i.variante_id` | stock de esa categoría o producto |
+| `movimientos_unidades`, `movimientos_conteo` | recorte por `m.variante_id` | movimientos de esa categoría o producto |
+| `ingresos`, `descuentos`, `ticket_promedio` | **no se ofrecen** (400) | ver abajo |
+
+Se usa `EXISTS` y no un `JOIN` porque el join a `venta_items` multiplica cada venta por
+su cantidad de líneas, y porque un filtro no puede depender de por qué se agrupa.
+
+Las tres métricas de dinero de **cabecera** no los reciben por el mismo motivo por el que
+`descuentos` y `ticket_promedio` tampoco admiten las dimensiones `categoria`/`producto`:
+recortar las ventas que tocan una categoría no convierte el total de la venta en el dinero
+de esa categoría. *"¿Cuánto vendí de Vestidos?"* se contesta con `ingresos` agrupado por
+`categoria`, que agrega sobre `venta_items.subtotal_cents` y da la cifra exacta.
+
+Nada de esto cambia lo que ve el modelo: los filtros por identificador **siguen fuera** de
+`ESQUEMA_FICHA` (el modelo no conoce los uuid de la base). Viven en la vía de ficha
+manual, `POST /ia/reportes/consulta`.
+
 ### 4.5 Comparación entre períodos
 
 `compararCon` lleva un segundo rango de fechas. El motor corre **la misma consulta dos

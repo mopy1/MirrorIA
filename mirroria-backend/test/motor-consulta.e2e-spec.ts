@@ -261,6 +261,77 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(nombres).toEqual(['Ana Perez', 'Luz Rojas']);
   });
 
+  describe('filtrar por categoria o por producto', () => {
+    it('unidades de Vestidos cuenta SOLO las lineas de Vestidos', async () => {
+      const filas = await motor.ejecutar(
+        ficha({
+          metrica: 'unidades', agruparPor: 'ninguno',
+          filtros: { ...AGOSTO, categoriaId: ID.cat1 },
+        }),
+      );
+      // A mano: venta1 L1 (2) + venta6 (1) + venta7 (2) = 5.
+      // Si el recorte fuera con EXISTS sobre la venta entera, entrarian tambien la
+      // Blusa de venta1 y daria 6: seria "unidades de las ventas que llevaban un
+      // vestido", no "unidades de Vestidos".
+      expect(filas[0].valor).toBe(5);
+    });
+
+    it('cantidad de ventas que incluyeron una categoria, sin contar dos veces la que tiene dos lineas', async () => {
+      const vestidos = await motor.ejecutar(
+        ficha({ metrica: 'cantidad_ventas', agruparPor: 'ninguno', filtros: { ...AGOSTO, categoriaId: ID.cat1 } }),
+      );
+      // venta1, venta6 y venta7 llevan Vestidos. venta1 tiene DOS lineas y aun asi
+      // cuenta una sola vez.
+      expect(vestidos[0].valor).toBe(3);
+
+      const blusas = await motor.ejecutar(
+        ficha({ metrica: 'cantidad_ventas', agruparPor: 'ninguno', filtros: { ...AGOSTO, categoriaId: ID.cat2 } }),
+      );
+      // venta1, venta2 y venta5.
+      expect(blusas[0].valor).toBe(3);
+    });
+
+    it('el filtro no depende de por que se agrupa: anda junto a la dimension cliente', async () => {
+      const filas = await motor.ejecutar(
+        ficha({
+          metrica: 'cantidad_ventas', agruparPor: 'cliente',
+          filtros: { ...AGOSTO, productoId: ID.prod1 },
+        }),
+      );
+      const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
+      // Ana Perez compro Vestido Largo en venta1 y venta6; Luz Rojas en venta7.
+      expect(porNombre['Ana Perez']).toBe(2);
+      expect(porNombre['Luz Rojas']).toBe(1);
+    });
+
+    it('stock por categoria: "cuanto tengo de Vestidos"', async () => {
+      const vestidos = await motor.ejecutar(
+        ficha({ metrica: 'stock_disponible', agruparPor: 'ninguno', filtros: { categoriaId: ID.cat1 } }),
+      );
+      expect(vestidos[0].valor).toBe(7);   // var1 en suc1
+
+      const blusas = await motor.ejecutar(
+        ficha({ metrica: 'stock_disponible', agruparPor: 'ninguno', filtros: { productoId: ID.prod2 } }),
+      );
+      expect(blusas[0].valor).toBe(3);     // var2 en suc2
+    });
+
+    it('las metricas de dinero de cabecera rechazan estos filtros', async () => {
+      for (const metrica of ['ingresos', 'descuentos', 'ticket_promedio'] as const) {
+        await expect(
+          motor.ejecutar(ficha({ metrica, agruparPor: 'ninguno', filtros: { ...AGOSTO, categoriaId: ID.cat1 } })),
+        ).rejects.toThrow(CombinacionInvalidaException);
+      }
+      // La pregunta "cuanto vendi de Vestidos" tiene respuesta exacta por otra via:
+      // agrupar ingresos por categoria y leer la fila.
+      const porCategoria = await motor.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'categoria', filtros: AGOSTO }),
+      );
+      const vestidos = porCategoria.find((f) => f.etiqueta === 'Vestidos');
+      expect(vestidos?.valor).toBe(21000);
+    });
+  });
+
   it('un filtro en null no vacia el reporte contra la base real', async () => {
     // Gemini emite null de rutina para las opcionales que no lleno, y @IsOptional()
     // lo deja pasar. Con `sucursal_id = NULL` esta consulta devolvia CERO filas y el

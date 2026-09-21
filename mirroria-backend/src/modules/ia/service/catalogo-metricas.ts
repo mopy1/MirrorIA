@@ -82,6 +82,40 @@ const JOIN_PRODUCTO_DESDE_INV =
 const DIM_NINGUNO: DimensionSpec = { grupo: "'total'", etiqueta: "'Total'", joins: [] };
 
 /**
+ * Filtrar por categoria o producto una metrica cuyo FROM es `ventas v` se hace con
+ * un EXISTS sobre `venta_items`, NUNCA con un JOIN.
+ *
+ * Dos motivos, los dos medidos: (a) el JOIN multiplica cada venta por su cantidad de
+ * lineas — el mismo fan-out que inflaba el dinero por categoria; (b) el camino hacia
+ * el catalogo solo esta disponible cuando la DIMENSION elegida lo trae, y un filtro no
+ * puede depender de por que se agrupa. El EXISTS no multiplica nada, sirve con
+ * cualquier agrupacion, y dice exactamente lo que significa: "ventas que incluyeron
+ * esto". Para `SUM`/`AVG` sobre la cabecera ese recorte NO alcanza (el total de la
+ * venta sigue sin ser el de esa categoria), asi que esas metricas no lo ofrecen.
+ */
+const VENTA_CON_CATEGORIA =
+  'EXISTS (SELECT 1 FROM venta_items fvi' +
+  ' JOIN variantes_producto fvp ON fvp.id = fvi.variante_id' +
+  ' JOIN productos fp ON fp.id = fvp.producto_id' +
+  ' WHERE fvi.venta_id = v.id AND fp.categoria_id = $)';
+const VENTA_CON_PRODUCTO =
+  'EXISTS (SELECT 1 FROM venta_items fvi' +
+  ' JOIN variantes_producto fvp ON fvp.id = fvi.variante_id' +
+  ' WHERE fvi.venta_id = v.id AND fvp.producto_id = $)';
+
+/**
+ * Cuando la metrica YA agrega fila a fila sobre una variante (`unidades` sobre
+ * `venta_items`, el stock sobre `inventario_sucursal`, el kardex sobre
+ * `movimientos_inventario`), el filtro va sobre la PROPIA fila, no con EXISTS:
+ * "unidades de Vestidos" son las unidades de las lineas de Vestidos, no todas las
+ * unidades de las ventas que ademas llevaban un vestido.
+ */
+const VARIANTES_DE_CATEGORIA =
+  '(SELECT fvp.id FROM variantes_producto fvp' +
+  ' JOIN productos fp ON fp.id = fvp.producto_id WHERE fp.categoria_id = $)';
+const VARIANTES_DE_PRODUCTO = '(SELECT fvp.id FROM variantes_producto fvp WHERE fvp.producto_id = $)';
+
+/**
  * Inventario es una foto del presente: `inventario_sucursal` no guarda historia.
  * Por eso no tiene columnaFecha, no admite dia/mes y no permite comparacion.
  * Para la evolucion en el tiempo esta el kardex (Task 8).
@@ -93,7 +127,12 @@ function definicionInventario(seleccion: string): DefinicionMetrica {
     joinsBase: [],
     seleccion,
     columnaFecha: null,
-    filtros: { sucursalId: 'i.sucursal_id = $' },
+    filtros: {
+      sucursalId: 'i.sucursal_id = $',
+      // "¿cuanto stock tengo de Vestidos?": el filtro recorta la propia fila de stock.
+      categoriaId: `i.variante_id IN ${VARIANTES_DE_CATEGORIA}`,
+      productoId: `i.variante_id IN ${VARIANTES_DE_PRODUCTO}`,
+    },
     dimensiones: {
       ninguno: DIM_NINGUNO,
       sucursal: {
@@ -220,6 +259,9 @@ function definicionKardex(seleccion: string): DefinicionMetrica {
     filtros: {
       sucursalId: 'm.sucursal_id = $',
       tipoMovimiento: 'm.tipo_movimiento = $',
+      // El movimiento es de UNA variante: el filtro recorta la propia fila.
+      categoriaId: `m.variante_id IN ${VARIANTES_DE_CATEGORIA}`,
+      productoId: `m.variante_id IN ${VARIANTES_DE_PRODUCTO}`,
     },
     dimensiones: {
       ninguno: DIM_NINGUNO,
@@ -339,6 +381,36 @@ const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   clienteId: 'v.cliente_id = $',
 };
 
+/**
+ * Filtros de las metricas de ventas que CUENTAN filas enteras (`cantidad_ventas`,
+ * `clientes_activos`). Para ellas "categoria Vestidos" significa sin ambiguedad
+ * "las ventas que incluyeron un vestido", y el EXISTS lo dice exactamente.
+ *
+ * `ingresos`, `descuentos` y `ticket_promedio` NO lo reciben, por el mismo motivo por
+ * el que `descuentos` y `ticket_promedio` perdieron esas dimensiones: recortar las
+ * ventas que tocan una categoria no convierte el total de cabecera en el dinero de esa
+ * categoria. `ingresos` filtrado asi diria 10000 donde la verdad de la categoria es
+ * 6000 — el mismo numero inflado de antes, ahora por otra puerta. La pregunta
+ * "cuanto vendi de Vestidos" se contesta con `ingresos` agrupado por `categoria`,
+ * que agrega sobre las lineas y da la cifra correcta.
+ */
+const FILTROS_VENTAS_POR_CATALOGO: Partial<Record<NombreFiltro, string>> = {
+  ...FILTROS_VENTAS,
+  categoriaId: VENTA_CON_CATEGORIA,
+  productoId: VENTA_CON_PRODUCTO,
+};
+
+/**
+ * Filtros de `unidades`, que ya agrega sobre `venta_items`: el recorte va sobre la
+ * LINEA. Con el EXISTS de arriba contaria tambien las unidades de las otras
+ * categorias de esas mismas ventas.
+ */
+const FILTROS_UNIDADES: Partial<Record<NombreFiltro, string>> = {
+  ...FILTROS_VENTAS,
+  categoriaId: `vi.variante_id IN ${VARIANTES_DE_CATEGORIA}`,
+  productoId: `vi.variante_id IN ${VARIANTES_DE_PRODUCTO}`,
+};
+
 export const ESTADOS_ORDEN = [
   'PENDIENTE', 'EN_TRANSITO', 'RECIBIDA_PARCIAL', 'RECIBIDA', 'CANCELADA',
 ] as const;
@@ -404,7 +476,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     joinsBase: [],
     seleccion: 'COUNT(DISTINCT v.id)',
     columnaFecha: 'v."createdAt"',
-    filtros: FILTROS_VENTAS,
+    filtros: FILTROS_VENTAS_POR_CATALOGO,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
@@ -442,7 +514,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     joinsBase: [JOIN_VENTA_ITEMS],
     seleccion: 'COALESCE(SUM(vi.cantidad), 0)',
     columnaFecha: 'v."createdAt"',
-    filtros: FILTROS_VENTAS,
+    filtros: FILTROS_UNIDADES,
     dimensiones: {
       ...dimensionesDeVentas(),
       // El join a venta_items ya esta en joinsBase; declararlo de nuevo lo duplicaria.
@@ -479,7 +551,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     joinsBase: [],
     seleccion: 'COUNT(DISTINCT v.cliente_id)',
     columnaFecha: 'v."createdAt"',
-    filtros: FILTROS_VENTAS,
+    filtros: FILTROS_VENTAS_POR_CATALOGO,
     dimensiones: dimensionesDeVentas(),
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA' AND v.cliente_id IS NOT NULL",

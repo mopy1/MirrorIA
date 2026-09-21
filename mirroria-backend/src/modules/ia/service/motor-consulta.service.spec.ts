@@ -136,6 +136,67 @@ describe('MotorConsultaService', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  describe('filtros por categoria y por producto', () => {
+    const CAT = '00000000-0000-4000-8000-000000000007';
+
+    it('en ventas se resuelve con EXISTS, no con un JOIN que multiplique filas', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'cantidad_ventas', agruparPor: 'sucursal', filtros: { categoriaId: CAT } }),
+      );
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('EXISTS (SELECT 1 FROM venta_items fvi');
+      expect(sql).toContain('fp.categoria_id = $1');
+      // Un JOIN a venta_items en el FROM multiplicaria la venta por sus lineas.
+      expect(sql).not.toContain('JOIN venta_items vi');
+      expect(paramsDeLaLlamada()).toContain(CAT);
+    });
+
+    it('en unidades el recorte va sobre la LINEA, no sobre la venta entera', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'unidades', agruparPor: 'ninguno', filtros: { categoriaId: CAT } }),
+      );
+      const sql = sqlDeLaLlamada();
+      // Con EXISTS contaria tambien las unidades de las otras categorias de esas ventas.
+      expect(sql).toContain('vi.variante_id IN (SELECT fvp.id');
+      expect(sql).not.toContain('EXISTS');
+    });
+
+    it('en stock y kardex recorta la propia fila por su variante', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'stock_disponible', agruparPor: 'sucursal', filtros: { categoriaId: CAT } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('i.variante_id IN (SELECT fvp.id');
+
+      query.mockClear();
+      await service.ejecutar(
+        ficha({ metrica: 'movimientos_unidades', agruparPor: 'ninguno', filtros: { productoId: CAT } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('m.variante_id IN (SELECT fvp.id');
+    });
+
+    it('clientes_activos los admite: "quien compro Vestidos" es una pregunta exacta', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'clientes_activos', agruparPor: 'ninguno', filtros: { categoriaId: CAT } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('EXISTS (SELECT 1 FROM venta_items fvi');
+      expect(sqlDeLaLlamada()).toContain('COUNT(DISTINCT v.cliente_id)');
+    });
+
+    it('las metricas de dinero de cabecera NO los admiten: darian el total inflado', async () => {
+      // Recortar las ventas que tocan una categoria no convierte el total de la venta
+      // en el dinero de esa categoria: seria el mismo numero inflado por otra puerta.
+      // "Cuanto vendi de Vestidos" se contesta con ingresos agrupado por categoria.
+      for (const metrica of ['ingresos', 'descuentos', 'ticket_promedio'] as const) {
+        for (const filtro of ['categoriaId', 'productoId'] as const) {
+          await expect(
+            service.ejecutar(ficha({ metrica, agruparPor: 'ninguno', filtros: { [filtro]: CAT } })),
+          ).rejects.toThrow(CombinacionInvalidaException);
+        }
+      }
+      expect(query).not.toHaveBeenCalled();
+    });
+  });
+
   describe('nulos que la validacion deja pasar (Gemini los emite de rutina)', () => {
     it('un filtro en null se saltea: nunca genera "columna = NULL"', async () => {
       await service.ejecutar(
