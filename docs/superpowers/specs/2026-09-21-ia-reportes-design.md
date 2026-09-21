@@ -190,7 +190,7 @@ Cinco cosas que el esquema real impone y que hay que respetar o los números sal
    real.
 4. **`ordenes_compra.items` es `jsonb`, no una tabla.** `unidades_pedidas` y
    `unidades_recibidas` necesitan `jsonb_array_elements` para agregar. Es la métrica más
-   cara de las trece y la única que no es un `SUM` sobre una columna.
+   cara de las 18 y la única que no es un `SUM` sobre una columna.
 5. **No existe entidad "cliente":** un cliente es un `usuarios` con rol `CUSTOMER`, y
    `ventas.cliente_id` es nullable (una venta presencial puede no identificar a nadie).
    `clientes_activos` y la dimensión `cliente` **excluyen las ventas sin cliente**, y eso
@@ -208,7 +208,7 @@ modules/ia/
 ├── service/
 │   ├── ia.service.ts                     # orquesta: extraer → consultar → narrar → registrar
 │   ├── motor-consulta.service.ts         # ficha → SQL parametrizado → filas. SIN LLM.
-│   ├── catalogo-metricas.ts              # las 13 métricas y su compatibilidad. Datos, no lógica.
+│   ├── catalogo-metricas.ts              # las 18 métricas y su compatibilidad. Datos, no lógica.
 │   └── proveedor-ia/
 │       ├── proveedor-ia.interface.ts     # extraerFicha(texto) / narrar(ficha, filas)
 │       └── gemini.proveedor.ts
@@ -275,7 +275,7 @@ Donde no exista la API, el botón no se muestra y el campo de texto sigue funcio
 
 ## 8. Pruebas
 
-- **Motor de consulta (unitarias, Vitest, sin red):** **una por cada una de las 13
+- **Motor de consulta (unitarias, Vitest, sin red):** **una por cada una de las 18
   métricas**, con datos sembrados de resultado conocido — la prueba compara contra un
   número calculado a mano, no contra lo que devuelva el motor.
 - **Las trampas del apartado 4-bis, una prueba cada una:** que los canjes de cupón salgan
