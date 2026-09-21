@@ -215,6 +215,66 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(filas[0].valor).toBe(1);
   });
 
+  describe('kardex (movimientos_inventario)', () => {
+    it('conteo y unidades de agosto, contra numeros calculados a mano', async () => {
+      const conteo = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_conteo', agruparPor: 'ninguno', filtros: AGOSTO }),
+      );
+      // Por `fecha`: mov1 (10-ago), mov2 (05-ago) y mov4 (31-ago 18:30) = 3.
+      expect(conteo[0].valor).toBe(3);
+
+      const unidades = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_unidades', agruparPor: 'ninguno', filtros: AGOSTO }),
+      );
+      // 2 + 6 + 1 = 9.
+      expect(unidades[0].valor).toBe(9);
+    });
+
+    it('filtra por la columna `fecha` propia, NO por createdAt', async () => {
+      // La siembra desfasa las dos fechas: mov3 ocurrio en julio pero se registro en
+      // agosto, y mov1/mov2 al reves. Si el catalogo usara "createdAt", agosto daria
+      // 2 movimientos y 4 unidades (mov3 + mov4) en vez de 3 y 9.
+      const agosto = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_unidades', agruparPor: 'ninguno', filtros: AGOSTO }),
+      );
+      expect(agosto[0].valor).toBe(9);
+      expect(agosto[0].valor).not.toBe(4);
+
+      const julio = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_unidades', agruparPor: 'ninguno', filtros: JULIO }),
+      );
+      // Solo mov3, el que OCURRIO en julio aunque se registro en agosto.
+      expect(julio[0].valor).toBe(3);
+    });
+
+    it('por tipo de movimiento, que es la dimension propia del kardex', async () => {
+      const filas = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_unidades', agruparPor: 'tipo_movimiento', filtros: AGOSTO }),
+      );
+      const porTipo = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
+      expect(porTipo['VENTA']).toBe(3);                 // mov1 (2) + mov4 (1)
+      expect(porTipo['RECEPCION_PROVEEDOR']).toBe(6);   // mov2
+      expect(porTipo['AJUSTE']).toBeUndefined();        // mov3 es de julio
+    });
+
+    it('por sucursal y filtrado por categoria', async () => {
+      const porSucursal = await motor.ejecutar(
+        ficha({ metrica: 'movimientos_conteo', agruparPor: 'sucursal', filtros: AGOSTO }),
+      );
+      expect(porSucursal).toHaveLength(1);
+      expect(porSucursal[0].etiqueta).toBe('Sucursal Norte');
+      expect(porSucursal[0].valor).toBe(3);
+
+      const vestidos = await motor.ejecutar(
+        ficha({
+          metrica: 'movimientos_unidades', agruparPor: 'ninguno',
+          filtros: { ...AGOSTO, categoriaId: ID.cat1 },
+        }),
+      );
+      expect(vestidos[0].valor).toBe(3);   // mov1 (2) + mov4 (1), los de var1
+    });
+  });
+
   it('canjes de cupon salen de ventas y respetan el periodo', async () => {
     const enAgosto = await motor.ejecutar(
       ficha({ metrica: 'canjes_cupon', agruparPor: 'cupon', filtros: AGOSTO }),
@@ -498,6 +558,24 @@ async function sembrar(ds: DataSource): Promise<void> {
                   (gen_random_uuid(), $7, $4, 1, 5000,  5000),
                   (gen_random_uuid(), $8, $4, 2, 5000, 10000)`,
     [ID.venta1, ID.venta2, ID.venta3, ID.var1, ID.var2, ID.venta5, ID.venta6, ID.venta7]);
+
+  // Kardex. `movimientos_inventario` tiene columna `fecha` PROPIA, distinta del
+  // "createdAt" que hereda de BaseEntity, y el catalogo filtra y agrupa por `fecha`.
+  // Aca las dos fechas se sembran DESFASADAS a proposito: si alguien cambiara el
+  // catalogo a "createdAt", agosto pasaria de 3 movimientos / 9 unidades a 2 / 4.
+  // Comparar la cadena del catalogo en una prueba unitaria no detecta ese cambio;
+  // estos numeros si.
+  //
+  // mov3 es la trampa principal: ocurrio en JULIO (fecha) pero se registro en
+  // AGOSTO (createdAt). mov4 ademas cae el ultimo dia del rango a las 18:30, asi
+  // que tambien fija el arreglo de `hasta` sobre una segunda columna de fecha.
+  await q(`INSERT INTO movimientos_inventario
+             (id, variante_id, sucursal_id, tipo_movimiento, cantidad, motivo, fecha, "createdAt")
+           VALUES (gen_random_uuid(), $1, $3, 'VENTA',               2, 'mov1', '2026-08-10',          '2026-07-01'),
+                  (gen_random_uuid(), $2, $3, 'RECEPCION_PROVEEDOR', 6, 'mov2', '2026-08-05',          '2026-09-15'),
+                  (gen_random_uuid(), $1, $4, 'AJUSTE',              3, 'mov3', '2026-07-20',          '2026-08-20'),
+                  (gen_random_uuid(), $1, $3, 'VENTA',               1, 'mov4', '2026-08-31 18:30:00', '2026-08-31 18:30:00')`,
+    [ID.var1, ID.var2, ID.suc1, ID.suc2]);
 
   await q(`INSERT INTO reservas (id, cliente_id, sucursal_id, estado, fecha_hora_prevista, "createdAt")
            VALUES ($1, $3, $4, 'CANCELADA', '2026-09-05', '2026-08-02'),
