@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Sparkle, WarningCircle } from "@phosphor-icons/react"
+import { Microphone, Sparkle, WarningCircle } from "@phosphor-icons/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ApiError } from "@/lib/api"
 import { reportsApi } from "@/features/reports/api/reportsApi"
 import { TablaReporte } from "@/features/reports/components/tabla-reporte"
+import { useDictado } from "@/features/reports/hooks/useDictado"
 import type { Reporte } from "@/features/reports/types/reports.types"
 
 const EJEMPLOS = [
@@ -21,6 +22,13 @@ export function ReportesAdminPage() {
   const [reporte, setReporte] = useState<Reporte | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
+
+  const dictado = useDictado({
+    onTexto: (texto) => {
+      setPregunta(texto)
+      void preguntar(texto)
+    },
+  })
 
   async function preguntar(texto: string) {
     if (texto.trim().length < 3) return
@@ -63,6 +71,18 @@ export function ReportesAdminPage() {
               placeholder="¿Cuánto vendí este mes por sucursal?"
               aria-label="Pregunta de negocio"
             />
+            {dictado.soportado && (
+              <Button
+                type="button"
+                variant={dictado.escuchando ? "default" : "outline"}
+                size="icon"
+                disabled={cargando}
+                onClick={dictado.alternar}
+                aria-label={dictado.escuchando ? "Detener dictado" : "Dictar la pregunta"}
+              >
+                <Microphone weight={dictado.escuchando ? "fill" : "regular"} />
+              </Button>
+            )}
             <Button type="submit" disabled={cargando}>
               {cargando ? "Consultando…" : "Consultar"}
             </Button>
