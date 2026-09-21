@@ -17,6 +17,8 @@ describe('bootstrap de la app', () => {
     // e2e arman la app por su cuenta sin pasar por este archivo. Por eso se
     // vigila el archivo directamente en vez de una peticion HTTP.
     const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
-    expect(main).toContain('rawBody: true');
+    // Sin espacios: un reformateo (prettier, por ejemplo) no debe romper esto
+    // por un motivo ajeno a si la opcion sigue presente.
+    expect(main.replace(/\s+/g, '')).toContain('rawBody:true');
   });
 });

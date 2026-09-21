@@ -271,16 +271,33 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
     expect((await ventas.findOne(ventaId)).estado).toBe('PENDIENTE');
   });
 
-  it('el mismo evento dos veces deja la venta PAGADA una sola vez', async () => {
-    const cuerpo = { id: 'evt_1', sesionId: sesionId };
-    for (const _ of [1, 2]) {
-      await request(app.getHttpServer())
-        .post('/api/v1/pagos/webhook')
-        .set('stripe-signature', FIRMA_SIMULADA)
-        .send(cuerpo)
-        .expect(200);
-    }
+  it('el mismo aviso dos veces: el segundo NO vuelve a procesar', async () => {
+    const cuerpo = { id: 'evt_1', sesionId };
+
+    const primera = await request(app.getHttpServer())
+      .post('/api/v1/pagos/webhook')
+      .set('stripe-signature', FIRMA_SIMULADA)
+      .send(cuerpo)
+      .expect(200);
+
+    const segunda = await request(app.getHttpServer())
+      .post('/api/v1/pagos/webhook')
+      .set('stripe-signature', FIRMA_SIMULADA)
+      .send(cuerpo)
+      .expect(200);
+
+    // Es la respuesta — no el conteo de filas — lo que distingue que la guarda
+    // de idempotencia actuo: procesarEvento nunca INSERTA una fila en pagos,
+    // siempre actualiza la que creo iniciarTarjeta, asi que count(*) da 1 pase
+    // lo que pase, incluso si se borra la guarda (`pago.estado !== PENDIENTE`).
+    // Sin la guarda el segundo aviso volveria a entrar a la transaccion y
+    // devolveria procesado: true otra vez.
+    expect(primera.body.procesado).toBe(true);
+    expect(segunda.body.procesado).toBe(false);
+
     expect((await ventas.findOne(ventaId)).estado).toBe('PAGADA');
+    // Asercion adicional, no la que prueba la idempotencia (ver comentario de
+    // arriba): documenta que tampoco queda una fila extra en pagos.
     const filasPago = await ds.query(`SELECT count(*) FROM pagos WHERE venta_id = $1`, [ventaId]);
     expect(Number(filasPago[0].count)).toBe(1);
   });
