@@ -5,7 +5,8 @@ export type Metrica =
   | 'stock_disponible' | 'stock_reservado' | 'stock_en_transito'
   | 'movimientos_unidades' | 'movimientos_conteo'
   | 'cantidad_reservas' | 'unidades_reservadas'
-  | 'canjes_cupon' | 'descuento_por_cupon';
+  | 'canjes_cupon' | 'descuento_por_cupon'
+  | 'cantidad_ordenes' | 'unidades_pedidas' | 'unidades_recibidas';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
@@ -266,6 +267,52 @@ const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   clienteId: 'v.cliente_id = $',
 };
 
+export const ESTADOS_ORDEN = [
+  'PENDIENTE', 'EN_TRANSITO', 'RECIBIDA_PARCIAL', 'RECIBIDA', 'CANCELADA',
+] as const;
+
+/** `ordenes_compra.items` es jsonb, no una tabla. Ver spec 4-bis.4. */
+const JOIN_ITEMS_JSONB = 'CROSS JOIN LATERAL jsonb_array_elements(oc.items) AS it(item)';
+
+const DIMENSIONES_COMPRAS: Partial<Record<Dimension, DimensionSpec>> = {
+  ninguno: DIM_NINGUNO,
+  estado: { grupo: 'oc.estado', etiqueta: 'oc.estado', joins: [] },
+  proveedor: {
+    grupo: 'oc.proveedor_id',
+    etiqueta: 'pr.razon_social',
+    joins: ['JOIN proveedores pr ON pr.id = oc.proveedor_id'],
+  },
+  sucursal: {
+    grupo: 'oc.sucursal_destino_id',
+    etiqueta: 's.nombre',
+    joins: ['JOIN sucursales s ON s.id = oc.sucursal_destino_id'],
+  },
+  mes: {
+    grupo: "date_trunc('month', oc.fecha_pedido)",
+    etiqueta: "to_char(date_trunc('month', oc.fecha_pedido), 'YYYY-MM')",
+    joins: [],
+  },
+};
+
+function definicionCompras(seleccion: string, joinsBase: string[]): DefinicionMetrica {
+  return {
+    dominio: 'compras',
+    from: 'ordenes_compra oc',
+    joinsBase,
+    seleccion,
+    columnaFecha: 'oc.fecha_pedido',
+    filtros: {
+      proveedorId: 'oc.proveedor_id = $',
+      sucursalId: 'oc.sucursal_destino_id = $',
+      estado: 'oc.estado = $',
+    },
+    dimensiones: DIMENSIONES_COMPRAS,
+    estadoValido: ESTADOS_ORDEN,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: true,
+  };
+}
+
 export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   ingresos: {
     dominio: 'ventas',
@@ -347,6 +394,13 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   unidades_reservadas: definicionReservas('COALESCE(SUM(ri.cantidad), 0)', [JOIN_RESERVA_ITEMS]),
   canjes_cupon: definicionCupones('COUNT(DISTINCT v.id)'),
   descuento_por_cupon: definicionCupones('COALESCE(SUM(v.descuento_cents), 0)'),
+  cantidad_ordenes: definicionCompras('COUNT(DISTINCT oc.id)', []),
+  unidades_pedidas: definicionCompras(
+    "COALESCE(SUM((it.item->>'cantidadPedida')::int), 0)", [JOIN_ITEMS_JSONB],
+  ),
+  unidades_recibidas: definicionCompras(
+    "COALESCE(SUM((it.item->>'cantidadRecibida')::int), 0)", [JOIN_ITEMS_JSONB],
+  ),
 };
 
 export const METRICAS = Object.keys(CATALOGO_METRICAS) as readonly Metrica[];

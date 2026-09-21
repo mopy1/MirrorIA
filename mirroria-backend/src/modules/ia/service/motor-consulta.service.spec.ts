@@ -150,4 +150,25 @@ describe('MotorConsultaService', () => {
       expect(sqlDeLaLlamada()).toContain('v."createdAt" >= $');
     });
   });
+
+  describe('metricas de compras', () => {
+    it('unidades_pedidas expande el jsonb de items', async () => {
+      await service.ejecutar(ficha({ metrica: 'unidades_pedidas', agruparPor: 'proveedor' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('jsonb_array_elements');
+      expect(sql).toContain('cantidadPedida');
+    });
+
+    it('cantidad_ordenes NO expande el jsonb: contaria una orden por cada item', async () => {
+      await service.ejecutar(ficha({ metrica: 'cantidad_ordenes', agruparPor: 'proveedor' }));
+      expect(sqlDeLaLlamada()).not.toContain('jsonb_array_elements');
+    });
+
+    it('filtra por fecha_pedido', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'cantidad_ordenes', agruparPor: 'ninguno', filtros: { desde: '2026-08-01' } }),
+      );
+      expect(sqlDeLaLlamada()).toContain('oc.fecha_pedido >= $');
+    });
+  });
 });
