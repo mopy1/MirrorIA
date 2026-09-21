@@ -80,6 +80,7 @@ export class PagosService {
    * (firmado) confirme el cobro — ver `procesarEvento`.
    */
   async iniciarTarjeta(ventaId: string, user: JwtPayload): Promise<{ url: string }> {
+    await this.expiracionService.expirarVencidas();
     if (!this.pasarela.estaConfigurada()) {
       throw new PasarelaNoConfiguradaException();
     }

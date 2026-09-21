@@ -184,6 +184,17 @@ describe('PagosService — cobro manual', () => {
         PasarelaNoConfiguradaException,
       );
       expect(pagoRepo.save).not.toHaveBeenCalled();
+      expect(ventas.findOne).not.toHaveBeenCalled();
+    });
+
+    it('iniciar un cobro con tarjeta tambien libera el stock vencido', async () => {
+      // La spec (3.6) nombra tres disparadores y este es uno. Sin planificador,
+      // estas llamadas SON el mecanismo: la tarjeta es el canal digital mas
+      // usado, asi que no engancharla dejaria el stock retenido por el camino
+      // principal, que es justo lo que el diseño dice resolver.
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://pasarela/pagar' });
+      await service.iniciarTarjeta('v1', DUENO);
+      expect(expiracion.expirarVencidas).toHaveBeenCalled();
     });
 
     it('crea el pago en PENDIENTE y devuelve la url de la pasarela', async () => {
