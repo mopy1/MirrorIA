@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { CatalogoAdminPage } from "@/features/admin/pages/CatalogoAdminPage"
+import { CobrosAdminPage } from "@/features/admin/pages/CobrosAdminPage"
 import { CuponesAdminPage } from "@/features/admin/pages/CuponesAdminPage"
 import { InventarioAdminPage } from "@/features/admin/pages/InventarioAdminPage"
 import { ProveedoresAdminPage } from "@/features/admin/pages/ProveedoresAdminPage"
@@ -223,6 +224,16 @@ function App() {
             <AdminPage>
               <UsuariosAdminPage />
             </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/cobros"
+          element={
+            <StaffRoute allowedRoles={["ADMIN", "CAJERO"]}>
+              <AdminLayout>
+                <CobrosAdminPage />
+              </AdminLayout>
+            </StaffRoute>
           }
         />
         <Route
