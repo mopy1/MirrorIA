@@ -166,6 +166,44 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     expect((await ventas.findOne(venta.id)).estado).toBe('PENDIENTE');
   });
 
+  it('dos cancelaciones SIMULTANEAS devuelven el stock una sola vez', async () => {
+    // El defecto: `cancelarPorPagoNoCompletado` leia la venta sin bloqueo,
+    // verificaba que estuviera PENDIENTE, devolvia el stock, y recien al final
+    // escribia CANCELADA. Dos peticiones concurrentes leian las dos PENDIENTE
+    // y las dos sumaban el stock: el inventario ganaba unidades que no
+    // existen, registradas como ajustes legitimos. Y pasa de verdad: como no
+    // hay planificador, la barrida corre al inicio de tres endpoints de uso
+    // normal, asi que alcanza con dos clientas operando a la vez con una venta
+    // vencida en el medio.
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 4 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const stockConLaVentaViva = await stockDe(ID.var);
+
+    const resultados = await Promise.allSettled([
+      ventas.cancelarPorPagoNoCompletado(venta.id, 'barrida simultanea A'),
+      ventas.cancelarPorPagoNoCompletado(venta.id, 'barrida simultanea B'),
+    ]);
+
+    // Una gana; la otra espera el bloqueo, encuentra la venta ya CANCELADA y
+    // se niega a devolver el stock por segunda vez.
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
+    // Lo que importa: +4, no +8.
+    expect(await stockDe(ID.var)).toBe(stockConLaVentaViva + 4);
+    expect((await ventas.findOne(venta.id)).estado).toBe('CANCELADA');
+
+    // Y tampoco quedo un segundo ajuste "legitimo" en el historial.
+    const ajustes = await ds.query(
+      `SELECT count(*) FROM movimientos_inventario
+        WHERE variante_id = $1 AND motivo LIKE '%barrida simultanea%'`,
+      [ID.var],
+    );
+    expect(Number(ajustes[0].count)).toBe(1);
+  });
+
   it('confirmar un cobro manual deja la venta PAGADA y NO devuelve el stock', async () => {
     await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 2 } as never);
     const venta = await ventas.checkoutCarrito(ID.cliente, {

@@ -97,6 +97,18 @@ describe('VentasService — cobro y cancelacion', () => {
     expect(promociones.liberarCupon).not.toHaveBeenCalled();
   });
 
+  it('cancelar lee la venta CON BLOQUEO: si no, dos barridas devuelven el stock dos veces', async () => {
+    // El estado recien se escribe al final, asi que sin `FOR UPDATE` dos
+    // transacciones concurrentes leen las dos PENDIENTE y las dos suman el
+    // stock. La prueba que lo demuestra de verdad, contra Postgres y con dos
+    // llamadas simultaneas, esta en test/pagos.e2e-spec.ts; esta fija el
+    // contrato para que nadie borre la opcion sin darse cuenta.
+    await service.cancelarPorPagoNoCompletado('v1', 'vencida');
+    expect(ventaRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
+  });
+
   it('cancelar deja la venta en CANCELADA', async () => {
     await service.cancelarPorPagoNoCompletado('v1', 'vencida');
     expect(ventaRepo.save).toHaveBeenCalledWith(

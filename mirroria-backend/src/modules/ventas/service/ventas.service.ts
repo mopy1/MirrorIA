@@ -151,7 +151,18 @@ export class VentasService {
   async cancelarPorPagoNoCompletado(ventaId: string, motivo: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const ventaRepo = manager.getRepository(Venta);
-      const venta = await ventaRepo.findOne({ where: { id: ventaId } });
+      // SELECT ... FOR UPDATE, dentro de la transaccion: sin el bloqueo, dos
+      // barridas simultaneas leian las dos la venta en PENDIENTE y las dos
+      // devolvian el stock, porque el estado recien se escribe al final. El
+      // inventario ganaba unidades que no existen, registradas como ajustes
+      // legitimos. No es teorico: no hay planificador, asi que la barrida
+      // corre al inicio de tres endpoints de uso normal y alcanza con dos
+      // clientas operando a la vez. Con el bloqueo, la segunda espera a que la
+      // primera cierre y encuentra la venta ya CANCELADA.
+      const venta = await ventaRepo.findOne({
+        where: { id: ventaId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!venta) {
         throw new RecursoNoEncontradoException('Venta', ventaId);
       }
