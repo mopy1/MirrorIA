@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { DataSource } from 'typeorm';
 import type { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { PagosService } from './pagos.service.js';
@@ -28,8 +29,16 @@ describe('PagosService — cobro manual', () => {
       marcarPagada: vi.fn(),
     };
     const config = { get: vi.fn().mockReturnValue('https://ejemplo/qr.png') } as unknown as ConfigService;
+    // La confirmacion corre dentro de una transaccion: el manager que le llega
+    // al callback expone el mismo repo de pagos que usamos afuera, para que
+    // las aserciones sobre pagoRepo.save sigan valiendo.
+    const manager = { getRepository: () => pagoRepo };
+    const dataSource = {
+      transaction: (cb: (m: unknown) => unknown) => cb(manager),
+    } as unknown as DataSource;
     service = new PagosService(
       pagoRepo as unknown as Repository<Pago>,
+      dataSource,
       ventas as unknown as VentasService,
       config,
     );
@@ -83,7 +92,10 @@ describe('PagosService — cobro manual', () => {
       id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
-    expect(ventas.marcarPagada).toHaveBeenCalledWith('v1');
+    // El segundo argumento es el EntityManager de la transaccion (ver
+    // "si la venta ya no se puede cobrar..." mas abajo): mismo manager con el
+    // que se guardo el pago, para que las dos escrituras vivan o mueran juntas.
+    expect(ventas.marcarPagada).toHaveBeenCalledWith('v1', expect.anything());
     expect(pagoRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ estado: EstadoPago.APROBADO }),
     );
@@ -112,5 +124,24 @@ describe('PagosService — cobro manual', () => {
     });
     await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow();
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
+  });
+
+  it('si la venta ya no se puede cobrar, el pago NO queda aprobado', async () => {
+    // Pasa de verdad: la expiracion cancela una venta vencida mientras el cajero
+    // tiene la pantalla abierta. Un cobro aprobado sobre una venta cancelada
+    // cuyo stock ya volvio seria plata que el sistema dice haber recibido.
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+    });
+    ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
+
+    await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow();
+  });
+
+  it('dos cobros manuales generan event_id distintos', async () => {
+    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+    const [primero, segundo] = pagoRepo.save.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
+    expect(primero).not.toBe(segundo);
   });
 });

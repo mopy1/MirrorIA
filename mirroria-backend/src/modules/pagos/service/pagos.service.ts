@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
+import type { DataSource } from 'typeorm';
 import { Repository } from 'typeorm';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
@@ -17,6 +18,7 @@ import { VentaNoPagableException } from '../exception/venta-no-pagable.exception
 export class PagosService {
   constructor(
     @InjectRepository(Pago) private readonly pagoRepository: Repository<Pago>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
   ) {}
@@ -90,8 +92,15 @@ export class PagosService {
 
     pago.estado = EstadoPago.APROBADO;
     pago.referenciaExterna = `confirmado-por:${user.sub}`;
-    const guardado = await this.pagoRepository.save(pago);
-    await this.ventasService.marcarPagada(pago.ventaId);
+    // Mismo manager para las dos escrituras: si la venta ya no se puede cobrar
+    // (por ejemplo, la expiracion la canceló mientras el cajero tenía la
+    // pantalla abierta), el pago tampoco queda aprobado — o quedan las dos, o
+    // ninguna.
+    const guardado = await this.dataSource.transaction(async (manager) => {
+      const pagoGuardado = await manager.getRepository(Pago).save(pago);
+      await this.ventasService.marcarPagada(pago.ventaId, manager);
+      return pagoGuardado;
+    });
     return this.aDto(guardado);
   }
 
