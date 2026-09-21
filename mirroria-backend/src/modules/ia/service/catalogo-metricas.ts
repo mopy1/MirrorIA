@@ -41,6 +41,18 @@ export interface DimensionSpec {
    * metrica. Donde no lo conserva (`descuentos` y `ticket_promedio`, que viven en
    * la cabecera y no se pueden repartir entre lineas sin inventar una regla de
    * prorrateo), la dimension directamente NO se ofrece.
+   *
+   * CONSECUENCIA DECLARADA — el ingreso por `categoria`/`producto` es BRUTO DE
+   * DESCUENTOS, y el ingreso sin agrupar es NETO. No son la misma cifra:
+   *
+   *   sin agrupar   -> SUM(v.total_cents)     = subtotal - descuento  (NETO)
+   *   por categoria -> SUM(vi.subtotal_cents) = antes del descuento   (BRUTO)
+   *
+   * Sumar las filas de un reporte por categoria da MAS que el total del periodo,
+   * exactamente por el monto de los descuentos de esas ventas. No es un defecto y no
+   * se corrige: el descuento vive en la CABECERA de la venta y no se puede atribuir a
+   * una linea sin inventar un prorrateo (¿por subtotal?, ¿por unidades?) que el
+   * negocio nunca declaro. Fijado en la e2e "el ingreso por categoria es BRUTO".
    */
   seleccionAlterna?: string;
 }
@@ -194,7 +206,10 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
   };
 }
 
-/** El ingreso REAL de una linea de venta. Ya existe en la base: no se calcula. */
+/**
+ * El ingreso REAL de una linea de venta. Ya existe en la base: no se calcula.
+ * Es BRUTO de descuentos — el descuento vive en la cabecera. Ver `seleccionAlterna`.
+ */
 const INGRESO_DE_LINEAS = 'COALESCE(SUM(vi.subtotal_cents), 0)';
 
 /**

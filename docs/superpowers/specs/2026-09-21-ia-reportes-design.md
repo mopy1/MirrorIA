@@ -145,7 +145,7 @@ class FichaConsultaDto {
 
 | Dominio | Métrica | Sale de |
 |---|---|---|
-| Ventas | `ingresos` | `SUM(ventas.total_cents)` |
+| Ventas | `ingresos` | `SUM(ventas.total_cents)`, y `SUM(venta_items.subtotal_cents)` cuando se agrupa por `categoria`/`producto` |
 | | `unidades` | `SUM(venta_items.cantidad)` |
 | | `cantidad_ventas` | `COUNT(ventas.id)` |
 | | `ticket_promedio` | `AVG(ventas.total_cents)` |
@@ -158,6 +158,13 @@ class FichaConsultaDto {
 | Compras | `cantidad_ordenes` | `COUNT(ordenes_compra.id)` |
 | | `unidades_pedidas` / `unidades_recibidas` | `ordenes_compra.items` (jsonb) |
 | Clientes | `clientes_activos` | `COUNT(DISTINCT ventas.cliente_id)` |
+
+**`ingresos` agrupado por `categoria`/`producto` es BRUTO DE DESCUENTOS** (suma
+`venta_items.subtotal_cents`), mientras que sin agrupar es **neto** (`ventas.total_cents`,
+que ya resta el descuento): sumar las filas de un reporte por categoría da más que el total
+del período, exactamente por el monto de los descuentos. No es un defecto — el descuento
+vive en la cabecera de la venta y no se puede atribuir a una línea sin inventar un
+prorrateo que el negocio nunca declaró.
 
 ### 4.2 Dimensiones
 

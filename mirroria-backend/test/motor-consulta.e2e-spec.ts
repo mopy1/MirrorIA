@@ -126,21 +126,47 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
 
     // A mano, sumando `vi.subtotal_cents` de las lineas de ventas PAGADAS de agosto:
     //   Vestidos = venta1 L1 (6000) + venta6 (5000) + venta7 (10000) = 21000
-    //   Blusas   = venta1 L2 (4000) + venta2 (30000) + venta5 (5000) = 39000
+    //   Blusas   = venta1 L2 (5000) + venta2 (30000) + venta5 (5000) = 40000
     //
     // Con `SUM(v.total_cents)` y el join a venta_items, venta1 se contaba ENTERA en
     // las dos categorias: Vestidos daba 25000 (10000 en vez de 6000) y Blusas 45000.
     expect(porNombre['Vestidos']).toBe(21000);
-    expect(porNombre['Blusas']).toBe(39000);
+    expect(porNombre['Blusas']).toBe(40000);
+  });
 
-    // Y la propiedad que importa: la suma de las categorias es el total del periodo.
-    // Con el fan-out daba 70000 contra un total de 60000 y nadie lo notaba.
-    const suma = filas.reduce((acc, f) => acc + f.valor, 0);
-    const total = await motor.ejecutar(
+  it('el ingreso por categoria es BRUTO: suma mas que el total del periodo, por el descuento', async () => {
+    // NO es un defecto, y por eso esta fijado aca: la misma metrica agrega dos cosas
+    // distintas segun como se agrupe, y la diferencia es exactamente el descuento.
+    //
+    //   sin agrupar  -> SUM(v.total_cents)      = NETO   (el descuento YA esta restado)
+    //   por categoria-> SUM(vi.subtotal_cents)  = BRUTO  (antes del descuento)
+    //
+    // El descuento vive en la CABECERA de la venta y no pertenece a ninguna linea:
+    // atribuirlo exigiria una regla de prorrateo que el negocio nunca declaro. Antes
+    // que inventarla, el motor deja el ingreso por categoria en bruto — y esta prueba
+    // hace visible la brecha en vez de esconderla.
+    //
+    // En agosto la unica venta con descuento es venta1 (1000).
+    const porCategoria = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'categoria', filtros: AGOSTO }),
+    );
+    const bruto = porCategoria.reduce((acc, f) => acc + f.valor, 0);
+
+    const sinAgrupar = await motor.ejecutar(
       ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: AGOSTO }),
     );
-    expect(suma).toBe(total[0].valor);
-    expect(suma).toBe(60000);
+    const neto = sinAgrupar[0].valor;
+
+    const descuentos = await motor.ejecutar(
+      ficha({ metrica: 'descuentos', agruparPor: 'ninguno', filtros: AGOSTO }),
+    );
+
+    // 21000 (Vestidos) + 40000 (Blusas) = 61000 de bruto contra 60000 de neto.
+    expect(bruto).toBe(61000);
+    expect(neto).toBe(60000);
+    expect(bruto).toBeGreaterThan(neto);
+    expect(bruto - neto).toBe(descuentos[0].valor);
+    expect(descuentos[0].valor).toBe(1000);
   });
 
   it('ingresos por producto tampoco se inflan con el total de la venta', async () => {
@@ -150,7 +176,7 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
     // Un producto por categoria en esta siembra, asi que los numeros coinciden.
     expect(porNombre['Vestido Largo']).toBe(21000);
-    expect(porNombre['Blusa Seda']).toBe(39000);
+    expect(porNombre['Blusa Seda']).toBe(40000);
   });
 
   it('descuentos y ticket promedio por categoria/producto son 400, no un numero inventado', async () => {
@@ -540,18 +566,28 @@ async function sembrar(ds: DataSource): Promise<void> {
     ]);
 
   // Items. venta1 tiene DOS lineas de categorias DISTINTAS a proposito: 2 Vestidos
-  // por 6000 mas 1 Blusa por 4000, que suman su total de cabecera (10000). Es la
-  // venta que destapa el fan-out: joinear venta_items para alcanzar `categoria`
+  // por 6000 mas 1 Blusa por 5000. Suman 11000, que es su `subtotal_cents`, NO su
+  // `total_cents` (10000): la cabecera le resta un descuento de 1000. Asi es como la
+  // construye la app — `VentasService.registrarVenta` calcula
+  // `subtotal = Σ subtotales de linea` y recien despues `total = subtotal - descuento`.
+  // Antes esta venta declaraba lineas por 10000 contra un subtotal de 11000: una venta
+  // que el sistema no puede producir, y que hacia pasar una asercion de reconciliacion
+  // (suma de categorias == total del periodo) que en produccion es FALSA.
+  //
+  // Es la venta que destapa el fan-out: joinear venta_items para alcanzar `categoria`
   // duplica la fila de la venta, y sumar `v.total_cents` cuenta 10000 en Vestidos
   // Y otros 10000 en Blusas. Mientras toda venta tuvo una sola linea, el error era
   // invisible porque el total de cabecera coincidia con el de la unica linea.
   //
-  // Las demas ventas pagadas tambien llevan lineas que suman su cabecera, asi los
-  // ingresos por categoria reconcilian contra el total del periodo (60000).
-  // venta3 (PENDIENTE) lleva 40 unidades, que NO deben contarse nunca.
+  // Y es tambien la venta que deja VISIBLE la diferencia bruto/neto: el ingreso por
+  // categoria suma lineas (bruto, 61000 en agosto) y el ingreso sin agrupar suma
+  // cabeceras (neto, 60000). La diferencia es exactamente el descuento de 1000.
+  //
+  // venta3 (PENDIENTE) lleva 40 unidades y un subtotal de linea (99999) que no coincide
+  // con 40 x 2500: deuda conocida, ninguna asercion la toca porque no es PAGADA.
   await q(`INSERT INTO venta_items (id, venta_id, variante_id, cantidad, precio_unit_cents, subtotal_cents)
            VALUES (gen_random_uuid(), $1, $4, 2, 3000,  6000),
-                  (gen_random_uuid(), $1, $5, 1, 4000,  4000),
+                  (gen_random_uuid(), $1, $5, 1, 5000,  5000),
                   (gen_random_uuid(), $2, $5, 5, 6000, 30000),
                   (gen_random_uuid(), $3, $4, 40, 2500, 99999),
                   (gen_random_uuid(), $6, $5, 1, 5000,  5000),

@@ -404,6 +404,12 @@ Lo más valioso para quien toque `catalogo-metricas.ts` después:
   distintas — de ahí `columnaFechaAlterna`, elegible con `ficha.campoFecha`.
 - **`movimientos_inventario` tiene columna `fecha` propia**, distinta del `createdAt` que
   hereda de `BaseEntity` — el kardex filtra y agrupa por `m.fecha`, no por `m."createdAt"`.
+- **`ingresos` por `categoria`/`producto` es BRUTO de descuentos** (suma
+  `venta_items.subtotal_cents`), y sin agrupar es **neto** (`ventas.total_cents`, que ya
+  resta el descuento) — sumar las filas de un reporte por categoría da más que el total del
+  período, exactamente por los descuentos. No es un defecto: el descuento vive en la
+  cabecera de la venta y atribuirlo a una línea exigiría un prorrateo que el negocio nunca
+  declaró. Fijado en la e2e *"el ingreso por categoria es BRUTO"*.
 - **`ordenes_compra.items` es `jsonb`, no una tabla.** `unidades_pedidas`/`unidades_recibidas`
   necesitan `CROSS JOIN LATERAL jsonb_array_elements(oc.items) AS it(item)` y castear
   `(it.item->>'cantidadPedida')::int` a mano — no hay `orden_compra_items` que joinear.
