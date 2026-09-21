@@ -1669,7 +1669,7 @@ const DIMENSIONES_COMPRAS: Partial<Record<Dimension, DimensionSpec>> = {
   estado: { grupo: 'oc.estado', etiqueta: 'oc.estado', joins: [] },
   proveedor: {
     grupo: 'oc.proveedor_id',
-    etiqueta: 'pr.nombre',
+    etiqueta: 'pr.razon_social',
     joins: ['JOIN proveedores pr ON pr.id = oc.proveedor_id'],
   },
   sucursal: {
