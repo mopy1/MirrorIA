@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -12,8 +12,11 @@ import type { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import type { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
 import type { PagoResponseDto } from '../dto/pago-response.dto.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
+import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
 import { ExpiracionService } from './expiracion.service.js';
+import { PASARELA } from './pasarela/pasarela.interface.js';
+import type { Pasarela } from './pasarela/pasarela.interface.js';
 
 @Injectable()
 export class PagosService {
@@ -23,6 +26,7 @@ export class PagosService {
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
     private readonly expiracionService: ExpiracionService,
+    @Inject(PASARELA) private readonly pasarela: Pasarela,
   ) {}
 
   /**
@@ -67,6 +71,48 @@ export class PagosService {
         ? 'Escaneá el código con la app de tu banco y mostrá el comprobante al retirar.'
         : 'Pagá en efectivo al retirar tu pedido en la sucursal elegida.',
     };
+  }
+
+  /**
+   * Arranca un cobro con tarjeta: crea la sesion alojada en la pasarela y
+   * devuelve la URL a la que mandar a la clienta. El formulario de tarjeta
+   * nunca toca nuestro codigo. El pago queda PENDIENTE hasta que el webhook
+   * (firmado) confirme el cobro — ver `procesarEvento`.
+   */
+  async iniciarTarjeta(ventaId: string, user: JwtPayload): Promise<{ url: string }> {
+    if (!this.pasarela.estaConfigurada()) {
+      throw new PasarelaNoConfiguradaException();
+    }
+
+    const venta = await this.ventasService.findOne(ventaId);
+    assertOwnUser(venta.clienteId ?? '', user);
+    if (venta.estado !== 'PENDIENTE') {
+      throw new VentaNoPagableException(`su estado es ${venta.estado}`);
+    }
+
+    const sesion = await this.pasarela.crearSesion({
+      montoCents: venta.totalCents,
+      descripcion: `Compra ${venta.numeroComprobante ?? venta.id}`,
+      referencia: venta.id,
+      urlExito: this.config.get<string>('PAGOS_URL_EXITO') ?? '',
+      urlCancelacion: this.config.get<string>('PAGOS_URL_CANCELACION') ?? '',
+    });
+
+    await this.pagoRepository.save(
+      this.pagoRepository.create({
+        ventaId,
+        proveedorPago: ProveedorPago.STRIPE,
+        metodo: MetodoPago.TARJETA,
+        montoCents: venta.totalCents,
+        estado: EstadoPago.PENDIENTE,
+        // Hasta que llegue el evento firmado del webhook, la unicidad la da la
+        // sesion recien creada, no un evento (que todavia no existe).
+        eventId: `sesion:${sesion.id}`,
+        referenciaExterna: sesion.id,
+      }),
+    );
+
+    return { url: sesion.url };
   }
 
   /**

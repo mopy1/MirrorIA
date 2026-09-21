@@ -5,8 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import { PagosService } from './pagos.service.js';
 import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
+import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
 import type { ExpiracionService } from './expiracion.service.js';
+import type { Pasarela } from './pasarela/pasarela.interface.js';
 
 const DUENO = { sub: 'cli1', email: 'a@a.com', role: 'CUSTOMER', sucursalId: null };
 const CAJERO = { sub: 'caj1', email: 'b@b.com', role: 'CAJERO', sucursalId: 's1' };
@@ -15,6 +17,11 @@ describe('PagosService — cobro manual', () => {
   let pagoRepo: Record<string, ReturnType<typeof vi.fn>>;
   let ventas: { findOne: ReturnType<typeof vi.fn>; marcarPagada: ReturnType<typeof vi.fn> };
   let expiracion: { expirarVencidas: ReturnType<typeof vi.fn> };
+  let pasarela: {
+    estaConfigurada: ReturnType<typeof vi.fn>;
+    crearSesion: ReturnType<typeof vi.fn>;
+    verificarEvento: ReturnType<typeof vi.fn>;
+  };
   let service: PagosService;
 
   beforeEach(() => {
@@ -39,12 +46,18 @@ describe('PagosService — cobro manual', () => {
       transaction: (cb: (m: unknown) => unknown) => cb(manager),
     } as unknown as DataSource;
     expiracion = { expirarVencidas: vi.fn().mockResolvedValue(0) };
+    pasarela = {
+      estaConfigurada: vi.fn().mockReturnValue(true),
+      crearSesion: vi.fn(),
+      verificarEvento: vi.fn(),
+    };
     service = new PagosService(
       pagoRepo as unknown as Repository<Pago>,
       dataSource,
       ventas as unknown as VentasService,
       config,
       expiracion as unknown as ExpiracionService,
+      pasarela as unknown as Pasarela,
     );
   });
 
@@ -162,5 +175,42 @@ describe('PagosService — cobro manual', () => {
     await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
     const [primero, segundo] = pagoRepo.save.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
     expect(primero).not.toBe(segundo);
+  });
+
+  describe('cobro con tarjeta', () => {
+    it('sin pasarela configurada devuelve 503 y NO crea ningun pago', async () => {
+      pasarela.estaConfigurada.mockReturnValue(false);
+      await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow(
+        PasarelaNoConfiguradaException,
+      );
+      expect(pagoRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('crea el pago en PENDIENTE y devuelve la url de la pasarela', async () => {
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://pasarela/pagar' });
+      const res = await service.iniciarTarjeta('v1', DUENO);
+      expect(res.url).toBe('https://pasarela/pagar');
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metodo: MetodoPago.TARJETA,
+          proveedorPago: ProveedorPago.STRIPE,
+          estado: EstadoPago.PENDIENTE,
+          referenciaExterna: 'ses_1',
+        }),
+      );
+    });
+
+    it('el event_id del pago referencia la sesion, no el evento del webhook', async () => {
+      // El evento real llega despues; hasta entonces la unicidad la da la sesion.
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
+      await service.iniciarTarjeta('v1', DUENO);
+      const guardado = pagoRepo.save.mock.calls[0][0] as { eventId: string };
+      expect(guardado.eventId).toBe('sesion:ses_1');
+    });
+
+    it('nadie puede iniciar el cobro de una venta ajena', async () => {
+      ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'OTRO', estado: 'PENDIENTE', totalCents: 1 });
+      await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow();
+    });
   });
 });

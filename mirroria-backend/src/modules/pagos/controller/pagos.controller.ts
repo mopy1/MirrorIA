@@ -32,6 +32,18 @@ export class PagosController {
     return this.pagosService.iniciarManual(ventaId, dto, user);
   }
 
+  @Post('ventas/:ventaId/sesion')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Iniciar un cobro con tarjeta sobre una venta propia (sesion alojada de Stripe)' })
+  iniciarTarjeta(
+    @Param('ventaId') ventaId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<{ url: string }> {
+    return this.pagosService.iniciarTarjeta(ventaId, user);
+  }
+
   @Post(':pagoId/confirmar')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
