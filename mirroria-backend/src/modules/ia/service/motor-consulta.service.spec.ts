@@ -80,4 +80,13 @@ describe('MotorConsultaService', () => {
     const ocurrencias = sqlDeLaLlamada().split('JOIN venta_items vi').length - 1;
     expect(ocurrencias).toBe(1);
   });
+
+  it('una metrica que no existe en el catalogo es 400, no un 500', async () => {
+    // El DTO ya la rechazaria, pero el motor es la ultima frontera antes de la base
+    // y no debe confiar en que alguien valido antes.
+    await expect(
+      service.ejecutar(ficha({ metrica: 'inventada' as never, agruparPor: 'ninguno' })),
+    ).rejects.toThrow(CombinacionInvalidaException);
+    expect(query).not.toHaveBeenCalled();
+  });
 });

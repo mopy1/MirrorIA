@@ -17,6 +17,9 @@ export class MotorConsultaService {
 
   async ejecutar(ficha: FichaConsultaDto, rango?: { desde: string; hasta: string }): Promise<FilaReporte[]> {
     const def = CATALOGO_METRICAS[ficha.metrica];
+    if (!def) {
+      throw new CombinacionInvalidaException(`la metrica "${ficha.metrica}" no existe`);
+    }
     const dim = def.dimensiones[ficha.agruparPor];
     if (!dim) {
       throw new CombinacionInvalidaException(
