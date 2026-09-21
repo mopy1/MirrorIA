@@ -3,7 +3,9 @@ import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
+import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
 import { MotorConsultaService } from './motor-consulta.service.js';
+import { CATALOGO_METRICAS } from './catalogo-metricas.js';
 
 @Injectable()
 export class IaService {
@@ -19,7 +21,41 @@ export class IaService {
   async consultar(ficha: FichaConsultaDto, user: JwtPayload): Promise<ReporteResponseDto> {
     const fichaEfectiva = this.forzarAlcance(ficha, user);
     const filas = await this.motor.ejecutar(fichaEfectiva);
-    return { ficha: fichaEfectiva, filas, comparacion: null, narrativa: null };
+
+    if (!fichaEfectiva.compararCon) {
+      return { ficha: fichaEfectiva, filas, comparacion: null, narrativa: null };
+    }
+
+    if (!CATALOGO_METRICAS[fichaEfectiva.metrica].permiteComparacion) {
+      throw new CombinacionInvalidaException(
+        `la metrica "${fichaEfectiva.metrica}" no admite comparacion entre periodos`,
+      );
+    }
+
+    // La MISMA consulta con otro rango. Asi es imposible que los dos periodos
+    // se calculen distinto. Ver spec 4.5.
+    const anteriores = await this.motor.ejecutar(fichaEfectiva, fichaEfectiva.compararCon);
+    const porClave = new Map(anteriores.map((f) => [f.clave, f.valor]));
+
+    const variaciones = filas.map((fila) => {
+      const anterior = porClave.get(fila.clave) ?? 0;
+      return {
+        clave: fila.clave,
+        etiqueta: fila.etiqueta,
+        actual: fila.valor,
+        anterior,
+        deltaAbsoluto: fila.valor - anterior,
+        deltaPorcentual:
+          anterior === 0 ? null : Math.round(((fila.valor - anterior) / anterior) * 100),
+      };
+    });
+
+    return {
+      ficha: fichaEfectiva,
+      filas,
+      comparacion: { rango: fichaEfectiva.compararCon, filas: anteriores, variaciones },
+      narrativa: null,
+    };
   }
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {

@@ -3,6 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { IaService } from './ia.service.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { SinSucursalAsignadaException } from '../exception/sin-sucursal-asignada.exception.js';
+import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
 import type { MotorConsultaService } from './motor-consulta.service.js';
 
 const SUCURSAL_PROPIA = '11111111-1111-1111-1111-111111111111';
@@ -58,5 +59,72 @@ describe('IaService.consultar', () => {
     expect(res.filas).toHaveLength(1);
     expect(res.narrativa).toBeNull();
     expect(res.comparacion).toBeNull();
+  });
+});
+
+describe('comparacion de periodos', () => {
+  let motor: { ejecutar: ReturnType<typeof vi.fn> };
+  let service: IaService;
+  const ADMIN = { sub: 'u1', role: 'ADMIN', sucursalId: null };
+
+  beforeEach(() => {
+    motor = { ejecutar: vi.fn() };
+    service = new IaService(motor as unknown as MotorConsultaService);
+  });
+
+  it('corre la misma consulta dos veces, una por rango', async () => {
+    motor.ejecutar
+      .mockResolvedValueOnce([{ clave: 'a', etiqueta: 'Santa Cruz', valor: 150 }])
+      .mockResolvedValueOnce([{ clave: 'a', etiqueta: 'Santa Cruz', valor: 100 }]);
+
+    const res = await service.consultar(
+      ficha({
+        metrica: 'ingresos', agruparPor: 'sucursal',
+        filtros: { desde: '2026-08-01', hasta: '2026-08-31' },
+        compararCon: { desde: '2026-07-01', hasta: '2026-07-31' },
+      }),
+      ADMIN,
+    );
+
+    expect(motor.ejecutar).toHaveBeenCalledTimes(2);
+    expect(res.comparacion?.variaciones[0]).toMatchObject({
+      actual: 150, anterior: 100, deltaAbsoluto: 50, deltaPorcentual: 50,
+    });
+  });
+
+  it('una clave que no existia antes tiene anterior 0 y delta porcentual nulo', async () => {
+    motor.ejecutar
+      .mockResolvedValueOnce([{ clave: 'b', etiqueta: 'La Paz', valor: 80 }])
+      .mockResolvedValueOnce([]);
+
+    const res = await service.consultar(
+      ficha({
+        metrica: 'ingresos', agruparPor: 'sucursal',
+        compararCon: { desde: '2026-07-01', hasta: '2026-07-31' },
+      }),
+      ADMIN,
+    );
+
+    // No dividir por cero: sin base anterior el porcentaje no existe.
+    expect(res.comparacion?.variaciones[0]).toMatchObject({
+      actual: 80, anterior: 0, deltaAbsoluto: 80, deltaPorcentual: null,
+    });
+  });
+
+  it('rechaza comparar una metrica de inventario', async () => {
+    await expect(
+      service.consultar(
+        ficha({
+          metrica: 'stock_disponible', agruparPor: 'sucursal',
+          compararCon: { desde: '2026-07-01', hasta: '2026-07-31' },
+        }),
+        ADMIN,
+      ),
+    ).rejects.toThrow(CombinacionInvalidaException);
+  });
+
+  it('sin compararCon no hay segunda consulta', async () => {
+    await service.consultar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno' }), ADMIN);
+    expect(motor.ejecutar).toHaveBeenCalledTimes(1);
   });
 });
