@@ -67,6 +67,21 @@ export class PasarelaStripe implements Pasarela {
       return { id: evento.id, tipo: 'otro', sesionId: null };
     }
     const sesion = evento.data.object as Stripe.Checkout.Session;
+    // `checkout.session.completed` NO significa cobrado: con los metodos de
+    // notificacion diferida (boleto, transferencias, debitos) el evento llega
+    // con la sesion todavia sin pagar y el cobro se confirma despues con
+    // `checkout.session.async_payment_succeeded`. Como la sesion se crea sin
+    // acotar `payment_method_types`, basta habilitar uno de esos metodos en el
+    // panel de Stripe para que el sistema diera por cobrada una venta sin que
+    // entrara un centavo. `payment_status` es el campo que lo distingue
+    // ('paid' | 'unpaid' | 'no_payment_required', ver
+    // node_modules/stripe/esm/resources/Checkout/Sessions.d.ts).
+    if (sesion.payment_status !== 'paid') {
+      this.logger.warn(
+        `Sesion ${sesion.id} completada pero sin pagar (payment_status=${sesion.payment_status}): no se cobra`,
+      );
+      return { id: evento.id, tipo: 'otro', sesionId: null };
+    }
     return { id: evento.id, tipo: 'pagado', sesionId: sesion.id };
   }
 }
