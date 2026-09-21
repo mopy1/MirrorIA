@@ -1,7 +1,7 @@
 import {
   Body, Controller, HttpCode, HttpStatus, Post, UseGuards, ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
@@ -34,10 +34,25 @@ export class IaController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
   @ApiOperation({ summary: 'Ejecutar una ficha de consulta ya armada (sin IA)' })
-  consulta(
-    @Body(PIPE_FICHA) ficha: FichaConsultaDto,
+  @ApiBody({ type: FichaConsultaDto })
+  async consulta(
+    /**
+     * Los pipes se ENCADENAN (global, luego los de la ruta) y cada uno recibe la
+     * salida del anterior. Si este parametro estuviera tipado `FichaConsultaDto`,
+     * el pipe GLOBAL correria primero, encontraria una clase que validar y
+     * borraria en silencio cualquier propiedad inventada (whitelist sin
+     * forbidNonWhitelisted) ANTES de que PIPE_FICHA la viera — nunca daria 400.
+     * Tipando el body como `unknown`, `ValidationPipe.toValidate()` del pipe
+     * global no encuentra una clase (metatype resuelve a `Object`) y lo deja
+     * intacto, asi PIPE_FICHA es el primero en tocarlo de verdad.
+     */
+    @Body() body: unknown,
     @CurrentUser() user: JwtPayload,
   ): Promise<ReporteResponseDto> {
+    const ficha = (await PIPE_FICHA.transform(body, {
+      type: 'body',
+      metatype: FichaConsultaDto,
+    })) as FichaConsultaDto;
     return this.iaService.consultar(ficha, user);
   }
 }
