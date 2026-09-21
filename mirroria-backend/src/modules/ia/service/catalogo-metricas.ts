@@ -6,7 +6,8 @@ export type Metrica =
   | 'movimientos_unidades' | 'movimientos_conteo'
   | 'cantidad_reservas' | 'unidades_reservadas'
   | 'canjes_cupon' | 'descuento_por_cupon'
-  | 'cantidad_ordenes' | 'unidades_pedidas' | 'unidades_recibidas';
+  | 'cantidad_ordenes' | 'unidades_pedidas' | 'unidades_recibidas'
+  | 'clientes_activos';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
@@ -125,6 +126,13 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
       grupo: 'p.id',
       etiqueta: 'p.titulo',
       joins: [JOIN_VENTA_ITEMS, JOIN_PRODUCTO_DESDE_VI],
+    },
+    // Un "cliente" es un `usuarios` con rol CUSTOMER: no hay entidad propia.
+    // El INNER JOIN ya descarta las ventas sin cliente. Ver spec 4-bis.5.
+    cliente: {
+      grupo: 'v.cliente_id',
+      etiqueta: 'u.full_name',
+      joins: ['JOIN usuarios u ON u.id = v.cliente_id'],
     },
   };
 }
@@ -401,6 +409,18 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
   unidades_recibidas: definicionCompras(
     "COALESCE(SUM((it.item->>'cantidadRecibida')::int), 0)", [JOIN_ITEMS_JSONB],
   ),
+  clientes_activos: {
+    dominio: 'clientes',
+    from: 'ventas v',
+    joinsBase: [],
+    seleccion: 'COUNT(DISTINCT v.cliente_id)',
+    columnaFecha: 'v."createdAt"',
+    filtros: FILTROS_VENTAS,
+    dimensiones: dimensionesDeVentas(),
+    estadoValido: ESTADOS_VENTA,
+    filtroEstadoPorDefecto: "v.estado = 'PAGADA' AND v.cliente_id IS NOT NULL",
+    permiteComparacion: true,
+  },
 };
 
 export const METRICAS = Object.keys(CATALOGO_METRICAS) as readonly Metrica[];

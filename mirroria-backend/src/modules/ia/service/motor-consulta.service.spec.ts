@@ -171,4 +171,24 @@ describe('MotorConsultaService', () => {
       expect(sqlDeLaLlamada()).toContain('oc.fecha_pedido >= $');
     });
   });
+
+  describe('metricas de clientes', () => {
+    it('cuenta clientes distintos, no ventas', async () => {
+      await service.ejecutar(ficha({ metrica: 'clientes_activos', agruparPor: 'ninguno' }));
+      expect(sqlDeLaLlamada()).toContain('COUNT(DISTINCT v.cliente_id)');
+    });
+
+    it('excluye las ventas sin cliente identificado', async () => {
+      await service.ejecutar(ficha({ metrica: 'clientes_activos', agruparPor: 'sucursal' }));
+      // Una venta presencial puede no identificar al cliente. Sin esto,
+      // "mis mejores clientes" mostraria un grupo vacio enorme. Ver spec 4-bis.5.
+      expect(sqlDeLaLlamada()).toContain('v.cliente_id IS NOT NULL');
+    });
+
+    it('agrupar ingresos por cliente etiqueta con el nombre del usuario', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'cliente' }));
+      expect(sqlDeLaLlamada()).toContain('JOIN usuarios u ON u.id = v.cliente_id');
+      expect(sqlDeLaLlamada()).toContain('u.full_name');
+    });
+  });
 });
