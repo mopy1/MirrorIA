@@ -26,6 +26,10 @@ export function useCheckout() {
       if (metodo === "TARJETA") {
         try {
           const { url } = await paymentsApi.iniciarTarjeta(venta.id)
+          // La pasarela vuelve a una URL fija (sin la venta en la ruta ni en
+          // query params) — guardamos de cuál venta se trata para poder
+          // consultar su estado real al volver, en vez de confiar en la URL.
+          sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
           window.location.href = url
           return
         } catch (err) {
