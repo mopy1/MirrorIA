@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { DataSource } from 'typeorm';
+import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
 import { FichaConsultaDto } from './../src/modules/ia/dto/ficha-consulta.dto.js';
@@ -10,6 +11,11 @@ import { CarritosService } from './../src/modules/ventas/service/carritos.servic
 import { VentasService } from './../src/modules/ventas/service/ventas.service.js';
 import { PagosService } from './../src/modules/pagos/service/pagos.service.js';
 import { ExpiracionService } from './../src/modules/pagos/service/expiracion.service.js';
+import { PASARELA } from './../src/modules/pagos/service/pasarela/pasarela.interface.js';
+import {
+  FIRMA_SIMULADA,
+  PasarelaSimulada,
+} from './../src/modules/pagos/service/pasarela/simulada.pasarela.js';
 import type { JwtPayload } from './../src/core/security/jwt-payload.interface.js';
 
 // uuid fijos: siembra determinista, mismo patron que motor-consulta.e2e-spec.ts.
@@ -41,6 +47,30 @@ const USUARIO_CAJERO: JwtPayload = {
   email: 'cajero-pagos@test.com',
   role: 'CAJERO',
   sucursalId: ID.suc,
+};
+
+// Fixture propia del webhook: distinta de ID de arriba para no pisar el
+// producto/variante que usa el resto del archivo (los describe corren en
+// secuencia, pero conviene que cada uno sea independiente de leer).
+const WID = {
+  ciudad: '00000000-0000-4000-9001-000000000001',
+  suc: '00000000-0000-4000-9001-000000000002',
+  prov: '00000000-0000-4000-9001-000000000003',
+  temp: '00000000-0000-4000-9001-000000000004',
+  colec: '00000000-0000-4000-9001-000000000005',
+  cat: '00000000-0000-4000-9001-000000000006',
+  talla: '00000000-0000-4000-9001-000000000007',
+  color: '00000000-0000-4000-9001-000000000008',
+  prod: '00000000-0000-4000-9001-000000000009',
+  var: '00000000-0000-4000-9001-00000000000a',
+  cliente: '00000000-0000-4000-9001-00000000000b',
+};
+
+const USUARIO_CLIENTE_WEBHOOK: JwtPayload = {
+  sub: WID.cliente,
+  email: 'clienta-webhook@test.com',
+  role: 'CUSTOMER',
+  sucursalId: null,
 };
 
 describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
@@ -180,6 +210,96 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
   });
 });
 
+describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
+  let app: INestApplication<App>;
+  let ds: DataSource;
+  let carritos: CarritosService;
+  let ventas: VentasService;
+  let pagos: PagosService;
+  let ventaId: string;
+  let sesionId: string;
+
+  beforeAll(async () => {
+    // Se sustituye la pasarela real (Stripe) por la simulada: es para lo que
+    // existe. Solo acepta FIRMA_SIMULADA y rechaza cualquier otra a proposito,
+    // para que el camino feliz no pase con cualquier entrada.
+    const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(PASARELA)
+      .useClass(PasarelaSimulada)
+      .compile();
+    app = mod.createNestApplication({ rawBody: true });
+    // El prefijo lo pone bootstrap() en main.ts, no AppModule. Como el webhook
+    // se golpea por HTTP real (no llamando al servicio), hay que replicarlo
+    // a mano, igual que app.e2e-spec.ts.
+    app.setGlobalPrefix('api/v1');
+    await app.init();
+    ds = app.get(DataSource);
+    carritos = app.get(CarritosService);
+    ventas = app.get(VentasService);
+    pagos = app.get(PagosService);
+    await limpiarWebhook(ds);
+    await sembrarWebhook(ds);
+  });
+
+  afterAll(async () => {
+    await limpiarWebhook(ds);
+    await app.close();
+  });
+
+  // Una venta PENDIENTE con su sesion de tarjeta nueva antes de cada prueba: la
+  // del webhook anterior puede haber quedado PAGADA o CANCELADA.
+  beforeEach(async () => {
+    await carritos.addItem(WID.cliente, { varianteId: WID.var, cantidad: 1 } as never);
+    const venta = await ventas.checkoutCarrito(WID.cliente, {
+      sucursalId: WID.suc, canal: 'WEB',
+    } as never);
+    ventaId = venta.id;
+    await pagos.iniciarTarjeta(ventaId, USUARIO_CLIENTE_WEBHOOK);
+    const fila = await ds.query(
+      `SELECT referencia_externa FROM pagos WHERE venta_id = $1 AND proveedor_pago = 'STRIPE'`,
+      [ventaId],
+    );
+    sesionId = fila[0].referencia_externa as string;
+  });
+
+  it('un webhook con firma invalida es 400 y la venta sigue PENDIENTE', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/pagos/webhook')
+      .set('stripe-signature', 'firma-que-no-es')
+      .send({ id: 'evt_x', sesionId: 'ses_x' })
+      .expect(400);
+    expect((await ventas.findOne(ventaId)).estado).toBe('PENDIENTE');
+  });
+
+  it('el mismo evento dos veces deja la venta PAGADA una sola vez', async () => {
+    const cuerpo = { id: 'evt_1', sesionId: sesionId };
+    for (const _ of [1, 2]) {
+      await request(app.getHttpServer())
+        .post('/api/v1/pagos/webhook')
+        .set('stripe-signature', FIRMA_SIMULADA)
+        .send(cuerpo)
+        .expect(200);
+    }
+    expect((await ventas.findOne(ventaId)).estado).toBe('PAGADA');
+    const filasPago = await ds.query(`SELECT count(*) FROM pagos WHERE venta_id = $1`, [ventaId]);
+    expect(Number(filasPago[0].count)).toBe(1);
+  });
+
+  it('el webhook no puede cobrar una venta ya cancelada', async () => {
+    // Su stock ya volvio al inventario: cobrarla dejaria vendida mercaderia que
+    // el sistema cree tener. procesarEvento no debe propagar el error: la
+    // pasarela recibe 200 (si no, reintentaria para siempre) y el pago queda
+    // guardado marcado para reembolso en vez de perderse.
+    await ventas.cancelarPorPagoNoCompletado(ventaId, 'prueba');
+    await request(app.getHttpServer())
+      .post('/api/v1/pagos/webhook')
+      .set('stripe-signature', FIRMA_SIMULADA)
+      .send({ id: 'evt_2', sesionId: sesionId })
+      .expect(200);
+    expect((await ventas.findOne(ventaId)).estado).toBe('CANCELADA');
+  });
+});
+
 /**
  * Borra solo las filas de esta prueba y en orden de dependencia (hijos antes que
  * padres). `inventario_sucursal`, `movimientos_inventario` y `pagos` tienen id
@@ -248,4 +368,64 @@ async function sembrar(ds: DataSource): Promise<void> {
   // Cupon ya con 5 usos previos, vigente durante toda la corrida de pruebas.
   await q(`INSERT INTO cupones (id, codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_actuales, activo)
            VALUES ($1, 'PRUEBA10', 'PORCENTAJE', 10, '2020-01-01', '2030-12-31', 5, true)`, [ID.cupon]);
+}
+
+/**
+ * Igual patron que `limpiar`/`sembrar` de arriba, pero con la fixture propia
+ * del webhook (WID). Sin cupon: el webhook no lo necesita.
+ */
+async function limpiarWebhook(ds: DataSource): Promise<void> {
+  const ids = Object.values(WID);
+  const variantes = [WID.var];
+
+  await ds.query(`DELETE FROM pagos WHERE venta_id IN (SELECT id FROM ventas WHERE sucursal_id = $1)`, [WID.suc]);
+  await ds.query(`DELETE FROM venta_items WHERE venta_id IN (SELECT id FROM ventas WHERE sucursal_id = $1)`, [WID.suc]);
+  await ds.query(`DELETE FROM ventas WHERE sucursal_id = $1`, [WID.suc]);
+  await ds.query(`DELETE FROM movimientos_inventario WHERE variante_id = ANY($1::uuid[])`, [variantes]);
+  await ds.query(`DELETE FROM inventario_sucursal WHERE variante_id = ANY($1::uuid[])`, [variantes]);
+  await ds.query(`DELETE FROM carritos WHERE usuario_id = $1`, [WID.cliente]);
+  await ds.query(`DELETE FROM variantes_producto WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM productos WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM colecciones WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM temporadas WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM categorias WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM tallas WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM colores WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM sucursales WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM ciudades WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM proveedores WHERE id = ANY($1::uuid[])`, [ids]);
+  await ds.query(`DELETE FROM usuarios WHERE id = ANY($1::uuid[])`, [ids]);
+}
+
+async function sembrarWebhook(ds: DataSource): Promise<void> {
+  const q = (sql: string, p: unknown[] = []) => ds.query(sql, p);
+
+  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz', 'Bolivia')`, [WID.ciudad]);
+  await q(`INSERT INTO sucursales (id, nombre, direccion, ciudad_id, activo)
+           VALUES ($1, 'Sucursal Webhook', 'Av 2', $2, true)`, [WID.suc, WID.ciudad]);
+  await q(`INSERT INTO proveedores (id, razon_social, activo) VALUES ($1, 'Textiles Webhook SA', true)`, [WID.prov]);
+  await q(`INSERT INTO temporadas (id, nombre, fecha_inicio, fecha_fin)
+           VALUES ($1, 'Verano Webhook 2026', '2026-01-01', '2026-12-31')`, [WID.temp]);
+  await q(`INSERT INTO colecciones (id, nombre, temporada_id, proveedor_id)
+           VALUES ($1, 'Coleccion Webhook', $2, $3)`, [WID.colec, WID.temp, WID.prov]);
+  await q(`INSERT INTO categorias (id, nombre, slug, activo)
+           VALUES ($1, 'Webhook Cat', 'webhook-cat', true)`, [WID.cat]);
+  // Nombres distintos a los de los otros .e2e-spec: tallas.nombre y
+  // colores.nombre son UNIQUE globales y vitest corre los archivos en paralelo.
+  await q(`INSERT INTO tallas (id, nombre, orden) VALUES ($1, 'M-WEBHOOK', 2)`, [WID.talla]);
+  await q(`INSERT INTO colores (id, nombre, hex_code) VALUES ($1, 'Negro Webhook', '#000000')`, [WID.color]);
+  await q(`INSERT INTO productos (id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
+           VALUES ($1, 'Vestido Webhook', 'vestido-webhook', 5000, $2, $3, true, '[]'::jsonb)`,
+    [WID.prod, WID.cat, WID.colec]);
+  await q(`INSERT INTO variantes_producto (id, sku, producto_id, talla_id, color_id, activo)
+           VALUES ($1, 'SKU-WEBHOOK-1', $2, $3, $4, true)`, [WID.var, WID.prod, WID.talla, WID.color]);
+
+  // Inventario: 10 unidades disponibles, nada reservado ni en transito.
+  await q(`INSERT INTO inventario_sucursal
+             (id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
+           VALUES (gen_random_uuid(), $1, $2, 10, 0, 0)`, [WID.var, WID.suc]);
+
+  await q(`INSERT INTO usuarios (id, email, password_hash, full_name, role, sucursal_id, is_active)
+           VALUES ($1, 'clienta-webhook@test.com', 'x', 'Clienta Webhook', 'CUSTOMER', NULL, true)`,
+    [WID.cliente]);
 }
