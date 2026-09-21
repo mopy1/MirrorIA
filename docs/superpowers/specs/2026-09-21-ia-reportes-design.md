@@ -95,33 +95,106 @@ donde vive la corrección de los números— queda así probable sin red y sin c
 
 ## 4. El contrato: la ficha de consulta
 
+Decisión del 2026-09-21: la ficha cubre **todos los dominios del negocio**, no solo ventas
+e inventario. El objetivo declarado por el usuario es que se le pueda pedir *cualquier*
+reporte razonable.
+
 ```ts
 class FichaConsultaDto {
-  metrica: 'ingresos' | 'unidades' | 'cantidad_ventas' | 'ticket_promedio'
-         | 'descuentos' | 'stock_disponible' | 'stock_reservado';
-  agruparPor: 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
-            | 'dia' | 'mes' | 'ninguno';
-  filtros: {
-    desde?: string;         // ISO date
-    hasta?: string;
-    sucursalId?: string;    // uuid
-    categoriaId?: string;   // uuid
-    canal?: 'WEB' | 'MOVIL' | 'PRESENCIAL';
-    estado?: 'PENDIENTE' | 'PAGADA' | 'ENTREGADA' | 'CANCELADA'
-           | 'DEVUELTA_PARCIAL' | 'DEVUELTA_TOTAL';
-  };
+  metrica: Metrica;
+  agruparPor: Dimension;
+  filtros: Filtros;
+  campoFecha?: 'creacion' | 'prevista';            // solo métricas de reservas (ver 4-bis.2)
+  compararCon?: { desde: string; hasta: string };  // segundo período
   orden: 'asc' | 'desc';
   limite: number;           // 1..100, default 20
 }
 ```
 
+### 4.1 Métricas, por dominio
+
+| Dominio | Métrica | Sale de |
+|---|---|---|
+| Ventas | `ingresos` | `SUM(ventas.total_cents)` |
+| | `unidades` | `SUM(venta_items.cantidad)` |
+| | `cantidad_ventas` | `COUNT(ventas.id)` |
+| | `ticket_promedio` | `AVG(ventas.total_cents)` |
+| | `descuentos` | `SUM(ventas.descuento_cents)` |
+| Inventario | `stock_disponible` / `stock_reservado` / `stock_en_transito` | `inventario_sucursal` |
+| Kardex | `movimientos_unidades` / `movimientos_conteo` | `movimientos_inventario` |
+| Reservas | `cantidad_reservas` | `COUNT(reservas.id)` |
+| | `unidades_reservadas` | `SUM(reserva_items.cantidad)` |
+| Cupones | `canjes_cupon` / `descuento_por_cupon` | `ventas` con `cupon_id` no nulo |
+| Compras | `cantidad_ordenes` | `COUNT(ordenes_compra.id)` |
+| | `unidades_pedidas` / `unidades_recibidas` | `ordenes_compra.items` (jsonb) |
+| Clientes | `clientes_activos` | `COUNT(DISTINCT ventas.cliente_id)` |
+
+### 4.2 Dimensiones
+
+`sucursal`, `categoria`, `producto`, `canal`, `estado`, `cliente`, `cupon`, `proveedor`,
+`tipo_movimiento`, `dia`, `mes`, `ninguno`.
+
+### 4.3 Compatibilidad métrica × dimensión
+
+No toda combinación existe: agrupar stock por `dia` no significa nada, porque
+`inventario_sucursal` es una foto del presente y no tiene historia. El motor declara una
+**tabla explícita de compatibilidad** (métrica → dimensiones y filtros admitidos) y
+rechaza lo que no está con 400 y un mensaje que nombra la combinación pedida. Es una
+estructura de datos, no una cadena de `if`: agregar una métrica es agregar una fila.
+
+Reglas que salen de ahí:
+
+- Las métricas de **inventario** no admiten dimensión temporal (`dia`/`mes`) ni
+  `compararCon`, ni filtros de fecha. Son estado presente. Para la evolución en el tiempo
+  está el **kardex**, que sí es histórico — y esa es justamente la diferencia entre los dos.
+- `tipo_movimiento` solo aplica a kardex; `cupon` solo a cupones; `proveedor` solo a
+  compras; `canal` y `cliente` solo a ventas y cupones.
+
+### 4.4 Filtros
+
+`desde`, `hasta`, `sucursalId`, `categoriaId`, `productoId`, `clienteId`, `proveedorId`,
+`canal` (`WEB`|`MOVIL`|`PRESENCIAL`), `estado`, `tipoMovimiento`.
+
+`estado` es **polimórfico**: su juego de valores válidos depende del dominio de la métrica
+(`EstadoVenta` para ventas, `EstadoReserva` para reservas, `EstadoOrdenCompra` para
+compras). La validación de sus valores ocurre contra el dominio de la métrica, no contra
+una lista única.
+
 Validada con `class-validator` **antes** de tocar la base. Una ficha inválida es 400, no
 una consulta.
 
-Las métricas de stock (`stock_disponible`, `stock_reservado`) leen `inventario_sucursal` y
-solo admiten `agruparPor` ∈ {`sucursal`, `categoria`, `producto`, `ninguno`} y los filtros
-de sucursal/categoría — no tienen dimensión temporal ni canal. El motor rechaza las
-combinaciones imposibles con 400 y un mensaje que nombra la combinación.
+### 4.5 Comparación entre períodos
+
+`compararCon` lleva un segundo rango de fechas. El motor corre **la misma consulta dos
+veces** con distinto rango y devuelve ambas series más la variación por fila (absoluta y
+porcentual). Correr dos veces la misma consulta, en vez de armar una con dos subconsultas,
+mantiene el motor simple y hace imposible que los dos períodos se calculen distinto.
+
+Responde *"¿vendí más que el mes pasado?"*, que es la pregunta que más se hace y la que la
+ficha original no podía contestar.
+
+## 4-bis. Trampas de los datos (verificadas en las entidades)
+
+Cinco cosas que el esquema real impone y que hay que respetar o los números salen mal:
+
+1. **`cupones.usos_actuales` NO sirve para reportes.** Es un contador acumulado sin fecha:
+   no se puede filtrar por período ni comparar meses. Los canjes se cuentan **desde
+   `ventas` agrupando por `cupon_id`**, que sí tiene fecha. Usar el contador daría el mismo
+   número para cualquier rango que se pida.
+2. **`reservas` tiene dos fechas con significados distintos:** `created_at` (cuándo se hizo
+   la reserva) y `fecha_hora_prevista` (cuándo la clienta va a ir a la tienda). Son
+   preguntas diferentes. El filtro de fechas usa `created_at` por defecto, y la ficha
+   acepta `campoFecha: 'creacion' | 'prevista'` solo para las métricas de reservas.
+3. **`movimientos_inventario` tiene columna `fecha` propia**, distinta de `created_at` que
+   hereda de `BaseEntity`. El kardex filtra por `fecha`, que es la que el dominio considera
+   real.
+4. **`ordenes_compra.items` es `jsonb`, no una tabla.** `unidades_pedidas` y
+   `unidades_recibidas` necesitan `jsonb_array_elements` para agregar. Es la métrica más
+   cara de las trece y la única que no es un `SUM` sobre una columna.
+5. **No existe entidad "cliente":** un cliente es un `usuarios` con rol `CUSTOMER`, y
+   `ventas.cliente_id` es nullable (una venta presencial puede no identificar a nadie).
+   `clientes_activos` y la dimensión `cliente` **excluyen las ventas sin cliente**, y eso
+   se dice en la narrativa — si no, "mis mejores clientes" mostraría un grupo vacío gigante.
 
 ## 5. Arquitectura del módulo
 
@@ -135,6 +208,7 @@ modules/ia/
 ├── service/
 │   ├── ia.service.ts                     # orquesta: extraer → consultar → narrar → registrar
 │   ├── motor-consulta.service.ts         # ficha → SQL parametrizado → filas. SIN LLM.
+│   ├── catalogo-metricas.ts              # las 13 métricas y su compatibilidad. Datos, no lógica.
 │   └── proveedor-ia/
 │       ├── proveedor-ia.interface.ts     # extraerFicha(texto) / narrar(ficha, filas)
 │       └── gemini.proveedor.ts
@@ -142,6 +216,13 @@ modules/ia/
 
 Sigue la convención de carpeta por capa técnica del proyecto. `motor-consulta.service.ts`
 no conoce el LLM y `proveedor-ia` no conoce la base: se prueban por separado.
+
+**`catalogo-metricas.ts` es el corazón del diseño.** Cada métrica se declara como un dato:
+de qué tabla sale, con qué agregación, qué joins necesita, qué dimensiones y filtros
+admite, y qué columna usa como fecha. El motor es un solo constructor de consultas que lee
+ese catálogo — no tiene una rama por métrica. Consecuencias: agregar una métrica es
+agregar una entrada y su prueba; el prompt del LLM **se genera desde el mismo catálogo**,
+así que nunca puede quedar desfasado de lo que el motor sabe hacer.
 
 ### Entidad
 
@@ -194,9 +275,21 @@ Donde no exista la API, el botón no se muestra y el campo de texto sigue funcio
 
 ## 8. Pruebas
 
-- **Motor de consulta (unitarias, Vitest, sin red):** una por métrica; `estado = PAGADA`
-  por defecto; combinación inválida (`stock_disponible` agrupado por `dia`) → 400; `limite`
-  fuera de rango → 400; filtro de fechas.
+- **Motor de consulta (unitarias, Vitest, sin red):** **una por cada una de las 13
+  métricas**, con datos sembrados de resultado conocido — la prueba compara contra un
+  número calculado a mano, no contra lo que devuelva el motor.
+- **Las trampas del apartado 4-bis, una prueba cada una:** que los canjes de cupón salgan
+  de `ventas` y no del contador (dos períodos distintos dan números distintos); que
+  `campoFecha: 'prevista'` dé un resultado distinto a `'creacion'`; que el kardex filtre
+  por `fecha` y no por `created_at`; que `unidades_pedidas` agregue bien el `jsonb`; que
+  `clientes_activos` excluya las ventas sin cliente.
+- **Compatibilidad:** `stock_disponible` agrupado por `dia` → 400; `tipo_movimiento` sobre
+  una métrica de ventas → 400; `compararCon` sobre una métrica de inventario → 400.
+- **Comparación de períodos:** dos rangos con datos conocidos devuelven ambas series y la
+  variación porcentual correcta, incluido el caso de período anterior en cero (no dividir
+  por cero: la variación es nula, no infinita).
+- **Generales:** `estado = PAGADA` por defecto; `limite` fuera de rango → 400; filtro de
+  fechas.
 - **Proveedor de IA (unitarias, con doble):** ficha válida; respuesta del modelo que no
   cumple el esquema → 422; sin clave → 503.
 - **Endpoint (e2e, Postgres real):** 401 sin token; 403 como `CUSTOMER`; 200 como `ADMIN`;
