@@ -98,28 +98,32 @@ cd mirroria-backend && npm run start:dev
 cd mirroria-frontend && npm run dev
 ```
 
-## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-14)
+## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-21)
 
-- ✅ Postgres dockerizado y funcionando.
-- ✅ Backend NestJS: `core/` completo y 9 módulos de negocio implementados y verificados
+- ✅ Postgres dockerizado y funcionando. **Las 23 tablas del diseño están completas** (antes de
+  cerrar `pagos` eran 22 de 23).
+- ✅ Backend NestJS: `core/` completo y los **10 módulos de negocio** implementados y verificados
   end-to-end contra Postgres real: `seguridad` (registro/login/perfil + gestión de
   usuarios/roles RF02), `proveedores`, `catalogo`, `sucursales`, `inventario`, `ventas`
   (digital + presencial), `reservas` (RF09-12), `promociones` (cupones porcentuales y monto
-  fijo, validación pública, consumo transaccional en ventas con cálculo de descuento) e `ia`
-  (CU24, reportes dinámicos por lenguaje natural — el modelo nunca escribe SQL, ver
-  `mirroria-backend/AGENTS.md` para el detalle real).
-- 🚧 Queda `pagos` sin implementar como placeholder a propósito (espera credenciales de
-  pasarela del usuario).
+  fijo, validación pública, consumo transaccional en ventas con cálculo de descuento), `ia`
+  (CU24, reportes dinámicos por lenguaje natural — el modelo nunca escribe SQL) y **`pagos`**
+  (RF19, cerrado 2026-09-21: tarjeta por Stripe con webhook firmado como única autoridad sobre
+  el cobro, más QR/efectivo confirmados a mano por un `CAJERO`/`ADMIN` — ver
+  `mirroria-backend/AGENTS.md` para el detalle real, incluida la salvedad sobre el QR y el
+  dinero real).
 - ✅ `mirroria-frontend/` — e-commerce completo funcionando de punta a punta contra el backend
   real: inicio, tienda, ficha de producto, carrito, checkout (ahora con soporte de cupones de
-  descuento y cálculo reactivo de ahorros), `/reservas` del cliente, y panel de administración
-  (`/admin/*`) con catálogo, proveedores, sucursales, inventario, ventas, reservas, usuarios/roles
-  y promociones/cupones (`/admin/cupones`), más una pantalla de reportes por IA (CU24) para
-  staff con ficha interpretada, tabla, comparación y dictado por voz vía Web Speech API — esto
-  último no se probó todavía en un navegador real. Stack visual 100% compuesto con shadcn/ui.
+  descuento y cálculo reactivo de ahorros), pago de la venta (tarjeta vía Stripe, o instrucciones
+  de QR/efectivo con seguimiento de estado real, no afirmado por la ruta de regreso), `/reservas`
+  del cliente, y panel de administración (`/admin/*`) con catálogo, proveedores, sucursales,
+  inventario, ventas, reservas, usuarios/roles, promociones/cupones (`/admin/cupones`) y cobros
+  manuales pendientes de confirmar, más una pantalla de reportes por IA (CU24) para staff con
+  ficha interpretada, tabla, comparación y dictado por voz vía Web Speech API — esto último no
+  se probó todavía en un navegador real. Stack visual 100% compuesto con shadcn/ui.
 - 🚧 Frontend: falta una pantalla de punto de caja (POS) para el rol `CAJERO` (el endpoint del
-  backend ya existe y está protegido por rol, pero no hay UI todavía), y toda la parte de
-  `pagos` (pendiente por lo mismo que en el backend).
+  backend ya existe y está protegido por rol, pero no hay UI todavía) — no forma parte del
+  alcance de `pagos`, es venta presencial (RF17-18).
 - ✅ `mirroria-mobile/` (React Native + Expo SDK 57 + NativeWind v4 + React Native Reusables):
   scaffold base modular, diseño boutique con acento vino de marca, persistencia con
   `expo-secure-store`, feature `auth` (Login y Register) con validación Zod y React Hook Form
