@@ -40,8 +40,8 @@ export class ExpiracionService {
     for (const pago of pendientes) {
       const limiteMin =
         pago.metodo === MetodoPago.TARJETA
-          ? Number(this.config.get('PAGOS_MINUTOS_VENCIMIENTO') ?? MINUTOS_TARJETA_POR_DEFECTO)
-          : Number(this.config.get('PAGOS_MINUTOS_VENCIMIENTO_MANUAL') ?? MINUTOS_MANUAL_POR_DEFECTO);
+          ? this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO', MINUTOS_TARJETA_POR_DEFECTO)
+          : this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO_MANUAL', MINUTOS_MANUAL_POR_DEFECTO);
 
       const minutosTranscurridos = (ahora - pago.createdAt.getTime()) / 60_000;
       if (minutosTranscurridos < limiteMin) continue;
@@ -62,5 +62,30 @@ export class ExpiracionService {
     }
 
     return canceladas;
+  }
+
+  /**
+   * Lee un plazo en minutos de la configuracion sin confiar en ella.
+   *
+   * `??` solo cubre null/undefined, y esa era justo la trampa: con la variable
+   * VACIA (que es como la deja `.env.example`) `Number('')` da 0 y todo vence
+   * al instante; con un typo da NaN y, como toda comparacion con NaN es falsa,
+   * tambien vence todo. Falla abierto por los dos lados. Aca el valor se usa
+   * solo si es un numero finito y positivo; cualquier otra cosa cae al valor
+   * por defecto.
+   */
+  private minutosDeConfig(clave: string, porDefecto: number): number {
+    const crudo = this.config.get(clave);
+    if (crudo === null || crudo === undefined || crudo === '') {
+      return porDefecto;
+    }
+    const valor = Number(crudo);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      this.logger.warn(
+        `${clave} tiene un valor invalido (${String(crudo)}): se usa el plazo por defecto de ${porDefecto} minutos`,
+      );
+      return porDefecto;
+    }
+    return valor;
   }
 }
