@@ -5,6 +5,10 @@ import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
 import { CATALOGO_METRICAS, type NombreFiltro } from './catalogo-metricas.js';
 
+/** Mismo valor que el default de `FichaConsultaDto.limite`, pero aplicado aca: el
+ * del DTO no corre cuando la ficha trae `limite: null` explicito. */
+const LIMITE_POR_DEFECTO = 20;
+
 export interface FilaReporte {
   clave: string;
   etiqueta: string;
@@ -33,7 +37,12 @@ export class MotorConsultaService {
 
     // 1. Filtros declarados en el catalogo.
     for (const [nombre, valor] of Object.entries(filtros)) {
-      if (valor === undefined || nombre === 'desde' || nombre === 'hasta') continue;
+      // `== null` (comparacion floja) a proposito: cubre null Y undefined. `@IsOptional()`
+      // de class-validator IGNORA null, no solo undefined, y la salida estructurada de
+      // Gemini emite null de rutina para las opcionales que decidio no llenar. Con `===`,
+      // un `sucursalId: null` generaba `v.sucursal_id = NULL`, que nunca es verdadero: el
+      // reporte devolvia 0 filas y se leia como "no hubo nada".
+      if (valor == null || nombre === 'desde' || nombre === 'hasta') continue;
       const plantilla = def.filtros[nombre as NombreFiltro];
       if (!plantilla) {
         throw new CombinacionInvalidaException(
@@ -49,8 +58,10 @@ export class MotorConsultaService {
       condiciones.push(plantilla.replace('$', `$${params.length}`));
     }
 
-    // 2. Estado por defecto: solo si la ficha no pidio uno.
-    if (def.filtroEstadoPorDefecto && filtros.estado === undefined) {
+    // 2. Estado por defecto: solo si la ficha no pidio uno. `== null` por el mismo
+    // motivo: con `=== undefined`, un `estado: null` se saltaba como filtro Y ademas
+    // desactivaba el estado por defecto, dejando la consulta sin ningun filtro de estado.
+    if (def.filtroEstadoPorDefecto && filtros.estado == null) {
       condiciones.push(def.filtroEstadoPorDefecto);
     }
 
@@ -97,7 +108,10 @@ export class MotorConsultaService {
     const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
     const agrupa = ficha.agruparPor === 'ninguno' ? '' : `GROUP BY ${dim.grupo}, ${dim.etiqueta}`;
 
-    params.push(ficha.limite);
+    // El tope no puede depender del default de la clase: `@IsOptional()` deja pasar
+    // `limite: null` y en Postgres `LIMIT NULL` significa SIN LIMITE — el tope de 100
+    // se evaporaba y el reporte podia traer la tabla entera.
+    params.push(ficha.limite ?? LIMITE_POR_DEFECTO);
     const sql = `
       SELECT ${dim.grupo}::text AS clave, ${dim.etiqueta}::text AS etiqueta, ${seleccion} AS valor
       FROM ${def.from}

@@ -261,6 +261,21 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
     expect(nombres).toEqual(['Ana Perez', 'Luz Rojas']);
   });
 
+  it('un filtro en null no vacia el reporte contra la base real', async () => {
+    // Gemini emite null de rutina para las opcionales que no lleno, y @IsOptional()
+    // lo deja pasar. Con `sucursal_id = NULL` esta consulta devolvia CERO filas y el
+    // usuario leia "no hubo ventas en agosto".
+    const filas = await motor.ejecutar(
+      ficha({
+        metrica: 'ingresos', agruparPor: 'ninguno',
+        filtros: { ...AGOSTO, sucursalId: null, clienteId: null } as never,
+        limite: null as never,
+      }),
+    );
+    expect(filas).toHaveLength(1);
+    expect(filas[0].valor).toBe(60000);
+  });
+
   it('un filtro de fecha sobre una metrica de inventario es 400', async () => {
     await expect(
       motor.ejecutar(ficha({ metrica: 'stock_disponible', agruparPor: 'sucursal', filtros: AGOSTO })),

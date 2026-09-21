@@ -136,6 +136,43 @@ describe('MotorConsultaService', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  describe('nulos que la validacion deja pasar (Gemini los emite de rutina)', () => {
+    it('un filtro en null se saltea: nunca genera "columna = NULL"', async () => {
+      await service.ejecutar(
+        ficha({
+          metrica: 'ingresos', agruparPor: 'ninguno',
+          filtros: { sucursalId: null, clienteId: null } as never,
+        }),
+      );
+      // `v.sucursal_id = NULL` nunca es verdadero: el reporte devolvia 0 filas y
+      // se leia como "no hubo nada", que es peor que un error.
+      expect(sqlDeLaLlamada()).not.toContain('v.sucursal_id');
+      expect(sqlDeLaLlamada()).not.toContain('v.cliente_id = $');
+      expect(paramsDeLaLlamada()).not.toContain(null);
+    });
+
+    it('un estado en null NO desactiva el estado por defecto', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { estado: null } as never }),
+      );
+      expect(sqlDeLaLlamada()).toContain("v.estado = 'PAGADA'");
+    });
+
+    it('un limite en null cae al tope duro, no a LIMIT NULL (= sin limite)', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'sucursal', limite: null as never }),
+      );
+      // En Postgres `LIMIT NULL` es SIN LIMITE: el tope de 100 de la ficha se evaporaba.
+      expect(paramsDeLaLlamada().at(-1)).toBe(20);
+      expect(paramsDeLaLlamada()).not.toContain(null);
+    });
+
+    it('un limite explicito sigue mandando', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'sucursal', limite: 5 }));
+      expect(paramsDeLaLlamada().at(-1)).toBe(5);
+    });
+  });
+
   describe('reservas y campoFecha', () => {
     it('por defecto filtra por la fecha de creacion de la reserva', async () => {
       await service.ejecutar(

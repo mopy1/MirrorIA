@@ -35,6 +35,28 @@ describe('FichaConsultaDto', () => {
       .toBeGreaterThan(0);
   });
 
+  it('DEJA PASAR null en las propiedades opcionales: @IsOptional ignora null', () => {
+    // No es hipotetico: la salida estructurada de Gemini emite `null` de rutina
+    // para las propiedades opcionales que decidio no llenar. `@IsOptional()` de
+    // class-validator salta la validacion ante `null` igual que ante `undefined`,
+    // asi que este payload es VALIDO y llega entero al motor. Por eso el motor
+    // saltea con `valor == null` y le pone un tope duro al limite: esta prueba
+    // documenta de donde viene esa necesidad.
+    const errores = validar({
+      metrica: 'ingresos',
+      agruparPor: 'ninguno',
+      filtros: { sucursalId: null, desde: null },
+      limite: null,
+      compararCon: null,
+    });
+    expect(errores).toHaveLength(0);
+
+    const ficha = plainToInstance(FichaConsultaDto, {
+      metrica: 'ingresos', agruparPor: 'ninguno', limite: null,
+    });
+    expect(ficha.limite).toBeNull();
+  });
+
   it('aplica los valores por defecto de orden y limite', () => {
     const ficha = plainToInstance(FichaConsultaDto, { metrica: 'ingresos', agruparPor: 'ninguno' });
     expect(ficha.orden).toBe('desc');
