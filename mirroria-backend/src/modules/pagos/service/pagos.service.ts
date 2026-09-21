@@ -149,9 +149,27 @@ export class PagosService {
     // Se guarda el id del evento real: el indice unique impide que otro pago
     // distinto reclame el mismo evento.
     pago.eventId = evento.id;
-    await this.pagoRepository.save(pago);
-    await this.ventasService.marcarPagada(pago.ventaId);
-    return { procesado: true };
+
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(Pago).save(pago);
+        await this.ventasService.marcarPagada(pago.ventaId, manager);
+      });
+      return { procesado: true };
+    } catch (error) {
+      // La clienta PAGO, pero la venta ya no se puede cobrar: la expiracion la
+      // cancelo y su stock ya volvio al inventario. Revertir el pago perderia la
+      // constancia de que entro dinero, asi que se guarda marcado para reembolso
+      // y queda a la vista de una persona.
+      this.logger.error(
+        `Pago ${pago.id} cobrado sobre la venta ${pago.ventaId}, que ya no es pagable: ${String(error)}`,
+      );
+      pago.motivoReembolso = 'Venta cancelada antes de acreditarse el cobro: requiere reembolso';
+      await this.pagoRepository.save(pago);
+      // 200 a proposito: la pasarela no tiene que reintentar algo que ya no va a
+      // mejorar solo. El problema lo resuelve una persona, no un reintento.
+      return { procesado: false };
+    }
   }
 
   /**

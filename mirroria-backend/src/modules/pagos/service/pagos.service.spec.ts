@@ -247,7 +247,10 @@ describe('PagosService — cobro manual', () => {
       });
       const res = await service.procesarEvento(CUERPO, 'buena');
       expect(res.procesado).toBe(true);
-      expect(ventas.marcarPagada).toHaveBeenCalledWith('v1');
+      // Segundo argumento es el EntityManager de la transaccion (ver el caso
+      // de la venta ya no pagable, mas abajo): mismo manager con el que se
+      // guardo el pago, para que las dos escrituras vivan o mueran juntas.
+      expect(ventas.marcarPagada).toHaveBeenCalledWith('v1', expect.anything());
     });
 
     it('EL MISMO evento entregado dos veces cobra UNA sola vez', async () => {
@@ -278,6 +281,36 @@ describe('PagosService — cobro manual', () => {
       const res = await service.procesarEvento(CUERPO, 'buena');
       expect(res.procesado).toBe(false);
       expect(ventas.marcarPagada).not.toHaveBeenCalled();
+    });
+
+    it('si la venta ya no se puede cobrar, el pago queda marcado para reembolso', async () => {
+      // Caso real: la expiracion cancelo la venta y su stock ya volvio, pero la
+      // clienta igual pago en la pasarela. El dinero entro: no se puede borrar
+      // esa constancia, hay que dejarla a la vista.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      });
+      ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
+
+      const res = await service.procesarEvento(Buffer.from('{}'), 'buena');
+
+      expect(res.procesado).toBe(false);
+      expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ motivoReembolso: expect.stringContaining('reembolso') }),
+      );
+    });
+
+    it('ese caso NO le devuelve un error a la pasarela', async () => {
+      // Un 500 o un 409 harian que la pasarela reintente para siempre algo que
+      // ningun reintento va a arreglar.
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      });
+      ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
+
+      await expect(service.procesarEvento(Buffer.from('{}'), 'buena')).resolves.toBeDefined();
     });
   });
 });
