@@ -26,6 +26,45 @@ describe('CATALOGO_METRICAS', () => {
     expect(dims).not.toContain('mes');
   });
 
+  it('ingresos por categoria/producto declara la agregacion de las lineas', () => {
+    // Sin seleccionAlterna, el join a venta_items que la dimension trae multiplica
+    // la venta por su cantidad de lineas y SUM(v.total_cents) la cuenta entera en
+    // cada categoria. El ingreso real de esas lineas es vi.subtotal_cents.
+    expect(CATALOGO_METRICAS.ingresos.dimensiones.categoria?.seleccionAlterna).toBe(
+      'COALESCE(SUM(vi.subtotal_cents), 0)',
+    );
+    expect(CATALOGO_METRICAS.ingresos.dimensiones.producto?.seleccionAlterna).toBe(
+      'COALESCE(SUM(vi.subtotal_cents), 0)',
+    );
+  });
+
+  it('descuentos y ticket_promedio NO ofrecen categoria ni producto', () => {
+    // Viven en la cabecera de la venta y repartirlos entre lineas exigiria una regla
+    // de prorrateo que nadie declaro. Se rechaza la combinacion antes que inventarla.
+    for (const m of ['descuentos', 'ticket_promedio'] as const) {
+      expect(CATALOGO_METRICAS[m].dimensiones.categoria).toBeUndefined();
+      expect(CATALOGO_METRICAS[m].dimensiones.producto).toBeUndefined();
+    }
+    // Pero siguen teniendo las dimensiones de cabecera.
+    expect(CATALOGO_METRICAS.descuentos.dimensiones.sucursal).toBeDefined();
+    expect(CATALOGO_METRICAS.ticket_promedio.dimensiones.mes).toBeDefined();
+  });
+
+  it('toda dimension que trae venta_items agrega sobre la linea o es inmune', () => {
+    // Regla general, para que una metrica nueva no repita el defecto: si la dimension
+    // mete el join de venta_items, la agregacion efectiva no puede ser un SUM/AVG
+    // sobre columnas de `ventas v`.
+    for (const m of METRICAS) {
+      const def = CATALOGO_METRICAS[m];
+      for (const dim of Object.values(def.dimensiones)) {
+        const traeItems = [...def.joinsBase, ...dim.joins].some((j) => j.includes('venta_items'));
+        if (!traeItems) continue;
+        const efectiva = dim.seleccionAlterna ?? def.seleccion;
+        expect(/(SUM|AVG)\(v\./.test(efectiva), `${m} agrupado por esa dimension`).toBe(false);
+      }
+    }
+  });
+
   it('toda metrica admite agrupar por ninguno', () => {
     for (const m of METRICAS) {
       expect(CATALOGO_METRICAS[m].dimensiones.ninguno).toBeDefined();

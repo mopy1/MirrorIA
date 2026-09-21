@@ -89,12 +89,17 @@ export class MotorConsultaService {
     // 4. Joins, sin duplicar.
     const joins = [...new Set([...def.joinsBase, ...dim.joins])];
 
+    // 5. Agregacion. La dimension puede cambiarla: agrupar por categoria/producto
+    // obliga a joinear venta_items, y con ese join una suma sobre la CABECERA de la
+    // venta cuenta el total entero una vez por linea. Ver DimensionSpec.seleccionAlterna.
+    const seleccion = dim.seleccionAlterna ?? def.seleccion;
+
     const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
     const agrupa = ficha.agruparPor === 'ninguno' ? '' : `GROUP BY ${dim.grupo}, ${dim.etiqueta}`;
 
     params.push(ficha.limite);
     const sql = `
-      SELECT ${dim.grupo}::text AS clave, ${dim.etiqueta}::text AS etiqueta, ${def.seleccion} AS valor
+      SELECT ${dim.grupo}::text AS clave, ${dim.etiqueta}::text AS etiqueta, ${seleccion} AS valor
       FROM ${def.from}
       ${joins.join('\n      ')}
       ${where}

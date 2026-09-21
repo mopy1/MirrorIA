@@ -25,6 +25,24 @@ export interface DimensionSpec {
   etiqueta: string;
   /** JOINs necesarios solo para esta dimension. */
   joins: string[];
+  /**
+   * Agregacion que REEMPLAZA a `DefinicionMetrica.seleccion` cuando se agrupa por
+   * esta dimension. Existe por un motivo concreto y no por flexibilidad:
+   *
+   * Alcanzar `categoria` o `producto` desde `ventas` obliga a joinear
+   * `venta_items`, y ese join MULTIPLICA cada venta por su cantidad de lineas.
+   * Una agregacion sobre columnas de la CABECERA (`v.total_cents`) queda contada
+   * entera una vez por linea: una venta de 10000 con una linea de Vestidos y otra
+   * de Blusas sumaba 10000 en cada categoria. Con el join puesto, la unica
+   * agregacion que sigue siendo verdad es la que agrega sobre la LINEA, y para el
+   * dinero esa es `venta_items.subtotal_cents`.
+   *
+   * Solo se declara donde el cambio de expresion conserva el significado de la
+   * metrica. Donde no lo conserva (`descuentos` y `ticket_promedio`, que viven en
+   * la cabecera y no se pueden repartir entre lineas sin inventar una regla de
+   * prorrateo), la dimension directamente NO se ofrece.
+   */
+  seleccionAlterna?: string;
 }
 
 export interface DefinicionMetrica {
@@ -135,6 +153,52 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
       joins: ['JOIN usuarios u ON u.id = v.cliente_id'],
     },
   };
+}
+
+/** El ingreso REAL de una linea de venta. Ya existe en la base: no se calcula. */
+const INGRESO_DE_LINEAS = 'COALESCE(SUM(vi.subtotal_cents), 0)';
+
+/**
+ * Dimensiones de `ingresos`. Identicas a las de ventas salvo que `categoria` y
+ * `producto` cambian la agregacion por la de las LINEAS (ver `seleccionAlterna`):
+ * con `venta_items` joineado, sumar `v.total_cents` cuenta la venta entera en cada
+ * categoria que toca. Medido: una venta de 10000 con dos lineas daba 10000 en una
+ * categoria cuando la verdad de esa categoria era 6000.
+ */
+function dimensionesDeIngresos(): Partial<Record<Dimension, DimensionSpec>> {
+  return {
+    ...dimensionesDeVentas(),
+    categoria: {
+      grupo: 'c.id',
+      etiqueta: 'c.nombre',
+      joins: [JOIN_VENTA_ITEMS, JOIN_PRODUCTO_DESDE_VI, 'JOIN categorias c ON c.id = p.categoria_id'],
+      seleccionAlterna: INGRESO_DE_LINEAS,
+    },
+    producto: {
+      grupo: 'p.id',
+      etiqueta: 'p.titulo',
+      joins: [JOIN_VENTA_ITEMS, JOIN_PRODUCTO_DESDE_VI],
+      seleccionAlterna: INGRESO_DE_LINEAS,
+    },
+  };
+}
+
+/**
+ * Dimensiones de las metricas de ventas cuyo dinero vive en la CABECERA:
+ * `descuentos` (`v.descuento_cents`) y `ticket_promedio` (`AVG(v.total_cents)`).
+ *
+ * Se les QUITAN `categoria` y `producto`. El descuento y el total de una venta no
+ * pertenecen a ninguna linea en particular, y repartirlos entre lineas exigiria
+ * una regla de prorrateo (¿por subtotal?, ¿por unidades?) que el negocio no
+ * declaro en ningun lado. Inventarla en silencio es exactamente lo que este
+ * diseño vino a evitar, asi que pedir esa combinacion es 400.
+ * Para el dinero por categoria esta `ingresos`, que si tiene de donde sacarlo.
+ */
+function dimensionesDeCabecera(): Partial<Record<Dimension, DimensionSpec>> {
+  const dims = dimensionesDeVentas();
+  delete dims.categoria;
+  delete dims.producto;
+  return dims;
 }
 
 export const TIPOS_MOVIMIENTO = [
@@ -329,7 +393,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     seleccion: 'COALESCE(SUM(v.total_cents), 0)',
     columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
-    dimensiones: dimensionesDeVentas(),
+    dimensiones: dimensionesDeIngresos(),
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
     permiteComparacion: true,
@@ -353,7 +417,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     seleccion: 'COALESCE(ROUND(AVG(v.total_cents)), 0)',
     columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
-    dimensiones: dimensionesDeVentas(),
+    dimensiones: dimensionesDeCabecera(),
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
     permiteComparacion: true,
@@ -365,7 +429,7 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     seleccion: 'COALESCE(SUM(v.descuento_cents), 0)',
     columnaFecha: 'v."createdAt"',
     filtros: FILTROS_VENTAS,
-    dimensiones: dimensionesDeVentas(),
+    dimensiones: dimensionesDeCabecera(),
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
     permiteComparacion: true,

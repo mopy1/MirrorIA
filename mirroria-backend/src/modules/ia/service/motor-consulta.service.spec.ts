@@ -86,6 +86,41 @@ describe('MotorConsultaService', () => {
     expect(typeof filas[0].valor).toBe('number');
   });
 
+  describe('dinero agrupado por categoria o producto (el fan-out de venta_items)', () => {
+    it('ingresos por categoria agrega sobre la LINEA, no sobre la cabecera', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'categoria' }));
+      const sql = sqlDeLaLlamada();
+      // El join multiplica la venta por su cantidad de lineas: sumar v.total_cents
+      // contaria la venta entera en cada categoria que toca.
+      expect(sql).toContain('JOIN venta_items vi');
+      expect(sql).toContain('COALESCE(SUM(vi.subtotal_cents), 0)');
+      expect(sql).not.toContain('SUM(v.total_cents)');
+    });
+
+    it('ingresos SIN esa dimension sigue sumando el total de la cabecera', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'sucursal' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('COALESCE(SUM(v.total_cents), 0)');
+      expect(sql).not.toContain('JOIN venta_items vi');
+    });
+
+    it('descuentos y ticket_promedio ya no admiten categoria ni producto', async () => {
+      for (const metrica of ['descuentos', 'ticket_promedio'] as const) {
+        for (const agruparPor of ['categoria', 'producto'] as const) {
+          await expect(service.ejecutar(ficha({ metrica, agruparPor }))).rejects.toThrow(
+            CombinacionInvalidaException,
+          );
+        }
+      }
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it('cantidad_ventas por categoria es inmune: cuenta ventas DISTINTAS', async () => {
+      await service.ejecutar(ficha({ metrica: 'cantidad_ventas', agruparPor: 'categoria' }));
+      expect(sqlDeLaLlamada()).toContain('COUNT(DISTINCT v.id)');
+    });
+  });
+
   it('no duplica un join que ya esta en joinsBase', async () => {
     await service.ejecutar(ficha({ metrica: 'unidades', agruparPor: 'producto' }));
     const ocurrencias = sqlDeLaLlamada().split('JOIN venta_items vi').length - 1;

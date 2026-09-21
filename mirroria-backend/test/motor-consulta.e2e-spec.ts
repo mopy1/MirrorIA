@@ -110,8 +110,69 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
       ficha({ metrica: 'unidades', agruparPor: 'categoria', filtros: AGOSTO }),
     );
     const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
-    expect(porNombre['Blusas']).toBe(5);    // venta2
-    expect(porNombre['Vestidos']).toBe(2);  // venta1; las 40 de la PENDIENTE no entran
+    // A mano, sumando `vi.cantidad` de las lineas de ventas PAGADAS de agosto:
+    //   Blusas   = venta1 L2 (1) + venta2 (5) + venta5 (1) = 7
+    //   Vestidos = venta1 L1 (2) + venta6 (1) + venta7 (2) = 5
+    // Las 40 unidades de la venta PENDIENTE no entran.
+    expect(porNombre['Blusas']).toBe(7);
+    expect(porNombre['Vestidos']).toBe(5);
+  });
+
+  it('ingresos por categoria salen de las LINEAS, no del total de la venta', async () => {
+    const filas = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'categoria', filtros: AGOSTO }),
+    );
+    const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
+
+    // A mano, sumando `vi.subtotal_cents` de las lineas de ventas PAGADAS de agosto:
+    //   Vestidos = venta1 L1 (6000) + venta6 (5000) + venta7 (10000) = 21000
+    //   Blusas   = venta1 L2 (4000) + venta2 (30000) + venta5 (5000) = 39000
+    //
+    // Con `SUM(v.total_cents)` y el join a venta_items, venta1 se contaba ENTERA en
+    // las dos categorias: Vestidos daba 25000 (10000 en vez de 6000) y Blusas 45000.
+    expect(porNombre['Vestidos']).toBe(21000);
+    expect(porNombre['Blusas']).toBe(39000);
+
+    // Y la propiedad que importa: la suma de las categorias es el total del periodo.
+    // Con el fan-out daba 70000 contra un total de 60000 y nadie lo notaba.
+    const suma = filas.reduce((acc, f) => acc + f.valor, 0);
+    const total = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: AGOSTO }),
+    );
+    expect(suma).toBe(total[0].valor);
+    expect(suma).toBe(60000);
+  });
+
+  it('ingresos por producto tampoco se inflan con el total de la venta', async () => {
+    const filas = await motor.ejecutar(
+      ficha({ metrica: 'ingresos', agruparPor: 'producto', filtros: AGOSTO }),
+    );
+    const porNombre = Object.fromEntries(filas.map((f) => [f.etiqueta, f.valor]));
+    // Un producto por categoria en esta siembra, asi que los numeros coinciden.
+    expect(porNombre['Vestido Largo']).toBe(21000);
+    expect(porNombre['Blusa Seda']).toBe(39000);
+  });
+
+  it('descuentos y ticket promedio por categoria/producto son 400, no un numero inventado', async () => {
+    // Los dos viven en la CABECERA de la venta (descuento_cents, total_cents). Con el
+    // join a venta_items el descuento de venta1 se contaria DOS veces (2000 en vez de
+    // 1000), y repartirlo entre lineas exigiria una regla de prorrateo que el negocio
+    // nunca declaro. Antes que devolver un numero inventado, se rechaza la combinacion.
+    for (const metrica of ['descuentos', 'ticket_promedio'] as const) {
+      for (const agruparPor of ['categoria', 'producto'] as const) {
+        await expect(
+          motor.ejecutar(ficha({ metrica, agruparPor, filtros: AGOSTO })),
+        ).rejects.toThrow(CombinacionInvalidaException);
+      }
+    }
+  });
+
+  it('el descuento total de agosto no se duplica por las lineas de venta1', async () => {
+    const filas = await motor.ejecutar(
+      ficha({ metrica: 'descuentos', agruparPor: 'ninguno', filtros: AGOSTO }),
+    );
+    // Solo venta1 tiene descuento (1000) y tiene DOS lineas. El valor correcto es 1000.
+    expect(filas[0].valor).toBe(1000);
   });
 
   it('ticket promedio de agosto: (10000 + 30000 + 5000 + 5000 + 10000) / 5', async () => {
@@ -332,13 +393,25 @@ async function sembrar(ds: DataSource): Promise<void> {
       ID.venta5, ID.venta6, ID.venta7,
     ]);
 
-  // Items: venta1 lleva 2 unidades de Vestidos; venta2 lleva 5 de Blusas;
-  // venta3 (PENDIENTE) lleva 40, que NO deben contarse nunca.
+  // Items. venta1 tiene DOS lineas de categorias DISTINTAS a proposito: 2 Vestidos
+  // por 6000 mas 1 Blusa por 4000, que suman su total de cabecera (10000). Es la
+  // venta que destapa el fan-out: joinear venta_items para alcanzar `categoria`
+  // duplica la fila de la venta, y sumar `v.total_cents` cuenta 10000 en Vestidos
+  // Y otros 10000 en Blusas. Mientras toda venta tuvo una sola linea, el error era
+  // invisible porque el total de cabecera coincidia con el de la unica linea.
+  //
+  // Las demas ventas pagadas tambien llevan lineas que suman su cabecera, asi los
+  // ingresos por categoria reconcilian contra el total del periodo (60000).
+  // venta3 (PENDIENTE) lleva 40 unidades, que NO deben contarse nunca.
   await q(`INSERT INTO venta_items (id, venta_id, variante_id, cantidad, precio_unit_cents, subtotal_cents)
-           VALUES (gen_random_uuid(), $1, $4, 2, 5000, 10000),
+           VALUES (gen_random_uuid(), $1, $4, 2, 3000,  6000),
+                  (gen_random_uuid(), $1, $5, 1, 4000,  4000),
                   (gen_random_uuid(), $2, $5, 5, 6000, 30000),
-                  (gen_random_uuid(), $3, $4, 40, 2500, 99999)`,
-    [ID.venta1, ID.venta2, ID.venta3, ID.var1, ID.var2]);
+                  (gen_random_uuid(), $3, $4, 40, 2500, 99999),
+                  (gen_random_uuid(), $6, $5, 1, 5000,  5000),
+                  (gen_random_uuid(), $7, $4, 1, 5000,  5000),
+                  (gen_random_uuid(), $8, $4, 2, 5000, 10000)`,
+    [ID.venta1, ID.venta2, ID.venta3, ID.var1, ID.var2, ID.venta5, ID.venta6, ID.venta7]);
 
   await q(`INSERT INTO reservas (id, cliente_id, sucursal_id, estado, fecha_hora_prevista, "createdAt")
            VALUES ($1, $3, $4, 'CANCELADA', '2026-09-05', '2026-08-02'),
