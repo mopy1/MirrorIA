@@ -141,7 +141,7 @@ exportado— dos operaciones nuevas: `marcarPagada(ventaId, manager?)` y
 checkout → venta PENDIENTE (stock ya descontado)
   → POST /pagos/ventas/:id/sesion   → fila en `pagos` (PENDIENTE) + sesión de Stripe
   → la clienta paga en la página de Stripe
-  → POST /pagos/webhook/stripe      → firma verificada → pago APROBADO → venta PAGADA
+  → POST /pagos/webhook             → firma verificada → pago APROBADO → venta PAGADA
   → la clienta vuelve y la pantalla consulta el estado real
 ```
 
@@ -152,9 +152,9 @@ vuelve.
 
 ```
 checkout → venta PENDIENTE (stock ya descontado)
-  → GET /pagos/ventas/:id/instrucciones → monto, referencia, y el QR si corresponde
+  → POST /pagos/ventas/:id/manual   → monto, referencia, y el QR si corresponde
   → la clienta paga por su banco, o va a la sucursal
-  → POST /pagos/ventas/:id/confirmar (CAJERO/ADMIN) → pago APROBADO → venta PAGADA
+  → POST /pagos/:pagoId/confirmar (CAJERO/ADMIN) → pago APROBADO → venta PAGADA
 ```
 
 El plazo de vencimiento para estos métodos es más largo (`PAGOS_MINUTOS_VENCIMIENTO_MANUAL`,
@@ -167,10 +167,10 @@ de media hora.
 modules/pagos/
 ├── pagos.module.ts
 ├── controller/pagos.controller.ts        # sesión, instrucciones, webhook, confirmar, expirar
-├── dto/                                   # crear-sesion.dto.ts, confirmar-pago.dto.ts, pago-response.dto.ts,
+├── dto/                                   # iniciar-pago.dto.ts, pago-response.dto.ts,
 │                                          # instrucciones-response.dto.ts
 ├── entities/pago.entity.ts                # tabla `pagos`
-├── exception/                             # VentaNoPagableException (409), PagoDuplicadoException (409),
+├── exception/                             # VentaNoPagableException (409),
 │                                          # FirmaWebhookInvalidaException (400), PasarelaNoConfiguradaException (503)
 └── service/
     ├── pagos.service.ts                   # orquesta; dueño de la máquina de estados del pago
