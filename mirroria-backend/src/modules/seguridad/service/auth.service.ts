@@ -75,6 +75,7 @@ export class AuthService {
       sub: usuario.id,
       email: usuario.email,
       role: usuario.role,
+      sucursalId: usuario.sucursalId,
     };
     return {
       accessToken: this.jwtService.sign(payload),
