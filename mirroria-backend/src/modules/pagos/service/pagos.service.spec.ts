@@ -273,6 +273,20 @@ describe('PagosService — cobro manual', () => {
       ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'OTRO', estado: 'PENDIENTE', totalCents: 1 });
       await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow();
     });
+
+    it('la URL de exito (y la de cancelacion) que recibe la pasarela llevan el id de la venta', async () => {
+      // Sin esto, la pantalla de regreso no sabe que venta consultar y hoy
+      // depende solo de sessionStorage, que falla en otra pestaña, otro
+      // dispositivo, o si se borraron datos de navegacion.
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://pasarela/pagar' });
+      await service.iniciarTarjeta('v1', DUENO);
+      const args = pasarela.crearSesion.mock.calls[0][0] as {
+        urlExito: string;
+        urlCancelacion: string;
+      };
+      expect(args.urlExito).toContain('venta=v1');
+      expect(args.urlCancelacion).toContain('venta=v1');
+    });
   });
 
   describe('webhook', () => {

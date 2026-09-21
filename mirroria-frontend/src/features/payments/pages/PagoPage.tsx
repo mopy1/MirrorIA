@@ -23,10 +23,12 @@ import { paymentsApi } from "../api/paymentsApi"
 import type { Instrucciones, MetodoPago } from "../types/payments.types"
 
 /**
- * La pasarela vuelve a /pago/exito y /pago/cancelado sin identificar la venta
- * (la URL de éxito/cancelación es fija, configurada una vez en el servidor).
- * useCheckout guarda acá el id antes de mandar a la clienta a pagar, así esta
- * pantalla puede consultar el estado real en vez de confiar en la ruta.
+ * La pasarela vuelve a /pago/exito y /pago/cancelado con el id de la venta
+ * como parámetro (`?venta=...`), agregado por el backend a las URL de
+ * éxito/cancelación. sessionStorage queda como respaldo para una
+ * configuración vieja sin el parámetro, pero falla si la clienta vuelve en
+ * otra pestaña, en otro dispositivo, o si borró datos de navegación —
+ * useCheckout lo sigue guardando ahí antes de mandarla a pagar.
  */
 const VENTA_ID_STORAGE_KEY = "mirroria_pago_venta_id"
 
@@ -146,7 +148,10 @@ function InstruccionesPago() {
 }
 
 function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
-  const [ventaId] = useState(() => sessionStorage.getItem(VENTA_ID_STORAGE_KEY))
+  const [searchParams] = useSearchParams()
+  const [ventaId] = useState(
+    () => searchParams.get("venta") ?? sessionStorage.getItem(VENTA_ID_STORAGE_KEY)
+  )
   const [venta, setVenta] = useState<Venta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(ventaId !== null)

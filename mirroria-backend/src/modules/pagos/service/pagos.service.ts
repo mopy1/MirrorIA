@@ -110,8 +110,15 @@ export class PagosService {
       montoCents: venta.totalCents,
       descripcion: `Compra ${venta.numeroComprobante ?? venta.id}`,
       referencia: venta.id,
-      urlExito: this.config.get<string>('PAGOS_URL_EXITO') ?? '',
-      urlCancelacion: this.config.get<string>('PAGOS_URL_CANCELACION') ?? '',
+      // Con el id de la venta en la URL, la pantalla de regreso sabe que
+      // consultar sin depender solo de sessionStorage (que falla si la
+      // clienta vuelve en otra pestaña, otro dispositivo, o borro datos de
+      // navegacion).
+      urlExito: this.conVentaId(this.config.get<string>('PAGOS_URL_EXITO') ?? '', ventaId),
+      urlCancelacion: this.conVentaId(
+        this.config.get<string>('PAGOS_URL_CANCELACION') ?? '',
+        ventaId,
+      ),
     });
 
     await this.pagoRepository.save(
@@ -232,6 +239,18 @@ export class PagosService {
       take: 100,
     });
     return filas.map((p) => this.aDto(p));
+  }
+
+  /**
+   * Agrega `?venta=<id>` (o `&venta=<id>` si la URL configurada ya trae un
+   * `?`) a la URL de regreso de la pasarela, para que la pantalla de vuelta
+   * sepa que venta consultar. Si la URL no esta configurada, se deja vacia
+   * tal cual (nada que agregarle).
+   */
+  private conVentaId(url: string, ventaId: string): string {
+    if (!url) return url;
+    const separador = url.includes('?') ? '&' : '?';
+    return `${url}${separador}venta=${ventaId}`;
   }
 
   private aDto(pago: Pago): PagoResponseDto {
