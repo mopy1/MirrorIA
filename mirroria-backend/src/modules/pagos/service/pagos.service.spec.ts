@@ -16,7 +16,16 @@ const DUENO = { sub: 'cli1', email: 'a@a.com', role: 'CUSTOMER', sucursalId: nul
 const CAJERO = { sub: 'caj1', email: 'b@b.com', role: 'CAJERO', sucursalId: 's1' };
 
 describe('PagosService — cobro manual', () => {
+  /** El repositorio suelto: el que usa el servicio FUERA de una transaccion. */
   let pagoRepo: Record<string, ReturnType<typeof vi.fn>>;
+  /**
+   * El que expone el manager de la transaccion. Es un doble DISTINTO del
+   * suelto a proposito: antes `manager.getRepository()` devolvia el mismo
+   * objeto, asi que ninguna prueba podia distinguir si las dos escrituras del
+   * dinero (el pago y la venta) comparten transaccion. Las dos decisiones mas
+   * caras del modulo descansan sobre esa atomicidad.
+   */
+  let pagoRepoTx: Record<string, ReturnType<typeof vi.fn>>;
   let ventas: { findOne: ReturnType<typeof vi.fn>; marcarPagada: ReturnType<typeof vi.fn> };
   let expiracion: { expirarVencidas: ReturnType<typeof vi.fn> };
   let pasarela: {
@@ -40,11 +49,17 @@ describe('PagosService — cobro manual', () => {
       }),
       marcarPagada: vi.fn(),
     };
+    pagoRepoTx = {
+      create: vi.fn((e) => e),
+      save: vi.fn((e) => Promise.resolve({ id: 'p1', ...e })),
+      findOne: vi.fn(),
+      find: vi.fn().mockResolvedValue([]),
+    };
     const config = { get: vi.fn().mockReturnValue('https://ejemplo/qr.png') } as unknown as ConfigService;
-    // La confirmacion corre dentro de una transaccion: el manager que le llega
-    // al callback expone el mismo repo de pagos que usamos afuera, para que
-    // las aserciones sobre pagoRepo.save sigan valiendo.
-    const manager = { getRepository: () => pagoRepo };
+    // El manager de la transaccion expone su PROPIO repositorio. Asi una
+    // asercion sobre `pagoRepoTx.save` prueba que la escritura ocurrio dentro
+    // de la transaccion, y una sobre `pagoRepo.save`, que ocurrio fuera.
+    const manager = { getRepository: () => pagoRepoTx };
     const dataSource = {
       transaction: (cb: (m: unknown) => unknown) => cb(manager),
     } as unknown as DataSource;
@@ -132,9 +147,23 @@ describe('PagosService — cobro manual', () => {
     // "si la venta ya no se puede cobrar..." mas abajo): mismo manager con el
     // que se guardo el pago, para que las dos escrituras vivan o mueran juntas.
     expect(ventas.marcarPagada).toHaveBeenCalledWith('v1', expect.anything());
-    expect(pagoRepo.save).toHaveBeenCalledWith(
+    expect(pagoRepoTx.save).toHaveBeenCalledWith(
       expect.objectContaining({ estado: EstadoPago.APROBADO }),
     );
+  });
+
+  it('el guardado del camino feliz usa el repositorio DEL MANAGER, no el suelto', async () => {
+    // Es lo unico que distingue "las dos escrituras viven o mueren juntas" de
+    // "se guardo el pago y despues, con suerte, la venta". Si alguien saca el
+    // `manager.getRepository(Pago)` y escribe con el repositorio suelto, el
+    // pago queda aprobado aunque la venta no se pueda cobrar — y nada mas lo
+    // notaria.
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+    });
+    await service.confirmarManual('p1', CAJERO);
+    expect(pagoRepoTx.save).toHaveBeenCalledTimes(1);
+    expect(pagoRepo.save).not.toHaveBeenCalled();
   });
 
   it('confirmar deja registro de QUIEN confirmo', async () => {
@@ -142,7 +171,7 @@ describe('PagosService — cobro manual', () => {
       id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
-    const guardado = pagoRepo.save.mock.calls[0][0] as { referenciaExterna: string };
+    const guardado = pagoRepoTx.save.mock.calls[0][0] as { referenciaExterna: string };
     expect(guardado.referenciaExterna).toContain('caj1');
   });
 
@@ -399,6 +428,12 @@ describe('PagosService — cobro manual', () => {
       // de la venta ya no pagable, mas abajo): mismo manager con el que se
       // guardo el pago, para que las dos escrituras vivan o mueran juntas.
       expect(ventas.marcarPagada).toHaveBeenCalledWith('v1', expect.anything());
+      // Y el pago se escribio con el repositorio DEL MANAGER, no con el suelto:
+      // es lo unico que distingue una escritura atomica de dos sueltas.
+      expect(pagoRepoTx.save).toHaveBeenCalledWith(
+        expect.objectContaining({ estado: EstadoPago.APROBADO }),
+      );
+      expect(pagoRepo.save).not.toHaveBeenCalled();
     });
 
     it('EL MISMO evento entregado dos veces cobra UNA sola vez', async () => {
@@ -457,6 +492,7 @@ describe('PagosService — cobro manual', () => {
 
       expect(res.procesado).toBe(false);
       expect(pagoRepo.save).not.toHaveBeenCalled();
+      expect(pagoRepoTx.save).not.toHaveBeenCalled();
       expect(ventas.marcarPagada).not.toHaveBeenCalled();
     });
 
