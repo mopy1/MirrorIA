@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
@@ -18,6 +18,8 @@ import { PROVEEDOR_IA, type ProveedorIa } from './proveedor-ia/proveedor-ia.inte
 
 @Injectable()
 export class IaService {
+  private readonly logger = new Logger(IaService.name);
+
   constructor(
     private readonly motor: MotorConsultaService,
     @Inject(PROVEEDOR_IA) private readonly proveedor: ProveedorIa,
@@ -91,7 +93,15 @@ export class IaService {
     }
 
     const reporte = await this.consultar(ficha, user);
-    const narrativa = await this.proveedor.narrar(reporte.ficha, reporte.filas);
+
+    let narrativa: string | null = null;
+    try {
+      narrativa = await this.proveedor.narrar(reporte.ficha, reporte.filas);
+    } catch (error) {
+      // Los numeros ya estan calculados y son correctos: que falle la narracion
+      // no invalida el reporte. Se devuelve sin texto y se deja constancia.
+      this.logger.error(`Fallo al narrar el reporte: ${String(error)}`);
+    }
     await this.registrar(user, dto.prompt, narrativa);
 
     return { ...reporte, narrativa };

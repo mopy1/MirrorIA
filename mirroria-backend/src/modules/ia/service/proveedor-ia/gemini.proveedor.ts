@@ -46,6 +46,7 @@ export class GeminiProveedor implements ProveedorIa {
         temperature: 0,
       },
     });
+    if (json === null) return null;
     try {
       return JSON.parse(json) as unknown;
     } catch {
@@ -53,7 +54,7 @@ export class GeminiProveedor implements ProveedorIa {
     }
   }
 
-  async narrar(ficha: FichaConsultaDto, filas: FilaReporte[]): Promise<string> {
+  async narrar(ficha: FichaConsultaDto, filas: FilaReporte[]): Promise<string | null> {
     const datos = filas.map((f) => `${f.etiqueta}: ${f.valor}`).join('; ');
     return this.generar({
       systemInstruction: {
@@ -73,7 +74,13 @@ export class GeminiProveedor implements ProveedorIa {
     });
   }
 
-  private async generar(cuerpo: unknown): Promise<string> {
+  /**
+   * `null` cuando Gemini responde con un status que no es `ok`: dejar pasar un
+   * string vacio en ese caso disfrazaria un fallo del modelo como un exito con
+   * texto en blanco. Ver `extraerFicha`/`narrar` para como cada uno interpreta
+   * ese `null`.
+   */
+  private async generar(cuerpo: unknown): Promise<string | null> {
     const res = await fetch(`${URL_BASE}/${this.modelo}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey ?? '' },
@@ -82,7 +89,7 @@ export class GeminiProveedor implements ProveedorIa {
 
     if (!res.ok) {
       this.logger.error(`Gemini respondio ${res.status}: ${await res.text()}`);
-      return '';
+      return null;
     }
 
     const data = (await res.json()) as {

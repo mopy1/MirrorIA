@@ -214,4 +214,20 @@ describe('preguntar (con LLM)', () => {
       IaNoConfiguradaException,
     );
   });
+
+  it('si el modelo falla al narrar, devuelve el reporte con narrativa nula', async () => {
+    proveedor.narrar.mockRejectedValue(new Error('red caida'));
+    const res = await service.preguntar({ prompt: 'cuanto vendi' }, ADMIN);
+    // Los numeros ya estaban bien: un fallo al narrar no invalida el reporte.
+    expect(res.filas).toHaveLength(1);
+    expect(res.narrativa).toBeNull();
+  });
+
+  it('registra la interaccion aunque la narracion falle', async () => {
+    proveedor.narrar.mockRejectedValue(new Error('red caida'));
+    await service.preguntar({ prompt: 'cuanto vendi' }, ADMIN);
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ inputText: 'cuanto vendi', outputText: null }),
+    );
+  });
 });

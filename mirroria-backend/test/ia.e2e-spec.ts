@@ -94,4 +94,25 @@ describe('IA - reportes (e2e)', () => {
       .expect(200);
     expect(res.body.filas).toBeDefined();
   });
+
+  it('sin IA_API_KEY, /reportes da 503 pero /reportes/consulta sigue en 200', async () => {
+    // Este entorno de pruebas no trae IA_API_KEY (ver .env.example): la rama es
+    // determinista justo por eso. Confirma que el modulo real conecta
+    // GeminiProveedor con IaService por inyeccion y que el filtro global
+    // traduce IaNoConfiguradaException al 503 correcto — y, la propiedad que
+    // mas importa conservar, que el camino manual sigue vivo sin clave.
+    const token = await tokenDeAdmin(app);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/ia/reportes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ prompt: 'cuanto vendi este mes por sucursal' })
+      .expect(503);
+
+    await request(app.getHttpServer())
+      .post(RUTA)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
+      .expect(200);
+  });
 });

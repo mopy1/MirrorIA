@@ -7,6 +7,8 @@ export const PROVEEDOR_IA = Symbol('PROVEEDOR_IA');
 export interface ProveedorIa {
   /** Devuelve el objeto crudo del modelo. Validarlo es responsabilidad del llamador. */
   extraerFicha(texto: string): Promise<unknown>;
-  narrar(ficha: FichaConsultaDto, filas: FilaReporte[]): Promise<string>;
+  /** `null` cuando el modelo no pudo generar la narrativa (fallo de la API, no
+   * texto vacio disfrazado de exito). */
+  narrar(ficha: FichaConsultaDto, filas: FilaReporte[]): Promise<string | null>;
   estaConfigurado(): boolean;
 }
