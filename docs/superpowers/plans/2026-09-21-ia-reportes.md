@@ -1018,7 +1018,9 @@ export class IaService {
 
 ```ts
 // ia.controller.ts
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, HttpCode, HttpStatus, Post, UseGuards, ValidationPipe,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
@@ -1028,6 +1030,18 @@ import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { IaService } from '../service/ia.service.js';
+
+/**
+ * El ValidationPipe GLOBAL de main.ts es `{ whitelist: true, transform: true }`: sin
+ * `forbidNonWhitelisted`, una propiedad que el modelo invente se descartaria EN SILENCIO
+ * en vez de dar 400, y la ficha dejaria de ser cerrada. Se agrega con alcance de ruta y
+ * NO se toca el pipe global, que rige todos los endpoints del resto de la app.
+ */
+const PIPE_FICHA = new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+});
 
 @ApiTags('IA')
 @Controller('ia')
@@ -1041,7 +1055,7 @@ export class IaController {
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
   @ApiOperation({ summary: 'Ejecutar una ficha de consulta ya armada (sin IA)' })
   consulta(
-    @Body() ficha: FichaConsultaDto,
+    @Body(PIPE_FICHA) ficha: FichaConsultaDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<ReporteResponseDto> {
     return this.iaService.consultar(ficha, user);
@@ -1135,7 +1149,11 @@ describe('IA - reportes (e2e)', () => {
     }).compile();
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    // Replica main.ts EXACTAMENTE: el pipe global NO trae forbidNonWhitelisted.
+    // Si el e2e lo agregara aca, estaria probando una configuracion que en produccion
+    // no existe, y el 400 por propiedad inventada pasaria por el motivo equivocado.
+    // Ese 400 lo tiene que dar el pipe con alcance de ruta del propio IaController.
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
   });
 
