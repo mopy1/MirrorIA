@@ -1,6 +1,6 @@
 import {
   ArrowSquareOut, CalendarBlank, ChartBar, Package,
-  SignOut, Storefront, Ticket, Truck, Users, Warehouse, X, type Icon,
+  SignOut, Sparkle, Storefront, Ticket, Truck, Users, Warehouse, X, type Icon,
 } from "@phosphor-icons/react"
 import { Link, useLocation } from "react-router-dom"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -35,6 +35,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { label: "Ventas", href: "/admin/ventas", icon: ChartBar },
       { label: "Reservas", href: "/admin/reservas", icon: CalendarBlank },
       { label: "Cupones", href: "/admin/cupones", icon: Ticket, badge: "Promo" },
+      { label: "Reportes IA", href: "/admin/reportes", icon: Sparkle, badge: "IA" },
     ],
   },
   {

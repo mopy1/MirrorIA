@@ -4,6 +4,7 @@ import { CatalogoAdminPage } from "@/features/admin/pages/CatalogoAdminPage"
 import { CuponesAdminPage } from "@/features/admin/pages/CuponesAdminPage"
 import { InventarioAdminPage } from "@/features/admin/pages/InventarioAdminPage"
 import { ProveedoresAdminPage } from "@/features/admin/pages/ProveedoresAdminPage"
+import { ReportesAdminPage } from "@/features/admin/pages/ReportesAdminPage"
 import { ReservasAdminPage } from "@/features/admin/pages/ReservasAdminPage"
 import { SucursalesAdminPage } from "@/features/admin/pages/SucursalesAdminPage"
 import { UsuariosAdminPage } from "@/features/admin/pages/UsuariosAdminPage"
@@ -23,6 +24,7 @@ import { StorefrontLayout } from "@/layouts/StorefrontLayout"
 import { AdminRoute } from "@/routes/AdminRoute"
 import { GuestRoute } from "@/routes/GuestRoute"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
+import { StaffRoute } from "@/routes/StaffRoute"
 
 // Composición repetida por las 5 rutas /admin/* — evita repetir
 // AdminRoute+AdminLayout en cada <Route> de abajo.
@@ -190,6 +192,16 @@ function App() {
             <AdminPage>
               <UsuariosAdminPage />
             </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/reportes"
+          element={
+            <StaffRoute>
+              <AdminLayout>
+                <ReportesAdminPage />
+              </AdminLayout>
+            </StaffRoute>
           }
         />
       </Routes>
