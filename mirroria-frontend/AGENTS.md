@@ -961,6 +961,45 @@ Se implementó el flujo completo de promociones y cupones de descuento, integran
   - Al presionar "Confirmar pedido", el código del cupón viaja al backend y queda formalmente asentado en la venta (`ventas.cupon_id`, `descuento_cents`, `total_cents`).
 - **Verificación Técnica:** `tsc -b && vite build` y `npm run lint` limpios con 0 errores.
 
+## ✅ Auditoría de arquitectura sobre 89 commits ajenos: `pagos`, `reportes` (CU24) y checkout (2026-09-22)
+
+El usuario pidió explícitamente auditar contra este documento los 89 commits que trajeron
+los módulos `pagos` (RF19) e `ia`/reportes (CU24) del lado del backend, junto con todo lo
+nuevo que agregaron acá (`features/payments/`, `features/reports/`, `CobrosAdminPage`,
+`ReportesAdminPage`, rutas de `App.tsx`) — no dar por sentado que ya cumplían la Regla 1.B,
+sino corregir lo que no la cumpliera.
+
+**3 violaciones reales de la Regla 1.B (< 150 líneas) encontradas y corregidas:**
+
+1. **`PagoPage.tsx` tenía 310 líneas** con 3 componentes completos adentro (`PagoPage`,
+   `InstruccionesPago`, `RegresoPasarela`) — el orquestador real medía 9 líneas, el resto era
+   dos pantallas enteras con su propio estado, efectos y llamadas a la API, exactamente lo
+   que la Regla 1.B.1 (Thin Pages) prohíbe. **Fix:** se extrajeron a
+   `features/payments/components/instrucciones-pago.tsx` y `regreso-pasarela.tsx`; este
+   último a su vez le sacó su tarjeta de detalle a `detalle-pago-card.tsx` (161 → 129 líneas)
+   para no repetir el mismo problema una carpeta más adentro. `PagoPage.tsx` quedó en 13
+   líneas, puro orquestador.
+2. **`CobrosAdminPage.tsx` (159 líneas)** — la tabla de cobros pendientes vivía inline. **Fix:**
+   extraída a `features/admin/components/cobros-table/` (patrón carpeta + `index.ts`, mismo
+   criterio que `usuarios-table/`); la página quedó en 80 líneas.
+3. **`App.tsx` (255 líneas)**, puro boilerplate de `<Route>` repetidas (mismo wrapper
+   `StorefrontLayout`/`AdminPage` una y otra vez). **Fix:** Data-Driven UI (Regla 1.B.3) —
+   `STOREFRONT_ROUTES`/`ADMIN_ROUTES` como arrays de `{path, Component, protected?}` mapeados
+   dentro de `<Routes>`; quedó en 150 líneas exactas sin perder ninguna ruta.
+
+**Un elemento HTML crudo reemplazado por shadcn, a pedido explícito del usuario:**
+`ReportesAdminPage.tsx` usaba `<details>/<summary>` nativos para el bloque colapsable "Cómo
+se entendió la pregunta" — se agregó el componente `Collapsible` de shadcn (`npx shadcn add
+collapsible`, primitivo de Base UI) y se reemplazó, verificando el atributo real de estado
+(`data-panel-open`, no el `data-state` de Radix) leyendo el `.d.ts` del paquete instalado en
+vez de asumirlo.
+
+**Backend: sin violaciones** (desacoplo entre módulos, `uuid`, excepciones) — ver
+`mirroria-backend/AGENTS.md`, sección de la misma fecha, para el detalle.
+
+**Verificado:** `tsc -b` y `npm run lint` limpios (0 errores) tras las 3 correcciones y el
+cambio de `Collapsible`.
+
 ---
 
 ## 🧰 0. Stack y herramientas

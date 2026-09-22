@@ -1,8 +1,9 @@
 import { useState } from "react"
-import { Microphone, Sparkle, WarningCircle } from "@phosphor-icons/react"
+import { CaretDown, Microphone, Sparkle, WarningCircle } from "@phosphor-icons/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { ApiError } from "@/lib/api"
 import { reportsApi } from "@/features/reports/api/reportsApi"
@@ -128,14 +129,17 @@ export function ReportesAdminPage() {
               </p>
             )}
             <TablaReporte reporte={reporte} />
-            <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer select-none font-medium text-foreground">
+            <Collapsible className="text-xs text-muted-foreground">
+              <CollapsibleTrigger className="group flex items-center gap-1.5 font-medium text-foreground">
+                <CaretDown className="size-3.5 transition-transform group-data-[panel-open]:rotate-180" />
                 Cómo se entendió la pregunta
-              </summary>
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3">
-                {JSON.stringify(reporte.ficha, null, 2)}
-              </pre>
-            </details>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3">
+                  {JSON.stringify(reporte.ficha, null, 2)}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
           </CardContent>
         </Card>
       )}

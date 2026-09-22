@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ComponentType, ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { CatalogoAdminPage } from "@/features/admin/pages/CatalogoAdminPage"
 import { CobrosAdminPage } from "@/features/admin/pages/CobrosAdminPage"
@@ -28,8 +28,8 @@ import { GuestRoute } from "@/routes/GuestRoute"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
 import { StaffRoute } from "@/routes/StaffRoute"
 
-// Composición repetida por las 5 rutas /admin/* — evita repetir
-// AdminRoute+AdminLayout en cada <Route> de abajo.
+// Composición repetida por las 8 rutas /admin/* de recursos simples — evita
+// repetir AdminRoute+AdminLayout en cada una.
 function AdminPage({ children }: { children: ReactNode }) {
   return (
     <AdminRoute>
@@ -38,112 +38,61 @@ function AdminPage({ children }: { children: ReactNode }) {
   )
 }
 
+// Rutas de la tienda: mismo StorefrontLayout siempre, algunas piden sesión
+// (`protected`). Data-driven (Regla 1.B.3) porque son puro path+componente
+// repetido — la única variación real es esa bandera.
+const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: boolean }[] = [
+  { path: "/", Component: HomePage },
+  { path: "/tienda", Component: ProductListPage },
+  { path: "/tienda/producto/:id", Component: ProductDetailPage },
+  { path: "/sucursales", Component: BranchesPage },
+  { path: "/carrito", Component: CartPage, protected: true },
+  { path: "/checkout", Component: CheckoutPage, protected: true },
+  { path: "/checkout/:id/confirmacion", Component: OrderConfirmationPage, protected: true },
+  // Las 3 rutas de pago renderizan la misma página — PagoPage decide qué
+  // mostrar mirando el pathname actual.
+  { path: "/pago/:ventaId", Component: PagoPage, protected: true },
+  { path: "/pago/exito", Component: PagoPage, protected: true },
+  { path: "/pago/cancelado", Component: PagoPage, protected: true },
+  { path: "/reservas", Component: MyReservationsPage, protected: true },
+]
+
+// Recursos "planos" del panel admin: mismo AdminPage siempre. `cobros` y
+// `reportes` quedan afuera de esta tabla porque usan StaffRoute (rol
+// CAJERO/staff), no AdminRoute (solo ADMIN).
+const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
+  { path: "/admin/catalogo", Component: CatalogoAdminPage },
+  { path: "/admin/proveedores", Component: ProveedoresAdminPage },
+  { path: "/admin/sucursales", Component: SucursalesAdminPage },
+  { path: "/admin/inventario", Component: InventarioAdminPage },
+  { path: "/admin/ventas", Component: VentasAdminPage },
+  { path: "/admin/reservas", Component: ReservasAdminPage },
+  { path: "/admin/cupones", Component: CuponesAdminPage },
+  { path: "/admin/usuarios", Component: UsuariosAdminPage },
+]
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <StorefrontLayout>
-              <HomePage />
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/tienda"
-          element={
-            <StorefrontLayout>
-              <ProductListPage />
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/tienda/producto/:id"
-          element={
-            <StorefrontLayout>
-              <ProductDetailPage />
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/sucursales"
-          element={
-            <StorefrontLayout>
-              <BranchesPage />
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/carrito"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/checkout"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/checkout/:id/confirmacion"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <OrderConfirmationPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/pago/:ventaId"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <PagoPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/pago/exito"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <PagoPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/pago/cancelado"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <PagoPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
-        <Route
-          path="/reservas"
-          element={
-            <StorefrontLayout>
-              <ProtectedRoute>
-                <MyReservationsPage />
-              </ProtectedRoute>
-            </StorefrontLayout>
-          }
-        />
+        {STOREFRONT_ROUTES.map(({ path, Component, protected: needsAuth }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <StorefrontLayout>
+                {needsAuth ? (
+                  <ProtectedRoute>
+                    <Component />
+                  </ProtectedRoute>
+                ) : (
+                  <Component />
+                )}
+              </StorefrontLayout>
+            }
+          />
+        ))}
+
         <Route
           path="/login"
           element={
@@ -162,70 +111,17 @@ function App() {
         />
 
         <Route path="/admin" element={<Navigate to="/admin/catalogo" replace />} />
-        <Route
-          path="/admin/catalogo"
-          element={
-            <AdminPage>
-              <CatalogoAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/proveedores"
-          element={
-            <AdminPage>
-              <ProveedoresAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/sucursales"
-          element={
-            <AdminPage>
-              <SucursalesAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/inventario"
-          element={
-            <AdminPage>
-              <InventarioAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/ventas"
-          element={
-            <AdminPage>
-              <VentasAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/reservas"
-          element={
-            <AdminPage>
-              <ReservasAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/cupones"
-          element={
-            <AdminPage>
-              <CuponesAdminPage />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/usuarios"
-          element={
-            <AdminPage>
-              <UsuariosAdminPage />
-            </AdminPage>
-          }
-        />
+        {ADMIN_ROUTES.map(({ path, Component }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <AdminPage>
+                <Component />
+              </AdminPage>
+            }
+          />
+        ))}
         <Route
           path="/admin/cobros"
           element={
