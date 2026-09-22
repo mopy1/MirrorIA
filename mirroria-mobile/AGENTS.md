@@ -137,12 +137,36 @@ mirroria-mobile/
 │       │   ├── components/CatalogEmptyState.tsx  # Estado vacío con reseteo
 │       │   └── screens/CatalogScreen.tsx         # Pantalla orquestadora (< 130 líneas)
 │       │
-│       ├── virtual-fitting/          # 🪞 Feature Estrella: Vestidor 3D
-│       │   ├── components/FittingRoomHeader.tsx   # Título y badge de estado
-│       │   ├── components/FittingStagePreview.tsx # Maniquí, visor 360°, podio e iluminación
-│       │   ├── components/GarmentSelectorBar.tsx  # Selector horizontal de prendas para probar
-│       │   ├── components/FittingActionRow.tsx    # Tallas (XS-XL) y botón de pase en tienda
-│       │   └── screens/FittingRoomScreen.tsx      # Pantalla orquestadora (< 80 líneas)
+│       ├── virtual-fitting/          # 🪞 Feature Estrella: Vestidor 3D — AR en vivo (ver sección dedicada abajo)
+│       │   ├── components/
+│       │   │   ├── CameraStage/                  # Orquestador: cámara en vivo + overlays + captura de prueba
+│       │   │   │   ├── CameraStage.tsx           # Cámara, toggle 2D/3D, selector de prenda 3D, expandir, flip
+│       │   │   │   ├── CameraControls.tsx        # Botones flotantes: agrandar/achicar, cambiar cámara
+│       │   │   │   ├── CameraPermissionGate.tsx  # Pantalla cuando no hay permiso de cámara
+│       │   │   │   ├── CaptureControls.tsx       # Temporizador + botón de captura
+│       │   │   │   ├── CountdownOverlay.tsx      # Cuenta regresiva antes de capturar
+│       │   │   │   └── PhotoReviewModal.tsx      # Preview de la foto de prueba tomada
+│       │   │   ├── PoseOverlay/                  # Puntos de pose animados sobre la cámara
+│       │   │   │   ├── PoseOverlay.tsx
+│       │   │   │   └── PoseDot.tsx               # View simple con borderRadius (SVG no sobrevivía a las capturas)
+│       │   │   ├── GarmentOverlay/GarmentOverlay.tsx  # Sprite 2D de la prenda siguiendo hombros
+│       │   │   ├── GarmentScene3D/               # Modelo 3D real (.glb) siguiendo el cuerpo
+│       │   │   │   ├── GarmentScene3D.tsx        # <Canvas> ortográfica, 1 unidad = 1px
+│       │   │   │   └── GarmentModel.tsx          # Carga el glb, mide hombros, aplica transform por cuadro
+│       │   │   ├── FittingRoomHeader.tsx         # Título y badge de estado
+│       │   │   ├── GarmentSelectorBar.tsx        # Selector horizontal de prendas del catálogo (aún no conectado al 3D)
+│       │   │   └── FittingActionRow.tsx          # Tallas (XS-XL) y botón de pase en tienda
+│       │   ├── hooks/
+│       │   │   ├── useCameraPermission.ts        # Wrapper del hook de permisos de VisionCamera
+│       │   │   ├── usePoseLandmarks.ts           # Conecta el frame processor nativo, expone landmarks (shared value)
+│       │   │   ├── useRemoteGarmentSize.ts       # Mide el tamaño real de `arOverlayImageUrl` (Image.getSize)
+│       │   │   └── useTimedCapture.ts            # Temporizador + captura de foto de prueba
+│       │   ├── lib/
+│       │   │   ├── landmarkMath.ts               # Toda la matemática (transform 2D y 3D), sin nada de UI
+│       │   │   ├── garmentAnchor.ts              # Convención de anclaje para PNGs subidos por el admin
+│       │   │   └── testGarments.ts               # PNG de prueba para el sprite 2D
+│       │   ├── types/pose.types.ts               # Índices de landmarks (esquema MediaPipe/BlazePose, 33 puntos)
+│       │   └── screens/FittingRoomScreen.tsx      # Pantalla orquestadora
 │       │
 │       └── profile/                  # 👤 Feature de Perfil y Pase de Tienda
 │           ├── components/ProfileHeader.tsx          # Avatar con iniciales y rol CLIENTA
@@ -157,6 +181,168 @@ mirroria-mobile/
 ├── app.json                          # Configuración Expo de la aplicación
 └── package.json                      # Dependencias del proyecto
 ```
+
+---
+
+## 🪞 Vestidor 3D — Arquitectura real del probador AR (implementado 2026-09-22)
+
+La tabla de la sección "Estrategia de Producto" de arriba describe la visión; esto describe
+**lo que realmente hay implementado y corriendo hoy**: AR en vivo con cámara real, sin ningún
+mockup — la clienta abre la pestaña, ve su propia cámara, el sistema detecta su cuerpo en
+tiempo real, y una prenda (sprite 2D o modelo 3D `.glb`) se superpone siguiendo sus hombros.
+Android-first a propósito (ver Fase 6 pendiente al final).
+
+### Pipeline, de la cámara a la pantalla
+
+```
+<Camera> (VisionCamera)
+  → useFrameOutput({ pixelFormat: 'yuv' })          [hooks/usePoseLandmarks.ts]
+  → mirroriaPoseDetector.processFrameAndroid(frame)  [módulo nativo Kotlin, ver abajo]
+  → 33 landmarks (x, y, z, visibility) — esquema MediaPipe/BlazePose
+  → landmarks: SharedValue<PoseLandmark[]>           (actualizado desde un worklet, sin pasar por React)
+  → GarmentOverlay (2D, useAnimatedStyle)  o  GarmentScene3D → GarmentModel (3D, useFrame)
+  → computeGarmentTransform / computeGarmentTransform3D   [lib/landmarkMath.ts — toda la matemática vive acá]
+```
+
+### Decisiones de stack y el porqué (no son la opción obvia)
+
+- **Cámara: `react-native-vision-camera` v5 ("Nitro"), no `expo-camera`.** `expo-camera` no tiene
+  frame processors — no puede entregarte frames crudos para correr un modelo de IA por-frame.
+- **Worklets: usa `react-native-worklets` (el mismo de Reanimated 4), NUNCA
+  `react-native-worklets-core`.** Ambos registran la misma clase `WorkletsPackage` en Android —
+  instalar los dos rompe el build de Gradle. Casi todos los wrappers comunitarios de
+  pose-detection que existen en npm dependen del paquete viejo (`-core`), así que quedan
+  descartados de entrada para este proyecto.
+- **Detección de pose: módulo nativo propio (`modules/mirroria-pose-detector/`, Nitro Module en
+  Kotlin) envolviendo `com.google.mlkit:pose-detection:18.0.0-beta5`, no un paquete de npm.** No
+  existe ningún wrapper de React Native maduro para MediaPipe Tasks Vision ni para ML Kit
+  compatible con VisionCamera v5 — VisionCamera documenta oficialmente escribir tu propio Frame
+  Processor Plugin nativo, así que eso se hizo. Sigue siendo literalmente "los puntos de Google"
+  (ML Kit), con menos plomería nativa que MediaPipe Tasks (que además exige empaquetar su propio
+  runtime TFLite).
+  - `processFrameAndroid` corre **síncrono a propósito**
+    (`Tasks.await(poseDetector.process(...), 800, TimeUnit.MILLISECONDS)`): el `ImageProxy` del
+    frame deja de ser válido apenas el worklet de JS llama `frame.dispose()`, así que procesar
+    async y cachear el resultado más tarde leería memoria ya liberada.
+  - `usePoseLandmarks.ts` procesa **1 de cada 3 frames** (`PROCESS_EVERY_N_FRAMES`) — la cámara
+    sigue fluida a su FPS normal, pero ML Kit (bloqueante) no se llama en cada uno.
+- **3D: `three@0.180.0` (fijado, NO `latest`) + `@react-three/fiber@9.7.0` + `expo-gl`.** Sin
+  `expo-three` (no hace falta — `@react-three/fiber` trae sus propios polyfills de
+  `FileLoader`/`TextureLoader` en su propio entry point `"react-native"` de su `package.json`) y
+  sin ningún paquete `@react-three/native` (no existe en npm). `three@latest` (0.186) tiene el
+  build CJS roto/deprecado para Hermes — ver troubleshooting abajo.
+
+### Troubleshooting real (2026-09-22): construir el Vestidor 3D real (cámara + IA de pose + 2D/3D)
+
+Sesión larga, con el usuario probando en un teléfono físico (TECNO_LJ6, MediaTek gama
+media/baja) después de cada cambio. Los hallazgos que valen la pena no perder:
+
+1. **`GLTFLoader` no arranca en React Native**: `Cannot read property 'match' of undefined`
+   dentro del constructor. **Causa real**: RN expone un `navigator` global
+   (`{product: 'ReactNative'}`) pero sin `userAgent` — `GLTFLoader` asume que es un string y le
+   llama `.match()` sin chequear (asume un entorno de navegador). **Fix**: parchar
+   `navigator.userAgent = 'ReactNative'` con `Object.defineProperty` antes de instanciar el
+   loader (ver el bloque al principio de `GarmentModel.tsx`).
+2. **"Multiple instances of Three.js being imported"**: `@react-three/fiber` importa `three` vía
+   `require()` (CJS), pero `GLTFLoader.js` lo importa vía `import` (ESM) — el `package.json` de
+   `three` mapea cada condición a un ARCHIVO FÍSICO DISTINTO (`build/three.cjs` vs
+   `build/three.module.js`), y Metro no las deduplica: quedan dos copias de la librería con
+   clases distintas, así que un parche de prototipo hecho sobre una nunca lo ve la otra. **Fix**:
+   en `metro.config.js`, un `resolver.resolveRequest` custom que fuerza CUALQUIER
+   `import`/`require` de `'three'` a resolver siempre al mismo archivo (`build/three.cjs`).
+3. **`three@latest` (0.186) tiene el build CJS roto**: `three.cjs` moderno es solo
+   `process.emitWarning(...)` (API de Node, no existe en Hermes) seguido de
+   `module.exports = require('./three.module.js')` (un archivo ESM, no `require`-able). **Fix**:
+   fijar `three@0.180.0` + `@types/three@0.180.0` exactos.
+4. **`ReferenceError: Property 'ProgressEvent' doesn't exist`** al hacer `GLTFLoader().load(uri)`:
+   el `FileLoader` interno de GLTFLoader usa APIs de navegador (`fetch`/`ProgressEvent`) que no
+   existen en RN. **Fix**: no usar `.load()` — leer el archivo a mano con
+   `expo-file-system/legacy` (`readAsStringAsync(uri, {encoding: Base64})`, ojo: en SDK 57 esta
+   función se movió al subpath `/legacy`, el import normal ya no la expone) y pasarle los bytes
+   crudos a `GLTFLoader().parse(arrayBuffer, '', onLoad, onError)`, que no depende de ningún
+   `FileLoader`.
+5. **Metro no trata `.glb` como asset binario por defecto** (`Unable to resolve module`, incluso
+   con ruta relativa correcta): agregar `'glb', 'gltf', 'bin'` a
+   `config.resolver.assetExts` en `metro.config.js`. **Trampa real**: editar
+   `metro.config.js` mientras Metro ya está corriendo **no aplica el cambio** — hay que matarlo
+   del todo (no alcanza con Fast Refresh) y relanzarlo, a veces incluso borrando
+   `/tmp/metro-cache` a mano si el error persiste con un `-c` normal.
+6. **Posición vertical del modelo sistemáticamente mal** (muy arriba, tapando la cara): la
+   primera versión anclaba "dónde están los hombros" con una fracción fija adivinada del alto
+   total del modelo. Buscar automáticamente "la sección más ancha" de la mitad superior
+   **empeoró las cosas** — ese algoritmo agarraba el busto o la cintura (casi siempre más anchos
+   que los hombros en cualquier prenda con forma de cuerpo), y como todo lo que queda por
+   encima del punto ancla (hombros reales incluidos) termina flotando por encima del punto
+   detectado, el resultado se veía peor cuanto "más inteligente" era la búsqueda. **Fix real**:
+   medir el ancho a una **altura fija** cerca del borde de arriba (`SHOULDER_FRACTION_FROM_TOP =
+   0.08` en `GarmentModel.tsx`) — un solo número, fácil de recalibrar a ojo si se usa otro `.glb`.
+7. **El giro (roll) sale prácticamente al revés (~175°) con la cámara trasera, pero bien con la
+   frontal**: ML Kit siempre da los landmarks en coordenadas CRUDAS del sensor (sin espejar) — de
+   frente a la cámara, el hombro derecho anatómico SIEMPRE tiene menor x cruda, sea cámara
+   frontal o trasera. Con la frontal se espeja `x` (`1 - x`) para que la posición se vea en
+   espejo — eso invierte el orden izquierda/derecha en pantalla, y por eso hacía falta un `-180°`
+   extra para que "nivelado" diera ~0°. Con la trasera (sin espejar), el orden crudo YA es el
+   normal de una foto sin espejo, así que aplicar ese mismo `-180°` (como pasaba antes de este
+   fix) deja el vestido casi al revés incluso con los hombros nivelados. **Fix**: el `-180°` es
+   condicional a `mirrored` (`- (mirrored ? Math.PI : 0)`), no fijo — confirmado con logs reales
+   en ambas cámaras contra el mismo maniquí de referencia.
+8. **El giro lateral (yaw, "verse de perfil" al girar el torso) se sentía como "2 fotos que se
+   alternan", no un giro proporcional real**: la primera versión usaba la profundidad `z` que da
+   ML Kit igual que se usa `x` para un `atan2`, asumiendo que estaba en la misma escala relativa
+   — en la práctica esa `z` resultó tener una escala mucho más grande e impredecible, saturando
+   el `atan2` en ±90° con cualquier ruido. **Fix real**: la magnitud del yaw sale de algo
+   geométrico y estable — el ANCHO de hombros se acorta al girar el torso (escorzo), pero el
+   ALTO hombro-cadera casi no cambia (es un giro sobre el eje vertical) — la razón ancho/alto cae
+   de forma suave y predecible con el ángulo real de giro. Se sigue usando el SIGNO de `z` nomás
+   (mucho más confiable que su magnitud) para saber hacia qué lado se giró. La calibración de
+   "cuál es la razón ancho/alto de frente" es adaptativa (el máximo visto hasta ahora, con
+   decadencia lenta) porque no se conoce de antemano la proporción real de cada persona.
+9. **El giro seguía "saltando" de rato en rato incluso después del fix anterior**: dos causas
+   reales encontradas con logs en vivo, ambas arregladas con memoria entre cuadros en vez de
+   solo amortiguar:
+   - Las caderas entran y salen de la detección seguido (brazos extendidos, encuadre cerrado) —
+     cada vez que desaparecían, el yaw reseteaba de golpe al giro base en vez de mantenerse.
+     Fix: si las caderas no son usables, se reusa el último yaw geométrico válido
+     (`lastRawYaw`), no se fuerza a 0.
+   - ML Kit confunde por un instante cuál hombro es cuál (izquierda/derecha), lo que invierte el
+     signo de la resta en el cálculo de roll y manda el ángulo ~180° al otro extremo de golpe.
+     Un tilt real de una persona nunca cambia tan rápido entre dos cuadros — un salto de más de
+     100° entre cuadros consecutivos se trata como ruido y se ignora (no se arrastra el
+     suavizado hacia él).
+10. **`java.lang.Error: Camera is disabled, probably due to a device policy!`**: error recurrente
+    de VisionCamera, no fatal — pasa cuando la sesión de cámara se reinicia (pantalla
+    bloqueada/app en segundo plano mientras la cámara está activa, o el toggle de privacidad de
+    "acceso a la cámara" que traen los accesos rápidos de Android). La app se recupera sola; no
+    bloquea nada, solo ensucia el log.
+11. **Se probó y se descartó un "balanceo de tela" falso (no física real)** — desplazar vértices
+    de la falda con una onda seno/coseno según qué tan lejos están de los hombros. Se encontró y
+    corrigió un bug real en el camino (comparar la Y LOCAL de cada vértice contra alturas en
+    espacio MUNDO da cualquier cosa si la malla tiene su propia transformación — típico en
+    exports de Sketchfab), pero el efecto corregido seguía siendo casi imperceptible y **se
+    revirtió a pedido del usuario** ("quita todo lo q hiciste para las fisicas nomas"). Si se
+    retoma en el futuro: la implementación correcta (factor por vértice precalculado en espacio
+    mundo, `Float32Array` reusado sin asignar memoria por cuadro) puede recuperarse del historial
+    de git; el problema pendiente sería más bien de amplitud/tuning, no de arquitectura.
+
+### Limitaciones conocidas (no son bugs, son alcance no resuelto)
+
+- **Captura de foto con overlay**: la foto de prueba (`captureScreen()`) nunca incluye lo que se
+  dibuja encima de la cámara (ni puntos, ni prenda 2D, ni modelo 3D) — limitación real de
+  Android/CameraX: el preview es una capa de video compuesta por hardware, separada del resto de
+  la UI, y ninguna herramienta de captura basada en la vista puede agarrar las dos juntas en una
+  sola llamada. La solución real (capturar cámara y overlay por separado y componerlos en
+  código) queda pendiente, no es un ajuste rápido.
+- **Giro completo de espaldas (180°)**: ML Kit está entrenado sobre todo para poses de frente —
+  con la persona de espaldas a la cámara la confianza cae mucho o no detecta nada confiable. El
+  yaw queda acotado a ~55° (frente a 3/4 de perfil) a propósito; extenderlo a un giro completo
+  necesitaría una fuente de datos que no tenemos hoy.
+- **El modelo 3D es fijo, no por producto**: `CameraStage.tsx` tiene hardcodeados 2 modelos de
+  prueba (`assets/models/black_dress.glb` y `waist_trainer.glb`, ambos CC-BY-4.0 vía Sketchfab —
+  atribución requerida si se publica) alternables con un botón — no está conectado todavía al
+  catálogo real ni a `arOverlayImageUrl`/`modeloArUrl` del producto. Conectar un `.glb` real por
+  producto es trabajo aparte (pipeline de assets 3D, fuera del alcance de esta sesión).
+- **Paridad iOS**: no implementada (`processFrameIOS` en el módulo nativo está vacío a
+  propósito) — todo este trabajo es Android-first por decisión explícita, no por omisión.
 
 ---
 

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import {
   Modal,
+  Pressable,
   View,
   type ImageSourcePropType,
   type LayoutChangeEvent,
 } from 'react-native';
+import { Box, Shirt, Shuffle } from 'lucide-react-native';
+import { Icon } from '@/components/ui/icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Camera,
@@ -30,6 +33,20 @@ import { CountdownOverlay } from './CountdownOverlay';
 import { PhotoReviewModal } from './PhotoReviewModal';
 import { PoseOverlay } from '../PoseOverlay';
 import { GarmentOverlay } from '../GarmentOverlay';
+import { GarmentScene3D } from '../GarmentScene3D';
+
+/** Modelos 3D de prueba de la Fase 5 (ver plan), ambos CC-BY-4.0 vía
+ * Sketchfab: "Black Dress" de ZahraAmini
+ * (https://sketchfab.com/3d-models/black-dress-6fcc25c69a754ab09ab08d75cce06279)
+ * y "Waist Trainer" de Dragonflyrenders
+ * (https://sketchfab.com/3d-models/waist-trainer-90e10e9b9d474cc58aa7c8af99658299).
+ * Reemplazan temporalmente al sprite 2D de la Fase 3 para probar el motor
+ * 3D — la selección real de prenda por producto queda para cuando exista
+ * el pipeline de assets `.glb` reales (ver Fase 4/roadmap del plan). */
+const TEST_GARMENTS_3D = [
+  { name: 'Vestido negro', source: require('../../../../../assets/models/black_dress.glb') },
+  { name: 'Faja', source: require('../../../../../assets/models/waist_trainer.glb') },
+];
 
 interface GarmentSource {
   source: ImageSourcePropType;
@@ -42,6 +59,11 @@ interface CameraSurfaceContentProps {
   device: CameraDevice;
   frameOutput: CameraFrameOutput;
   garment: GarmentSource;
+  use3D: boolean;
+  onToggle3D: () => void;
+  garment3DName: string;
+  garment3DSource: number;
+  onCycleGarment3D: () => void;
   landmarks: SharedValue<PoseLandmark[]>;
   processedFrames: SharedValue<number>;
   mirrored: boolean;
@@ -67,6 +89,11 @@ function CameraSurfaceContent({
   device,
   frameOutput,
   garment,
+  use3D,
+  onToggle3D,
+  garment3DName,
+  garment3DSource,
+  onCycleGarment3D,
   landmarks,
   processedFrames,
   mirrored,
@@ -97,16 +124,26 @@ function CameraSurfaceContent({
       />
       {size.width > 0 && (
         <>
-          <GarmentOverlay
-            landmarks={landmarks}
-            containerWidth={size.width}
-            containerHeight={size.height}
-            mirrored={mirrored}
-            source={garment.source}
-            imageWidth={garment.imageWidth}
-            imageHeight={garment.imageHeight}
-            anchor={garment.anchor}
-          />
+          {use3D ? (
+            <GarmentScene3D
+              source={garment3DSource}
+              containerWidth={size.width}
+              containerHeight={size.height}
+              mirrored={mirrored}
+              landmarks={landmarks}
+            />
+          ) : (
+            <GarmentOverlay
+              landmarks={landmarks}
+              containerWidth={size.width}
+              containerHeight={size.height}
+              mirrored={mirrored}
+              source={garment.source}
+              imageWidth={garment.imageWidth}
+              imageHeight={garment.imageHeight}
+              anchor={garment.anchor}
+            />
+          )}
           <PoseOverlay
             landmarks={landmarks}
             processedFrames={processedFrames}
@@ -116,6 +153,26 @@ function CameraSurfaceContent({
           />
         </>
       )}
+      <View style={{ top: topOffset }} className="absolute left-3 gap-2">
+        <Pressable
+          onPress={onToggle3D}
+          className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50"
+        >
+          <Icon as={use3D ? Box : Shirt} size={14} className="text-white" />
+          <Text className="text-[10px] font-semibold text-white">
+            {use3D ? '3D (prueba)' : '2D'}
+          </Text>
+        </Pressable>
+        {use3D && (
+          <Pressable
+            onPress={onCycleGarment3D}
+            className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50"
+          >
+            <Icon as={Shuffle} size={14} className="text-white" />
+            <Text className="text-[10px] font-semibold text-white">{garment3DName}</Text>
+          </Pressable>
+        )}
+      </View>
       <CameraControls
         isExpanded={isExpanded}
         onFlip={onFlip}
@@ -165,6 +222,10 @@ export function CameraStage({ arOverlayImageUrl }: CameraStageProps) {
     useCameraPermission();
   const [position, setPosition] = useState<'front' | 'back'>('front');
   const [isExpanded, setIsExpanded] = useState(false);
+  // Fase 5 en construcción: arranca en 3D a propósito para poder probarlo
+  // apenas se abre la pantalla, con el sprite 2D de la Fase 3 a un toque.
+  const [use3D, setUse3D] = useState(true);
+  const [garment3DIndex, setGarment3DIndex] = useState(0);
   const device = useCameraDevice(position);
   const { frameOutput, landmarks, processedFrames } = usePoseLandmarks();
   const remoteSize = useRemoteGarmentSize(arOverlayImageUrl);
@@ -216,6 +277,12 @@ export function CameraStage({ arOverlayImageUrl }: CameraStageProps) {
     device,
     frameOutput,
     garment,
+    use3D,
+    onToggle3D: () => setUse3D((v) => !v),
+    garment3DName: TEST_GARMENTS_3D[garment3DIndex].name,
+    garment3DSource: TEST_GARMENTS_3D[garment3DIndex].source,
+    onCycleGarment3D: () =>
+      setGarment3DIndex((i) => (i + 1) % TEST_GARMENTS_3D.length),
     landmarks,
     processedFrames,
     mirrored: position === 'front',
