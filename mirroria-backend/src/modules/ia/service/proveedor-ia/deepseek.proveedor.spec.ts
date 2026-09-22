@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
-import { GeminiProveedor } from './gemini.proveedor.js';
+import { DeepSeekProveedor } from './deepseek.proveedor.js';
 import type { FichaConsultaDto } from '../../dto/ficha-consulta.dto.js';
 import type { ComparacionDto } from '../../dto/reporte-response.dto.js';
 
-function proveedor(): GeminiProveedor {
+function proveedor(): DeepSeekProveedor {
   const config = {
     get: (clave: string) => (clave === 'IA_API_KEY' ? 'clave-de-prueba' : undefined),
   } as unknown as ConfigService;
-  return new GeminiProveedor(config);
+  return new DeepSeekProveedor(config);
 }
 
-/** Intercepta el fetch a Gemini y devuelve una respuesta valida minima. */
+/** Intercepta el fetch a DeepSeek y devuelve una respuesta valida minima. */
 function espiarFetch(): ReturnType<typeof vi.fn> {
   const espia = vi.fn().mockResolvedValue({
     ok: true,
-    json: () => Promise.resolve({ candidates: [{ content: { parts: [{ text: 'resumen' }] } }] }),
+    json: () => Promise.resolve({ choices: [{ message: { content: 'resumen' } }] }),
   });
   vi.stubGlobal('fetch', espia);
   return espia;
@@ -40,7 +40,7 @@ const COMPARACION: ComparacionDto = {
   ],
 };
 
-describe('GeminiProveedor.narrar', () => {
+describe('DeepSeekProveedor.narrar', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -85,5 +85,43 @@ describe('GeminiProveedor.narrar', () => {
     const cuerpo = cuerpoEnviado(espia);
     expect(cuerpo).toContain('sin base anterior');
     expect(cuerpo).not.toContain('null%');
+  });
+});
+
+describe('DeepSeekProveedor.extraerFicha', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('pide response_format json_object: DeepSeek no soporta un schema forzado', async () => {
+    const espia = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: '{"metrica":"ingresos","agruparPor":"ninguno"}' } }] }),
+    });
+    vi.stubGlobal('fetch', espia);
+
+    const resultado = await proveedor().extraerFicha('cuanto vendi este mes');
+
+    const cuerpo = JSON.parse(cuerpoEnviado(espia)) as { response_format?: { type: string } };
+    expect(cuerpo.response_format).toEqual({ type: 'json_object' });
+    expect(resultado).toEqual({ metrica: 'ingresos', agruparPor: 'ninguno' });
+  });
+
+  it('la instruccion enviada menciona JSON explicitamente (lo exige la API de DeepSeek)', async () => {
+    const espia = espiarFetch();
+    await proveedor().extraerFicha('cuanto vendi este mes')
+
+    const cuerpo = cuerpoEnviado(espia).toLowerCase();
+    expect(cuerpo).toContain('json');
+  });
+
+  it('una respuesta que no es JSON valido devuelve null, no explota', async () => {
+    const espia = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: 'esto no es json' } }] }),
+    });
+    vi.stubGlobal('fetch', espia);
+
+    await expect(proveedor().extraerFicha('cuanto vendi')).resolves.toBeNull();
   });
 });

@@ -336,8 +336,9 @@ credenciales/API key reales), y sin desviarse de la arquitectura/patrones ya aco
 Decisión de arquitectura central: **el modelo nunca escribe ni ejecuta SQL.** Alguien del
 equipo pregunta por su negocio en lenguaje natural (texto, o voz transcrita en el frontend
 con la Web Speech API) y recibe un reporte con datos reales. El modelo entra dos veces
-(`GeminiProveedor.extraerFicha`/`narrar`) y en el medio corre exclusivamente el motor con SQL
-parametrizado — nunca hay texto de un LLM concatenado en una query.
+(`DeepSeekProveedor.extraerFicha`/`narrar`, ver el cambio de proveedor más abajo) y en el
+medio corre exclusivamente el motor con SQL parametrizado — nunca hay texto de un LLM
+concatenado en una query.
 
 - **`catalogo-metricas.ts` declara 18 métricas en 7 dominios** (`ventas`, `inventario`,
   `kardex`, `reservas`, `cupones`, `compras`, `clientes`): de qué tabla sale cada una
@@ -348,9 +349,10 @@ parametrizado — nunca hay texto de un LLM concatenado en una query.
 - **El prompt del modelo se deriva del catálogo** (`esquema-ficha.ts`, `construirInstruccion`):
   recorre `CATALOGO_METRICAS` y genera una línea por métrica con sus dimensiones válidas,
   si admite fechas y si es comparable. Agregar una métrica nueva al catálogo actualiza el
-  prompt solo, sin tocar el texto de la instrucción a mano. El `responseSchema` que se le pasa
-  a Gemini (`ESQUEMA_FICHA`) también sale de `METRICAS`, así el modelo no puede devolver una
-  métrica que el motor no tenga.
+  prompt solo, sin tocar el texto de la instrucción a mano. `ESQUEMA_FICHA` también sale de
+  `METRICAS`, así el modelo no puede devolver una métrica que el motor no tenga — con
+  DeepSeek ya no se le pasa como `responseSchema` forzado (ver más abajo), pero
+  `describirFormatoSalida()` lo describe en texto dentro de la misma instrucción.
 - **Un `ENCARGADO_SUCURSAL` queda acotado a su propia sucursal desde el servidor**, no desde lo
   que el modelo entienda: `IaService.forzarAlcance` pisa `ficha.filtros.sucursalId` con la
   `sucursalId` del JWT antes de correr el motor, sea cual sea lo que pidió la pregunta. Si esa
@@ -363,14 +365,14 @@ parametrizado — nunca hay texto de un LLM concatenado en una query.
   (`IaService.preguntar`, el camino con lenguaje natural) exige la key — si falta, devuelve
   `IaNoConfiguradaException`, **503**, con el mensaje señalando el endpoint manual como
   alternativa.
-- **⚠️ Datos que salen hacia un tercero (Google), y en qué paso.** El modelo entra dos
+- **⚠️ Datos que salen hacia un tercero (DeepSeek), y en qué paso.** El modelo entra dos
   veces y en cada una sale algo distinto. En `extraerFicha` sale **la pregunta tal cual la
   escribió o dictó la usuaria** (nada de la base: todavía no se consultó nada). En `narrar`
   salen **las filas ya calculadas** — etiqueta y valor de cada una — y, si la ficha compara
   períodos, también la serie anterior y las variaciones. Esas etiquetas son datos del
   negocio, y con `agruparPor: 'cliente'` son el **nombre y apellido reales de las clientas**
   (`usuarios.full_name`) junto con lo que cada una gastó: un reporte de "mis mejores
-  clientas" manda esa lista a la API de Google. **No sale** SQL, ni filas crudas, ni `uuid`
+  clientas" manda esa lista a la API de DeepSeek. **No sale** SQL, ni filas crudas, ni `uuid`
   (la clave de fila se usa solo del lado del servidor para casar los dos períodos), ni
   correos, ni el JWT. La narración es opcional por diseño: sin clave o ante un fallo el
   reporte se devuelve con `narrativa: null`, y `POST /ia/reportes/consulta` no toca al
@@ -378,11 +380,41 @@ parametrizado — nunca hay texto de un LLM concatenado en una query.
   aviso a la usuaria y el respaldo legal de ese envío; si no se puede sostener, la salida
   simple es quitar la dimensión `cliente` del paso de narración, porque los números los
   calcula el motor y no dependen del modelo. Ver §3.4 del spec.
-- **No probado:** el flujo contra el modelo real de Gemini no se pudo verificar en este
-  entorno porque no hay `IA_API_KEY` configurada; tampoco se probó el dictado por voz
-  (`feat(reportes): dictado por voz con la Web Speech API`) en un navegador real. Lo que sí
-  está verificado de punta a punta (71 unitarias + 19 e2e en verde, ver sección de
-  verificación) es el motor de consulta, el catálogo, el alcance por rol y la vía manual.
+- **Verificado contra el modelo real (2026-09-22):** con una `IA_API_KEY` real de DeepSeek,
+  `extraerFicha` y `narrar` se probaron de punta a punta por primera vez — "¿Cuánto vendí
+  este mes por sucursal?" devolvió la ficha exacta `{"metrica":"ingresos","agruparPor":
+  "sucursal"}`, y `narrar` con datos de ejemplo devolvió un resumen correcto sin inventar
+  números. El dictado por voz (`feat(reportes): dictado por voz con la Web Speech API`)
+  sigue sin probarse en un navegador real. Lo que ya estaba verificado de punta a punta
+  (178 unitarias + e2e en verde tras el cambio de proveedor, ver sección de verificación) es
+  el motor de consulta, el catálogo, el alcance por rol y la vía manual.
+
+### 🔄 Cambio de proveedor de IA: Gemini → DeepSeek (2026-09-22)
+
+Decisión del usuario: reemplazar `GeminiProveedor` por `DeepSeekProveedor` — misma interfaz
+`ProveedorIa`, mismo criterio de `fetch` nativo sin SDK nuevo, hablando con
+`https://api.deepseek.com/chat/completions` (formato compatible con OpenAI).
+
+- **Diferencia real que importó para `extraerFicha`:** Gemini soporta forzar un JSON Schema
+  del lado del servidor (`responseSchema`) — el modelo devuelve esa forma o falla. DeepSeek
+  **no tiene equivalente**: `response_format: {type: 'json_object'}` solo garantiza JSON
+  *válido*, no una forma en particular. Sin nada más, el modelo podía devolver cualquier
+  JSON, no necesariamente los campos de la ficha (`metrica`, `agruparPor`, etc.). Se agregó
+  `describirFormatoSalida()` en `esquema-ficha.ts` — describe `ESQUEMA_FICHA` en texto plano
+  dentro de la misma instrucción que ya recorre el catálogo — para compensar. La validación
+  real de la respuesta sigue siendo responsabilidad de `IaService` contra `FichaConsultaDto`,
+  como ya era antes; esto no cambia esa parte.
+- **DeepSeek exige la palabra "json" en algún mensaje cuando se pide `json_object`** (si no,
+  la API devuelve error) — la instrucción de `extraerFicha` ya la incluye por el punto
+  anterior, así que esto salió gratis.
+- **`IA_MODELO` cambió su default** de `gemini-3.8-flash` a `deepseek-chat` (`.env.example`).
+  Nota real: la API de DeepSeek resuelve `deepseek-chat` a un modelo interno cuyo nombre en
+  la respuesta puede diferir (`deepseek-flash`, visto en la prueba real del 2026-09-22) — es
+  el alias vigente de DeepSeek, no un error de configuración.
+- Se borró `gemini.proveedor.ts` y su spec (recuperables del historial de git); comentarios
+  que documentaban un comportamiento genérico de LLMs (el modelo emite `null` de rutina en
+  campos opcionales que decide no llenar) se reescribieron para no atribuirlo a Gemini
+  específicamente — sigue aplicando igual con DeepSeek.
 
 ### Trampas del esquema descubiertas al construir el catálogo (§4-bis del spec)
 
@@ -499,6 +531,27 @@ ningún punto del backend lo escribe nunca, ni siquiera al cobrar — no se toc�
 porque no era su alcance. Por eso la referencia que ve la clienta (`InstruccionesResponseDto`
 hace `venta.numeroComprobante ?? venta.id`, igual que `iniciarTarjeta` en la descripción de la
 sesión de Stripe) cae siempre al identificador de la venta. Vale avisarle a Leonardo.
+
+## ✅ Auditoría de arquitectura sobre los 89 commits de `ia`+`pagos` (2026-09-22)
+
+El usuario pidió explícitamente auditar los 89 commits que no hizo él (todo `ia`, `pagos`,
+y los toques chicos a `ventas`/`promociones`/`seguridad`/`core` que trajeron) contra las
+reglas de este documento, y corregir lo que no las respetara — no dar por sentado que sí.
+
+**Resultado: el backend no tenía violaciones reales.** Se revisó puntualmente:
+- **Desacoplo entre módulos (regla 1):** los únicos cruces son `pagos → VentasService` (en
+  `expiracion.service.ts` y `pagos.service.ts`) — service exportado, no entidad ni
+  repositorio directo, exactamente el patrón ya bendecido en este documento (el mismo que
+  usan `ColeccionesService → ProveedoresService`, `ReservasModule → VentasModule`, etc.).
+- **`uuid_generate_v4()`:** ninguna ocurrencia en `ia`/`pagos` — todo pasa por
+  `BaseEntity`/`gen_random_uuid()`.
+- **Excepciones genéricas:** ningún `throw new HttpException/BadRequestException/...` suelto
+  — todo extiende `BusinessException` vía el patrón `exception/` de cada módulo.
+- **DTOs vs entidades:** los controllers de `ia`/`pagos` reciben y devuelven DTOs, nunca
+  `@Entity` directo.
+
+(La auditoría del **frontend** sí encontró y corrigió 3 violaciones reales de la Regla 1.B
+de `mirroria-frontend/AGENTS.md` — ver ese documento, sección de la misma fecha.)
 
 ## 🗺️ Roadmap de los módulos que faltan
 

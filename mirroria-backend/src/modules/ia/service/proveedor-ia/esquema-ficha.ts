@@ -71,5 +71,32 @@ export function construirInstruccion(
     '- Si piden un "top N" o "los mas/menos", usa limite y orden.',
     '- Si la pregunta no se puede responder con ninguna metrica de la lista, devolve metrica vacia.',
     '- campoFecha solo aplica a metricas de reservas.',
+    '',
+    ...describirFormatoSalida(),
   ].join('\n');
+}
+
+/**
+ * Descripcion en texto plano de `ESQUEMA_FICHA`, para proveedores que NO
+ * soportan forzar un JSON Schema del lado del servidor (a diferencia de
+ * Gemini con `responseSchema`, DeepSeek solo garantiza JSON valido vía
+ * `response_format: {type: 'json_object'}`, no una forma en particular) —
+ * sin esto el modelo podia devolver cualquier JSON válido, no
+ * necesariamente con estos campos. Se deriva de `ESQUEMA_FICHA` a mano (no
+ * automaticamente) porque la forma de los campos fijos no cambia con el
+ * catalogo, a diferencia de la lista de metricas de arriba.
+ */
+function describirFormatoSalida(): string[] {
+  return [
+    'Formato de salida: responde EXCLUSIVAMENTE un objeto JSON (nada de texto ' +
+      'antes ni despues, nada de bloques ```) con estos campos:',
+    '- metrica (string, una de las de arriba, obligatorio)',
+    '- agruparPor (string, obligatorio): sucursal | categoria | producto | canal | ' +
+      'estado | cliente | cupon | proveedor | tipo_movimiento | dia | mes | ninguno',
+    '- filtros (objeto, opcional): { desde?, hasta?, canal?, estado?, tipoMovimiento? }',
+    '- campoFecha (string, opcional): creacion | prevista',
+    '- compararCon (objeto, opcional): { desde, hasta }',
+    '- orden (string, opcional): asc | desc',
+    '- limite (numero entero, opcional)',
+  ];
 }

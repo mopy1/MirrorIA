@@ -197,7 +197,7 @@ describe('MotorConsultaService', () => {
     });
   });
 
-  describe('nulos que la validacion deja pasar (Gemini los emite de rutina)', () => {
+  describe('nulos que la validacion deja pasar (el modelo los emite de rutina)', () => {
     it('un filtro en null se saltea: nunca genera "columna = NULL"', async () => {
       await service.ejecutar(
         ficha({

@@ -38,8 +38,8 @@ export class MotorConsultaService {
     // 1. Filtros declarados en el catalogo.
     for (const [nombre, valor] of Object.entries(filtros)) {
       // `== null` (comparacion floja) a proposito: cubre null Y undefined. `@IsOptional()`
-      // de class-validator IGNORA null, no solo undefined, y la salida estructurada de
-      // Gemini emite null de rutina para las opcionales que decidio no llenar. Con `===`,
+      // de class-validator IGNORA null, no solo undefined, y la salida estructurada del
+      // modelo emite null de rutina para las opcionales que decidio no llenar. Con `===`,
       // un `sucursalId: null` generaba `v.sucursal_id = NULL`, que nunca es verdadero: el
       // reporte devolvia 0 filas y se leia como "no hubo nada".
       if (valor == null || nombre === 'desde' || nombre === 'hasta') continue;

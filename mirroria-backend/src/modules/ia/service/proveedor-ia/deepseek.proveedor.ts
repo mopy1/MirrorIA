@@ -3,34 +3,38 @@ import { ConfigService } from '@nestjs/config';
 import type { FichaConsultaDto } from '../../dto/ficha-consulta.dto.js';
 import type { ComparacionDto } from '../../dto/reporte-response.dto.js';
 import type { FilaReporte } from '../motor-consulta.service.js';
-import { construirInstruccion, ESQUEMA_FICHA } from './esquema-ficha.js';
+import { construirInstruccion } from './esquema-ficha.js';
 import type { ProveedorIa } from './proveedor-ia.interface.js';
 
-const URL_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const URL = 'https://api.deepseek.com/chat/completions';
 
 /**
- * Habla con Gemini por HTTP directo: Node trae `fetch` global desde la v18
- * (este proyecto corre en v22), asi que no hace falta agregar un SDK al
- * proyecto (una dependencia menos que mantener). `responseSchema` obliga al
- * modelo a devolver JSON con la forma de la ficha.
+ * Habla con DeepSeek por HTTP directo (API compatible con OpenAI, mismo
+ * criterio que `GeminiProveedor`: `fetch` global de Node, sin SDK nuevo).
  *
- * Modelo por defecto verificado contra la documentacion vigente de Google
- * (ai.google.dev/gemini-api/docs/models) el 21-sep-2026: `gemini-2.0-flash`
- * fue retirado el 1-jun-2026 y `gemini-2.5-flash` se retira el 16-oct-2026,
- * asi que el default se fija en `gemini-3.8-flash` (modelo Flash estable
- * vigente a esa fecha). El header de autenticacion `x-goog-api-key` sigue
- * siendo el vigente. Si esto vuelve a cambiar, ajustar solo aca: esta todo
- * en un solo archivo a proposito.
+ * Diferencia real con Gemini que importa para `extraerFicha`: DeepSeek NO
+ * soporta un JSON Schema forzado del lado del servidor (no hay equivalente a
+ * `responseSchema`) — `response_format: {type: 'json_object'}` solo
+ * garantiza JSON *valido*, no una forma en particular. Por eso
+ * `construirInstruccion()` ahora describe el formato de salida en texto
+ * (ver `esquema-ficha.ts`) — sin esa descripcion el modelo podia devolver
+ * cualquier JSON, no necesariamente los campos de la ficha. La validacion
+ * real de todos modos es responsabilidad del llamador (`IaService`, contra
+ * `FichaConsultaDto`) — acá no cambia nada de esa parte.
+ *
+ * DeepSeek exige que la palabra "json" aparezca en algún mensaje cuando se
+ * pide `json_object` (si no, la API devuelve un error) — la instruccion de
+ * `extraerFicha` la incluye explicitamente por esto.
  */
 @Injectable()
-export class GeminiProveedor implements ProveedorIa {
-  private readonly logger = new Logger(GeminiProveedor.name);
+export class DeepSeekProveedor implements ProveedorIa {
+  private readonly logger = new Logger(DeepSeekProveedor.name);
   private readonly apiKey: string | undefined;
   private readonly modelo: string;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('IA_API_KEY');
-    this.modelo = config.get<string>('IA_MODELO') ?? 'gemini-3.8-flash';
+    this.modelo = config.get<string>('IA_MODELO') ?? 'deepseek-chat';
   }
 
   estaConfigurado(): boolean {
@@ -38,15 +42,13 @@ export class GeminiProveedor implements ProveedorIa {
   }
 
   async extraerFicha(texto: string): Promise<unknown> {
-    const json = await this.generar({
-      systemInstruction: { parts: [{ text: construirInstruccion() }] },
-      contents: [{ role: 'user', parts: [{ text: texto }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: ESQUEMA_FICHA,
-        temperature: 0,
-      },
-    });
+    const json = await this.generar(
+      [
+        { role: 'system', content: construirInstruccion() },
+        { role: 'user', content: texto },
+      ],
+      { temperature: 0, response_format: { type: 'json_object' } },
+    );
     if (json === null) return null;
     try {
       return JSON.parse(json) as unknown;
@@ -88,34 +90,42 @@ export class GeminiProveedor implements ProveedorIa {
         `${variaciones || 'sin resultados'}`;
     }
 
-    return this.generar({
-      systemInstruction: { parts: [{ text: instruccion }] },
-      contents: [{ role: 'user', parts: [{ text: texto }] }],
-      generationConfig: { temperature: 0.2 },
-    });
+    return this.generar(
+      [
+        { role: 'system', content: instruccion },
+        { role: 'user', content: texto },
+      ],
+      { temperature: 0.2 },
+    );
   }
 
   /**
-   * `null` cuando Gemini responde con un status que no es `ok`: dejar pasar un
-   * string vacio en ese caso disfrazaria un fallo del modelo como un exito con
-   * texto en blanco. Ver `extraerFicha`/`narrar` para como cada uno interpreta
-   * ese `null`.
+   * `null` cuando DeepSeek responde con un status que no es `ok`: dejar pasar
+   * un string vacio en ese caso disfrazaria un fallo del modelo como un exito
+   * con texto en blanco. Ver `extraerFicha`/`narrar` para como cada uno
+   * interpreta ese `null`.
    */
-  private async generar(cuerpo: unknown): Promise<string | null> {
-    const res = await fetch(`${URL_BASE}/${this.modelo}:generateContent`, {
+  private async generar(
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    opciones: { temperature: number; response_format?: { type: 'json_object' } },
+  ): Promise<string | null> {
+    const res = await fetch(URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey ?? '' },
-      body: JSON.stringify(cuerpo),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey ?? ''}`,
+      },
+      body: JSON.stringify({ model: this.modelo, messages, ...opciones }),
     });
 
     if (!res.ok) {
-      this.logger.error(`Gemini respondio ${res.status}: ${await res.text()}`);
+      this.logger.error(`DeepSeek respondio ${res.status}: ${await res.text()}`);
       return null;
     }
 
     const data = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      choices?: Array<{ message?: { content?: string } }>;
     };
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    return data.choices?.[0]?.message?.content ?? '';
   }
 }

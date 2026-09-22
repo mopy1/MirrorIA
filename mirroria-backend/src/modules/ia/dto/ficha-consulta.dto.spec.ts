@@ -36,7 +36,7 @@ describe('FichaConsultaDto', () => {
   });
 
   it('DEJA PASAR null en las propiedades opcionales: @IsOptional ignora null', () => {
-    // No es hipotetico: la salida estructurada de Gemini emite `null` de rutina
+    // No es hipotetico: la salida estructurada del modelo emite `null` de rutina
     // para las propiedades opcionales que decidio no llenar. `@IsOptional()` de
     // class-validator salta la validacion ante `null` igual que ante `undefined`,
     // asi que este payload es VALIDO y llega entero al motor. Por eso el motor

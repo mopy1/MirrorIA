@@ -194,7 +194,7 @@ describe('IA - reportes (e2e)', () => {
   it('sin IA_API_KEY, /reportes da 503 pero /reportes/consulta sigue en 200', async () => {
     // Este entorno de pruebas no trae IA_API_KEY (ver .env.example): la rama es
     // determinista justo por eso. Confirma que el modulo real conecta
-    // GeminiProveedor con IaService por inyeccion y que el filtro global
+    // DeepSeekProveedor con IaService por inyeccion y que el filtro global
     // traduce IaNoConfiguradaException al 503 correcto — y, la propiedad que
     // mas importa conservar, que el camino manual sigue vivo sin clave.
     const token = await tokenDeAdmin(app);

@@ -419,7 +419,7 @@ describe('MotorConsulta contra Postgres real (los numeros)', () => {
   });
 
   it('un filtro en null no vacia el reporte contra la base real', async () => {
-    // Gemini emite null de rutina para las opcionales que no lleno, y @IsOptional()
+    // El modelo emite null de rutina para las opcionales que no lleno, y @IsOptional()
     // lo deja pasar. Con `sucursal_id = NULL` esta consulta devolvia CERO filas y el
     // usuario leia "no hubo ventas en agosto".
     const filas = await motor.ejecutar(
