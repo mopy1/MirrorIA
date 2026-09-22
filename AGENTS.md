@@ -98,7 +98,7 @@ cd mirroria-backend && npm run start:dev
 cd mirroria-frontend && npm run dev
 ```
 
-## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-21)
+## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-22)
 
 - ✅ Postgres dockerizado y funcionando. **Las 23 tablas del diseño están completas** (antes de
   cerrar `pagos` eran 22 de 23).
@@ -126,7 +126,18 @@ cd mirroria-frontend && npm run dev
   alcance de `pagos`, es venta presencial (RF17-18).
 - ✅ `mirroria-mobile/` (React Native + Expo SDK 57 + NativeWind v4 + React Native Reusables):
   scaffold base modular, diseño boutique con acento vino de marca, persistencia con
-  `expo-secure-store`, feature `auth` (Login y Register) con validación Zod y React Hook Form
-  integrada contra el backend NestJS real (`/seguridad/auth/*`).
-- ⬜ Dockerizar backend/frontend en `docker-compose.yml` (por ahora solo corren en local
-  apuntando al Postgres dockerizado) y despliegue en Azure.
+  `expo-secure-store`, feature `auth` (Login y Register), y **Vestidor 3D con AR real en vivo**
+  (cerrado 2026-09-22): cámara en vivo (frontal y trasera) + detección de pose por un módulo
+  nativo propio (ML Kit vía Nitro) + prenda 2D siguiendo el cuerpo o modelo 3D `.glb` real
+  (`three.js`/`@react-three/fiber`) con posición, escala, giro plano y giro lateral calculados
+  a partir de los landmarks — ver `mirroria-mobile/AGENTS.md`, sección dedicada, para la
+  arquitectura completa y los ~11 bugs reales encontrados y arreglados en el camino. Android-first
+  a propósito; paridad iOS queda fuera de alcance.
+- ✅ Backend dockerizado (`docker-compose.yml`, servicio `mirroria-backend`) junto a Postgres —
+  falta dockerizar el frontend y el despliegue en Azure.
+- ✅ Asistente de reportes por IA (CU24) migrado de Gemini a **DeepSeek** (2026-09-22, decisión
+  del usuario) — verificado por primera vez contra un modelo real de punta a punta (ver
+  `mirroria-backend/AGENTS.md`, sección del cambio de proveedor).
+- ✅ Auditoría de arquitectura (2026-09-22) sobre los 89 commits de `pagos`/`ia`/reportes que no
+  hizo el usuario: backend sin violaciones; 3 archivos del frontend que superaban la Regla 1.B
+  (< 150 líneas) corregidos — ver la sección dedicada en cada `AGENTS.md` de proyecto.
