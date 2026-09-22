@@ -9,6 +9,7 @@ import { useFrame } from '@react-three/fiber';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { SharedValue } from 'react-native-reanimated';
 import { computeGarmentTransform3D } from '../../lib/landmarkMath';
+import type { FuenteModelo } from '../../lib/fuenteModelo';
 import { POSE_LANDMARK_INDEX, type PoseLandmark } from '../../types/pose.types';
 
 // React Native expone un `navigator` global (product: 'ReactNative'), pero
@@ -96,6 +97,40 @@ function measureShoulderCrossSection(scene: THREE.Group, box: THREE.Box3) {
   return { shoulderWidth: maxX - minX, shoulderYWorld: targetY };
 }
 
+/** Un `.glb` que vino con el APK: expo-asset ya lo tiene en disco. */
+async function uriDeModuloEmpaquetado(modulo: number): Promise<string> {
+  const asset = Asset.fromModule(modulo);
+  await asset.downloadAsync();
+  return asset.localUri ?? asset.uri;
+}
+
+/**
+ * Un `.glb` del `modeloArUrl` del producto: hay que bajarlo. Se guarda en el
+ * directorio de caché con un nombre derivado de la URL y se reusa si ya está,
+ * porque son archivos de varios MB y la clienta cambia de prenda seguido.
+ */
+async function uriDeModeloRemoto(url: string): Promise<string> {
+  const destino = `${FileSystem.cacheDirectory}glb-${huellaDeUrl(url)}.glb`;
+  const info = await FileSystem.getInfoAsync(destino);
+  if (info.exists && info.size > 0) return destino;
+
+  const { status } = await FileSystem.downloadAsync(url, destino);
+  if (status < 200 || status >= 300) {
+    // Borrar el archivo a medias: si no, el `getInfoAsync` de la próxima vez
+    // lo da por bueno y se intenta parsear una página de error como glb.
+    await FileSystem.deleteAsync(destino, { idempotent: true });
+    throw new Error(`No se pudo descargar el modelo 3D (HTTP ${status})`);
+  }
+  return destino;
+}
+
+/** Nombre de archivo estable y seguro a partir de la URL (djb2). */
+function huellaDeUrl(url: string): string {
+  let h = 5381;
+  for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 /**
  * Three.js NO libera los recursos de GPU cuando el objeto de JS se
  * descarta: geometrías, materiales y texturas quedan vivos en el driver
@@ -121,8 +156,9 @@ function liberarEscena(escena: THREE.Object3D) {
 }
 
 interface GarmentModelProps {
-  /** Resultado de `require('...modelo.glb')`. */
-  source: number;
+  /** De dónde sale el `.glb`: empaquetado en el APK o descargado del
+   * `modeloArUrl` del producto. Ver `resolverFuenteModelo`. */
+  fuente: FuenteModelo;
   containerWidth: number;
   containerHeight: number;
   mirrored: boolean;
@@ -137,12 +173,14 @@ interface GarmentModelProps {
  * `computeGarmentTransform` para el sprite 2D.
  */
 export function GarmentModel({
-  source,
+  fuente,
   containerWidth,
   containerHeight,
   mirrored,
   landmarks,
 }: GarmentModelProps) {
+  const claveFuente =
+    fuente.tipo === 'local' ? `local:${fuente.modulo}` : `remoto:${fuente.url}`;
   const [loaded, setLoaded] = useState<LoadedGarment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -173,9 +211,10 @@ export function GarmentModel({
 
     (async () => {
       try {
-        const asset = Asset.fromModule(source);
-        await asset.downloadAsync();
-        const uri = asset.localUri ?? asset.uri;
+        const uri =
+          fuente.tipo === 'local'
+            ? await uriDeModuloEmpaquetado(fuente.modulo)
+            : await uriDeModeloRemoto(fuente.url);
 
         // GLTFLoader.load() usa un FileLoader propio que importa desde el
         // código fuente de three (no desde el `require('three')` que
@@ -240,7 +279,10 @@ export function GarmentModel({
     return () => {
       cancelled = true;
     };
-  }, [source]);
+    // `fuente` es un objeto nuevo en cada render: se depende de una clave
+    // estable o el efecto se redispara sin parar y vuelve a bajar el glb.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveFuente]);
 
   useEffect(() => {
     const escena = loaded?.scene;

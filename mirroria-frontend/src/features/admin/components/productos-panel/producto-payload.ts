@@ -9,6 +9,8 @@ export interface ProductoPayload {
   precioCents: number
   /** `null` BORRA la URL en el backend; `undefined` la dejaria intacta. */
   arOverlayImageUrl: string | null
+  /** URL del `.glb` que el Vestidor 3D del movil carga para esta prenda. */
+  modeloArUrl: string | null
   imagenes: { url: string; orden: number; esArAsset: boolean }[]
 }
 
@@ -19,6 +21,7 @@ export interface ProductoPayload {
  */
 export function construirPayloadProducto(form: ProductoFormData): ProductoPayload {
   const overlay = form.arOverlayImageUrl.trim()
+  const modelo3D = form.modeloArUrl.trim()
   const imagen = form.imagenUrl.trim()
 
   return {
@@ -32,6 +35,7 @@ export function construirPayloadProducto(form: ProductoFormData): ProductoPayloa
     // cuando el campo viaja (`!== undefined`), asi que con `undefined` la
     // URL vieja quedaba para siempre y no habia forma de sacarla.
     arOverlayImageUrl: overlay || null,
+    modeloArUrl: modelo3D || null,
     imagenes: imagen ? [{ url: imagen, orden: 0, esArAsset: false }] : [],
   }
 }

@@ -38,6 +38,7 @@ export interface CreateProductoDto {
   descripcion?: string
   precioCents: number
   arOverlayImageUrl?: string | null
+  modeloArUrl?: string | null
   imagenes?: ImagenProducto[]
 }
 
@@ -49,6 +50,7 @@ export interface UpdateProductoDto {
   descripcion?: string
   precioCents?: number
   arOverlayImageUrl?: string | null
+  modeloArUrl?: string | null
   imagenes?: ImagenProducto[]
   activo?: boolean
 }

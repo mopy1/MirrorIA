@@ -24,10 +24,13 @@ export function FittingRoomScreen() {
         setProducts(activeProds);
         if (activeProds.length > 0) {
           // Preferir un producto que ya tenga imagen real de AR cargada
+          // Preferir uno con modelo 3D: es lo que mejor muestra el
+          // Vestidor. Si no hay, el que tenga al menos overlay 2D.
+          const with3D = activeProds.find((p) => Boolean(p.modeloArUrl));
           const withOverlay = activeProds.find((p) =>
             Boolean(p.arOverlayImageUrl)
           );
-          setSelectedProduct(withOverlay ?? activeProds[0]);
+          setSelectedProduct(with3D ?? withOverlay ?? activeProds[0]);
         }
       })
       .catch((err) =>
@@ -56,7 +59,10 @@ export function FittingRoomScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: 36 }}
       >
-        <CameraStage arOverlayImageUrl={selectedProduct?.arOverlayImageUrl} />
+        <CameraStage
+          arOverlayImageUrl={selectedProduct?.arOverlayImageUrl}
+          modeloArUrl={selectedProduct?.modeloArUrl}
+        />
 
         <View className="items-center -mt-2">
           <Text className="text-sm font-bold text-center text-foreground">

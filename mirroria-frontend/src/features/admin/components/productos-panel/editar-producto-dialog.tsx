@@ -36,6 +36,7 @@ function getInitialForm(producto: Producto | null): ProductoFormData {
       precio: "",
       imagenUrl: "",
       arOverlayImageUrl: "",
+      modeloArUrl: "",
     }
   }
   return {
@@ -47,6 +48,7 @@ function getInitialForm(producto: Producto | null): ProductoFormData {
     precio: producto.precioCents ? (producto.precioCents / 100).toString() : "",
     imagenUrl: producto.imagenes?.[0]?.url ?? "",
     arOverlayImageUrl: producto.arOverlayImageUrl ?? "",
+    modeloArUrl: producto.modeloArUrl ?? "",
   }
 }
 

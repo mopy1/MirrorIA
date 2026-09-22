@@ -14,6 +14,7 @@ export interface ProductoFormData {
   precio: string
   imagenUrl: string
   arOverlayImageUrl: string
+  modeloArUrl: string
 }
 
 interface ProductoFormFieldsProps {
@@ -167,6 +168,26 @@ export function ProductoFormFields({
             />
           ) : null}
         </div>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="modeloArUrl">
+          Modelo 3D para Vestidor AR (.glb)
+        </FieldLabel>
+        <Input
+          id="modeloArUrl"
+          placeholder="https://... archivo .glb"
+          value={form.modeloArUrl}
+          onChange={(e) => setForm((f) => ({ ...f, modeloArUrl: e.target.value }))}
+        />
+        <p className="text-xs text-muted-foreground">
+          Solo la prenda, sin maniquí ni cabeza. Sin compresión Draco, sin huesos
+          ni animación, de pie y de frente con el eje Y hacia arriba. Hasta 40k
+          triángulos y 4&nbsp;MB — los dos modelos que ya funcionan tienen 21k y
+          37k. Verificalo antes de cargarlo con{" "}
+          <code className="font-mono">scripts/verificar-glb.py</code> del
+          proyecto móvil.
+        </p>
       </Field>
     </FieldGroup>
   )

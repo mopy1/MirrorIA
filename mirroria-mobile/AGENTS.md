@@ -336,11 +336,23 @@ media/baja) después de cada cambio. Los hallazgos que valen la pena no perder:
   con la persona de espaldas a la cámara la confianza cae mucho o no detecta nada confiable. El
   yaw queda acotado a ~55° (frente a 3/4 de perfil) a propósito; extenderlo a un giro completo
   necesitaría una fuente de datos que no tenemos hoy.
-- **El modelo 3D es fijo, no por producto**: `CameraStage.tsx` tiene hardcodeados 2 modelos de
-  prueba (`assets/models/black_dress.glb` y `waist_trainer.glb`, ambos CC-BY-4.0 vía Sketchfab —
-  atribución requerida si se publica) alternables con un botón — no está conectado todavía al
-  catálogo real ni a `arOverlayImageUrl`/`modeloArUrl` del producto. Conectar un `.glb` real por
-  producto es trabajo aparte (pipeline de assets 3D, fuera del alcance de esta sesión).
+- ~~**El modelo 3D es fijo, no por producto**~~ — **RESUELTO (22 sep 2026)**: el `.glb` sale del
+  `modeloArUrl` del producto elegido en `GarmentSelectorBar`. `resolverFuenteModelo`
+  (`lib/fuenteModelo.ts`) decide entre modelo empaquetado y URL remota, y `GarmentModel` descarga
+  el remoto a la caché con `downloadAsync`, reusándolo si ya está (son archivos de varios MB).
+  Cae al modelo empaquetado siempre que la URL no sirva, en vez de dejar el visor en error: lo
+  más probable es un admin pegando el PNG de overlay en el campo del `.glb`, y
+  `GLTFLoader.parse()` sobre un PNG lanza una excepción cruda. Los dos modelos de prueba
+  (`black_dress.glb`, `waist_trainer.glb`, CC-BY-4.0 vía Sketchfab — **atribución requerida si se
+  publica**) quedan como respaldo.
+  - El campo se carga desde el panel admin del frontend (`producto-form-fields.tsx`), que hasta
+    ahora **no tenía** entrada para `modeloArUrl` aunque el backend lo soportaba entero.
+  - **Requisitos de un `.glb`, medidos sobre los que funcionan** (no los ~80k triángulos que se
+    habían estimado): 20-37k triángulos, sin Draco, sin huesos ni animación, **prenda sola sin
+    cabeza/maniquí/percha**, de pie, Y arriba. El límite de polígonos no es la GPU:
+    `measureShoulderCrossSection` recorre CADA vértice en JS al cargar. Verificar con
+    `scripts/verificar-glb.py` antes de cargar nada — **la ficha de Sketchfab no sirve**: la del
+    "Black Dress" declara 165,2k triángulos y el archivo real tiene 36,7k.
 - **Paridad iOS**: no implementada (`processFrameIOS` en el módulo nativo está vacío a
   propósito) — todo este trabajo es Android-first por decisión explícita, no por omisión.
 

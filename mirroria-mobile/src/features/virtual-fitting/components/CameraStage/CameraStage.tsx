@@ -27,6 +27,7 @@ import type { PoseLandmark } from '../../types/pose.types';
 import { TEST_GARMENT } from '../../lib/testGarments';
 import { STANDARD_GARMENT_ANCHOR } from '../../lib/garmentAnchor';
 import type { GarmentAnchor } from '../../lib/landmarkMath';
+import { resolverFuenteModelo, type FuenteModelo } from '../../lib/fuenteModelo';
 import { CameraPermissionGate } from './CameraPermissionGate';
 import { CameraControls } from './CameraControls';
 import { CaptureControls } from './CaptureControls';
@@ -63,7 +64,7 @@ interface CameraSurfaceContentProps {
   use3D: boolean;
   onToggle3D: () => void;
   garment3DName: string;
-  garment3DSource: number;
+  garment3DFuente: FuenteModelo;
   onCycleGarment3D: () => void;
   landmarks: SharedValue<PoseLandmark[]>;
   processedFrames: SharedValue<number>;
@@ -93,7 +94,7 @@ function CameraSurfaceContent({
   use3D,
   onToggle3D,
   garment3DName,
-  garment3DSource,
+  garment3DFuente,
   onCycleGarment3D,
   landmarks,
   processedFrames,
@@ -130,7 +131,7 @@ function CameraSurfaceContent({
         <>
           {use3D ? (
             <GarmentScene3D
-              source={garment3DSource}
+              fuente={garment3DFuente}
               containerWidth={size.width}
               containerHeight={size.height}
               mirrored={mirrored}
@@ -198,10 +199,13 @@ function CameraSurfaceContent({
 /**
  * Cámara en vivo del Vestidor 3D. Frontal por defecto (probador en primera
  * persona), con flip, pantalla completa, puntos de pose (Fase 2), una
- * prenda 2D que sigue el cuerpo (Fase 3, sprite de prueba — la selección
- * real de prenda vía `GarmentSelectorBar` queda para cuando exista el
- * pipeline de assets AR, ver Fase 4 del plan) y captura de foto con
- * temporizador para probar en autorretrato sin ayuda.
+ * prenda 2D que sigue el cuerpo y captura de foto con temporizador para
+ * probar en autorretrato sin ayuda.
+ *
+ * La prenda elegida en `GarmentSelectorBar` manda: su `arOverlayImageUrl`
+ * alimenta el sprite 2D y su `modeloArUrl` el visor 3D. Los modelos de
+ * prueba empaquetados quedan solo como respaldo para productos que todavía
+ * no tienen `.glb` cargado.
  *
  * La foto se saca con `captureScreen()` (pantalla completa), no con
  * `ViewShot` apuntando a la cámara: ninguno de los dos métodos logra
@@ -218,9 +222,13 @@ interface CameraStageProps {
    * producto seleccionado, o mientras se mide su tamaño real, se usa el
    * PNG de prueba de la Fase 3 como respaldo — nunca se deja sin prenda. */
   arOverlayImageUrl?: string | null;
+  /** `modeloArUrl` del producto elegido — el `.glb` que carga el visor 3D.
+   * Si no hay, o no es un glb usable, se cae a los modelos de prueba
+   * empaquetados (ver `resolverFuenteModelo`). */
+  modeloArUrl?: string | null;
 }
 
-export function CameraStage({ arOverlayImageUrl }: CameraStageProps) {
+export function CameraStage({ arOverlayImageUrl, modeloArUrl }: CameraStageProps) {
   const insets = useSafeAreaInsets();
   const { hasPermission, canRequestPermission, requestPermission } =
     useCameraPermission();
@@ -233,6 +241,12 @@ export function CameraStage({ arOverlayImageUrl }: CameraStageProps) {
   const device = useCameraDevice(position);
   const { frameOutput, landmarks, processedFrames } = usePoseLandmarks();
   const remoteSize = useRemoteGarmentSize(arOverlayImageUrl);
+  // El `.glb` del producto elegido gana; si no tiene (o la URL no sirve) se
+  // sigue usando el modelo de prueba que el botón de ciclado deja a mano.
+  const fuente3D = resolverFuenteModelo(
+    modeloArUrl,
+    TEST_GARMENTS_3D[garment3DIndex].source,
+  );
   const garment: GarmentSource =
     arOverlayImageUrl && remoteSize
       ? {
@@ -283,8 +297,10 @@ export function CameraStage({ arOverlayImageUrl }: CameraStageProps) {
     garment,
     use3D,
     onToggle3D: () => setUse3D((v) => !v),
-    garment3DName: TEST_GARMENTS_3D[garment3DIndex].name,
-    garment3DSource: TEST_GARMENTS_3D[garment3DIndex].source,
+    garment3DName: fuente3D.tipo === 'remoto'
+      ? 'Modelo del producto'
+      : TEST_GARMENTS_3D[garment3DIndex].name,
+    garment3DFuente: fuente3D,
     onCycleGarment3D: () =>
       setGarment3DIndex((i) => (i + 1) % TEST_GARMENTS_3D.length),
     landmarks,

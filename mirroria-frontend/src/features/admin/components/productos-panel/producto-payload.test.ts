@@ -11,6 +11,7 @@ const BASE: ProductoFormData = {
   precio: "349.90",
   imagenUrl: "https://cdn.test/foto.jpg",
   arOverlayImageUrl: "https://cdn.test/overlay.png",
+  modeloArUrl: "https://cdn.test/vestido.glb",
 }
 
 describe("construirPayloadProducto", () => {
@@ -43,6 +44,15 @@ describe("construirPayloadProducto", () => {
 
   it("sin imagen manda una lista vacia, no una entrada con url vacia", () => {
     expect(construirPayloadProducto({ ...BASE, imagenUrl: "  " }).imagenes).toEqual([])
+  })
+
+  it("manda la URL del modelo 3D, que es lo que el Vestidor carga como .glb", () => {
+    const payload = construirPayloadProducto(BASE)
+    expect(payload.modeloArUrl).toBe("https://cdn.test/vestido.glb")
+  })
+
+  it("vaciar la URL del modelo 3D manda null, para poder desasociar el .glb", () => {
+    expect(construirPayloadProducto({ ...BASE, modeloArUrl: "  " }).modeloArUrl).toBeNull()
   })
 
   it("la descripcion vacia se omite", () => {

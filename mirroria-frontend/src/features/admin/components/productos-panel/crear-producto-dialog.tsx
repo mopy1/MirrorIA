@@ -33,6 +33,7 @@ const FORM_INICIAL: ProductoFormData = {
   precio: "",
   imagenUrl: "",
   arOverlayImageUrl: "",
+  modeloArUrl: "",
 }
 
 export function CrearProductoDialog({

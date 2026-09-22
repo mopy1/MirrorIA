@@ -3,9 +3,10 @@ import { Canvas } from '@react-three/fiber';
 import type { SharedValue } from 'react-native-reanimated';
 import { GarmentModel } from './GarmentModel';
 import type { PoseLandmark } from '../../types/pose.types';
+import type { FuenteModelo } from '../../lib/fuenteModelo';
 
 interface GarmentScene3DProps {
-  source: number;
+  fuente: FuenteModelo;
   containerWidth: number;
   containerHeight: number;
   mirrored: boolean;
@@ -19,7 +20,7 @@ interface GarmentScene3DProps {
  * conversiones de perspectiva.
  */
 export function GarmentScene3D({
-  source,
+  fuente,
   containerWidth,
   containerHeight,
   mirrored,
@@ -42,7 +43,7 @@ export function GarmentScene3D({
       <ambientLight intensity={0.9} />
       <directionalLight position={[2, 4, 5]} intensity={1.3} />
       <GarmentModel
-        source={source}
+        fuente={fuente}
         containerWidth={containerWidth}
         containerHeight={containerHeight}
         mirrored={mirrored}
