@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import { FittingRoomHeader } from '../components/FittingRoomHeader';
-import { FittingStagePreview } from '../components/FittingStagePreview';
+import { CameraStage } from '../components/CameraStage';
 import { GarmentSelectorBar } from '../components/GarmentSelectorBar';
 import { FittingActionRow } from '../components/FittingActionRow';
 import { catalogApi } from '@/src/features/catalog/api/catalogApi';
 import { formatMoney } from '@/src/lib/money';
+import { Text } from '@/components/ui/text';
 import type { ProductoResponseDto } from '@/src/features/catalog/types/catalog.types';
 
 export function FittingRoomScreen() {
@@ -22,9 +23,11 @@ export function FittingRoomScreen() {
         const activeProds = data.filter((p) => p.activo);
         setProducts(activeProds);
         if (activeProds.length > 0) {
-          // Preferir un producto con modelo 3D si existe
-          const with3D = activeProds.find((p) => Boolean(p.modeloArUrl));
-          setSelectedProduct(with3D ?? activeProds[0]);
+          // Preferir un producto que ya tenga imagen real de AR cargada
+          const withOverlay = activeProds.find((p) =>
+            Boolean(p.arOverlayImageUrl)
+          );
+          setSelectedProduct(withOverlay ?? activeProds[0]);
         }
       })
       .catch((err) =>
@@ -44,8 +47,6 @@ export function FittingRoomScreen() {
     ? formatMoney(selectedProduct.precioCents)
     : 'Bs 0.00';
 
-  const hasModel3D = Boolean(selectedProduct?.modeloArUrl);
-
   return (
     <View className="flex-1 bg-background">
       <FittingRoomHeader />
@@ -55,11 +56,16 @@ export function FittingRoomScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: 36 }}
       >
-        <FittingStagePreview
-          garmentTitle={garmentTitle}
-          garmentPriceFormatted={garmentPriceFormatted}
-          hasModel3D={hasModel3D}
-        />
+        <CameraStage arOverlayImageUrl={selectedProduct?.arOverlayImageUrl} />
+
+        <View className="items-center -mt-2">
+          <Text className="text-sm font-bold text-center text-foreground">
+            {garmentTitle}
+          </Text>
+          <Text className="text-xs font-semibold text-primary mt-0.5">
+            {garmentPriceFormatted}
+          </Text>
+        </View>
 
         <GarmentSelectorBar
           products={products}

@@ -48,6 +48,13 @@ export class Producto extends BaseEntity {
   @Column({ name: 'modelo_ar_url', type: 'varchar', length: 500, nullable: true })
   modeloArUrl!: string | null;
 
+  // Imagen 2D (PNG con fondo transparente) para el probador AR en vivo del
+  // móvil (Fase 3/4 del vestidor) — distinta de modeloArUrl, que queda
+  // reservada para un futuro modelo 3D real (.glb). La app arma la prenda
+  // superpuesta con esta imagen + un ancla fija (ver AGENTS.md del móvil).
+  @Column({ name: 'ar_overlay_image_url', type: 'varchar', length: 500, nullable: true })
+  arOverlayImageUrl!: string | null;
+
   @Column({ type: 'jsonb', default: () => "'[]'" })
   imagenes!: ImagenProducto[];
 

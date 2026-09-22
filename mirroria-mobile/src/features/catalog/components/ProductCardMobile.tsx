@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { formatMoney } from '@/src/lib/money';
 import type { ProductoResponseDto } from '../types/catalog.types';
+import { getPrimaryImageUrl } from '@/src/lib/images';
 
 interface ProductCardMobileProps {
   product: ProductoResponseDto;
@@ -19,7 +20,7 @@ export function ProductCardMobile({
   onPressTryOn,
 }: ProductCardMobileProps) {
   const primaryImage =
-    product.imagenes?.find((img) => img.esPrincipal)?.url ??
+    getPrimaryImageUrl(product.imagenes) ??
     product.imagenes?.[0]?.url;
 
   const has3D = Boolean(product.modeloArUrl);

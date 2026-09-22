@@ -37,6 +37,7 @@ export interface CreateProductoDto {
   slug: string
   descripcion?: string
   precioCents: number
+  arOverlayImageUrl?: string
   imagenes?: ImagenProducto[]
 }
 
@@ -47,6 +48,7 @@ export interface UpdateProductoDto {
   slug?: string
   descripcion?: string
   precioCents?: number
+  arOverlayImageUrl?: string
   imagenes?: ImagenProducto[]
   activo?: boolean
 }

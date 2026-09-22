@@ -1,7 +1,7 @@
 export interface ImagenProducto {
   url: string;
   orden: number;
-  esPrincipal: boolean;
+  esArAsset: boolean;
 }
 
 export interface CategoriaResponseDto {
@@ -31,6 +31,7 @@ export interface ProductoResponseDto {
   descripcion: string | null;
   precioCents: number;
   modeloArUrl: string | null;
+  arOverlayImageUrl: string | null;
   imagenes: ImagenProducto[];
   activo: boolean;
   variantes?: VarianteResponseDto[];

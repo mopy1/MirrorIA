@@ -63,6 +63,7 @@ export interface Producto {
   descripcion: string | null
   precioCents: number
   modeloArUrl: string | null
+  arOverlayImageUrl: string | null
   imagenes: ImagenProducto[]
   activo: boolean
   variantes?: Variante[]

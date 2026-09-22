@@ -1,0 +1,23 @@
+{
+  "cxxNamespace": ["mirroriaposedetector"],
+  "ios": {
+    "iosModuleName": "MirroriaPoseDetector"
+  },
+  "android": {
+    "androidNamespace": ["mirroriaposedetector"],
+    "androidCxxLibName": "mirroriaposedetector"
+  },
+  "autolinking": {
+    "MirroriaPoseDetector": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "MirroriaPoseDetector"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "MirroriaPoseDetector"
+      }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}

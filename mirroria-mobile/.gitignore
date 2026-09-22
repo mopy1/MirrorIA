@@ -16,6 +16,16 @@ web-build/
 *.key
 *.mobileprovision
 
+# Proyecto nativo Android (Fase 0 del vestidor AR): se commitea a propósito
+# (dev client con módulos nativos como cámara/pose), pero no sus artefactos
+# de compilación — se regeneran solos con cada build y pesan gigabytes.
+**/android/.gradle/
+**/android/.cxx/
+**/android/build/
+**/android/app/build/
+**/android/app/.cxx/
+**/android/local.properties
+
 # Metro
 .metro-health-check*
 

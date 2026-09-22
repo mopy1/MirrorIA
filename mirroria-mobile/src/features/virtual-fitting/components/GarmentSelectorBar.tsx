@@ -4,6 +4,7 @@ import { Shirt } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
 import type { ProductoResponseDto } from '@/src/features/catalog/types/catalog.types';
+import { getPrimaryImageUrl } from '@/src/lib/images';
 
 interface GarmentSelectorBarProps {
   products: ProductoResponseDto[];
@@ -34,7 +35,7 @@ export function GarmentSelectorBar({
         {products.map((item) => {
           const isSelected = selectedProduct?.id === item.id;
           const img =
-            item.imagenes?.find((i) => i.esPrincipal)?.url ??
+            getPrimaryImageUrl(item.imagenes) ??
             item.imagenes?.[0]?.url;
 
           return (

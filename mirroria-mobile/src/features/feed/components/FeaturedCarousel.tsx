@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon';
 import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/src/lib/money';
 import type { ProductoResponseDto } from '@/src/features/catalog/types/catalog.types';
+import { getPrimaryImageUrl } from '@/src/lib/images';
 
 interface FeaturedCarouselProps {
   products: ProductoResponseDto[];
@@ -39,7 +40,7 @@ export function FeaturedCarousel({ products }: FeaturedCarouselProps) {
       >
         {products.slice(0, 6).map((item) => {
           const img =
-            item.imagenes?.find((i) => i.esPrincipal)?.url ??
+            getPrimaryImageUrl(item.imagenes) ??
             item.imagenes?.[0]?.url;
 
           return (

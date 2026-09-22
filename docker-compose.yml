@@ -19,9 +19,26 @@ services:
       timeout: 5s
       retries: 10
 
-  # Backend NestJS y Frontend React se agregan a este compose cuando estén listos
-  # para correr en contenedor (por ahora se corren en local con `npm run start:dev` / `npm run dev`
-  # apuntando a este Postgres vía localhost:5435 — ver mirroria-backend/AGENTS.md).
+  # 🪞 Backend NestJS — dockerizado. El Frontend React sigue en local (`npm run dev`)
+  # apuntando acá vía localhost:3000 — ver mirroria-backend/AGENTS.md.
+  mirroria-backend:
+    build: ./mirroria-backend
+    container_name: mirroria_backend
+    restart: always
+    env_file:
+      - ./mirroria-backend/.env
+    environment:
+      # Dentro de la red de compose, el host de Postgres es el nombre del
+      # servicio, no localhost, y el puerto es el interno del contenedor
+      # (5432), no el mapeado al host (5435) — el resto de las variables
+      # (JWT_SECRET, STRIPE_*, IA_*, PAGOS_*) vienen tal cual del .env.
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
 
 volumes:
   mirroria_pgdata:

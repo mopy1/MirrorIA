@@ -31,6 +31,7 @@ const FORM_INICIAL: ProductoFormData = {
   descripcion: "",
   precio: "",
   imagenUrl: "",
+  arOverlayImageUrl: "",
 }
 
 export function CrearProductoDialog({
@@ -56,6 +57,7 @@ export function CrearProductoDialog({
       slug: form.slug,
       descripcion: form.descripcion || undefined,
       precioCents,
+      arOverlayImageUrl: form.arOverlayImageUrl.trim() || undefined,
       imagenes,
     })
     if (result) {

@@ -67,6 +67,7 @@ export class ProductosService {
         descripcion: dto.descripcion ?? null,
         precioCents: dto.precioCents,
         modeloArUrl: dto.modeloArUrl ?? null,
+        arOverlayImageUrl: dto.arOverlayImageUrl ?? null,
         imagenes: (dto.imagenes ?? []).map((img, index) => ({
           url: img.url,
           varianteId: img.varianteId,
@@ -153,6 +154,9 @@ export class ProductosService {
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion;
     if (dto.precioCents !== undefined) producto.precioCents = dto.precioCents;
     if (dto.modeloArUrl !== undefined) producto.modeloArUrl = dto.modeloArUrl;
+    if (dto.arOverlayImageUrl !== undefined) {
+      producto.arOverlayImageUrl = dto.arOverlayImageUrl;
+    }
     if (dto.imagenes !== undefined) {
       producto.imagenes = dto.imagenes.map((img, index) => ({
         url: img.url,
@@ -243,6 +247,7 @@ export class ProductosService {
       descripcion: producto.descripcion,
       precioCents: producto.precioCents,
       modeloArUrl: producto.modeloArUrl,
+      arOverlayImageUrl: producto.arOverlayImageUrl,
       imagenes: producto.imagenes,
       activo: producto.activo,
       variantes: variantes?.map((v) =>

@@ -13,6 +13,7 @@ export interface ProductoFormData {
   descripcion: string
   precio: string
   imagenUrl: string
+  arOverlayImageUrl: string
 }
 
 interface ProductoFormFieldsProps {
@@ -142,6 +143,31 @@ export function ProductoFormFields({
           </div>
         </Field>
       </div>
+
+      <Field>
+        <FieldLabel htmlFor="arOverlayImageUrl">
+          Imagen para Vestidor AR (PNG fondo transparente)
+        </FieldLabel>
+        <div className="flex items-center gap-2">
+          <Input
+            id="arOverlayImageUrl"
+            placeholder="https://... PNG con fondo transparente"
+            value={form.arOverlayImageUrl}
+            onChange={(e) => setForm((f) => ({ ...f, arOverlayImageUrl: e.target.value }))}
+          />
+          {form.arOverlayImageUrl ? (
+            <img
+              src={form.arOverlayImageUrl}
+              alt="Previa AR"
+              referrerPolicy="no-referrer"
+              className="size-9 rounded-md object-contain border shrink-0 bg-muted"
+              onError={(e) => {
+                ;(e.target as HTMLElement).style.display = "none"
+              }}
+            />
+          ) : null}
+        </div>
+      </Field>
     </FieldGroup>
   )
 }

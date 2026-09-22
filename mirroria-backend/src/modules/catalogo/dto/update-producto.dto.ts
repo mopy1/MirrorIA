@@ -46,6 +46,10 @@ export class UpdateProductoDto {
   modeloArUrl?: string;
 
   @IsOptional()
+  @IsUrl({ require_tld: false })
+  arOverlayImageUrl?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ImagenProductoDto)

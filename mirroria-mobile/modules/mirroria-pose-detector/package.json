@@ -1,0 +1,28 @@
+{
+  "name": "mirroria-pose-detector",
+  "version": "0.0.0",
+  "description": "Native pose landmark detection bridge for the MirrorIA virtual fitting room",
+  "main": "src/index",
+  "codegenConfig": {
+    "name": "MirroriaPoseDetectorSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.mirroriaposedetector"
+    }
+  },
+  "author": " <> ()",
+  "license": "UNLICENSED",
+  "homepage": "#readme",
+  "create-react-native-library": {
+    "type": "nitro-module",
+    "languages": "kotlin-swift",
+    "tools": [
+      "eslint",
+      "jest",
+      "lefthook",
+      "release-it"
+    ],
+    "version": "0.63.1"
+  }
+}
