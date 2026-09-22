@@ -18,7 +18,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,13 +41,7 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-dev-client",
-      "expo-asset",
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "MirrorIA usa la cámara para probarte la ropa en el Vestidor 3D."
-        }
-      ]
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
