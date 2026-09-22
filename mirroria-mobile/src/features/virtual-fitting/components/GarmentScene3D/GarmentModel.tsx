@@ -96,6 +96,30 @@ function measureShoulderCrossSection(scene: THREE.Group, box: THREE.Box3) {
   return { shoulderWidth: maxX - minX, shoulderYWorld: targetY };
 }
 
+/**
+ * Three.js NO libera los recursos de GPU cuando el objeto de JS se
+ * descarta: geometrías, materiales y texturas quedan vivos en el driver
+ * hasta que alguien llama `dispose()`. Sin esto, cada vez que se alterna
+ * "Vestido negro" / "Faja" se fuga la malla anterior entera.
+ */
+function liberarEscena(escena: THREE.Object3D) {
+  escena.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    const materiales = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materiales) {
+      if (!material) continue;
+      for (const valor of Object.values(material) as unknown[]) {
+        if (valor && (valor as THREE.Texture).isTexture) {
+          (valor as THREE.Texture).dispose();
+        }
+      }
+      material.dispose();
+    }
+  });
+}
+
 interface GarmentModelProps {
   /** Resultado de `require('...modelo.glb')`. */
   source: number;
@@ -170,7 +194,12 @@ export function GarmentModel({
           arrayBuffer,
           '',
           (gltf) => {
-            if (cancelled) return;
+            // Si el efecto ya se limpió (cambio de prenda o desmontaje),
+            // esta escena no la va a usar nadie: liberarla acá o se fuga.
+            if (cancelled) {
+              liberarEscena(gltf.scene);
+              return;
+            }
 
             const box = new THREE.Box3().setFromObject(gltf.scene);
             const center = new THREE.Vector3();
@@ -212,6 +241,12 @@ export function GarmentModel({
       cancelled = true;
     };
   }, [source]);
+
+  useEffect(() => {
+    const escena = loaded?.scene;
+    if (!escena) return;
+    return () => liberarEscena(escena);
+  }, [loaded]);
 
   useEffect(() => {
     if (error) console.error('[GarmentModel] error cargando glb:', error);

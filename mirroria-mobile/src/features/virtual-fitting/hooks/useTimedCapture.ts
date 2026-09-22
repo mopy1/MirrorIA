@@ -17,6 +17,7 @@ export function useTimedCapture(capturePhoto: () => Promise<string>) {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   const timerSeconds = TIMER_OPTIONS[timerIndex];
 
@@ -26,6 +27,7 @@ export function useTimedCapture(capturePhoto: () => Promise<string>) {
   const capture = async () => {
     if (isCapturing) return;
     setIsCapturing(true);
+    setCaptureError(null);
     try {
       for (let s = timerSeconds; s > 0; s--) {
         setCountdown(s);
@@ -35,6 +37,13 @@ export function useTimedCapture(capturePhoto: () => Promise<string>) {
 
       const uri = await capturePhoto();
       setPhotoPath(uri);
+    } catch (err) {
+      // `captureScreen()` rechaza en varios fabricantes y siempre que hay
+      // una superficie con flag de seguridad en pantalla. Sin este catch
+      // quedaba una promesa rechazada sin manejar y, de cara a la clienta,
+      // el botón de disparo simplemente no hacía nada.
+      setCaptureError(err instanceof Error ? err.message : String(err));
+      setCountdown(null);
     } finally {
       setIsCapturing(false);
     }
@@ -50,5 +59,7 @@ export function useTimedCapture(capturePhoto: () => Promise<string>) {
     capture,
     photoPath,
     closeReview,
+    captureError,
+    dismissCaptureError: () => setCaptureError(null),
   };
 }

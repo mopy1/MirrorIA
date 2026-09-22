@@ -14,6 +14,7 @@ import { catalogApi } from "@/features/catalog/api/catalogApi"
 import type { Categoria, Coleccion } from "@/features/catalog/types/catalog.types"
 import { useCreateResource } from "@/hooks/useCreateResource"
 import { ProductoFormFields, type ProductoFormData } from "./producto-form-fields"
+import { construirPayloadProducto } from "./producto-payload"
 
 interface CrearProductoDialogProps {
   open: boolean
@@ -46,20 +47,7 @@ export function CrearProductoDialog({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    const precioCents = Math.round(Number(form.precio) * 100)
-    const imagenes = form.imagenUrl.trim()
-      ? [{ url: form.imagenUrl.trim(), orden: 0, esArAsset: false }]
-      : []
-    const result = await submit({
-      categoriaId: form.categoriaId,
-      coleccionId: form.coleccionId,
-      titulo: form.titulo,
-      slug: form.slug,
-      descripcion: form.descripcion || undefined,
-      precioCents,
-      arOverlayImageUrl: form.arOverlayImageUrl.trim() || undefined,
-      imagenes,
-    })
+    const result = await submit(construirPayloadProducto(form))
     if (result) {
       onCreated()
       setForm(FORM_INICIAL)

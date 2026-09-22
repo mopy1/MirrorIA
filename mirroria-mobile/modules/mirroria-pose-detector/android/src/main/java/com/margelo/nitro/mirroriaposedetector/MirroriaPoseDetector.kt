@@ -81,12 +81,14 @@ class MirroriaPoseDetector : HybridMirroriaPoseDetectorSpec() {
     val nativeFrame = frame as? NativeFrame
     if (nativeFrame == null) {
       Log.w(TAG, "frame no es NativeFrame: ${frame::class.java}")
+      _landmarks = emptyArray()
       return
     }
     val imageProxy = nativeFrame.image
     val mediaImage = imageProxy.image
     if (mediaImage == null) {
       Log.w(TAG, "imageProxy.image es null")
+      _landmarks = emptyArray()
       return
     }
 
@@ -108,7 +110,16 @@ class MirroriaPoseDetector : HybridMirroriaPoseDetectorSpec() {
         Log.w(TAG, "Tasks.await falló/timeout: ${e.javaClass.simpleName}: ${e.message}")
         null
       }
-      if (pose == null) return
+      // Sin deteccion en este cuadro NO se conserva la anterior: dejarla
+      // hacia que la prenda siguiera flotando en la ultima posicion buena,
+      // sin ninguna senal de que ya no se detecta a nadie. Mismo criterio
+      // que `detected.isEmpty()` mas abajo. El precio es que un timeout
+      // suelto la hace parpadear; mostrarla donde ya no creemos que esta es
+      // peor.
+      if (pose == null) {
+        _landmarks = emptyArray()
+        return
+      }
 
       val detected = pose.allPoseLandmarks
       Log.d(TAG, "ML Kit devolvió ${detected.size} landmarks (rotation=$rotation, ${width}x$height)")
@@ -130,6 +141,7 @@ class MirroriaPoseDetector : HybridMirroriaPoseDetectorSpec() {
       _landmarks = ordered
     } catch (e: Exception) {
       Log.e(TAG, "processFrameAndroid excepción: ${e.javaClass.simpleName}: ${e.message}", e)
+      _landmarks = emptyArray()
     }
     // No cerramos el ImageProxy nosotros: VisionCamera es dueño del ciclo de
     // vida del frame y lo libera cuando el worklet de JS llama dispose().

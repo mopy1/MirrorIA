@@ -18,6 +18,7 @@ import {
 import type { SharedValue } from 'react-native-reanimated';
 import { captureScreen } from 'react-native-view-shot';
 import { Text } from '@/components/ui/text';
+import { useCameraActive } from '../../hooks/useCameraActive';
 import { useCameraPermission } from '../../hooks/useCameraPermission';
 import { usePoseLandmarks } from '../../hooks/usePoseLandmarks';
 import { useTimedCapture } from '../../hooks/useTimedCapture';
@@ -109,6 +110,9 @@ function CameraSurfaceContent({
   bottomOffset,
 }: CameraSurfaceContentProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
+  // La cámara solo prende con la pestaña en foco y la app en primer plano
+  // — ver `useCameraActive`.
+  const activa = useCameraActive();
 
   const handleLayout = (e: LayoutChangeEvent) => setSize(e.nativeEvent.layout);
 
@@ -117,7 +121,7 @@ function CameraSurfaceContent({
       <Camera
         style={{ flex: 1 }}
         device={device}
-        isActive
+        isActive={activa}
         resizeMode="cover"
         outputs={[frameOutput]}
         implementationMode="compatible"

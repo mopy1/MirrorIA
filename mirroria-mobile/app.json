@@ -38,7 +38,13 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-dev-client",
-      "expo-asset"
+      "expo-asset",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "MirrorIA usa la cámara para probarte la ropa en el Vestidor 3D."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

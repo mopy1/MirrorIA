@@ -14,6 +14,7 @@ import { catalogApi } from "@/features/catalog/api/catalogApi"
 import type { Categoria, Coleccion, Producto } from "@/features/catalog/types/catalog.types"
 import { ApiError } from "@/lib/api"
 import { ProductoFormFields, type ProductoFormData } from "./producto-form-fields"
+import { construirPayloadProducto } from "./producto-payload"
 
 interface EditarProductoDialogProps {
   open: boolean
@@ -68,20 +69,7 @@ export function EditarProductoDialog({
     setIsLoading(true)
     setError(null)
     try {
-      const precioCents = Math.round(Number(form.precio) * 100)
-      const imagenes = form.imagenUrl.trim()
-        ? [{ url: form.imagenUrl.trim(), orden: 0, esArAsset: false }]
-        : []
-      await catalogApi.updateProducto(producto.id, {
-        categoriaId: form.categoriaId,
-        coleccionId: form.coleccionId,
-        titulo: form.titulo,
-        slug: form.slug,
-        descripcion: form.descripcion || undefined,
-        precioCents,
-        arOverlayImageUrl: form.arOverlayImageUrl.trim() || undefined,
-        imagenes,
-      })
+      await catalogApi.updateProducto(producto.id, construirPayloadProducto(form))
       onUpdated()
       onOpenChange(false)
     } catch (err) {
