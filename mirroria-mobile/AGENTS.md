@@ -353,6 +353,19 @@ media/baja) después de cada cambio. Los hallazgos que valen la pena no perder:
     `measureShoulderCrossSection` recorre CADA vértice en JS al cargar. Verificar con
     `scripts/verificar-glb.py` antes de cargar nada — **la ficha de Sketchfab no sirve**: la del
     "Black Dress" declara 165,2k triángulos y el archivo real tiene 36,7k.
+  - **Flujo para agregar una prenda 3D**, una sola orden:
+    ```
+    node scripts/preparar-glb.mjs vestido.glb --triangulos 35000
+    ```
+    Decima con meshoptimizer, pasa las texturas a webp/1024 y **corre la verificación solo**.
+    Si el modelo tiene cabeza, maniquí o percha **corta antes de decimar**, porque decimarlo no
+    lo arregla. También corta si la entrada ya viene con Draco (no se puede descomprimir sin el
+    decodificador). Después, subir el archivo y pegar su URL en el campo del panel admin.
+  - `scripts/probar-glb-remoto.mjs` sirve el archivo por HTTP local y lo parsea con el three.js
+    del proyecto, midiendo los hombros igual que `measureShoulderCrossSection` — es la prueba
+    más cercana a lo que hace la app sin un teléfono. **Un modelo con texturas falla ahí con
+    `self is not defined`**: es que Node no tiene decodificador de imágenes, no un problema del
+    modelo; para esos usar `verificar-glb.py`, que no depende de three.
 - **Paridad iOS**: no implementada (`processFrameIOS` en el módulo nativo está vacío a
   propósito) — todo este trabajo es Android-first por decisión explícita, no por omisión.
 
