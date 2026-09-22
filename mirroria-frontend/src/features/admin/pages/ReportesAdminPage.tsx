@@ -1,148 +1,116 @@
-import { useState } from "react"
-import { CaretDown, Microphone, Sparkle, WarningCircle } from "@phosphor-icons/react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useEffect, useState } from "react"
+import { ChatCircleDots, Sparkle } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Input } from "@/components/ui/input"
-import { ApiError } from "@/lib/api"
-import { reportsApi } from "@/features/reports/api/reportsApi"
-import { TablaReporte } from "@/features/reports/components/tabla-reporte"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { ChatPanel } from "@/features/reports/components/chat-panel"
+import { ReportTabs } from "@/features/reports/components/report-tabs"
 import { useDictado } from "@/features/reports/hooks/useDictado"
-import type { Reporte } from "@/features/reports/types/reports.types"
+import { useReportesChat } from "@/features/reports/hooks/useReportesChat"
 
-const EJEMPLOS = [
-  "¿Cuánto vendí este mes por sucursal?",
-  "Top 5 productos más vendidos en agosto",
-  "¿Cuántas reservas se cancelaron?",
-  "Ingresos de agosto comparados con julio",
-]
-
+/** Thin Page: el estado real vive en `useReportesChat` (conversación + tabs
+ * de reportes). Layout de dos paneles, mismo espíritu que el chat acoplado
+ * de `case-frontend/features/copilot` — panel fijo a la derecha en
+ * escritorio, `Sheet` en mobile. */
 export function ReportesAdminPage() {
+  const { mensajes, tabs, tabActivaId, setTabActivaId, enviarPregunta, cerrarTab, abrirTab, cargando } =
+    useReportesChat()
   const [pregunta, setPregunta] = useState("")
-  const [reporte, setReporte] = useState<Reporte | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [cargando, setCargando] = useState(false)
-
-  const dictado = useDictado({
-    onTexto: (texto) => {
-      setPregunta(texto)
-      void preguntar(texto)
-    },
-  })
+  const [chatMobileAbierto, setChatMobileAbierto] = useState(false)
 
   async function preguntar(texto: string) {
-    if (texto.trim().length < 3) return
-    setCargando(true)
-    setError(null)
-    try {
-      setReporte(await reportsApi.preguntar(texto))
-    } catch (e) {
-      setReporte(null)
-      setError(e instanceof ApiError ? e.message : "No se pudo generar el reporte")
-    } finally {
-      setCargando(false)
-    }
+    setPregunta("")
+    await enviarPregunta(texto)
   }
 
+  const dictado = useDictado({
+    onTextoFinal: (texto) => void preguntar(texto),
+    onTextoParcial: setPregunta,
+  })
+
+  // Barra espaciadora = alternar dictado — igual que antes de este rediseño,
+  // ver historial de ReportesAdminPage.tsx en AGENTS.md para el porqué de
+  // cada detalle (keydown+keyup, se ignora con foco en un campo de texto).
+  useEffect(() => {
+    if (!dictado.soportado) return
+
+    function enUnCampoDeTexto() {
+      const tag = document.activeElement?.tagName
+      return tag === "INPUT" || tag === "TEXTAREA"
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.code !== "Space" || e.repeat || enUnCampoDeTexto()) return
+      e.preventDefault()
+      dictado.alternar()
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.code !== "Space" || enUnCampoDeTexto()) return
+      e.preventDefault()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+    }
+  }, [dictado])
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 xl:p-10 space-y-6 max-w-7xl 2xl:max-w-[1536px] w-full mx-auto">
+    // El padding derecho SIEMPRE deja 2rem más que el ancho real del panel
+    // fijo (lg:w-96=24rem -> pr-[26rem], xl:w-[28rem] -> pr-[30rem]) — antes
+    // en xl coincidían exacto (28rem = 28rem) y las tarjetas quedaban
+    // pegadas al borde del panel sin ningún margen visible entre los dos.
+    <div className="p-4 space-y-6 sm:p-6 lg:p-8 lg:pr-[26rem] xl:p-10 xl:pr-[30rem]">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2.5">
           <Sparkle className="size-7 text-primary" />
           Reportes por IA
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Preguntá en tus palabras. Los números salen siempre de la base de datos.
+          Preguntale al asistente o mirá el resumen — cada reporte nuevo abre su propia pestaña.
         </p>
       </div>
 
-      <Card>
-        <CardContent className="space-y-4">
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void preguntar(pregunta)
+      <ReportTabs tabs={tabs} activaId={tabActivaId} onActivar={setTabActivaId} onCerrar={cerrarTab} />
+
+      {/* Panel fijo de escritorio — debajo del topbar (h-16) de AdminLayout */}
+      <aside className="hidden lg:fixed lg:top-16 lg:right-0 lg:bottom-0 lg:z-30 lg:flex lg:w-96 lg:flex-col lg:border-l lg:border-border lg:bg-card xl:w-[28rem]">
+        <ChatPanel
+          mensajes={mensajes}
+          pregunta={pregunta}
+          onPreguntaChange={setPregunta}
+          onSubmit={preguntar}
+          cargando={cargando}
+          dictado={dictado}
+          onAbrirTab={abrirTab}
+        />
+      </aside>
+
+      {/* Disparador + drawer de mobile */}
+      <Button
+        type="button"
+        size="icon"
+        className="fixed bottom-6 right-6 z-40 size-14 rounded-full shadow-lg lg:hidden"
+        onClick={() => setChatMobileAbierto(true)}
+        aria-label="Abrir asistente de reportes"
+      >
+        <ChatCircleDots className="size-6" weight="fill" />
+      </Button>
+      <Sheet open={chatMobileAbierto} onOpenChange={setChatMobileAbierto}>
+        <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+          <ChatPanel
+            mensajes={mensajes}
+            pregunta={pregunta}
+            onPreguntaChange={setPregunta}
+            onSubmit={preguntar}
+            cargando={cargando}
+            dictado={dictado}
+            onAbrirTab={(id) => {
+              abrirTab(id)
+              setChatMobileAbierto(false)
             }}
-          >
-            <Input
-              value={pregunta}
-              onChange={(e) => setPregunta(e.target.value)}
-              placeholder="¿Cuánto vendí este mes por sucursal?"
-              aria-label="Pregunta de negocio"
-            />
-            {dictado.soportado && (
-              <Button
-                type="button"
-                variant={dictado.escuchando ? "default" : "outline"}
-                size="icon"
-                disabled={cargando}
-                onClick={dictado.alternar}
-                aria-label={dictado.escuchando ? "Detener dictado" : "Dictar la pregunta"}
-              >
-                <Microphone weight={dictado.escuchando ? "fill" : "regular"} />
-              </Button>
-            )}
-            <Button type="submit" disabled={cargando}>
-              {cargando ? "Consultando…" : "Consultar"}
-            </Button>
-          </form>
-
-          <div className="flex flex-wrap gap-2">
-            {EJEMPLOS.map((ej) => (
-              <Button
-                key={ej}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-full font-normal"
-                disabled={cargando}
-                onClick={() => {
-                  setPregunta(ej)
-                  void preguntar(ej)
-                }}
-              >
-                {ej}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <Alert variant="destructive">
-          <WarningCircle className="size-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {reporte && (
-        <Card>
-          <CardContent className="space-y-4">
-            {reporte.narrativa ? (
-              <p className="text-base leading-relaxed">{reporte.narrativa}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No se generó un resumen para esta consulta, pero los datos de abajo salen
-                igual de la base de datos.
-              </p>
-            )}
-            <TablaReporte reporte={reporte} />
-            <Collapsible className="text-xs text-muted-foreground">
-              <CollapsibleTrigger className="group flex items-center gap-1.5 font-medium text-foreground">
-                <CaretDown className="size-3.5 transition-transform group-data-[panel-open]:rotate-180" />
-                Cómo se entendió la pregunta
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3">
-                  {JSON.stringify(reporte.ficha, null, 2)}
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
-          </CardContent>
-        </Card>
-      )}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

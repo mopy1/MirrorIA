@@ -74,6 +74,29 @@ describe('IaService.consultar', () => {
     expect(motor.ejecutar).not.toHaveBeenCalled();
   });
 
+  it('una metrica sin filtro sucursalId (cantidad_categorias) no fuerza nada, ni siquiera sin sucursal asignada', async () => {
+    // Bug real evitado: `cantidad_categorias`/`cantidad_sucursales`/`cantidad_proveedores`
+    // son catalogo compartido, no datos por sucursal — no tienen filtro `sucursalId`
+    // declarado. Sin este chequeo, forzarAlcance le agregaba `sucursalId` igual y el
+    // motor tiraba CombinacionInvalidaException para CUALQUIER ENCARGADO_SUCURSAL,
+    // aunque la pregunta no tuviera nada sensible que acotar. Ademas, ni siquiera debe
+    // exigir sucursal asignada: no hay nada que acotar.
+    const res = await service.consultar(
+      ficha({ metrica: 'cantidad_categorias', agruparPor: 'ninguno' }),
+      { sub: 'u4', email: 'd@d.com', role: 'ENCARGADO_SUCURSAL', sucursalId: null },
+    );
+    expect(res.filas).toHaveLength(1);
+    expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBeUndefined();
+  });
+
+  it('una metrica que SI tiene sucursalId (cantidad_usuarios) sigue acotandose para un ENCARGADO_SUCURSAL', async () => {
+    await service.consultar(
+      ficha({ metrica: 'cantidad_usuarios', agruparPor: 'ninguno' }),
+      { sub: 'u5', email: 'e@e.com', role: 'ENCARGADO_SUCURSAL', sucursalId: SUCURSAL_PROPIA },
+    );
+    expect(motor.ejecutar.mock.calls[0][0].filtros.sucursalId).toBe(SUCURSAL_PROPIA);
+  });
+
   it('devuelve las filas del motor y narrativa nula sin LLM', async () => {
     const res = await service.consultar(
       ficha({ metrica: 'ingresos', agruparPor: 'ninguno' }),

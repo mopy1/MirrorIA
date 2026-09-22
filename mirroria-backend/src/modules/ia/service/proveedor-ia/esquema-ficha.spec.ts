@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { construirInstruccion, ESQUEMA_FICHA } from './esquema-ficha.js';
-import { METRICAS, type DefinicionMetrica } from '../catalogo-metricas.js';
+import { CATALOGO_METRICAS, METRICAS, type DefinicionMetrica } from '../catalogo-metricas.js';
 
 describe('esquema y prompt derivados del catalogo', () => {
   it('el esquema enumera exactamente las metricas del catalogo', () => {
@@ -42,6 +42,17 @@ describe('esquema y prompt derivados del catalogo', () => {
     expect(texto).toContain('SIN fechas');      // refleja columnaFecha: null
     expect(texto).toContain('NO comparable');   // refleja permiteComparacion: false
     expect(texto).not.toContain('ingresos');    // NO filtro nada del catalogo real
+  });
+
+  it('la instruccion incluye la fecha de hoy, para que "agosto" no resuelva a un año viejo', () => {
+    // Bug real encontrado en vivo (2026-09-22): sin decirle la fecha de hoy, el
+    // modelo asumia "agosto" = agosto 2025 (un año de su propio entrenamiento,
+    // no el actual) y la consulta volvia sin resultados. `hoy` es inyectable
+    // para no depender de la fecha real del reloj en la prueba.
+    const hoy = new Date('2026-09-22T12:00:00Z');
+    const texto = construirInstruccion(CATALOGO_METRICAS, hoy);
+    expect(texto).toContain('Hoy es 2026-09-22');
+    expect(texto).toContain('agosto de 2026');
   });
 
   it('el esquema NO le ofrece al modelo los filtros por identificador', () => {

@@ -1,4 +1,6 @@
-export type Dominio = 'ventas' | 'inventario' | 'kardex' | 'reservas' | 'cupones' | 'compras' | 'clientes';
+export type Dominio =
+  | 'ventas' | 'inventario' | 'kardex' | 'reservas' | 'cupones' | 'compras' | 'clientes'
+  | 'general';
 
 export type Metrica =
   | 'ingresos' | 'unidades' | 'cantidad_ventas' | 'ticket_promedio' | 'descuentos'
@@ -7,11 +9,17 @@ export type Metrica =
   | 'cantidad_reservas' | 'unidades_reservadas'
   | 'canjes_cupon' | 'descuento_por_cupon'
   | 'cantidad_ordenes' | 'unidades_pedidas' | 'unidades_recibidas'
-  | 'clientes_activos';
+  | 'clientes_activos'
+  // Dominio 'general': preguntas sobre la app/catalogo en si, no sobre ventas.
+  // Sin estas, "cuantos productos tengo" o "cuantos usuarios hay" no
+  // matcheaba ninguna metrica y la IA respondia con el error generico.
+  | 'cantidad_usuarios' | 'cantidad_productos' | 'cantidad_sucursales'
+  | 'cantidad_proveedores' | 'cantidad_categorias';
 
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
-  | 'cliente' | 'cupon' | 'proveedor' | 'tipo_movimiento' | 'dia' | 'mes' | 'ninguno';
+  | 'cliente' | 'cupon' | 'proveedor' | 'tipo_movimiento' | 'dia' | 'mes' | 'ninguno'
+  | 'rol';
 
 export type NombreFiltro =
   | 'sucursalId' | 'categoriaId' | 'productoId' | 'clienteId' | 'proveedorId'
@@ -571,6 +579,90 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA' AND v.cliente_id IS NOT NULL",
     permiteComparacion: true,
+  },
+  // A diferencia de las metricas de ventas, estas no tienen un "estado
+  // valido" tipo enum ni descuento de negocio que declarar — son conteos
+  // directos de tablas del catalogo/organizacion, mismo patron que
+  // `definicionInventario` (una foto, no un flujo transaccional).
+  cantidad_usuarios: {
+    dominio: 'general',
+    from: 'usuarios u',
+    joinsBase: [],
+    seleccion: 'COUNT(u.id)',
+    // Con fecha: permite "cuantos usuarios se registraron este mes". Sin
+    // filtro de fecha, cuenta el total historico (como cualquier otra
+    // metrica de este archivo sin filtro explicito).
+    columnaFecha: 'u."createdAt"',
+    // sucursalId SI tiene sentido acotarlo acá: son cuentas de staff
+    // (CAJERO/ENCARGADO_SUCURSAL) asignadas a una sucursal — a diferencia
+    // de las otras metricas 'general', que son catalogo compartido.
+    filtros: { sucursalId: 'u.sucursal_id = $' },
+    dimensiones: {
+      ninguno: DIM_NINGUNO,
+      rol: { grupo: 'u.role', etiqueta: 'u.role', joins: [] },
+    },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: true,
+  },
+  cantidad_productos: {
+    dominio: 'general',
+    from: 'productos p',
+    joinsBase: [],
+    seleccion: 'COUNT(p.id)',
+    columnaFecha: 'p."createdAt"',
+    filtros: { categoriaId: 'p.categoria_id = $' },
+    dimensiones: {
+      ninguno: DIM_NINGUNO,
+      categoria: {
+        grupo: 'c.id',
+        etiqueta: 'c.nombre',
+        joins: ['JOIN categorias c ON c.id = p.categoria_id'],
+      },
+    },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: true,
+  },
+  // Sucursales/proveedores/categorias: tablas chicas de organizacion, sin
+  // columna de fecha relevante para el negocio (nadie pregunta "cuantas
+  // sucursales abriste este mes" en un catalogo de moda de este tamano) —
+  // mismo criterio que `stock_disponible`, foto del presente nomas.
+  cantidad_sucursales: {
+    dominio: 'general',
+    from: 'sucursales s',
+    joinsBase: [],
+    seleccion: 'COUNT(s.id)',
+    columnaFecha: null,
+    filtros: {},
+    dimensiones: { ninguno: DIM_NINGUNO },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: false,
+  },
+  cantidad_proveedores: {
+    dominio: 'general',
+    from: 'proveedores pr',
+    joinsBase: [],
+    seleccion: 'COUNT(pr.id)',
+    columnaFecha: null,
+    filtros: {},
+    dimensiones: { ninguno: DIM_NINGUNO },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: false,
+  },
+  cantidad_categorias: {
+    dominio: 'general',
+    from: 'categorias c',
+    joinsBase: [],
+    seleccion: 'COUNT(c.id)',
+    columnaFecha: null,
+    filtros: {},
+    dimensiones: { ninguno: DIM_NINGUNO },
+    estadoValido: null,
+    filtroEstadoPorDefecto: null,
+    permiteComparacion: false,
   },
 };
 

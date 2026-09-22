@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatearValor } from "../lib/report-value.utils"
 import type { Reporte } from "../types/reports.types"
 
 /**
@@ -37,11 +38,11 @@ export function TablaReporte({ reporte }: { reporte: Reporte }) {
             <TableRow key={fila.clave}>
               <TableCell className="whitespace-normal font-medium">{fila.etiqueta}</TableCell>
               <TableCell className="text-right tabular-nums">
-                {fila.valor.toLocaleString("es-BO")}
+                {formatearValor(fila.valor, reporte.ficha.metrica)}
               </TableCell>
               {variaciones && (
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {v ? v.anterior.toLocaleString("es-BO") : "—"}
+                  {v ? formatearValor(v.anterior, reporte.ficha.metrica) : "—"}
                 </TableCell>
               )}
               {variaciones && (

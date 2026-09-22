@@ -41,6 +41,20 @@ describe('MotorConsultaService', () => {
     expect(paramsDeLaLlamada()).toContain('CANCELADA');
   });
 
+  it('un estado en minuscula (como lo entiende el modelo) se normaliza a mayuscula, no se rechaza', async () => {
+    // Bug real reportado en vivo (2026-09-22): "¿Cuántas reservas se
+    // cancelaron?" -> el modelo devolvia filtros.estado="cancelada" y el motor
+    // lo rechazaba con "no es un estado valido", aunque CANCELADA si existe en
+    // el dominio — comparaba sensible a mayusculas contra un enum que siempre
+    // se guarda en mayuscula.
+    await service.ejecutar(
+      ficha({ metrica: 'cantidad_reservas', agruparPor: 'ninguno', filtros: { estado: 'cancelada' } }),
+    );
+    expect(sqlDeLaLlamada()).toContain('r.estado = $1');
+    expect(paramsDeLaLlamada()).toContain('CANCELADA');
+    expect(paramsDeLaLlamada()).not.toContain('cancelada');
+  });
+
   it('rechaza un estado que no existe en el dominio de la metrica', async () => {
     await expect(
       service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { estado: 'INVENTADO' } })),

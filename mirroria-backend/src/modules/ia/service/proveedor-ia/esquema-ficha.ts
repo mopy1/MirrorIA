@@ -48,6 +48,7 @@ export const ESQUEMA_FICHA = {
  */
 export function construirInstruccion(
   catalogo: Record<string, DefinicionMetrica> = CATALOGO_METRICAS,
+  hoy: Date = new Date(),
 ): string {
   const lineas = (Object.keys(catalogo) as Metrica[]).map((m) => {
     const def = catalogo[m];
@@ -57,9 +58,16 @@ export function construirInstruccion(
     return `- ${m} (${def.dominio}): agrupar por [${dims}]. ${tiempo}, ${comparacion}.`;
   });
 
+  const fechaHoy = hoy.toISOString().slice(0, 10);
+
   return [
     'Sos un traductor de preguntas de negocio a una ficha de consulta estructurada.',
     'Devolves SOLO la ficha. No escribis SQL, no inventas datos, no respondes la pregunta.',
+    '',
+    `Hoy es ${fechaHoy}. Usa esta fecha para resolver "este mes", "el mes pasado", ` +
+      '"esta semana", "hoy" y CUALQUIER mes o periodo sin año explicito (ej. "agosto" ' +
+      `sin año significa agosto de ${hoy.getUTCFullYear()}, no un año de tu propio ` +
+      'conocimiento) — nunca asumas el año a partir de tus propios datos de entrenamiento.',
     '',
     'Metricas disponibles:',
     ...lineas,

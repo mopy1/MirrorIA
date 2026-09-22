@@ -3,7 +3,16 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
-import { CATALOGO_METRICAS, type NombreFiltro } from './catalogo-metricas.js';
+import { CATALOGO_METRICAS, TIPOS_MOVIMIENTO, type NombreFiltro } from './catalogo-metricas.js';
+
+/** Filtros cuyo valor valido es SIEMPRE un enum en mayusculas
+ * (EstadoVenta/EstadoReserva/EstadoOrden, CanalVenta, TipoMovimientoInventario)
+ * — el modelo devuelve la palabra tal como aparece en la pregunta ("cancelada",
+ * no "CANCELADA"), y comparar sensible a mayusculas rechazaba una consulta
+ * perfectamente valida con un error confuso. Normalizar acá es mas confiable
+ * que pedirselo al modelo en el prompt (un LLM no sigue una regla de casing al
+ * 100% de las veces; el codigo si). */
+const FILTROS_ENUM_MAYUSCULA = new Set(['estado', 'canal', 'tipoMovimiento']);
 
 /** Mismo valor que el default de `FichaConsultaDto.limite`, pero aplicado aca: el
  * del DTO no corre cuando la ficha trae `limite: null` explicito. */
@@ -49,12 +58,35 @@ export class MotorConsultaService {
           `la metrica "${ficha.metrica}" no admite el filtro "${nombre}"`,
         );
       }
-      if (nombre === 'estado' && def.estadoValido && !def.estadoValido.includes(String(valor))) {
+
+      // Normalizar ANTES de validar: "cancelada" (como lo escribio/entendio el
+      // modelo) tiene que pasar igual que "CANCELADA". El valor normalizado es
+      // el que se manda a Postgres, no el crudo — si no, la validacion pasa
+      // pero la consulta sigue comparando contra el valor en minuscula.
+      const valorNormalizado =
+        typeof valor === 'string' && FILTROS_ENUM_MAYUSCULA.has(nombre)
+          ? valor.trim().toUpperCase()
+          : valor;
+
+      if (
+        nombre === 'estado' &&
+        def.estadoValido &&
+        !def.estadoValido.includes(String(valorNormalizado))
+      ) {
         throw new CombinacionInvalidaException(
           `"${String(valor)}" no es un estado valido para "${ficha.metrica}"`,
         );
       }
-      params.push(valor);
+      if (
+        nombre === 'tipoMovimiento' &&
+        !TIPOS_MOVIMIENTO.includes(valorNormalizado as (typeof TIPOS_MOVIMIENTO)[number])
+      ) {
+        throw new CombinacionInvalidaException(
+          `"${String(valor)}" no es un tipo de movimiento valido`,
+        );
+      }
+
+      params.push(valorNormalizado);
       condiciones.push(plantilla.replace('$', `$${params.length}`));
     }
 

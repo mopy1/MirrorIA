@@ -142,6 +142,16 @@ export class IaService {
 
   private forzarAlcance(ficha: FichaConsultaDto, user: JwtPayload): FichaConsultaDto {
     if (user.role !== 'ENCARGADO_SUCURSAL') return ficha;
+
+    // Metricas del dominio 'general' (cantidad_sucursales, cantidad_proveedores,
+    // cantidad_categorias) no tienen concepto de sucursal — son catalogo/organizacion
+    // compartidos, no datos por sucursal. Sin este chequeo, forzar sucursalId ahi
+    // tira 400 ("no admite el filtro sucursalId") para CUALQUIER ENCARGADO_SUCURSAL,
+    // aunque la pregunta no tenga nada sensible que acotar.
+    if (!CATALOGO_METRICAS[ficha.metrica]?.filtros.sucursalId) {
+      return ficha;
+    }
+
     // Sin sucursal asignada NO se puede acotar el alcance, y dejar el filtro vacio
     // abriria TODAS las sucursales — lo contrario de lo que se busca. Se corta aca.
     if (!user.sucursalId) {
