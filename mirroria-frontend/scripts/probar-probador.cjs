@@ -26,8 +26,8 @@
 // arriba, que baja una foto de una persona de cuerpo entero y la repite en
 // cuadros. El recorrido pega contra el API de PRODUCCION
 // (https://mirroria.duckdns.org/api/v1) para saber que prenda tiene recorte;
-// los PNG de las prendas, en cambio, se sirven desde el repo (ver
-// `interceptarPrendas`).
+// los PNG de las prendas los sirve el MISMO servidor de la app (public/prendas/),
+// igual que en un navegador de verdad: ver `interceptarPrendas`.
 const { chromium } = require("playwright")
 
 const path = require("node:path")
@@ -79,24 +79,26 @@ function log(...args) {
 // camino bueno, no el degradado.
 async function interceptarPrendas(page, { archivoQueFalla } = {}) {
   const contador = { fallidos: 0, totalParaElQueFalla: 0 }
-  const CORS = { "Access-Control-Allow-Origin": "*" }
-  await page.route("https://mirroria.duckdns.org/prendas/**/*.png", async (route) => {
-    const url = route.request().url()
-    const archivo = decodeURIComponent(url.split("/").pop())
+
+  // ANTES esta funcion interceptaba https://mirroria.duckdns.org/prendas/*.png
+  // y los contestaba desde el repo con CORS. Eso fabricaba una realidad que no
+  // existe: en produccion esos PNG NO estan (lo desplegado es main) y nginx
+  // devolvia index.html con 200, asi que el probador fallaba en las 13 prendas
+  // mientras esta prueba pasaba en verde. La interceptacion ERA el bug que no
+  // se veia. Ahora la app pide el recorte a su propio origen (urlDeRecorte) y
+  // la prueba deja pasar esa peticion de verdad, contra el archivo real.
+  //
+  // Solo se sigue interceptando para SIMULAR un recorte que no carga, que es
+  // un camino de error que hay que poder disparar a voluntad.
+  await page.route("**/prendas/**/*.png", async (route) => {
+    const archivo = decodeURIComponent(route.request().url().split("/").pop().split("?")[0])
     if (archivoQueFalla && archivo === archivoQueFalla) {
       contador.fallidos++
       contador.totalParaElQueFalla++
       await route.fulfill({ status: 404, contentType: "text/plain", body: "no encontrado (simulado)" })
       return
     }
-    const rutaLocal = path.join(CARPETA_PRENDAS_LOCAL, archivo)
-    if (fs.existsSync(rutaLocal)) {
-      await route.fulfill({ path: rutaLocal, contentType: "image/png", headers: CORS })
-    } else {
-      // No debería pasar (las 13 prendas probables tienen su PNG local),
-      // pero si pasara, mejor dejar pasar la petición real que colgar la ruta.
-      await route.continue()
-    }
+    await route.continue()
   })
   return contador
 }
