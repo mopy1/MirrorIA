@@ -172,13 +172,29 @@ export function ProbadorPage() {
   }, [video, prenda, puntos, par])
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_20rem]">
+    /* El orden del DOM es el del CELULAR, que es el caso de uso principal
+       (el propio mensaje de error dice "Probá desde el celular"): primero
+       los pasos que guían a la clienta, después la cámara y la tira, y al
+       final los botones. Antes la escena iba primero y el <aside> entero
+       después, así que en vertical los mensajes ("acercate", "ponete de
+       frente") quedaban abajo del pliegue justo mientras se está ubicando.
+       En pantallas grandes las tres piezas se recolocan con las clases
+       `lg:col-start-*` / `lg:row-start-*`: la escena a la izquierda
+       ocupando las dos filas, y a la derecha el panel arriba y los botones
+       abajo, igual que antes. */
+    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_20rem] lg:grid-rows-[auto_1fr]">
+      <aside className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Probador virtual</h1>
+        <PanelGuiado pasos={pasos} />
+        {aviso && <p className="text-sm text-destructive">{aviso}</p>}
+      </aside>
+
       {/* min-w-0: por defecto un item de grid no baja de su contenido
           mínimo, y el <video> de la escena reporta su ancho intrínseco (el
           de la cámara, típicamente 1280px) a esa cuenta aunque tenga
           width:100%. Sin esto, esta columna empujaba el documento entero y
           aparecía scroll horizontal con la cámara activa. */}
-      <div className="min-w-0">
+      <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:row-span-2">
         {estado === "lista" ? (
           <EscenaProbador
             stream={stream}
@@ -209,30 +225,24 @@ export function ProbadorPage() {
         </div>
       </div>
 
-      <aside className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Probador virtual</h1>
-        <PanelGuiado pasos={pasos} />
-        {aviso && <p className="text-sm text-destructive">{aviso}</p>}
-
-        <div className="flex flex-col gap-3">
-          {estado === "lista" && (
-            <button type="button" onClick={sacarFoto} className={cn(buttonVariants({ variant: "outline" }))}>
-              <Camera />
-              Sacar foto
-            </button>
-          )}
-          {prenda && (
-            <Link to={`/tienda/producto/${prenda.id}`} className={cn(buttonVariants())}>
-              Reservar en sucursal
-            </Link>
-          )}
-        </div>
+      <div className="flex flex-col gap-3 lg:col-start-2 lg:row-start-2 lg:self-start">
+        {estado === "lista" && (
+          <button type="button" onClick={sacarFoto} className={cn(buttonVariants({ variant: "outline" }))}>
+            <Camera />
+            Sacar foto
+          </button>
+        )}
+        {prenda && (
+          <Link to={`/tienda/producto/${prenda.id}`} className={cn(buttonVariants())}>
+            Reservar en sucursal
+          </Link>
+        )}
 
         {/* Ancla oculta: acá cae la descarga de la foto que arma `sacarFoto`. */}
         <a ref={enlaceDescarga} download="probador-mirroria.png" className="hidden">
           descarga
         </a>
-      </aside>
+      </div>
     </div>
   )
 }

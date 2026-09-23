@@ -571,10 +571,17 @@ async function probarPrendaQueNoCarga(browser, prendaObjetivo) {
 // la clienta quedaban abajo del pliegue, justo mientras se esta ubicando.
 // Se comprueba a 390 px (iPhone 14) que el panel y el <video> se vean los dos
 // sin desplazar la pagina.
+//
+// La altura es 664 y no 844 a proposito: 844 es la pantalla ENTERA del
+// telefono, pero la barra de direcciones y la de pestanas de Safari/Chrome se
+// comen ~180 px, y lo que hay que comprobar es lo que se ve sin desplazar.
+// Con 844 la prueba pasaba incluso con el layout viejo (el panel caia en
+// y=695..835, adentro por poco); con 664, que es lo que ve una persona de
+// verdad, quedaba afuera.
 async function probarEnCelular(browser) {
   log("\n=== Escenario 4: panel guiado visible a 390px de ancho ===")
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport: { width: 390, height: 664 },
     deviceScaleFactor: 3,
     isMobile: true,
     hasTouch: true,
@@ -606,7 +613,7 @@ async function probarEnCelular(browser) {
       video: r(video),
     }
   })
-  log("medidas a 390x844:", medidas)
+  log("medidas a 390x664:", medidas)
 
   // Los tres pasos y el mensaje tienen que entrar enteros en la primera
   // pantalla, y el video tiene que empezar dentro de ella (no hace falta que
