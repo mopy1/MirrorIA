@@ -39,7 +39,7 @@ export function EscenaProbador({ stream, puntos, par, urlPrenda, onVideo, onErro
   }, [puntos, par, urlPrenda])
 
   return (
-    <div ref={caja} className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-secondary">
+    <div ref={caja} className="relative aspect-[3/4] w-full min-w-0 overflow-hidden rounded-2xl bg-secondary">
       <video
         ref={video}
         autoPlay

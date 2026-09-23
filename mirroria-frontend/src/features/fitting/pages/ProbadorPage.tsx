@@ -133,7 +133,12 @@ export function ProbadorPage() {
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_20rem]">
-      <div>
+      {/* min-w-0: por defecto un item de grid no baja de su contenido
+          mínimo, y el <video> de la escena reporta su ancho intrínseco (el
+          de la cámara, típicamente 1280px) a esa cuenta aunque tenga
+          width:100%. Sin esto, esta columna empujaba el documento entero y
+          aparecía scroll horizontal con la cámara activa. */}
+      <div className="min-w-0">
         {estado === "lista" ? (
           <EscenaProbador
             stream={stream}
