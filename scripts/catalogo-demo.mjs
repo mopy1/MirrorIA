@@ -68,8 +68,6 @@ export const CATEGORIAS = [
   { nombre: 'Blusas y tops', slug: 'blusas-y-tops' },
   { nombre: 'Pantalones y faldas', slug: 'pantalones-y-faldas' },
   { nombre: 'Abrigos y blazers', slug: 'abrigos-y-blazers' },
-  { nombre: 'Calzado', slug: 'calzado' },
-  { nombre: 'Joyería y accesorios', slug: 'joyeria-y-accesorios' },
 ]
 
 export const TALLAS = [
@@ -405,139 +403,81 @@ export const PRODUCTOS = [
       'Blazer y pantalón al tono en rojo carmín, de corte sastre. Se vende como conjunto y llega listo para una ocasión que se recuerde.',
   },
 
-  // ---------------------------------------------------------------- Calzado
-  {
-    cat: 'calzado',
-    col: 'Noche',
-    titulo: 'Stiletto Limón',
-    slug: 'stiletto-limon',
-    precio: 520,
-    foto: 'woman-perches-atop-a-giant-shoe-facing-the-ceiling',
-    tallas: CALZADO,
-    colores: ['Mostaza'],
-    descripcion:
-      'Stiletto de gamuza en amarillo limón, con taco de 9 cm y punta fina. Plantilla acolchada, porque el color no debería costarle nada al pie.',
-  },
-  {
-    cat: 'calzado',
-    col: 'Noche',
-    titulo: 'Stiletto Noche',
-    slug: 'stiletto-noche',
-    precio: 490,
-    foto: 'tattoo-high-heels',
-    tallas: CALZADO,
-    colores: ['Negro'],
-    descripcion:
-      'Zapato negro de taco alto con pulsera al tobillo. El que se usa cuando no hay tiempo de pensar qué zapato usar.',
-  },
-  {
-    cat: 'calzado',
-    col: 'Urbano',
-    titulo: 'Botas acordonadas Sendero',
-    slug: 'botas-acordonadas-sendero',
-    precio: 620,
-    foto: 'boots-on-blue',
-    tallas: CALZADO,
-    colores: ['Camel'],
-    descripcion:
-      'Bota de caña media en cuero, con cordones al frente y suela de goma tratada. Agarra en piso mojado y se banca el uso diario.',
-  },
-  {
-    cat: 'calzado',
-    col: 'Urbano',
-    titulo: 'Zapatillas Marina',
-    slug: 'zapatillas-marina',
-    precio: 380,
-    foto: 'pair-of-navy-blue-skate-shoes',
-    tallas: CALZADO,
-    colores: ['Azul marino'],
-    descripcion:
-      'Zapatilla urbana de lona azul marino con puntera reforzada. Liviana, lavable y sin estridencias.',
-  },
+]
 
-  // ----------------------------------------------------- Joyería y accesorios
+/** Productos que salieron del catalogo.
+ *
+ * La tienda es EXCLUSIVAMENTE de ropa: el calzado y la bijouterie se retiran.
+ * No se borran —el backend no tiene DELETE de productos— sino que el sembrador
+ * les pone `activo: false`, y `findAll` del backend solo devuelve los activos,
+ * asi que desaparecen de la tienda al instante.
+ *
+ * Las DOS CATEGORIAS que quedan vacias ('calzado' y 'joyeria-y-accesorios') si
+ * hay que borrarlas por SQL: `categorias` no tiene ni PATCH ni DELETE. Ver
+ * scripts/corregir-acentos.sql. */
+export const RETIRADOS = [
+  'stiletto-limon',
+  'stiletto-noche',
+  'botas-acordonadas-sendero',
+  'zapatillas-marina',
+  'collar-doble-cadena-dorado',
+  'colgante-turquesa-aguas',
+  'colgante-amatista-violeta',
+  'aros-elefante',
+  'set-brazaletes-sol',
+  'reloj-bambu-horizonte',
+  'lentes-sol-rose',
+]
+
+// Se agregan al final para que queden primero en la tienda, que ordena por
+// fecha de creacion descendente.
+PRODUCTOS.push(
   {
-    cat: 'joyeria-y-accesorios',
+    cat: 'abrigos-y-blazers',
     col: 'Esenciales',
-    titulo: 'Collar doble cadena Dorado',
-    slug: 'collar-doble-cadena-dorado',
-    precio: 180,
-    foto: 'dainty-gold-necklace',
-    tallas: UNICA,
-    colores: ['Dorado'],
+    titulo: 'Sweater de punto Burdeos',
+    slug: 'sweater-punto-burdeos',
+    precio: 450,
+    foto: 'a-model-perched-on-a-stool-smiles',
+    tallas: ROPA,
+    colores: ['Rojo'],
     descripcion:
-      'Dos cadenas finas de distinto largo con dije circular, en baño de oro. Se lleva sobre la piel o sobre una camisa abierta.',
+      'Tejido de punto fino en burdeos, con mangas tres cuartos y cuello redondo. El tono oscuro lo vuelve facil de combinar con negro o con crudo.',
   },
   {
-    cat: 'joyeria-y-accesorios',
-    col: 'Esenciales',
-    titulo: 'Colgante de turquesa Aguas',
-    slug: 'colgante-turquesa-aguas',
-    precio: 220,
-    foto: 'gemstone-necklace',
-    tallas: UNICA,
-    colores: ['Turquesa'],
-    descripcion:
-      'Piedra natural de turquesa montada en cadena larga. Cada pieza tiene su propia veta: no hay dos iguales.',
-  },
-  {
-    cat: 'joyeria-y-accesorios',
-    col: 'Noche',
-    titulo: 'Colgante de amatista Violeta',
-    slug: 'colgante-amatista-violeta',
-    precio: 240,
-    foto: 'purple-gemstone-necklace',
-    tallas: UNICA,
-    colores: ['Amatista'],
-    descripcion:
-      'Amatista en corte hexagonal sobre cadena de plata. Un punto de color frío para conjuntos neutros.',
-  },
-  {
-    cat: 'joyeria-y-accesorios',
-    col: 'Esenciales',
-    titulo: 'Aros Elefante',
-    slug: 'aros-elefante',
-    precio: 150,
-    foto: 'elephant-earrings',
-    tallas: UNICA,
-    colores: ['Dorado'],
-    descripcion:
-      'Aros pequeños con figura de elefante, en baño de oro y cierre de presión. Livianos: se olvidan puestos.',
-  },
-  {
-    cat: 'joyeria-y-accesorios',
-    col: 'Noche',
-    titulo: 'Set de brazaletes Sol',
-    slug: 'set-brazaletes-sol',
-    precio: 260,
-    foto: 'colorful-background-with-gold-jewelry-displayed-on-it',
-    tallas: UNICA,
-    colores: ['Dorado'],
-    descripcion:
-      'Tres brazaletes rígidos de distinto ancho, para usar juntos o de a uno. Terminación pulida, sin cantos.',
-  },
-  {
-    cat: 'joyeria-y-accesorios',
+    cat: 'blusas-y-tops',
     col: 'Urbano',
-    titulo: 'Reloj de bambú Horizonte',
-    slug: 'reloj-bambu-horizonte',
-    precio: 420,
-    foto: 'modern-bamboo-wristwatch',
-    tallas: UNICA,
-    colores: ['Camel'],
+    titulo: 'Top hombros descubiertos Bahía',
+    slug: 'top-hombros-descubiertos-bahia',
+    precio: 320,
+    foto: 'stylish-woman-smiling',
+    tallas: ROPA,
+    colores: ['Azul marino', 'Blanco'],
     descripcion:
-      'Caja de bambú con malla de cuero natural y maquinaria de cuarzo. Cada caja conserva la veta de la madera de la que salió.',
+      'Top de algodon celeste con escote bardot y volado en las mangas. Se lleva con jean de tiro alto y resuelve una tarde de calor.',
   },
   {
-    cat: 'joyeria-y-accesorios',
+    cat: 'pantalones-y-faldas',
     col: 'Urbano',
-    titulo: 'Lentes de sol Rosé',
-    slug: 'lentes-sol-rose',
-    precio: 190,
-    foto: 'pink-sunglasses-on-white',
-    tallas: UNICA,
+    titulo: 'Falda estampada Serranía',
+    slug: 'falda-estampada-serrania',
+    precio: 430,
+    foto: 'womens-fall-fashion-in-autumn-landscape',
+    tallas: ROPA,
+    colores: ['Negro', 'Crudo'],
+    descripcion:
+      'Falda midi con estampado en blanco y negro y cintura elastizada. Acompana el movimiento sin transparentar, con forro hasta la rodilla.',
+  },
+  {
+    cat: 'vestidos',
+    col: 'Esenciales',
+    titulo: 'Vestido corto Jazmín',
+    slug: 'vestido-corto-jazmin',
+    precio: 490,
+    foto: 'pink-summer-outfit',
+    tallas: ROPA,
     colores: ['Rosa palo'],
     descripcion:
-      'Montura metálica fina con cristal espejado rosado y protección UV400. Para el sol de mediodía, que acá no perdona.',
+      'Vestido corto de gasa con estampado floral en rosa empolvado y mangas cortas. Liviano y con vuelo, pensado para el dia.',
   },
-]
+)

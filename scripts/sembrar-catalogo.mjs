@@ -13,7 +13,7 @@
  */
 import {
   CATEGORIAS, CIUDADES, COLECCIONES, COLORES, PRODUCTOS, PROVEEDOR,
-  SUCURSALES, TALLAS, TEMPORADA, foto,
+  RETIRADOS, SUCURSALES, TALLAS, TEMPORADA, foto,
 } from './catalogo-demo.mjs'
 
 const API = arg('--api') ?? 'https://mirroria.duckdns.org/api/v1'
@@ -233,6 +233,23 @@ async function main() {
     process.stdout.write('.')
   }
 
+  // --- 5. Retirar lo que ya no va en el catalogo ---------------------------
+  // No hay DELETE de productos en el backend, asi que se desactivan: findAll
+  // solo devuelve los activos, con lo cual salen de la tienda de inmediato.
+  // Como el listado ya viene filtrado por activo, lo que siga apareciendo ahi
+  // es justamente lo que falta desactivar (correrlo de nuevo no hace nada).
+  console.log('')
+  process.stdout.write('Retirados   ')
+  let retirados = 0
+  const vigentes = await get('/catalogo/productos')
+  for (const slug of RETIRADOS) {
+    const p = vigentes.find((x) => x.slug === slug)
+    if (!p) { process.stdout.write('.'); continue }
+    await patch(`/catalogo/productos/${p.id}`, { activo: false })
+    process.stdout.write('-')
+    retirados++
+  }
+
   const despues = {
     productos: (await get('/catalogo/productos')).length,
     sucursales: (await get('/sucursales')).length,
@@ -244,6 +261,7 @@ async function main() {
   console.log(`  categorias : ${antes.categorias} -> ${despues.categorias}`)
   console.log(`  variantes creadas: ${variantesNuevas.length}, ajustes de stock: ${ajustes}`)
   console.log(`  productos con el texto corregido: ${corregidos}`)
+  console.log(`  productos retirados de la tienda: ${retirados}`)
 }
 
 main().catch((e) => {
