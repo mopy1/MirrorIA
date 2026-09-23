@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSucursales } from "@/features/branches/hooks/useSucursales"
+import { estadoDeLista } from "@/lib/estado-de-lista"
 import { cn } from "cn"
 
 /** Contacto real: no hay email/redes del equipo cargados en ningún lado del
@@ -14,6 +15,7 @@ import { cn } from "cn"
 export function ContactSection() {
   const reduce = useReducedMotion()
   const { sucursales, isLoading } = useSucursales()
+  const estado = estadoDeLista({ isLoading, cantidad: sucursales.length })
 
   return (
     <section id="contacto" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
@@ -26,8 +28,16 @@ export function ContactSection() {
         </Link>
       </div>
 
+      {/* Sin sucursales cargadas la grilla quedaba vacia y la seccion terminaba
+          en un hueco: el visitante leia "llamanos o visitanos" y abajo no habia
+          ni un telefono ni una direccion. */}
+      {estado === "vacio" ? (
+        <p className="mt-16 text-center text-sm text-muted-foreground">
+          Todavía no hay sucursales cargadas.
+        </p>
+      ) : (
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {isLoading ? (
+        {estado === "cargando" ? (
           <>
             <Skeleton className="h-32 rounded-2xl" />
             <Skeleton className="h-32 rounded-2xl" />
@@ -64,6 +74,7 @@ export function ContactSection() {
           ))
         )}
       </div>
+      )}
     </section>
   )
 }
