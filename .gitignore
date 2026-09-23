@@ -51,3 +51,8 @@ data/
 **/.claude/
 cloudflared*.log
 
+
+# --- Python (scripts/prendas) ---
+__pycache__/
+**/__pycache__/
+*.pyc
