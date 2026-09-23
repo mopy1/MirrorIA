@@ -1,5 +1,5 @@
 import { Camera } from "@phosphor-icons/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "cn"
@@ -16,6 +16,7 @@ import { ANCLA_ESTANDAR, VISIBILIDAD_MINIMA, calcularTransformPrenda } from "../
 import { parDeAnclaje } from "../lib/parDeAnclaje"
 import { calcularPasos } from "../lib/pasosGuiados"
 import { elegirPrendaInicial, prendasProbables } from "../lib/prendasProbables"
+import { recorteCover } from "../lib/recorteCover"
 
 export function ProbadorPage() {
   const { productoId } = useParams()
@@ -26,14 +27,21 @@ export function ProbadorPage() {
   const { puntos } = usePose(video, estado === "lista")
   const [prenda, setPrenda] = useState<Producto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // Ids cuyo recorte ya dio error en esta sesión: sin esto, si la prenda del
+  // enlace no carga, el efecto de abajo la volvería a elegir —siempre la
+  // misma, rota— en un bucle sin salida.
+  const [fallidas, setFallidas] = useState<ReadonlySet<string>>(() => new Set())
   const enlaceDescarga = useRef<HTMLAnchorElement>(null)
 
-  const probables = prendasProbables(productos)
+  // Memoizado: sin esto se volvía a filtrar el catálogo entero en cada uno
+  // de los ~30 renders por segundo que dispara `usePose`.
+  const probables = useMemo(() => prendasProbables(productos), [productos])
 
-  // La prenda del enlace se aplica una sola vez, cuando el catalogo llego.
+  // La prenda del enlace se aplica una sola vez, cuando el catalogo llego
+  // (o cuando falla una y hay que reevaluar sin ella).
   useEffect(() => {
-    if (!prenda && productos.length) setPrenda(elegirPrendaInicial(productos, productoId))
-  }, [productos, productoId, prenda])
+    if (!prenda && productos.length) setPrenda(elegirPrendaInicial(productos, productoId, fallidas))
+  }, [productos, productoId, prenda, fallidas])
 
   const slug = categorias.find((c) => c.id === prenda?.categoriaId)?.slug ?? ""
   const par = parDeAnclaje(slug)
@@ -47,9 +55,18 @@ export function ProbadorPage() {
 
   // Review Focus 3: si el PNG no carga se suelta la prenda y se avisa, pero la
   // escena y el bucle de render siguen vivos.
+  //
+  // El id se marca como fallido ANTES de soltar la prenda (con el valor real
+  // de `prenda` al momento del fallo, vía forma funcional: este callback es
+  // estable y no puede depender de `prenda` en su clausura). Así, cuando el
+  // efecto de arriba vuelva a correr porque `prenda` pasó a null, ya no elige
+  // la misma prenda rota.
   const alFallarLaPrenda = useCallback(() => {
     setAviso("Esa prenda no se pudo cargar. Probá con otra.")
-    setPrenda(null)
+    setPrenda((actual) => {
+      if (actual) setFallidas((prev) => new Set(prev).add(actual.id))
+      return null
+    })
   }, [])
 
   const alElegirPrenda = useCallback((p: Producto) => {
@@ -57,12 +74,9 @@ export function ProbadorPage() {
     setPrenda(p)
   }, [])
 
-  // Dibuja el cuadro actual del video (espejado, igual que se lo ve en
-  // pantalla) más la prenda puesta, con la misma cuenta que usa la escena
-  // en vivo, y dispara la descarga. Es una foto del cuadro congelado, no un
-  // clon 1:1 del <video> con object-cover: se estira al tamaño del recuadro
-  // en vez de recortarlo, una simplificación razonable para un recuerdo de
-  // probador.
+  // Dibuja el cuadro actual del video (espejado y recortado igual que
+  // `object-cover` en pantalla, con `recorteCover`) más la prenda puesta,
+  // con la misma cuenta que usa la escena en vivo, y dispara la descarga.
   const sacarFoto = useCallback(() => {
     if (!video) return
     const ancho = video.clientWidth
@@ -73,10 +87,11 @@ export function ProbadorPage() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    const { sx, sy, sw, sh } = recorteCover(video.videoWidth, video.videoHeight, ancho, alto)
     ctx.save()
     ctx.translate(ancho, 0)
     ctx.scale(-1, 1)
-    ctx.drawImage(video, 0, 0, ancho, alto)
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, ancho, alto)
     ctx.restore()
 
     const descargar = () => {
@@ -139,7 +154,12 @@ export function ProbadorPage() {
           />
         )}
         <div className="mt-4">
-          <TiraDePrendas prendas={probables} elegidaId={prenda?.id ?? null} onElegir={alElegirPrenda} />
+          <TiraDePrendas
+            prendas={probables}
+            elegidaId={prenda?.id ?? null}
+            fallidas={fallidas}
+            onElegir={alElegirPrenda}
+          />
         </div>
       </div>
 

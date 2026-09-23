@@ -29,4 +29,17 @@ describe("elegirPrendaInicial", () => {
   it("sin id no elige ninguna: la clienta elige de la tira", () => {
     expect(elegirPrendaInicial([p("1", "/prendas/a.png")])).toBeNull()
   })
+
+  it("una prenda marcada como fallida no se vuelve a elegir aunque exista y tenga recorte", () => {
+    // Corta el bucle infinito: si el PNG de la prenda del enlace ya falló,
+    // no hay que devolverla otra vez.
+    const lista = [p("1", "/prendas/a.png")]
+    expect(elegirPrendaInicial(lista, "1", new Set(["1"]))).toBeNull()
+  })
+
+  it("el conjunto de fallidas vacío o ausente se comporta como antes", () => {
+    const lista = [p("1", "/prendas/a.png")]
+    expect(elegirPrendaInicial(lista, "1", new Set())?.id).toBe("1")
+    expect(elegirPrendaInicial(lista, "1")?.id).toBe("1")
+  })
 })
