@@ -11,4 +11,8 @@ describe("enlaces del pie", () => {
     // ProtectedRoute manda a /login, que es el comportamiento correcto).
     expect(buscar("Reservas")?.href).toBe("/reservas")
   })
+
+  it("«Vestidor virtual» lleva al probador y no a un ancla del inicio", () => {
+    expect(buscar("Vestidor virtual")?.href).toBe("/probador")
+  })
 })

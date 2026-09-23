@@ -14,6 +14,7 @@ import { LoginPage } from "@/features/auth/pages/LoginPage"
 import { RegisterPage } from "@/features/auth/pages/RegisterPage"
 import { BranchesPage } from "@/features/branches/pages/BranchesPage"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
+import { ProbadorPage } from "@/features/fitting/pages/ProbadorPage"
 import { HomePage } from "@/features/catalog/pages/HomePage"
 import { ProductDetailPage } from "@/features/catalog/pages/ProductDetailPage"
 import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
@@ -57,6 +58,9 @@ const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: b
   { path: "/pago/exito", Component: PagoPage, protected: true },
   { path: "/pago/cancelado", Component: PagoPage, protected: true },
   { path: "/reservas", Component: MyReservationsPage, protected: true },
+  // Publicas a proposito: probarse una prenda no necesita cuenta.
+  { path: "/probador", Component: ProbadorPage },
+  { path: "/probador/:productoId", Component: ProbadorPage },
   // Comodin al final: cualquier direccion que no case con nada. Sin esto la
   // SPA no montaba ningun componente y la pagina salia EN BLANCO (nginx sirve
   // index.html para todo). React Router lo ordena por especificidad, asi que

@@ -8,7 +8,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     title: "Tienda",
     links: [
       { label: "Catálogo", href: "/tienda" },
-      { label: "Vestidor virtual", href: "#vestidor" },
+      { label: "Vestidor virtual", href: "/probador" },
     ],
   },
   {

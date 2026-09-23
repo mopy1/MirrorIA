@@ -1,7 +1,7 @@
 import { CheckCircle, Warning } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
 import { useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { ProductImagePlaceholder } from "@/components/common/ProductImagePlaceholder"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
@@ -127,14 +127,24 @@ export function ProductDetail({ producto }: { producto: Producto }) {
           </p>
         )}
 
-        <Button
-          size="lg"
-          className="mt-6 w-full sm:w-auto"
-          disabled={!variante || cartLoading || Boolean(sinStock)}
-          onClick={handleAddToCart}
-        >
-          Agregar al carrito
-        </Button>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button
+            size="lg"
+            className="w-full sm:w-auto"
+            disabled={!variante || cartLoading || Boolean(sinStock)}
+            onClick={handleAddToCart}
+          >
+            Agregar al carrito
+          </Button>
+
+          {producto.arOverlayImageUrl && (
+            <Link to={`/probador/${producto.id}`}>
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                Probármela
+              </Button>
+            </Link>
+          )}
+        </div>
 
         {feedback && (
           <p role="status" className="mt-3 text-sm text-foreground">
