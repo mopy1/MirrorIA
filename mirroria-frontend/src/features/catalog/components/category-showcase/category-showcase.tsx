@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Skeleton } from "@/components/ui/skeleton"
+import { estadoDeLista } from "@/lib/estado-de-lista"
 import { useCategorias } from "../../hooks/useCategorias"
 import { useProductos } from "../../hooks/useProductos"
 
@@ -12,6 +13,7 @@ export function CategoryShowcase() {
   const { productos, isLoading: loadingProductos } = useProductos()
 
   const isLoading = loadingCategorias || loadingProductos
+  const estado = estadoDeLista({ isLoading, cantidad: categorias.length })
 
   return (
     <section id="categorias" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
@@ -33,8 +35,16 @@ export function CategoryShowcase() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {isLoading
+      {/* Sin categorias la grilla no dibujaba NADA y el titulo quedaba flotando
+          sobre un hueco mudo. Es el estado real de una tienda recien
+          desplegada, asi que se dice en palabras. */}
+      {estado === "vacio" ? (
+        <p className="mt-16 text-center text-sm text-muted-foreground">
+          Todavía no hay categorías cargadas.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {estado === "cargando"
           ? Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="aspect-[3/4] rounded-2xl" />
             ))
@@ -100,7 +110,8 @@ export function CategoryShowcase() {
                 </motion.div>
               )
             })}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

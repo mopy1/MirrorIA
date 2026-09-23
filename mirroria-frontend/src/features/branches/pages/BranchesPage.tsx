@@ -1,9 +1,11 @@
 import { MapPin, Phone } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { estadoDeLista } from "@/lib/estado-de-lista"
 import { useSucursales } from "../hooks/useSucursales"
 
 export function BranchesPage() {
   const { sucursales, isLoading, error } = useSucursales()
+  const estado = estadoDeLista({ isLoading, cantidad: sucursales.length })
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:py-14">
@@ -14,7 +16,13 @@ export function BranchesPage() {
 
       {error && <p className="mt-6 text-sm text-destructive">{error}</p>}
 
-      {isLoading ? (
+      {estado === "vacio" && !error && (
+        <p className="mt-16 text-center text-sm text-muted-foreground">
+          Todavía no hay sucursales cargadas.
+        </p>
+      )}
+
+      {estado === "cargando" ? (
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-2xl" />
