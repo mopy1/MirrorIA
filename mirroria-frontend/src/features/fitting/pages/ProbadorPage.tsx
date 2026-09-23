@@ -12,6 +12,7 @@ import { RespaldoSinCamara } from "../components/respaldo-sin-camara"
 import { TiraDePrendas } from "../components/tira-de-prendas"
 import { useCamara } from "../hooks/useCamara"
 import { usePose } from "../hooks/usePose"
+import { type ResultadoFoto, avisoDespuesDeLaFoto } from "../lib/avisoDeFoto"
 import { ESTABILIDAD_INICIAL, siguienteEstabilidad } from "../lib/estabilidadDePose"
 import { ANCLA_ESTANDAR, VISIBILIDAD_MINIMA, calcularTransformPrenda } from "../lib/landmarkMath"
 import { parDeAnclaje } from "../lib/parDeAnclaje"
@@ -23,6 +24,10 @@ import {
 } from "../lib/prendasProbables"
 import { proyeccionCover } from "../lib/proyeccionCover"
 import { recorteCover } from "../lib/recorteCover"
+
+/** Cuánto se espera antes de liberar la URL del blob de la foto. Tiene que
+ * alcanzar para que el navegador arranque la descarga. */
+const MS_PARA_LIBERAR_LA_FOTO = 30_000
 
 export function ProbadorPage() {
   const { productoId } = useParams()
@@ -111,16 +116,26 @@ export function ProbadorPage() {
   // `object-cover` en pantalla, con `recorteCover`) más la prenda puesta,
   // con la misma cuenta que usa la escena en vivo, y dispara la descarga.
   const sacarFoto = useCallback(() => {
+    const avisar = (resultado: ResultadoFoto) =>
+      setAviso((previo) => avisoDespuesDeLaFoto(previo, resultado))
+
     // Sin las dimensiones reales de la cámara no hay ni recorte ni
-    // proyección posibles todavía (metadatos sin cargar).
-    if (!video || !video.videoWidth || !video.videoHeight) return
+    // proyección posibles todavía (metadatos sin cargar). Antes el botón se
+    // quedaba sin hacer nada, en silencio.
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      avisar("camara-no-lista")
+      return
+    }
     const ancho = video.clientWidth
     const alto = video.clientHeight
     const canvas = document.createElement("canvas")
     canvas.width = ancho
     canvas.height = alto
     const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    if (!ctx) {
+      avisar("fallo")
+      return
+    }
 
     const { sx, sy, sw, sh } = recorteCover(video.videoWidth, video.videoHeight, ancho, alto)
     ctx.save()
@@ -129,15 +144,38 @@ export function ProbadorPage() {
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, ancho, alto)
     ctx.restore()
 
-    const descargar = () => {
+    // `toBlob` + `createObjectURL` en vez de `toDataURL`: un PNG de varios
+    // MB metido entero en una data URI es justo donde Safari/iOS falla, y
+    // ese es el navegador del caso de uso principal. Además, si el canvas
+    // quedara contaminado, `toBlob` lanza `SecurityError`: antes eso dejaba
+    // el botón sin hacer nada y sin decir por qué.
+    const guardar = (resultado: ResultadoFoto) => {
       const enlace = enlaceDescarga.current
-      if (!enlace) return
-      enlace.href = canvas.toDataURL("image/png")
-      enlace.click()
+      if (!enlace) {
+        avisar("fallo")
+        return
+      }
+      try {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            avisar("fallo")
+            return
+          }
+          const url = URL.createObjectURL(blob)
+          enlace.href = url
+          enlace.click()
+          // Liberar la URL en el mismo tick puede cancelar la descarga que
+          // recién arranca; un rato después ya no.
+          setTimeout(() => URL.revokeObjectURL(url), MS_PARA_LIBERAR_LA_FOTO)
+          avisar(resultado)
+        }, "image/png")
+      } catch {
+        avisar("fallo")
+      }
     }
 
     if (!prenda?.arOverlayImageUrl) {
-      descargar()
+      guardar("ok")
       return
     }
 
@@ -147,6 +185,11 @@ export function ProbadorPage() {
     // que la prenda caiga en el mismo lugar que se vio en pantalla.
     const proy = proyeccionCover(video.videoWidth, video.videoHeight, ancho, alto)
     const img = new Image()
+    // Sin esto el canvas quedaría contaminado (las URL de las prendas son
+    // absolutas a otro dominio) y no se podría guardar nada. El costo es que
+    // si ese dominio no manda `Access-Control-Allow-Origin`, la imagen no
+    // carga y la foto sale sin prenda: eso ahora se AVISA (antes pasaba en
+    // silencio, y en desarrollo pasa siempre).
     img.crossOrigin = "anonymous"
     img.onload = () => {
       const t = calcularTransformPrenda(
@@ -163,11 +206,9 @@ export function ProbadorPage() {
         ctx.drawImage(img, -t.width / 2, -t.height / 2, t.width, t.height)
         ctx.restore()
       }
-      descargar()
+      guardar(t.visible ? "ok" : "sin-prenda")
     }
-    // Si el recorte falla acá (más raro: ya se estaba mostrando), la foto
-    // sale igual, solo que sin la prenda encima.
-    img.onerror = descargar
+    img.onerror = () => guardar("sin-prenda")
     img.src = prenda.arOverlayImageUrl
   }, [video, prenda, puntos, par])
 

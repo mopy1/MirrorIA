@@ -422,9 +422,14 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
   const rutaFoto = path.join(OUT, "1-foto-descargada.png")
   await descarga.saveAs(rutaFoto)
   const bytesFoto = fs.statSync(rutaFoto).size
-  const avisoTrasLaFoto = await page.evaluate(() =>
-    document.body.innerText.includes("No pudimos guardar la foto"),
-  )
+  // Los dos avisos que puede dejar `sacarFoto`. Que no aparezca ninguno es,
+  // ademas, la prueba de que la prenda entro en la foto: si el PNG no se
+  // puede volver a pedir con CORS, la app avisa "sin la prenda" en vez de
+  // guardar una foto a medias en silencio.
+  const avisoTrasLaFoto = await page.evaluate(() => {
+    const texto = document.body.innerText
+    return texto.includes("No pudimos guardar la foto") || texto.includes("sin la prenda")
+  })
   log(`foto descargada: ${descarga.suggestedFilename()} (${bytesFoto} bytes) — aviso de error: ${avisoTrasLaFoto}`)
 
   log("archivos de /mediapipe/ que pidio el navegador:", pedidosMediapipe)
