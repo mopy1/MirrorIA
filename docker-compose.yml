@@ -9,7 +9,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: mirroria_db
     ports:
-      - "5435:5432"
+      # Solo localhost del host: en un despliegue con IP pública, publicar
+      # esto en 0.0.0.0 deja Postgres alcanzable desde internet con solo
+      # adivinar la contraseña — acá no hace falta acceso externo, solo
+      # `psql` desde la propia VM/máquina si hiciera falta debuggear.
+      - "127.0.0.1:5435:5432"
     volumes:
       - mirroria_pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
@@ -35,7 +39,10 @@ services:
       DB_HOST: postgres-db
       DB_PORT: 5432
     ports:
-      - "3000:3000"
+      # Solo localhost del host: el tráfico externo real entra por nginx
+      # (mirroria-frontend, puerto 80) y le llega acá dentro de la propia
+      # red de compose — no hace falta exponer el backend directo afuera.
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres-db:
         condition: service_healthy
