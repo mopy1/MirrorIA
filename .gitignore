@@ -57,3 +57,6 @@ __pycache__/
 **/__pycache__/
 *.pyc
 scripts/prendas/.trabajo/
+
+# --- Pruebas del probador en navegador (scripts/probar-probador.cjs) ---
+scripts/.trabajo/
