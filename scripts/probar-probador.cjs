@@ -12,12 +12,17 @@ const { chromium } = require("C:/dev/forja/herramientas/node_modules/playwright"
 
 const path = require("node:path")
 const fs = require("node:fs")
+const http = require("node:http")
 
 const BASE = process.env.BASE || "http://localhost:5178"
 const VIDEO = process.env.VIDEO
 const OUT = process.env.OUT || path.join(__dirname, ".trabajo")
 const API_BASE = process.env.VITE_API_URL || "https://mirroria.duckdns.org/api/v1"
 const CARPETA_PRENDAS_LOCAL = path.join(__dirname, "..", "mirroria-frontend", "public", "prendas")
+const CARPETA_MEDIAPIPE_PUBLIC = path.join(__dirname, "..", "mirroria-frontend", "public", "mediapipe")
+const VISION_BUNDLE = path.join(
+  __dirname, "..", "mirroria-frontend", "node_modules", "@mediapipe", "tasks-vision", "vision_bundle.mjs",
+)
 
 if (!VIDEO) {
   console.error("Falta VIDEO=<ruta al .y4m con una persona>")
@@ -79,6 +84,149 @@ async function primeraPrendaConRecorte() {
   if (!conRecorte) throw new Error("no hay ningun producto con arOverlayImageUrl en el catalogo")
   const archivo = decodeURIComponent(conRecorte.arOverlayImageUrl.split("/").pop())
   return { titulo: conRecorte.titulo, archivo }
+}
+
+// --- Sonda independiente de pose ------------------------------------------
+//
+// La primera versión de esta prueba solo comprobaba que el <img> de la
+// prenda quedara con opacity:1 y un translate() con números "razonables"
+// (dentro de +/- un recuadro entero). Eso no prueba que la prenda caiga
+// SOBRE el cuerpo: una revisión encontró que, con esa cota tan floja, la
+// prenda podía flotar lejos del cuerpo (como de hecho pasó una vez) y la
+// prueba la daba por buena igual.
+//
+// Para probar el anclaje de verdad hace falta un punto de comparación
+// independiente de lo que calcula la propia app: dónde están REALMENTE los
+// hombros de la persona en pantalla. Como `persona.y4m` es una sola foto
+// repetida (ver `scripts/prendas/hacer-video-de-prueba.py`), correr el
+// detector de pose una sola vez alcanza: el resultado es el mismo en
+// cualquier cuadro. Así que esta sonda levanta un servidor HTTP efímero que
+// sirve el mismo paquete `@mediapipe/tasks-vision` y los mismos archivos de
+// `public/mediapipe/` que ya usa la app (sin tocarlos ni importarlos desde
+// el código de la app: es una carga aparte, en una pestaña aparte), abre
+// una pestaña en blanco que pide la MISMA cámara falsa y corre el detector
+// una vez. De ahí salen los landmarks crudos (sin mirar en ningún momento
+// el código de `features/fitting/`).
+//
+// El mapeo de esos landmarks a píxeles de pantalla (proyeccion tipo
+// object-fit:cover + espejado) se reimplementa acá desde cero, a partir de
+// la semántica estándar de CSS `object-fit: cover` (no se importa
+// `proyeccionCover.ts` de la app): así la comparación es realmente
+// independiente y no puede pasar en verde solo porque comparte un bug con
+// el código que se está verificando.
+function contentTypeDeSonda(nombre) {
+  if (nombre.endsWith(".mjs") || nombre.endsWith(".js")) return "text/javascript"
+  if (nombre.endsWith(".wasm")) return "application/wasm"
+  if (nombre.endsWith(".task")) return "application/octet-stream"
+  return "application/octet-stream"
+}
+
+const HTML_SONDA = `<!doctype html><html><body>
+<video id="v" autoplay playsinline muted style="width:640px;height:480px"></video>
+<script type="module">
+  import { FilesetResolver, PoseLandmarker } from "/vision_bundle.mjs"
+  ;(async () => {
+    const video = document.getElementById("v")
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    video.srcObject = stream
+    await video.play()
+    while (video.readyState < 2) await new Promise((r) => setTimeout(r, 50))
+    const fileset = await FilesetResolver.forVisionTasks("/mediapipe")
+    const detector = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task" },
+      runningMode: "VIDEO",
+      numPoses: 1,
+    })
+    let r = null
+    for (let i = 0; i < 10 && !(r && r.landmarks && r.landmarks.length); i++) {
+      await new Promise((res) => requestAnimationFrame(res))
+      r = detector.detectForVideo(video, performance.now())
+    }
+    window.__resultadoSonda = {
+      landmarks: r && r.landmarks && r.landmarks[0] ? r.landmarks[0] : null,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+    }
+  })().catch((e) => {
+    // Algunos loaders de WASM rechazan con el Event de "error" del <script>
+    // en vez de con un Error real: de ahi que no alcance con String(e) (da
+    // "[object Event]"). Se prioriza el tipo de evento y el src del target.
+    let detalle = ""
+    if (e && e.target && e.target.tagName) detalle = \` tagName=\${e.target.tagName} src=\${e.target.src || e.target.currentSrc || ""}\`
+    const msg = (e && e.stack) || (e && e.message) || (e && e.type ? "Event tipo=" + e.type + detalle : null) || String(e)
+    window.__resultadoSonda = { error: msg }
+  })
+</script>
+</body></html>`
+
+async function levantarServidorDeSonda() {
+  const archivosMediapipe = new Set(fs.readdirSync(CARPETA_MEDIAPIPE_PUBLIC))
+  const server = http.createServer((req, res) => {
+    const ruta = req.url.split("?")[0]
+    if (ruta === "/" || ruta === "/index.html") {
+      res.writeHead(200, { "Content-Type": "text/html" })
+      res.end(HTML_SONDA)
+      return
+    }
+    if (ruta === "/vision_bundle.mjs") {
+      res.writeHead(200, { "Content-Type": "text/javascript" })
+      fs.createReadStream(VISION_BUNDLE).pipe(res)
+      return
+    }
+    // Ojo: FilesetResolver.forVisionTasks NO acepta "/" como base (arma
+    // "//archivo.js", que el navegador interpreta como protocol-relative URL
+    // y termina pidiendo "http://archivo.js/" como si fuera un host). Por
+    // eso los assets de mediapipe van bajo "/mediapipe/", igual que ya hace
+    // la app real en `public/mediapipe` (usePose.ts: forVisionTasks("/mediapipe")).
+    const nombre = ruta.replace(/^\/mediapipe\//, "")
+    if (ruta.startsWith("/mediapipe/") && archivosMediapipe.has(nombre)) {
+      res.writeHead(200, { "Content-Type": contentTypeDeSonda(nombre) })
+      fs.createReadStream(path.join(CARPETA_MEDIAPIPE_PUBLIC, nombre)).pipe(res)
+      return
+    }
+    res.writeHead(404)
+    res.end("no encontrado")
+  })
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const { port } = server.address()
+  return { server, url: `http://127.0.0.1:${port}/` }
+}
+
+// Reproduce `object-fit: cover` + el espejado por CSS (`scale-x-[-1]`) del
+// <video> de la escena, desde cero: agranda el video hasta tapar el
+// contenedor (escala = máximo de las dos razones ancho/alto, no el mínimo:
+// "cover" recorta el sobrante en vez de dejar barras), lo centra, y espeja
+// el resultado en torno al centro del contenedor (el <video> mide 100% del
+// ancho del contenedor y el espejo es una transformación CSS sobre el
+// propio elemento).
+function proyectarComoObjectCover(puntoNormalizado, anchoVideo, altoVideo, anchoContenedor, altoContenedor) {
+  const escala = Math.max(anchoContenedor / anchoVideo, altoContenedor / altoVideo)
+  const anchoMostrado = anchoVideo * escala
+  const altoMostrado = altoVideo * escala
+  const offsetX = (anchoContenedor - anchoMostrado) / 2
+  const offsetY = (altoContenedor - altoMostrado) / 2
+  const sinEspejar = { x: offsetX + puntoNormalizado.x * anchoMostrado, y: offsetY + puntoNormalizado.y * altoMostrado }
+  return { x: anchoContenedor - sinEspejar.x, y: sinEspejar.y }
+}
+
+async function medirCentroDelCuerpoIndependiente(browser) {
+  const { server, url } = await levantarServidorDeSonda()
+  try {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 })
+      await page.waitForFunction(() => window.__resultadoSonda, { timeout: 30000 })
+      const resultado = await page.evaluate(() => window.__resultadoSonda)
+      if (resultado.error) throw new Error("la sonda de pose independiente fallo: " + resultado.error)
+      if (!resultado.landmarks) throw new Error("la sonda independiente no detecto ninguna pose en el video")
+      return resultado
+    } finally {
+      await context.close()
+    }
+  } finally {
+    server.close()
+  }
 }
 
 // Lee la clase del <li> de un paso del panel guiado para decidir su estado.
@@ -151,6 +299,7 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
 
   const datos = await page.evaluate(() => {
     const caja = document.querySelector(".relative.aspect-\\[3\\/4\\]")
+    const video = document.querySelector("video")
     const img = document.querySelector('img[alt=""].pointer-events-none')
     const m = img.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/)
     return {
@@ -160,25 +309,68 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
       translateY: m ? Number(m[2]) : null,
       cajaAncho: caja.clientWidth,
       cajaAlto: caja.clientHeight,
-      imgAncho: img.style.width,
-      imgAlto: img.style.height,
+      imgAnchoPx: img.getBoundingClientRect().width,
+      imgAltoPx: img.getBoundingClientRect().height,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
     }
   })
   log("transform de la prenda:", datos)
 
-  const dentroDelRecuadro =
-    datos.translateX !== null &&
-    datos.translateY !== null &&
-    datos.translateX > -datos.cajaAncho &&
-    datos.translateX < datos.cajaAncho * 2 &&
-    datos.translateY > -datos.cajaAlto &&
-    datos.translateY < datos.cajaAlto * 2
+  // Sonda independiente: detecta la pose UNA VEZ, en una pestaña aparte, con
+  // su propia copia de @mediapipe/tasks-vision (no la de la app), para saber
+  // dónde están REALMENTE los hombros en pantalla y comparar contra eso, en
+  // vez de solo comprobar que el translate() "no sea disparatado".
+  const sonda = await medirCentroDelCuerpoIndependiente(browser)
+  const HOMBRO_IZQ = 11
+  const HOMBRO_DER = 12
+  const pIzq = sonda.landmarks[HOMBRO_IZQ]
+  const pDer = sonda.landmarks[HOMBRO_DER]
+  const cIzq = proyectarComoObjectCover(pIzq, sonda.videoWidth, sonda.videoHeight, datos.cajaAncho, datos.cajaAlto)
+  const cDer = proyectarComoObjectCover(pDer, sonda.videoWidth, sonda.videoHeight, datos.cajaAncho, datos.cajaAlto)
+  const centroCuerpoX = (cIzq.x + cDer.x) / 2
+  const centroCuerpoY = (cIzq.y + cDer.y) / 2
 
-  log(
-    dentroDelRecuadro
-      ? "anclaje: OK — opacity=1 y translate con numeros plausibles dentro/cerca del recuadro"
-      : "anclaje: FALLA — translate fuera de rango razonable",
-  )
+  // El punto que la app ancla al medio de los hombros es el 50%/24% de la
+  // imagen de la prenda (ANCLA_ESTANDAR en landmarkMath.ts), no su esquina
+  // top-left: hay que leer el mismo punto para comparar manzanas con manzanas.
+  const centroPrendaX = datos.translateX + 0.5 * datos.imgAnchoPx
+  const centroPrendaY = datos.translateY + 0.24 * datos.imgAltoPx
+
+  const dx = centroPrendaX - centroCuerpoX
+  const dy = centroPrendaY - centroCuerpoY
+  const separacionPx = Math.hypot(dx, dy)
+
+  // Tolerancia: 18% del ancho del recuadro (pedido: 15-20%). Se aplica a
+  // cada eje por separado y no a la distancia euclídea derecha para no ser
+  // más laxo en diagonal que en cada eje.
+  const TOLERANCIA_POSICION_FRACCION = 0.18
+  const toleranciaPx = TOLERANCIA_POSICION_FRACCION * datos.cajaAncho
+  const ancladaSobreElCuerpo = Math.abs(dx) <= toleranciaPx && Math.abs(dy) <= toleranciaPx
+
+  log("centro del cuerpo (sonda independiente, proyectado con object-cover):", {
+    centroCuerpoX: Math.round(centroCuerpoX),
+    centroCuerpoY: Math.round(centroCuerpoY),
+  })
+  log("centro de la prenda (según su translate()):", {
+    centroPrendaX: Math.round(centroPrendaX),
+    centroPrendaY: Math.round(centroPrendaY),
+  })
+  log(`separación: dx=${dx.toFixed(1)}px, dy=${dy.toFixed(1)}px, distancia=${separacionPx.toFixed(1)}px (tolerancia ±${toleranciaPx.toFixed(1)}px = ${TOLERANCIA_POSICION_FRACCION * 100}% del ancho del recuadro)`)
+  log(ancladaSobreElCuerpo ? "posición: OK — el centro de la prenda cae cerca del centro real del cuerpo" : "posición: FALLA — la prenda no está sobre el cuerpo")
+
+  // Tamaño: entre el 10% (una prenda visiblemente puesta, no un timbre) y el
+  // 100% (una remera no puede ser más ancha que el encuadre de cuerpo entero
+  // que pide el paso 2 del panel) del ancho del recuadro. El límite inferior
+  // es generoso a propósito: una prenda de torso a metro y medio de la
+  // cámara ocupa una fracción chica del cuadro, pero un recorte roto o una
+  // escala mal calculada suele irse a un orden de magnitud, no a un 20%.
+  const FRACCION_MINIMA_ANCHO = 0.1
+  const FRACCION_MAXIMA_ANCHO = 1.0
+  const fraccionAncho = datos.imgAnchoPx / datos.cajaAncho
+  const tamanioRazonable = fraccionAncho >= FRACCION_MINIMA_ANCHO && fraccionAncho <= FRACCION_MAXIMA_ANCHO
+  log(`tamaño: ancho de la prenda = ${fraccionAncho * 100}% del ancho del recuadro (rango aceptado: ${FRACCION_MINIMA_ANCHO * 100}%-${FRACCION_MAXIMA_ANCHO * 100}%)`)
+  log(tamanioRazonable ? "tamaño: OK" : "tamaño: FALLA — fuera del rango razonable")
 
   await page.screenshot({ path: path.join(OUT, "1-camino-feliz.png"), fullPage: true })
   // Recorte de solo la escena (video + prenda), mas facil de mirar a ojo.
@@ -191,7 +383,16 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
   if (ruido.length) log(`(ademas, ${ruido.length} lineas de ruido conocido del motor TFLite, ignoradas)`)
 
   await context.close()
-  return { opacityOk: datos.opacity === "1", dentroDelRecuadro, errores }
+  return {
+    opacityOk: datos.opacity === "1",
+    ancladaSobreElCuerpo,
+    tamanioRazonable,
+    dx,
+    dy,
+    separacionPx,
+    fraccionAncho,
+    errores,
+  }
 }
 
 // --- Escenario 2: sin camara ----------------------------------------------
@@ -319,13 +520,19 @@ async function probarPrendaQueNoCarga(browser, prendaObjetivo) {
 
   const fallo =
     !resultados.feliz.opacityOk ||
-    !resultados.feliz.dentroDelRecuadro ||
+    !resultados.feliz.ancladaSobreElCuerpo ||
+    !resultados.feliz.tamanioRazonable ||
     resultados.feliz.errores.length > 0 ||
     !resultados.sinCamara.hayBotonReintentar ||
     resultados.sinCamara.hayVideo ||
     resultados.sinCamara.errores.length > 0 ||
     !resultados.prendaRota.hayVideoTrasElError ||
-    resultados.prendaRota.pedidosFallidos > 5 ||
+    // Exactamente 1: el <img onError> del PNG roto dispara una sola petición
+    // de red por intento de carga, no hay lógica de reintento en la app (se
+    // vio en las tres corridas de esta prueba). Si algún día un cambio le
+    // agrega un reintento legítimo, esto se vuelve `> 1` con un comentario
+    // que lo explique — no antes.
+    resultados.prendaRota.pedidosFallidos !== 1 ||
     resultados.prendaRota.errores.length > 0
 
   if (fallo) {
