@@ -57,15 +57,15 @@ export function HeroSection() {
             <Link to={primaryCta.href} className={cn(buttonVariants({ size: "lg" }))}>
               {primaryCta.label}
             </Link>
-            <a
-              href={secondaryCta.href}
+            <Link
+              to={secondaryCta.href}
               className={cn(
                 buttonVariants({ size: "lg", variant: "outline" }),
                 "border-white/40 bg-transparent text-white hover:bg-white/10"
               )}
             >
               {secondaryCta.label}
-            </a>
+            </Link>
           </div>
         </motion.div>
       </div>

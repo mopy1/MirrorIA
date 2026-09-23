@@ -27,7 +27,12 @@ export function EscenaProbador({ stream, puntos, par, urlPrenda, onVideo, onErro
     const v = video.current
     // Sin las dos dimensiones del video (llegan recién con los metadatos
     // cargados) no hay proyección posible: mejor ocultar que anclar mal.
-    if (!img || !cont || !urlPrenda || !v || !v.videoWidth || !v.videoHeight) {
+    // `cont.clientWidth === 0` pasa de verdad: una pestaña oculta, el
+    // instante de una rotación de pantalla. Proyectar con un contenedor de
+    // ancho 0 da NaN en el transform (y el navegador se come el estilo sin
+    // decir nada), así que se trata igual que no tener video.
+    if (!img || !cont || !urlPrenda || !v || !v.videoWidth || !v.videoHeight ||
+        !cont.clientWidth || !cont.clientHeight) {
       if (img) img.style.opacity = "0"
       return
     }

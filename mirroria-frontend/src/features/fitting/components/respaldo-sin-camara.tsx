@@ -25,7 +25,17 @@ export function RespaldoSinCamara({
       <div className="relative mx-auto aspect-[3/4] w-full max-w-xs">
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-foreground/10 to-transparent" />
         {urlPrenda && (
-          <img src={urlPrenda} alt="" className="absolute inset-0 m-auto max-h-full object-contain" />
+          <img
+            src={urlPrenda}
+            alt=""
+            // Esta es la pantalla de quien ya falló una vez (sin cámara, sin
+            // permiso): si además el PNG de la prenda no carga, un ícono roto
+            // es peor que nada. Se esconde y queda el degradado.
+            onError={(e) => {
+              e.currentTarget.hidden = true
+            }}
+            className="absolute inset-0 m-auto max-h-full object-contain"
+          />
         )}
       </div>
       <p className="mt-6 text-sm text-muted-foreground">{MOTIVO[estado]}</p>
