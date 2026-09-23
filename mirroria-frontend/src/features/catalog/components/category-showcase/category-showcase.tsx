@@ -38,12 +38,14 @@ export function CategoryShowcase() {
       {/* Sin categorias la grilla no dibujaba NADA y el titulo quedaba flotando
           sobre un hueco mudo. Es el estado real de una tienda recien
           desplegada, asi que se dice en palabras. */}
+      {/* La grilla va a 6 columnas porque el catalogo tiene 6 categorias: con 5,
+          "Vestidos" quedaba sola en una segunda fila. */}
       {estado === "vacio" ? (
         <p className="mt-16 text-center text-sm text-muted-foreground">
           Todavía no hay categorías cargadas.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {estado === "cargando"
           ? Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="aspect-[3/4] rounded-2xl" />
@@ -94,7 +96,9 @@ export function CategoryShowcase() {
 
                       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-4">
                         <div className="min-w-0 flex-1">
-                          <p className="text-base font-medium text-white truncate">{categoria.nombre}</p>
+                          <p className="text-base font-medium text-white leading-tight">
+                            {categoria.nombre}
+                          </p>
                           {producto && (
                             <p className="text-xs text-white/75 truncate font-normal">
                               {producto.titulo}
