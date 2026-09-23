@@ -16,6 +16,7 @@ import { ANCLA_ESTANDAR, VISIBILIDAD_MINIMA, calcularTransformPrenda } from "../
 import { parDeAnclaje } from "../lib/parDeAnclaje"
 import { calcularPasos } from "../lib/pasosGuiados"
 import { elegirPrendaInicial, prendasProbables } from "../lib/prendasProbables"
+import { proyeccionCover } from "../lib/proyeccionCover"
 import { recorteCover } from "../lib/recorteCover"
 
 export function ProbadorPage() {
@@ -78,7 +79,9 @@ export function ProbadorPage() {
   // `object-cover` en pantalla, con `recorteCover`) más la prenda puesta,
   // con la misma cuenta que usa la escena en vivo, y dispara la descarga.
   const sacarFoto = useCallback(() => {
-    if (!video) return
+    // Sin las dimensiones reales de la cámara no hay ni recorte ni
+    // proyección posibles todavía (metadatos sin cargar).
+    if (!video || !video.videoWidth || !video.videoHeight) return
     const ancho = video.clientWidth
     const alto = video.clientHeight
     const canvas = document.createElement("canvas")
@@ -106,19 +109,24 @@ export function ProbadorPage() {
       return
     }
 
+    // Mismo problema espejado que en la escena en vivo: los landmarks son
+    // fracciones del cuadro completo de la cámara, no del recuadro que
+    // `recorteCover` ya recortó arriba. Se proyecta con la misma cuenta para
+    // que la prenda caiga en el mismo lugar que se vio en pantalla.
+    const proy = proyeccionCover(video.videoWidth, video.videoHeight, ancho, alto)
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => {
       const t = calcularTransformPrenda(
         puntos[par[0]], puntos[par[1]],
-        ancho, alto,
+        proy.anchoMostrado, proy.altoMostrado,
         true,
         img.naturalWidth || 1, img.naturalHeight || 1,
         ANCLA_ESTANDAR,
       )
       if (t.visible) {
         ctx.save()
-        ctx.translate(t.left + t.width / 2, t.top + t.height / 2)
+        ctx.translate(t.left + proy.offsetX + t.width / 2, t.top + proy.offsetY + t.height / 2)
         ctx.rotate((t.rotationDeg * Math.PI) / 180)
         ctx.drawImage(img, -t.width / 2, -t.height / 2, t.width, t.height)
         ctx.restore()
