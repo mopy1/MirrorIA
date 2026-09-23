@@ -9,6 +9,15 @@ El video es una sola foto repetida: al detector de pose le alcanza con un
 cuadro, no necesita movimiento.
 
   python hacer-video-de-prueba.py salida.y4m [--foto <slug de burst>]
+                                  [--encuadre 0.72]
+
+`--encuadre` es en que fraccion del ancho de la foto original esta la
+persona. No es un detalle: la escena del probador muestra el video con
+`object-fit: cover` dentro de un recuadro 3/4, o sea que se queda con la
+franja CENTRAL (56%) del cuadro 4:3 de la camara. Con un encuadre centrado
+y una foto donde la persona esta a un costado, la persona termina cortada
+por el borde: la prueba sigue midiendo bien el anclaje, pero sobre un
+cuerpo que casi no se ve, y las capturas no le sirven a nadie.
 """
 import argparse
 import urllib.request
@@ -19,6 +28,8 @@ from PIL import Image
 # Una persona de cuerpo entero, de frente y con los hombros despejados: es lo
 # que el detector necesita para encontrar los landmarks 11 y 12.
 FOTO_POR_DEFECTO = "model-in-heels-and-overalls-with-blue"
+# En esa foto (1200x724) la modelo esta a la derecha, a ~0,72 del ancho.
+ENCUADRE_POR_DEFECTO = 0.72
 ANCHO, ALTO, CUADROS = 640, 480, 30
 
 
@@ -29,14 +40,16 @@ def bajar(slug):
         return Image.open(urllib.request.io.BytesIO(r.read())) if False else Image.open(__import__("io").BytesIO(r.read()))
 
 
-def encuadrar(im, ancho, alto):
-    """Recorta al centro conservando la proporcion pedida."""
+def encuadrar(im, ancho, alto, encuadre=0.5):
+    """Recorta a la proporcion pedida, alrededor de `encuadre` (fraccion
+    del ancho donde esta la persona), sin salirse de la imagen."""
     im = im.convert("RGB")
     objetivo = ancho / alto
     actual = im.width / im.height
     if actual > objetivo:
         nuevo = int(im.height * objetivo)
-        izq = (im.width - nuevo) // 2
+        izq = int(round(im.width * encuadre - nuevo / 2))
+        izq = max(0, min(izq, im.width - nuevo))
         im = im.crop((izq, 0, izq + nuevo, im.height))
     else:
         nuevo = int(im.width / objetivo)
@@ -66,9 +79,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("salida")
     ap.add_argument("--foto", default=FOTO_POR_DEFECTO)
+    ap.add_argument("--encuadre", type=float, default=ENCUADRE_POR_DEFECTO,
+                    help="en que fraccion del ancho de la foto esta la persona")
     args = ap.parse_args()
 
-    cuadro = a_i420(encuadrar(bajar(args.foto), ANCHO, ALTO))
+    cuadro = a_i420(encuadrar(bajar(args.foto), ANCHO, ALTO, args.encuadre))
     with open(args.salida, "wb") as f:
         f.write(f"YUV4MPEG2 W{ANCHO} H{ALTO} F30:1 Ip A1:1 C420mpeg2\n".encode())
         for _ in range(CUADROS):
