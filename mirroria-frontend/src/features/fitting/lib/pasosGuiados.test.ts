@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest"
 import { calcularPasos } from "./pasosGuiados"
 
 const senales = (p: Partial<Parameters<typeof calcularPasos>[0]> = {}) =>
-  calcularPasos({ hayCamara: false, puntosVisibles: 0, prendaElegida: false, ...p })
+  calcularPasos({
+    hayCamara: false,
+    modeloListo: true,
+    puntosVisibles: 0,
+    prendaElegida: false,
+    ...p,
+  })
 
 describe("calcularPasos", () => {
   it("al entrar, el primer paso es el de la cámara y los otros esperan", () => {
@@ -55,6 +61,27 @@ describe("calcularPasos", () => {
     expect(p.ubicacion).toBe("activo")
     expect(p.prenda).toBe("listo")
     expect(p.completo).toBe(false)
+  })
+
+  it("mientras el modelo se está bajando, el panel lo dice en vez de culpar a la clienta", () => {
+    // Entre que la cámara arranca y que el detector termina de cargar (17,5 MB)
+    // no hay ningún punto visible: el mensaje de "No te veo" era una mentira.
+    const p = senales({ hayCamara: true, modeloListo: false, puntosVisibles: 0 })
+    expect(p.camara).toBe("listo")
+    expect(p.ubicacion).toBe("activo")
+    expect(p.mensaje).toBe("Preparando el probador…")
+    expect(p.completo).toBe(false)
+  })
+
+  it("con el modelo cargando, una prenda ya elegida sigue marcada", () => {
+    const p = senales({ hayCamara: true, modeloListo: false, prendaElegida: true })
+    expect(p.prenda).toBe("listo")
+  })
+
+  it("sin cámara, el mensaje de la cámara gana al de la carga del modelo", () => {
+    expect(senales({ hayCamara: false, modeloListo: false }).mensaje).toBe(
+      "Permití la cámara para empezar."
+    )
   })
 
   it("si se desconecta la cámara después de elegir prenda, se vuelve al inicio", () => {

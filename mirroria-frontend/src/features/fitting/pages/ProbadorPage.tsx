@@ -25,7 +25,7 @@ export function ProbadorPage() {
   const { categorias } = useCategorias()
   const { stream, estado, reintentar } = useCamara()
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
-  const { puntos } = usePose(video, estado === "lista")
+  const { puntos, listo: modeloListo } = usePose(video, estado === "lista")
   const [prenda, setPrenda] = useState<Producto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   // Ids cuyo recorte ya dio error en esta sesión: sin esto, si la prenda del
@@ -50,6 +50,7 @@ export function ProbadorPage() {
 
   const pasos = calcularPasos({
     hayCamara: estado === "lista",
+    modeloListo,
     puntosVisibles: visibles,
     prendaElegida: Boolean(prenda),
   })

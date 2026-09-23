@@ -1,5 +1,10 @@
 export interface SenalesProbador {
   hayCamara: boolean
+  /** ¿Ya terminó de cargar el detector de pose? Entre que la cámara arranca
+   * y que el modelo está listo pasan varios segundos (17,5 MB de wasm y
+   * modelo), y en ese rato no se ve ningún punto: sin esta señal el panel le
+   * echaba la culpa a la clienta («No te veo») de una descarga. */
+  modeloListo: boolean
   /** Cuántos de los dos puntos de anclaje se ven (0, 1 o 2). */
   puntosVisibles: number
   prendaElegida: boolean
@@ -20,9 +25,11 @@ export interface PasosProbador {
  *
  * Ningún paso se marca porque la clienta lo diga: la cámara se marca cuando
  * llega el stream, la ubicación cuando el detector ve los dos puntos, y la
- * prenda cuando hay una elegida. Si la pose se pierde, el paso 2 se reenciende
- * aunque ya hubiera prenda: así la pantalla nunca queda sin prenda y sin
- * explicación.
+ * prenda cuando hay una elegida. Mientras el modelo todavía se está bajando
+ * el mensaje lo dice («Preparando el probador…»), en vez de pedirle a la
+ * clienta que se acomode por algo que no depende de ella. Si la pose se
+ * pierde, el paso 2 se reenciende aunque ya hubiera prenda: así la pantalla
+ * nunca queda sin prenda y sin explicación.
  */
 export function calcularPasos(s: SenalesProbador): PasosProbador {
   if (!s.hayCamara) {
@@ -31,6 +38,16 @@ export function calcularPasos(s: SenalesProbador): PasosProbador {
       ubicacion: "pendiente",
       prenda: "pendiente",
       mensaje: "Permití la cámara para empezar.",
+      completo: false,
+    }
+  }
+
+  if (!s.modeloListo) {
+    return {
+      camara: "listo",
+      ubicacion: "activo",
+      prenda: s.prendaElegida ? "listo" : "pendiente",
+      mensaje: "Preparando el probador…",
       completo: false,
     }
   }
