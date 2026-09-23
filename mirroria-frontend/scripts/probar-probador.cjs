@@ -2,34 +2,48 @@
 
 // Verificacion en un navegador real del probador virtual (/probador), con
 // camara simulada por archivo. Cubre el camino feliz (permiso -> deteccion de
-// pose -> prenda anclada) y los dos caminos de error mas baratos de simular:
-// sin camara, y prenda cuyo PNG no carga.
+// pose -> prenda anclada), los dos caminos de error mas baratos de simular
+// (sin camara, y prenda cuyo PNG no carga), la descarga de la foto y el
+// layout en un telefono.
 //
-// Playwright NO es dependencia de este repo: se usa la instalacion que ya
-// existe en la maquina, resuelta por ruta absoluta (por nombre buscaria
-// relativo a este script y fallaria).
-const { chromium } = require("C:/dev/forja/herramientas/node_modules/playwright")
+// Como correrlo (desde mirroria-frontend/):
+//
+//   npm install                       # trae playwright, que es devDependency
+//   npx playwright install chromium   # la primera vez en cada maquina
+//   python ../scripts/prendas/hacer-video-de-prueba.py scripts/.trabajo/persona.y4m
+//   npm run build && npm run preview -- --port 5178
+//   npm run e2e:probador
+//
+// El .y4m NO esta commiteado (13 MB): se fabrica con el script de Python de
+// arriba, que baja una foto de una persona de cuerpo entero y la repite en
+// cuadros. El recorrido pega contra el API de PRODUCCION
+// (https://mirroria.duckdns.org/api/v1) para saber que prenda tiene recorte;
+// los PNG de las prendas, en cambio, se sirven desde el repo (ver
+// `interceptarPrendas`).
+const { chromium } = require("playwright")
 
 const path = require("node:path")
 const fs = require("node:fs")
 const http = require("node:http")
 
 const BASE = process.env.BASE || "http://localhost:5178"
-const VIDEO = process.env.VIDEO
 const OUT = process.env.OUT || path.join(__dirname, ".trabajo")
+const VIDEO = process.env.VIDEO || path.join(OUT, "persona.y4m")
 const API_BASE = process.env.VITE_API_URL || "https://mirroria.duckdns.org/api/v1"
-const CARPETA_PRENDAS_LOCAL = path.join(__dirname, "..", "mirroria-frontend", "public", "prendas")
-const CARPETA_MEDIAPIPE_PUBLIC = path.join(__dirname, "..", "mirroria-frontend", "public", "mediapipe")
+const CARPETA_PRENDAS_LOCAL = path.join(__dirname, "..", "public", "prendas")
+const CARPETA_MEDIAPIPE_PUBLIC = path.join(__dirname, "..", "public", "mediapipe")
 const VISION_BUNDLE = path.join(
-  __dirname, "..", "mirroria-frontend", "node_modules", "@mediapipe", "tasks-vision", "vision_bundle.mjs",
+  __dirname, "..", "node_modules", "@mediapipe", "tasks-vision", "vision_bundle.mjs",
 )
 
-if (!VIDEO) {
-  console.error("Falta VIDEO=<ruta al .y4m con una persona>")
+fs.mkdirSync(OUT, { recursive: true })
+
+if (!fs.existsSync(VIDEO)) {
+  console.error(`No esta el video de la camara simulada: ${VIDEO}`)
+  console.error("Fabricalo (pesa ~13 MB, por eso no se commitea):")
+  console.error(`  python ../scripts/prendas/hacer-video-de-prueba.py "${VIDEO}"`)
   process.exit(1)
 }
-
-fs.mkdirSync(OUT, { recursive: true })
 
 const ARGS_CAMARA_FALSA = [
   "--use-fake-ui-for-media-stream",
@@ -49,8 +63,15 @@ function log(...args) {
 // vez del camino feliz. Se intercepta la peticion y se sirve el archivo
 // local con el mismo nombre, salvo que se pida forzar un 404 (para probar
 // el camino de error a proposito).
+//
+// Se responde con `Access-Control-Allow-Origin: *` a proposito: la foto que
+// arma `sacarFoto` vuelve a pedir el PNG con crossOrigin="anonymous" (para no
+// contaminar el canvas), y sin ese encabezado el navegador rechaza la imagen
+// y la foto saldria sin la prenda. Asi el escenario de la foto ejercita el
+// camino bueno, no el degradado.
 async function interceptarPrendas(page, { archivoQueFalla } = {}) {
   const contador = { fallidos: 0, totalParaElQueFalla: 0 }
+  const CORS = { "Access-Control-Allow-Origin": "*" }
   await page.route("https://mirroria.duckdns.org/prendas/**/*.png", async (route) => {
     const url = route.request().url()
     const archivo = decodeURIComponent(url.split("/").pop())
@@ -62,7 +83,7 @@ async function interceptarPrendas(page, { archivoQueFalla } = {}) {
     }
     const rutaLocal = path.join(CARPETA_PRENDAS_LOCAL, archivo)
     if (fs.existsSync(rutaLocal)) {
-      await route.fulfill({ path: rutaLocal, contentType: "image/png" })
+      await route.fulfill({ path: rutaLocal, contentType: "image/png", headers: CORS })
     } else {
       // No debería pasar (las 13 prendas probables tienen su PNG local),
       // pero si pasara, mejor dejar pasar la petición real que colgar la ruta.
@@ -269,6 +290,17 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
   await instalarCapturaDeErrores(page, errores, ruido)
   await interceptarPrendas(page)
 
+  // Que archivos de `public/mediapipe/` pide REALMENTE el navegador: ahi se
+  // ve cual de las tres variantes de wasm (simd / module / nosimd) se usa y
+  // cuales son 11 MB de repo que nadie baja nunca.
+  const pedidosMediapipe = []
+  page.on("response", async (res) => {
+    const url = res.url()
+    if (!url.includes("/mediapipe/")) return
+    const largo = Number(res.headers()["content-length"] || 0)
+    pedidosMediapipe.push({ archivo: url.split("/").pop(), estado: res.status(), bytes: largo })
+  })
+
   await page.goto(BASE + "/probador", { waitUntil: "domcontentloaded", timeout: 60000 })
 
   await page.waitForSelector("video", { timeout: 15000 })
@@ -378,6 +410,25 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
     path: path.join(OUT, "1-camino-feliz-escena.png"),
   })
 
+  // --- Foto ---------------------------------------------------------------
+  // El boton "Sacar foto" no lo tocaba ninguna prueba: ni unitaria (toca
+  // canvas) ni de navegador. Se hace clic y se comprueba que la descarga
+  // se dispare de verdad, con un archivo de mas de 0 bytes y sin que
+  // aparezca el aviso de error.
+  const descarga = await Promise.all([
+    page.waitForEvent("download", { timeout: 15000 }),
+    page.locator("button", { hasText: "Sacar foto" }).click(),
+  ]).then(([d]) => d)
+  const rutaFoto = path.join(OUT, "1-foto-descargada.png")
+  await descarga.saveAs(rutaFoto)
+  const bytesFoto = fs.statSync(rutaFoto).size
+  const avisoTrasLaFoto = await page.evaluate(() =>
+    document.body.innerText.includes("No pudimos guardar la foto"),
+  )
+  log(`foto descargada: ${descarga.suggestedFilename()} (${bytesFoto} bytes) — aviso de error: ${avisoTrasLaFoto}`)
+
+  log("archivos de /mediapipe/ que pidio el navegador:", pedidosMediapipe)
+
   if (errores.length) log("ERRORES JS:", [...new Set(errores)])
   else log("errores de JS en consola: ninguno")
   if (ruido.length) log(`(ademas, ${ruido.length} lineas de ruido conocido del motor TFLite, ignoradas)`)
@@ -391,18 +442,33 @@ async function probarCaminoFeliz(browser, prendaObjetivo) {
     dy,
     separacionPx,
     fraccionAncho,
+    fotoDescargada: descarga.suggestedFilename(),
+    bytesFoto,
+    avisoTrasLaFoto,
+    pedidosMediapipe,
     errores,
   }
 }
 
 // --- Escenario 2: sin camara ----------------------------------------------
-// Se lanza SIN las banderas de camara simulada. En una maquina sin webcam
-// (o donde Chromium headless no encuentra ninguna) getUserMedia rechaza con
-// NotFoundError y el hook useCamara() cae en "sin-camara": exactamente el
-// camino que hay que comprobar, sin tener que fingir el rechazo.
+// La version anterior lanzaba un Chromium SIN las banderas de camara falsa y
+// confiaba en que la maquina no tuviera webcam. En cualquier notebook con
+// camara ese escenario no se cumple: la prueba se queda esperando la pantalla
+// de respaldo y falla a los 20 s. Ahora el rechazo se FUERZA, inyectando un
+// getUserMedia que rechaza con el `name` que le importa a `useCamara`
+// ("NotFoundError" -> estado "sin-camara"), asi que el resultado no depende
+// del hardware de quien corra la prueba.
 async function probarSinCamara(browser) {
-  log("\n=== Escenario 2: sin camara (sin banderas de fake device) ===")
+  log("\n=== Escenario 2: sin camara (getUserMedia forzado a NotFoundError) ===")
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      writable: true,
+      value: () =>
+        Promise.reject(new DOMException("Requested device not found", "NotFoundError")),
+    })
+  })
   const page = await context.newPage()
   const errores = []
   const ruido = []
@@ -498,21 +564,104 @@ async function probarPrendaQueNoCarga(browser, prendaObjetivo) {
   }
 }
 
+// --- Escenario 4: el panel guiado en un telefono ---------------------------
+// El caso de uso principal es el celular (el propio mensaje de error dice
+// "Probá desde el celular"). Con el layout viejo la escena iba primero y el
+// <aside> con los pasos despues, asi que en vertical los mensajes que guian a
+// la clienta quedaban abajo del pliegue, justo mientras se esta ubicando.
+// Se comprueba a 390 px (iPhone 14) que el panel y el <video> se vean los dos
+// sin desplazar la pagina.
+async function probarEnCelular(browser) {
+  log("\n=== Escenario 4: panel guiado visible a 390px de ancho ===")
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
+  })
+  const page = await context.newPage()
+  const errores = []
+  const ruido = []
+  await instalarCapturaDeErrores(page, errores, ruido)
+  await interceptarPrendas(page)
+
+  await page.goto(BASE + "/probador", { waitUntil: "domcontentloaded", timeout: 60000 })
+  await page.waitForSelector("video", { timeout: 15000 })
+  await fabricarEsperaDePaso(page, 0)
+
+  const medidas = await page.evaluate(() => {
+    const panel = document.querySelector("aside ol")
+    const mensaje = document.querySelector("aside ol")?.parentElement?.querySelector("p")
+    const video = document.querySelector("video")
+    const r = (el) => {
+      const b = el.getBoundingClientRect()
+      return { top: Math.round(b.top), bottom: Math.round(b.bottom), alto: Math.round(b.height) }
+    }
+    return {
+      alto: window.innerHeight,
+      anchoDocumento: document.documentElement.scrollWidth,
+      anchoVentana: window.innerWidth,
+      panel: r(panel),
+      mensaje: mensaje ? r(mensaje) : null,
+      video: r(video),
+    }
+  })
+  log("medidas a 390x844:", medidas)
+
+  // Los tres pasos y el mensaje tienen que entrar enteros en la primera
+  // pantalla, y el video tiene que empezar dentro de ella (no hace falta que
+  // entre entero: es 3/4 y el telefono es alto).
+  const panelVisible = medidas.panel.bottom <= medidas.alto && medidas.panel.top >= 0
+  const mensajeVisible = !!medidas.mensaje && medidas.mensaje.bottom <= medidas.alto
+  const videoEmpiezaVisible = medidas.video.top < medidas.alto
+  const sinScrollHorizontal = medidas.anchoDocumento <= medidas.anchoVentana
+
+  log("panel entero en pantalla:", panelVisible)
+  log("mensaje del panel en pantalla:", mensajeVisible)
+  log("el video empieza dentro de la pantalla:", videoEmpiezaVisible)
+  log("sin scroll horizontal:", sinScrollHorizontal)
+
+  await page.screenshot({ path: path.join(OUT, "4-celular-390.png") })
+  await page.screenshot({ path: path.join(OUT, "4-celular-390-completa.png"), fullPage: true })
+
+  if (errores.length) log("ERRORES JS:", [...new Set(errores)])
+  else log("errores de JS en consola: ninguno")
+
+  await context.close()
+  return { medidas, panelVisible, mensajeVisible, videoEmpiezaVisible, sinScrollHorizontal, errores }
+}
+
+async function verificarQueElSitioEsteArriba() {
+  try {
+    const res = await fetch(BASE, { method: "GET" })
+    if (!res.ok) throw new Error(`respondio ${res.status}`)
+  } catch (e) {
+    console.error(`No hay nada escuchando en ${BASE} (${String(e).slice(0, 120)}).`)
+    console.error("Levantalo primero, desde mirroria-frontend/:")
+    console.error("  npm run build && npm run preview -- --port 5178")
+    console.error("(o apuntalo a otro lado con BASE=http://localhost:5174)")
+    process.exit(1)
+  }
+}
+
 ;(async () => {
+  await verificarQueElSitioEsteArriba()
   const prendaObjetivo = await primeraPrendaConRecorte()
   log("prenda de referencia (primera con recorte segun el API):", prendaObjetivo)
 
-  const browserConCamara = await chromium.launch({ args: ARGS_CAMARA_FALSA })
-  const browserSinFlags = await chromium.launch()
+  // Un solo navegador: el escenario "sin camara" ya no depende de lanzar
+  // Chromium sin las banderas de camara falsa, porque fuerza el rechazo de
+  // getUserMedia por su cuenta.
+  const browser = await chromium.launch({ args: ARGS_CAMARA_FALSA })
 
   const resultados = {}
   try {
-    resultados.feliz = await probarCaminoFeliz(browserConCamara, prendaObjetivo)
-    resultados.sinCamara = await probarSinCamara(browserSinFlags)
-    resultados.prendaRota = await probarPrendaQueNoCarga(browserConCamara, prendaObjetivo)
+    resultados.feliz = await probarCaminoFeliz(browser, prendaObjetivo)
+    resultados.sinCamara = await probarSinCamara(browser)
+    resultados.prendaRota = await probarPrendaQueNoCarga(browser, prendaObjetivo)
+    resultados.celular = await probarEnCelular(browser)
   } finally {
-    await browserConCamara.close()
-    await browserSinFlags.close()
+    await browser.close()
   }
 
   log("\n=== Resumen ===")
@@ -522,7 +671,14 @@ async function probarPrendaQueNoCarga(browser, prendaObjetivo) {
     !resultados.feliz.opacityOk ||
     !resultados.feliz.ancladaSobreElCuerpo ||
     !resultados.feliz.tamanioRazonable ||
+    resultados.feliz.bytesFoto <= 0 ||
+    resultados.feliz.avisoTrasLaFoto ||
     resultados.feliz.errores.length > 0 ||
+    !resultados.celular.panelVisible ||
+    !resultados.celular.mensajeVisible ||
+    !resultados.celular.videoEmpiezaVisible ||
+    !resultados.celular.sinScrollHorizontal ||
+    resultados.celular.errores.length > 0 ||
     !resultados.sinCamara.hayBotonReintentar ||
     resultados.sinCamara.hayVideo ||
     resultados.sinCamara.errores.length > 0 ||

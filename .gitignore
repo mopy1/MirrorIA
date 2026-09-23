@@ -58,5 +58,7 @@ __pycache__/
 *.pyc
 scripts/prendas/.trabajo/
 
-# --- Pruebas del probador en navegador (scripts/probar-probador.cjs) ---
+# --- Pruebas del probador en navegador (npm run e2e:probador) ---
+# Capturas, fotos descargadas y el .y4m de la camara simulada (13 MB).
+mirroria-frontend/scripts/.trabajo/
 scripts/.trabajo/
