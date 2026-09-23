@@ -20,6 +20,13 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
   activoRef.current = activo
 
   useEffect(() => {
+    // Sin el <video> montado no hay nada que detectar, y crear el detector
+    // igual sale carísimo: baja el wasm (11,7 MB) y parsea el .task (5,8 MB)
+    // para tirarlo en el cleanup en cuanto llegue el video —y volver a
+    // bajarlo todo—. El guard de `video` estaba DENTRO del bucle de cada
+    // cuadro, así que el primer render (con `video` todavía en null) pagaba
+    // la carga entera. Con StrictMode, cuatro veces en desarrollo.
+    if (!video) return
     let cancelado = false
     let cuadro = 0
     ;(async () => {
@@ -39,7 +46,7 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
       const bucle = () => {
         if (cancelado) return
         cuadro = requestAnimationFrame(bucle)
-        if (!activoRef.current || !video || video.readyState < 2) return
+        if (!activoRef.current || video.readyState < 2) return
         const r = d.detectForVideo(video, performance.now())
         const primera = r.landmarks?.[0]
         setPuntos(
