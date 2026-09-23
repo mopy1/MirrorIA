@@ -11,10 +11,19 @@
  * por nombre) y la reusa. Se puede correr dos veces sin duplicar nada, que es
  * justo lo que hace falta si se corta a la mitad.
  */
+import { readdirSync } from 'node:fs'
 import {
   CATEGORIAS, CIUDADES, COLECCIONES, COLORES, PRODUCTOS, PROVEEDOR,
   RETIRADOS, SUCURSALES, TALLAS, TEMPORADA, foto,
 } from './catalogo-demo.mjs'
+
+// Recortes de prenda ya generados (Tarea 4): un slug con PNG en
+// mirroria-frontend/public/prendas/ tiene probador virtual disponible.
+const RECORTES = new Set(
+  readdirSync(new URL('../mirroria-frontend/public/prendas/', import.meta.url))
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => f.slice(0, -4)),
+)
 
 const API = arg('--api') ?? 'https://mirroria.duckdns.org/api/v1'
 const EMAIL = process.env.MIRRORIA_EMAIL
@@ -172,6 +181,8 @@ async function main() {
   const productosYa = await get('/catalogo/productos')
   const variantesNuevas = []
   let corregidos = 0
+  let recortesAsignados = 0
+  let recortesQuitados = 0
 
   for (const p of PRODUCTOS) {
     const prod = await asegurar('producto', '/catalogo/productos', productosYa, 'slug', p.slug, {
@@ -197,6 +208,20 @@ async function main() {
           precioCents: p.precio * 100,
         })
         corregidos++
+      }
+
+      // Recorte de prenda (Tarea 4): si ya se genero un PNG para este slug y
+      // el producto todavia no apunta a el, se lo asigna. La URL es ABSOLUTA
+      // a proposito: el movil no acepta rutas relativas.
+      const urlRecorte = `https://mirroria.duckdns.org/prendas/${p.slug}.png`
+      if (RECORTES.has(p.slug) && prod.arOverlayImageUrl !== urlRecorte) {
+        await patch(`/catalogo/productos/${prod.id}`, { arOverlayImageUrl: urlRecorte })
+        recortesAsignados++
+      } else if (!RECORTES.has(p.slug) && prod.arOverlayImageUrl === urlRecorte) {
+        // El recorte se rechazo en la verificacion visual y se borro el PNG:
+        // no dejar al producto apuntando a un archivo que ya no existe.
+        await patch(`/catalogo/productos/${prod.id}`, { arOverlayImageUrl: null })
+        recortesQuitados++
       }
       continue
     }
@@ -261,6 +286,8 @@ async function main() {
   console.log(`  categorias : ${antes.categorias} -> ${despues.categorias}`)
   console.log(`  variantes creadas: ${variantesNuevas.length}, ajustes de stock: ${ajustes}`)
   console.log(`  productos con el texto corregido: ${corregidos}`)
+  console.log(`  productos con recorte de prenda asignado ahora: ${recortesAsignados}`)
+  console.log(`  productos con recorte quitado (rechazado en verificacion): ${recortesQuitados}`)
   console.log(`  productos retirados de la tienda: ${retirados}`)
 }
 
