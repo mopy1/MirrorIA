@@ -11,8 +11,16 @@
 //   npm install                       # trae playwright, que es devDependency
 //   npx playwright install chromium   # la primera vez en cada maquina
 //   python ../scripts/prendas/hacer-video-de-prueba.py scripts/.trabajo/persona.y4m
-//   npm run build && npm run preview -- --port 5178
+//   VITE_API_URL=https://mirroria.duckdns.org/api/v1 npm run build
+//   npm run preview -- --port 5178 --strictPort
 //   npm run e2e:probador
+//
+// Ojo con el VITE_API_URL del build: sin el, el frontend queda apuntando a
+// `http://localhost:3000/api/v1` (el default de src/lib/api.ts) y, si no
+// hay backend local levantado, la tira de prendas sale vacia y el recorrido
+// se queda esperando el boton de la prenda hasta el timeout. El recorrido
+// mismo lee el catalogo de produccion, asi que los dos tienen que mirar el
+// mismo API.
 //
 // El .y4m NO esta commiteado (13 MB): se fabrica con el script de Python de
 // arriba, que baja una foto de una persona de cuerpo entero y la repite en
