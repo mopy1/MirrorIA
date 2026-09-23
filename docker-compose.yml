@@ -40,5 +40,17 @@ services:
       postgres-db:
         condition: service_healthy
 
+  # ⚛️ Frontend React — build de Vite servido por nginx, que además hace de
+  # reverse proxy de /api/ hacia mirroria-backend (mismo origen para el
+  # navegador: sin CORS que configurar, sin dominio que atar en build time).
+  mirroria-frontend:
+    build: ./mirroria-frontend
+    container_name: mirroria_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - mirroria-backend
+
 volumes:
   mirroria_pgdata:

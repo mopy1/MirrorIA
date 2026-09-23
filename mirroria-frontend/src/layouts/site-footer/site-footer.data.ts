@@ -16,7 +16,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: "Sucursales", href: "/sucursales" },
       { label: "Reservas", href: "#" },
-      { label: "Contacto", href: "#" },
+      { label: "Contacto", href: "#contacto" },
     ],
   },
   {

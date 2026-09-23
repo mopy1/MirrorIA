@@ -2,7 +2,7 @@ import { apiFetch } from "@/lib/api"
 import type { Instrucciones, MetodoPago, Pago } from "../types/payments.types"
 
 export const paymentsApi = {
-  /** QR y efectivo: crea el cobro pendiente y devuelve qué mostrarle a la clienta. */
+  /** Efectivo: crea el cobro pendiente y devuelve qué mostrarle a la clienta. */
   iniciarManual: (ventaId: string, metodo: Exclude<MetodoPago, "TARJETA">) =>
     apiFetch<Instrucciones>(`/pagos/ventas/${ventaId}/manual`, {
       method: "POST",

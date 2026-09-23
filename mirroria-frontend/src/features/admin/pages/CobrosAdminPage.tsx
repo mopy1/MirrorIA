@@ -51,8 +51,8 @@ export function CobrosAdminPage() {
           Cobros pendientes
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Confirmá los cobros por QR o efectivo declarados por caja: pagos que la clienta ya
-          hizo y esperan la validación del cajero.
+          Confirmá los cobros en efectivo declarados por caja: pagos que la clienta ya hizo
+          y esperan la validación del cajero.
         </p>
       </div>
 

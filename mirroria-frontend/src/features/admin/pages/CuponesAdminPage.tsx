@@ -25,7 +25,7 @@ export function CuponesAdminPage() {
   } = useCupones()
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 xl:p-10 space-y-6 max-w-7xl 2xl:max-w-[1536px] w-full mx-auto">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">

@@ -1,4 +1,3 @@
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatMoney } from "@/lib/money"
@@ -6,31 +5,14 @@ import type { Instrucciones } from "../types/payments.types"
 
 interface DetallePagoCardProps {
   instrucciones: Instrucciones
-  esQr: boolean
 }
 
-/** Tarjeta con el QR (si es ese el método), monto y referencia — extraída de
+/** Tarjeta con el monto y la referencia a mostrarle al cajero — extraída de
  * `instrucciones-pago.tsx` (Regla 1.B: < 150 líneas por archivo). */
-export function DetallePagoCard({ instrucciones, esQr }: DetallePagoCardProps) {
+export function DetallePagoCard({ instrucciones }: DetallePagoCardProps) {
   return (
     <Card className="mt-6 w-full">
       <CardContent className="flex flex-col items-center gap-4">
-        {esQr &&
-          (instrucciones.qrUrl ? (
-            <img
-              src={instrucciones.qrUrl}
-              alt="Código QR para pagar"
-              className="size-56 rounded-xl border border-border/80 object-contain"
-            />
-          ) : (
-            <Alert>
-              <AlertDescription>
-                Todavía no tenemos la imagen del QR configurada. Mostrale tu referencia al
-                equipo para que te la facilite.
-              </AlertDescription>
-            </Alert>
-          ))}
-
         <div>
           <p className="text-sm text-muted-foreground">Monto a pagar</p>
           <p className="text-2xl font-semibold">{formatMoney(instrucciones.montoCents)}</p>

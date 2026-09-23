@@ -4,6 +4,8 @@ import { Link, useLocation } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { ROLES_CONFIG } from "@/features/admin/components/usuario-rol-editor/usuario-rol-editor.data"
+import { useAuth } from "@/hooks/useAuth"
 import { AdminSidebarContent } from "./admin-sidebar-content"
 import { BrandLogo } from "@/components/brand-logo"
 
@@ -20,8 +22,10 @@ const ADMIN_TITLES: Record<string, string> = {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname } = useLocation()
+  const { user } = useAuth()
 
   const currentTitle = Object.entries(ADMIN_TITLES).find(([path]) => pathname.startsWith(path))?.[1] ?? "Administración"
+  const rolLabel = user?.role ? (ROLES_CONFIG[user.role]?.label ?? user.role) : "Admin"
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row bg-background">
@@ -41,7 +45,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <BrandLogo size="sm" />
           </Link>
           <Badge variant="outline" className="text-[10px] font-medium border-primary/30 bg-primary/10 text-primary">
-            Admin
+            {rolLabel}
           </Badge>
         </div>
       </header>
@@ -63,7 +67,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         {/* Desktop Topbar Header */}
         <header className="hidden lg:flex sticky top-0 z-30 h-16 shrink-0 items-center justify-between border-b border-border/60 bg-card/85 px-8 backdrop-blur-md">
           <div className="flex items-center gap-2.5 text-sm">
-            <span className="text-muted-foreground">Admin</span>
+            <span className="text-muted-foreground">{rolLabel}</span>
             <span className="text-muted-foreground/50">/</span>
             <span className="font-medium text-foreground">{currentTitle}</span>
           </div>

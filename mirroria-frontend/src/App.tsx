@@ -21,6 +21,7 @@ import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
 import { OrderConfirmationPage } from "@/features/checkout/pages/OrderConfirmationPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
+import type { UsuarioRole } from "@/features/auth/types/auth.types"
 import { AdminLayout } from "@/layouts/AdminLayout"
 import { StorefrontLayout } from "@/layouts/StorefrontLayout"
 import { AdminRoute } from "@/routes/AdminRoute"
@@ -28,7 +29,7 @@ import { GuestRoute } from "@/routes/GuestRoute"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
 import { StaffRoute } from "@/routes/StaffRoute"
 
-// Composición repetida por las 8 rutas /admin/* de recursos simples — evita
+// Composición repetida por las rutas /admin/* de recursos ADMIN-only — evita
 // repetir AdminRoute+AdminLayout en cada una.
 function AdminPage({ children }: { children: ReactNode }) {
   return (
@@ -57,18 +58,34 @@ const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: b
   { path: "/reservas", Component: MyReservationsPage, protected: true },
 ]
 
-// Recursos "planos" del panel admin: mismo AdminPage siempre. `cobros` y
-// `reportes` quedan afuera de esta tabla porque usan StaffRoute (rol
-// CAJERO/staff), no AdminRoute (solo ADMIN).
+// Recursos de negocio/estructurales: exigen ADMIN exacto (mismos roles que
+// ya protege el backend en estos controllers — catálogo, proveedores,
+// sucursales, cupones y usuarios son decisiones de negocio, no operación
+// de una sucursal puntual).
 const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
   { path: "/admin/catalogo", Component: CatalogoAdminPage },
   { path: "/admin/proveedores", Component: ProveedoresAdminPage },
   { path: "/admin/sucursales", Component: SucursalesAdminPage },
-  { path: "/admin/inventario", Component: InventarioAdminPage },
-  { path: "/admin/ventas", Component: VentasAdminPage },
-  { path: "/admin/reservas", Component: ReservasAdminPage },
   { path: "/admin/cupones", Component: CuponesAdminPage },
   { path: "/admin/usuarios", Component: UsuariosAdminPage },
+]
+
+// Operación de sucursal: cada ruta habilita los roles que el backend YA
+// exige en su controller correspondiente (ver los `@Roles(...)` reales de
+// cada módulo, no una suposición del frontend) — inventario/ventas son
+// ADMIN + ENCARGADO_SUCURSAL, reservas suma también CAJERO (busca la
+// reserva en el mostrador), cobros es ADMIN + CAJERO. Sin `allowedRoles`,
+// `StaffRoute` cae en su default (reportes: ADMIN + ENCARGADO_SUCURSAL).
+const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRoles?: UsuarioRole[] }[] = [
+  { path: "/admin/inventario", Component: InventarioAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
+  { path: "/admin/ventas", Component: VentasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
+  {
+    path: "/admin/reservas",
+    Component: ReservasAdminPage,
+    allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"],
+  },
+  { path: "/admin/cobros", Component: CobrosAdminPage, allowedRoles: ["ADMIN", "CAJERO"] },
+  { path: "/admin/reportes", Component: ReportesAdminPage },
 ]
 
 function App() {
@@ -122,26 +139,19 @@ function App() {
             }
           />
         ))}
-        <Route
-          path="/admin/cobros"
-          element={
-            <StaffRoute allowedRoles={["ADMIN", "CAJERO"]}>
-              <AdminLayout>
-                <CobrosAdminPage />
-              </AdminLayout>
-            </StaffRoute>
-          }
-        />
-        <Route
-          path="/admin/reportes"
-          element={
-            <StaffRoute>
-              <AdminLayout>
-                <ReportesAdminPage />
-              </AdminLayout>
-            </StaffRoute>
-          }
-        />
+        {STAFF_ROUTES.map(({ path, Component, allowedRoles }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <StaffRoute allowedRoles={allowedRoles}>
+                <AdminLayout>
+                  <Component />
+                </AdminLayout>
+              </StaffRoute>
+            }
+          />
+        ))}
       </Routes>
     </BrowserRouter>
   )

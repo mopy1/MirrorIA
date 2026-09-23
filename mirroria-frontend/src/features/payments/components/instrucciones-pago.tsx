@@ -1,26 +1,21 @@
-import { Clock, Money, QrCode, WarningCircle } from "@phosphor-icons/react"
+import { Clock, Money, WarningCircle } from "@phosphor-icons/react"
 import { useEffect, useRef, useState } from "react"
-import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { cn } from "cn"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError } from "@/lib/api"
 import { paymentsApi } from "../api/paymentsApi"
-import type { Instrucciones, MetodoPago } from "../types/payments.types"
+import type { Instrucciones } from "../types/payments.types"
 import { DetallePagoCard } from "./detalle-pago-card"
 
-/** Pantalla de instrucciones de pago manual (QR o efectivo) — la venta ya
- * existe y está `PENDIENTE`, un CAJERO/ADMIN confirma el cobro a mano más
- * tarde. Extraída de `PagoPage.tsx` (Regla 1.B: páginas solo orquestan). */
+/** Pantalla de instrucciones de pago en efectivo — la venta ya existe y
+ * está `PENDIENTE`, un CAJERO/ADMIN confirma el cobro a mano más tarde.
+ * Extraída de `PagoPage.tsx` (Regla 1.B: páginas solo orquestan). */
 export function InstruccionesPago() {
   const { ventaId } = useParams<{ ventaId: string }>()
   const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const metodo = (searchParams.get("metodo") === "EFECTIVO" ? "EFECTIVO" : "QR") as Exclude<
-    MetodoPago,
-    "TARJETA"
-  >
   // Por qué llegó acá, cuando no vino eligiendo: el checkout la manda para
   // este lado si el cobro con tarjeta no se pudo iniciar (503 sin claves de
   // Stripe). Su carrito ya está vacío, así que este es el único camino abierto.
@@ -29,26 +24,22 @@ export function InstruccionesPago() {
   const [instrucciones, setInstrucciones] = useState<Instrucciones | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  // Guarda por venta Y método: sin el método, cambiar de QR a efectivo no
-  // volvería a pedir las instrucciones. El backend reutiliza la misma fila
-  // pendiente, así que cambiar de idea no duplica el cobro.
   const solicitado = useRef<string | null>(null)
 
   useEffect(() => {
     if (!ventaId) return
-    const clave = `${ventaId}:${metodo}`
-    if (solicitado.current === clave) return
-    solicitado.current = clave
+    if (solicitado.current === ventaId) return
+    solicitado.current = ventaId
     setIsLoading(true)
     setError(null)
     paymentsApi
-      .iniciarManual(ventaId, metodo)
+      .iniciarManual(ventaId, "EFECTIVO")
       .then(setInstrucciones)
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : "No se pudieron generar las instrucciones de pago")
       )
       .finally(() => setIsLoading(false))
-  }, [ventaId, metodo])
+  }, [ventaId])
 
   if (isLoading) {
     return (
@@ -73,45 +64,22 @@ export function InstruccionesPago() {
     )
   }
 
-  const esQr = instrucciones.metodo === "QR"
-
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-16 text-center sm:px-6">
-      {esQr ? <QrCode className="size-12 text-primary" /> : <Money className="size-12 text-primary" />}
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">
-        {esQr ? "Pagá con QR" : "Pagá en efectivo"}
-      </h1>
+      <Money className="size-12 text-primary" />
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">Pagá en efectivo</h1>
       <p className="mt-2 text-sm text-muted-foreground">{instrucciones.instrucciones}</p>
 
       {motivo && (
         <Alert className="mt-6 text-left">
           <WarningCircle />
           <AlertDescription>
-            {motivo} Tu compra ya está reservada: podés pagarla por QR o en efectivo desde acá.
+            {motivo} Tu compra ya está reservada: podés pagarla en efectivo desde acá.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Cambiar de idea no crea otro cobro: el backend reutiliza la misma
-          fila pendiente de esta venta y solo le cambia el método. */}
-      <div className="mt-6 flex gap-2">
-        <Button
-          variant={esQr ? "default" : "outline"}
-          onClick={() => setSearchParams({ metodo: "QR" }, { replace: true })}
-        >
-          <QrCode data-icon="inline-start" className="size-4" />
-          <span>Con QR</span>
-        </Button>
-        <Button
-          variant={esQr ? "outline" : "default"}
-          onClick={() => setSearchParams({ metodo: "EFECTIVO" }, { replace: true })}
-        >
-          <Money data-icon="inline-start" className="size-4" />
-          <span>En efectivo</span>
-        </Button>
-      </div>
-
-      <DetallePagoCard instrucciones={instrucciones} esQr={esQr} />
+      <DetallePagoCard instrucciones={instrucciones} />
 
       <Alert className="mt-6 text-left">
         <Clock />

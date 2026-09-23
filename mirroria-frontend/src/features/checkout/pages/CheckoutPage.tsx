@@ -1,4 +1,4 @@
-import { CreditCard, Money, QrCode } from "@phosphor-icons/react"
+import { CreditCard, Money } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,6 @@ import { useCheckout } from "../hooks/useCheckout"
 
 const METODOS: { value: MetodoPago; label: string; icon: typeof CreditCard }[] = [
   { value: "TARJETA", label: "Tarjeta", icon: CreditCard },
-  { value: "QR", label: "QR", icon: QrCode },
   { value: "EFECTIVO", label: "Efectivo", icon: Money },
 ]
 
@@ -79,7 +78,7 @@ export function CheckoutPage() {
 
       <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-2.5">
         <Label>Método de pago</Label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {METODOS.map(({ value, label, icon: Icon }) => (
             <Button
               key={value}
@@ -96,7 +95,7 @@ export function CheckoutPage() {
         </div>
         <p className="text-xs text-muted-foreground">
           {metodo === "TARJETA"
-            ? "Se paga en línea. Si la pasarela no está disponible, te ofrecemos QR o efectivo."
+            ? "Se paga en línea. Si la pasarela no está disponible, te ofrecemos pagar en efectivo."
             : "Al confirmar vas a ver las instrucciones para completar el pago."}
         </p>
       </div>

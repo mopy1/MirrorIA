@@ -38,8 +38,8 @@ export function useCheckout() {
           // sin salida: el checkout ya creó la venta, descontó el stock, consumió
           // el cupón y VACIÓ EL CARRITO, así que no puede reintentar nada desde
           // esta pantalla — no queda carrito que comprar. Se la manda al pago de
-          // la venta ya creada, que es el único camino que sigue abierto: QR o
-          // efectivo no necesitan carrito.
+          // la venta ya creada, que es el único camino que sigue abierto: pagar
+          // en efectivo no necesita carrito.
           navigate(`/pago/${venta.id}`, {
             state: {
               motivo:

@@ -49,9 +49,12 @@ export class ReservasController {
   }
 
   // Consulta de staff, por sucursal/estado (RF: encargado "consultar reservas").
+  // CAJERO tambien la necesita: es quien busca la reserva cuando la clienta
+  // llega a probarse/retirar en el mostrador, antes de cobrar la venta
+  // presencial que la cierra (ver completarPorVenta en el service).
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
   findAll(
     @Query('sucursalId') sucursalId?: string,
     @Query('estado') estado?: string,
@@ -67,7 +70,8 @@ export class ReservasController {
     @CurrentUser() user: JwtPayload,
   ): Promise<ReservaResponseDto> {
     const reserva = await this.reservasService.findOne(id);
-    const esStaff = user.role === 'ADMIN' || user.role === 'ENCARGADO_SUCURSAL';
+    const esStaff =
+      user.role === 'ADMIN' || user.role === 'ENCARGADO_SUCURSAL' || user.role === 'CAJERO';
     if (!esStaff && reserva.clienteId !== user.sub) {
       throw new ForbiddenActionException('No podés ver la reserva de otro cliente');
     }
@@ -75,9 +79,10 @@ export class ReservasController {
   }
 
   // Staff: confirmar, marcar en tienda, cancelar por la tienda, expirar, no-show.
+  // "Cliente llego" (EN_TIENDA) es tipicamente el propio CAJERO al mostrador.
   @Patch(':id/estado')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
   cambiarEstado(
     @Param('id') id: string,
     @Body() dto: CambiarEstadoReservaDto,

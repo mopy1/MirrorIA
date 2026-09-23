@@ -15,7 +15,6 @@ import { formatMoney } from "@/lib/money"
 
 const METODO_LABEL: Record<MetodoPago, string> = {
   TARJETA: "Tarjeta",
-  QR: "QR",
   EFECTIVO: "Efectivo",
 }
 

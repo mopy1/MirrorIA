@@ -36,9 +36,23 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
     "rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
     compact ? "px-2.5 py-1.5" : "px-3 py-2.5 text-foreground"
   )
-  const adminLink = user?.role === "ADMIN" && (
-    <Link to="/admin" className={linkClass}>
-      Panel admin
+  // Cada rol de staff cae en una ruta distinta porque `/admin` (sin más)
+  // redirige a `/admin/catalogo`, que exige ADMIN exacto — un CAJERO o
+  // ENCARGADO_SUCURSAL que la siguiera rebotaría a "/" sin entender por qué.
+  // Antes solo ADMIN tenía link acá, así que CAJERO no tenía forma de
+  // encontrar /admin/cobros salvo escribiendo la URL a mano (y ahí sí
+  // funciona, StaffRoute lo permite — el problema era solo de descubrimiento).
+  const staffLink =
+    user?.role === "ADMIN"
+      ? { to: "/admin", label: "Panel admin" }
+      : user?.role === "CAJERO"
+        ? { to: "/admin/cobros", label: "Cobros" }
+        : user?.role === "ENCARGADO_SUCURSAL"
+          ? { to: "/admin/reportes", label: "Reportes" }
+          : null
+  const adminLink = staffLink && (
+    <Link to={staffLink.to} className={linkClass}>
+      {staffLink.label}
     </Link>
   )
   const reservasLink = (
