@@ -48,7 +48,13 @@ export function useCamara() {
       })
       .catch((e: DOMException) => {
         if (!vivo.current) return
-        setEstado(e.name === "NotFoundError" || e.name === "OverconstrainedError" ? "sin-camara" : "denegada")
+        // "sin-camara" agrupa los casos donde no hay permiso que rechazar:
+        // no existe cámara (NotFoundError/OverconstrainedError) o existe
+        // pero está tomada por otra aplicación (NotReadableError). Decirle
+        // "denegada" a alguien a quien nunca se le pidió permiso es peor.
+        const sinCamara =
+          e.name === "NotFoundError" || e.name === "OverconstrainedError" || e.name === "NotReadableError"
+        setEstado(sinCamara ? "sin-camara" : "denegada")
       })
     return () => {
       vivo.current = false

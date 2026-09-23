@@ -13,6 +13,11 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
   const [puntos, setPuntos] = useState<PuntoPose[]>([])
   const [listo, setListo] = useState(false)
   const detector = useRef<PoseLandmarker | null>(null)
+  // `activo` se lee dentro del bucle de cada cuadro, no en el efecto: así
+  // prender y apagar la cámara no obliga a recrear el detector (que implica
+  // recargar el wasm y volver a parsear el .task de 5,5 MB).
+  const activoRef = useRef(activo)
+  activoRef.current = activo
 
   useEffect(() => {
     let cancelado = false
@@ -34,7 +39,7 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
       const bucle = () => {
         if (cancelado) return
         cuadro = requestAnimationFrame(bucle)
-        if (!activo || !video || video.readyState < 2) return
+        if (!activoRef.current || !video || video.readyState < 2) return
         const r = d.detectForVideo(video, performance.now())
         const primera = r.landmarks?.[0]
         setPuntos(
@@ -52,7 +57,7 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
       detector.current?.close()
       detector.current = null
     }
-  }, [video, activo])
+  }, [video])
 
   return { puntos, listo }
 }
