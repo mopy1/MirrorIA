@@ -56,6 +56,12 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      # Certificados de Let's Encrypt: los genera/renueva certbot en el HOST
+      # de la VM (no hay certbot acá adentro), read-only porque nginx solo
+      # necesita leerlos — mismo patrón que case-frontend.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - mirroria-backend
 
