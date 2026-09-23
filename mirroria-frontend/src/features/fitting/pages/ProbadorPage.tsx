@@ -24,6 +24,7 @@ import {
 } from "../lib/prendasProbables"
 import { proyeccionCover } from "../lib/proyeccionCover"
 import { recorteCover } from "../lib/recorteCover"
+import { urlDeRecorte } from "../lib/urlDeRecorte"
 
 /** Cuánto se espera antes de liberar la URL del blob de la foto. Tiene que
  * alcanzar para que el navegador arranque la descarga. */
@@ -107,6 +108,11 @@ export function ProbadorPage() {
     setPrenda(null)
   }, [prenda])
 
+  // La base guarda la URL absoluta al dominio de produccion (la necesita el
+  // movil). Los recortes los sirve ESTE frontend, asi que se piden a nuestro
+  // propio origen: ver urlDeRecorte.
+  const urlPrenda = urlDeRecorte(prenda?.arOverlayImageUrl, window.location.origin)
+
   const alElegirPrenda = useCallback((p: Producto) => {
     setAviso(null)
     setPrenda(p)
@@ -174,7 +180,7 @@ export function ProbadorPage() {
       }
     }
 
-    if (!prenda?.arOverlayImageUrl) {
+    if (!urlPrenda) {
       guardar("ok")
       return
     }
@@ -209,8 +215,8 @@ export function ProbadorPage() {
       guardar(t.visible ? "ok" : "sin-prenda")
     }
     img.onerror = () => guardar("sin-prenda")
-    img.src = prenda.arOverlayImageUrl
-  }, [video, prenda, puntos, par])
+    img.src = urlPrenda
+  }, [video, prenda, urlPrenda, puntos, par])
 
   return (
     /* El orden del DOM es el del CELULAR, que es el caso de uso principal
@@ -241,7 +247,7 @@ export function ProbadorPage() {
             stream={stream}
             puntos={puntos}
             par={par}
-            urlPrenda={prenda?.arOverlayImageUrl ?? null}
+            urlPrenda={urlPrenda}
             poseEstable={estabilidad.estable}
             onVideo={setVideo}
             onErrorPrenda={alFallarLaPrenda}
@@ -251,7 +257,7 @@ export function ProbadorPage() {
         ) : (
           <RespaldoSinCamara
             estado={estado}
-            urlPrenda={prenda?.arOverlayImageUrl ?? null}
+            urlPrenda={urlPrenda}
             idProducto={prenda?.id ?? null}
             onReintentar={reintentar}
           />
