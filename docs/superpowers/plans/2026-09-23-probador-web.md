@@ -97,8 +97,12 @@ describe("calcularTransformPrenda", () => {
   })
 
   it("sin espejar, unos hombros nivelados tampoco se inclinan", () => {
+    // OJO con el orden: el detector entrega coordenadas CRUDAS del sensor, y de
+    // frente a la camara el hombro DERECHO anatomico siempre tiene menor x que
+    // el izquierdo, se espeje o no. Pasarlos en "orden de pantalla" da 180 y
+    // tienta a meterle un swap a la funcion, que rompe el caso real.
     const t = calcularTransformPrenda(
-      visible(0.4, 0.4), visible(0.6, 0.4), 1000, 800, false, 400, 600, ANCLA_ESTANDAR
+      visible(0.6, 0.4), visible(0.4, 0.4), 1000, 800, false, 400, 600, ANCLA_ESTANDAR
     )
     expect(Math.abs(t.rotationDeg)).toBeLessThan(0.001)
   })
