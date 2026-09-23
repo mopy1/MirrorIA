@@ -41,9 +41,21 @@ una sola vez**, para fabricar los recortes de las prendas (ver «Los recortes»)
   Es una función pura y **se porta a la web tal cual**. Usa los índices de
   landmark 11 y 12, que son los mismos en ML Kit (móvil) y en MediaPipe (web),
   porque ambos derivan de BlazePose.
-- **`GarmentAnchor`**: describe, en fracciones 0-1 de la imagen, qué punto del
-  PNG corresponde al punto medio de hombros y qué ancho suyo equivale al ancho
-  real de hombros. El mismo concepto sirve en la web sin cambios.
+- **`GarmentAnchor`** y **`STANDARD_GARMENT_ANCHOR`**: el móvil no mide el ancla
+  por prenda, fija una **convención** —la línea de hombros cae al 65% del ancho,
+  centrada, al 24% de la altura— y espera que el PNG la respete. La web adopta la
+  misma convención y el script **normaliza cada recorte a ella**, así el mismo
+  archivo sirve en las dos plataformas sin metadata extra.
+
+### Las prendas de abajo no tienen hombros
+
+Faldas, pantalones y enterizos (7 de los 28) no se anclan a la línea de hombros
+sino a la de **caderas** (landmarks 23 y 24). `computeGarmentTransform` es
+genérica —toma dos puntos, no «hombros»—, así que sirve igual; lo que cambia es
+qué par se le pasa. **El par se decide por la categoría del producto**, no por
+medir la imagen: vestidos, blusas y abrigos van por hombros; pantalones y faldas,
+por caderas. Para esas prendas la convención del PNG se lee igual, con la línea
+de cintura donde iría la de hombros.
 - **`arOverlayImageUrl`** ya existe en la entidad, en los DTO, en el panel admin
   desplegado y en el móvil. No hace falta tocar el modelo de datos.
 - **Reservas**: el probador engancha con el flujo que ya está, no lo reescribe.
@@ -124,7 +136,8 @@ Es la pieza de datos que hoy no existe y de la que depende todo lo demás.
 sembrador del catálogo): por cada producto se toma su foto de Burst, se la manda
 a **kie.ai con `google/nano-banana-edit`** pidiendo la prenda sola sobre fondo
 magenta, se le quita el fondo por croma con despill en los bordes, se recorta al
-contenido, se **mide el ancla** y se guarda el PNG con alfa.
+contenido y se **normaliza a la convención del móvil** (línea de anclaje al 65%
+del ancho, al 24% de la altura) antes de guardar el PNG con alfa.
 
 Probado el 23 de septiembre sobre `shiny-black-cocktail-dress`: el modelo
 devuelve la prenda sola, completa y en vista frontal de catálogo; el recorte por
