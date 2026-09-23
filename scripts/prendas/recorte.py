@@ -6,6 +6,7 @@ El modelo devuelve JPEG, no PNG: el fondo viene con compresion, asi que el
 umbral tiene degrade y hace falta despill en el borde. No son adornos.
 """
 import math
+import sys
 
 import numpy as np
 from PIL import Image
@@ -135,6 +136,22 @@ def normalizar(imagen_rgba, lado_mayor=800):
     ancho_por_convencion = ancho_linea / FRACCION_ANCHO
     ancho_sin_recorte = _lado_sin_recorte(0.5, centro_x, imagen_rgba.width - centro_x)
     ancho_lienzo = int(math.ceil(max(ancho_por_convencion, ancho_sin_recorte)))
+
+    # Cuando manda `ancho_sin_recorte`, el lienzo queda MAS ancho que el que
+    # pide la convencion y la linea de anclaje deja de medir el 65% del
+    # ancho: sigue centrada y a la altura correcta, pero el probador, que
+    # escala la prenda dividiendo por esa fraccion, la dibujaria mas angosta
+    # que los hombros de la clienta. No es un error (recortar la prenda
+    # seria peor), pero antes pasaba en silencio.
+    if ancho_sin_recorte > ancho_por_convencion:
+        fraccion_real = ancho_linea / ancho_lienzo
+        print(
+            f"aviso: prenda asimetrica: el lienzo se ensancho de "
+            f"{int(math.ceil(ancho_por_convencion))} a {ancho_lienzo} px para no recortarla, "
+            f"asi que la linea de anclaje queda en {fraccion_real:.3f} del ancho "
+            f"y no en {FRACCION_ANCHO}",
+            file=sys.stderr,
+        )
 
     alto_lienzo = int(math.ceil(
         _lado_sin_recorte(FRACCION_ALTO, y_linea, imagen_rgba.height - y_linea)

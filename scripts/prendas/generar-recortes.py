@@ -4,6 +4,12 @@
   KIE_API_KEY=... python generar-recortes.py [--limite 23] [--api URL]
 
 Cuesta 4 creditos por imagen. Saltea las que ya existen.
+
+`--limite` es un tope sobre el TOTAL de recortes, no sobre los de esta
+corrida: las que ya estan en `public/prendas/` cuentan. Antes contaba solo
+las nuevas, asi que correrlo de nuevo con el mismo `--limite` empezaba de
+cero y seguia gastando creditos (4 por imagen) por encima del tope que se
+habia pedido.
 """
 import argparse, json, os, sys, time, urllib.request
 from io import BytesIO
@@ -62,7 +68,8 @@ def aislar_prenda(url_foto):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--limite", type=int, default=23)
+    ap.add_argument("--limite", type=int, default=23,
+                    help="tope de recortes EN TOTAL, contando los que ya existen")
     ap.add_argument("--api", default=API)
     args = ap.parse_args()
     if not CLAVE:
@@ -76,14 +83,19 @@ def main():
     productos.sort(key=lambda p: PRIORIDAD.index(categorias.get(p["categoriaId"], ""))
                    if categorias.get(p["categoriaId"], "") in PRIORIDAD else 99)
 
-    hechos = 0
+    # El tope es sobre el TOTAL: se arranca contando lo que ya hay en la
+    # carpeta de salida, no en cero. Contar solo las nuevas convertia
+    # `--limite` en "otras 23 mas por corrida", y cada una cuesta 4 creditos.
+    total = len([f for f in os.listdir(SALIDA) if f.endswith(".png")])
+    print(f"recortes que ya existen: {total} (tope total: {args.limite})")
+    nuevos = 0
     for p in productos:
         destino = os.path.join(SALIDA, f"{p['slug']}.png")
         if os.path.exists(destino):
             print(f"  = {p['slug']} (ya estaba)")
             continue
-        if hechos >= args.limite:
-            print(f"  . {p['slug']} (fuera del limite de {args.limite})")
+        if total >= args.limite:
+            print(f"  . {p['slug']} (fuera del tope total de {args.limite})")
             continue
         foto = (p.get("imagenes") or [{}])[0].get("url")
         if not foto:
@@ -93,13 +105,15 @@ def main():
             croma = aislar_prenda(foto)
             croma.save(os.path.join(TRABAJO, f"{p['slug']}-croma.png"))
             normalizar(quitar_croma(croma)).save(destino)
-            hechos += 1
-            print(f"  + {p['slug']}")
+            total += 1
+            nuevos += 1
+            print(f"  + {p['slug']} ({total}/{args.limite})")
         except Exception as e:
             print(f"  ! {p['slug']}: {str(e)[:120]}")
 
     # Hoja de contacto para MIRAR el resultado, sobre un fondo a cuadros que
     # deja ver los bordes y cualquier resto de fondo.
+    print(f"recortes nuevos en esta corrida: {nuevos} ({nuevos * 4} creditos)")
     archivos = sorted(f for f in os.listdir(SALIDA) if f.endswith(".png"))
     if archivos:
         celda, cols = 260, 6

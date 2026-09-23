@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Pruebas del recorte, con imagenes sinteticas: nada de red ni de IA."""
+import contextlib
+import io
 import unittest
 
 import numpy as np
@@ -163,11 +165,36 @@ class ClampDeLaAsimetria(unittest.TestCase):
     lienzo, asi que una prenda asimetrica se desplazaba del 65%/24% sin
     ninguna excepcion ni aviso."""
 
-    def test_no_rompe_la_convencion_con_contenido_asimetrico(self):
+    def test_la_linea_queda_centrada_y_a_la_altura_de_la_convencion(self):
+        """Ojo con el nombre viejo (`test_no_rompe_la_convencion_...`):
+        prometia mas de lo que verifica. Esto comprueba la POSICION de la
+        linea de anclaje (centrada, al 24% de la altura), no la fraccion de
+        ancho, que con una prenda asimetrica efectivamente deja de ser 0,65
+        (ver la prueba de abajo)."""
         salida = normalizar(quitar_croma(prenda_asimetrica()))
         centro_x, _ = linea_de_anclaje(salida)
         self.assertAlmostEqual(centro_x / salida.width, 0.50, delta=0.03)
         self.assertAlmostEqual(_fraccion_y_de_la_linea(salida), 0.24, delta=0.03)
+
+    def test_avisa_cuando_el_lienzo_se_ensancha_y_la_fraccion_deja_de_ser_065(self):
+        """Lo que el nombre viejo daba a entender que no pasaba, pasa: al
+        ensanchar el lienzo para no recortar la prenda, la linea de anclaje
+        deja de medir el 65% del ancho. Se acepta (recortar seria peor) pero
+        ahora se avisa por stderr en vez de pasar en silencio."""
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            salida = normalizar(quitar_croma(prenda_asimetrica()))
+        _, ancho = linea_de_anclaje(salida)
+        fraccion = ancho / salida.width
+        self.assertLess(fraccion, 0.65 - 0.03, f"la fraccion fue {fraccion:.3f}")
+        self.assertIn("aviso: prenda asimetrica", err.getvalue())
+        self.assertIn("y no en 0.65", err.getvalue())
+
+    def test_una_prenda_simetrica_no_imprime_ningun_aviso(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            normalizar(quitar_croma(prenda_de_prueba()))
+        self.assertEqual(err.getvalue(), "")
 
 
 if __name__ == "__main__":
