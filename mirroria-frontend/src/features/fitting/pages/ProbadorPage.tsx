@@ -56,18 +56,18 @@ export function ProbadorPage() {
   // Review Focus 3: si el PNG no carga se suelta la prenda y se avisa, pero la
   // escena y el bucle de render siguen vivos.
   //
-  // El id se marca como fallido ANTES de soltar la prenda (con el valor real
-  // de `prenda` al momento del fallo, vía forma funcional: este callback es
-  // estable y no puede depender de `prenda` en su clausura). Así, cuando el
-  // efecto de arriba vuelva a correr porque `prenda` pasó a null, ya no elige
-  // la misma prenda rota.
+  // El id se marca como fallido ANTES de soltar la prenda. `prenda` va en
+  // las dependencias a propósito —se lee directo, sin updater funcional
+  // dentro de otro updater— para no tener un efecto lateral (`setFallidas`)
+  // escondido dentro de la forma funcional de `setPrenda`, que React en modo
+  // estricto invoca dos veces para detectar justamente eso. No hace falta
+  // que sea estable: solo la usa el <img onError> de la escena, que no está
+  // memoizada.
   const alFallarLaPrenda = useCallback(() => {
     setAviso("Esa prenda no se pudo cargar. Probá con otra.")
-    setPrenda((actual) => {
-      if (actual) setFallidas((prev) => new Set(prev).add(actual.id))
-      return null
-    })
-  }, [])
+    if (prenda) setFallidas((prev) => new Set(prev).add(prenda.id))
+    setPrenda(null)
+  }, [prenda])
 
   const alElegirPrenda = useCallback((p: Producto) => {
     setAviso(null)

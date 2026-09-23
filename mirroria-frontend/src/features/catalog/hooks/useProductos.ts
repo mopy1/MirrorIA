@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { catalogApi } from "../api/catalogApi"
 import type { Producto } from "../types/catalog.types"
 
@@ -38,10 +38,24 @@ export function useProductos(filtro: UseProductosFiltro = {}) {
     }
   }, [])
 
+  const { categoriaId } = filtro
   const query = filtro.query?.trim().toLowerCase()
-  const filtrados = productos
-    .filter((p) => !filtro.categoriaId || p.categoriaId === filtro.categoriaId)
-    .filter((p) => !query || p.titulo.toLowerCase().includes(query))
+
+  // Memoizado por los valores primitivos del filtro, no por el objeto
+  // `filtro` (los llamadores lo arman inline en cada render, así que su
+  // identidad nunca sirve como dependencia). Sin este `useMemo`, cualquier
+  // pantalla que se re-renderice seguido (el probador virtual, a ~30 fps
+  // por la detección de pose) recibía acá un array nuevo en cada cuadro
+  // aunque ni los productos ni el filtro hubieran cambiado, lo que rompía
+  // cualquier memoización aguas abajo (`useMemo`/`React.memo`) que
+  // dependiera de esta lista.
+  const filtrados = useMemo(
+    () =>
+      productos
+        .filter((p) => !categoriaId || p.categoriaId === categoriaId)
+        .filter((p) => !query || p.titulo.toLowerCase().includes(query)),
+    [productos, categoriaId, query],
+  )
 
   return { productos: filtrados, isLoading, error }
 }
