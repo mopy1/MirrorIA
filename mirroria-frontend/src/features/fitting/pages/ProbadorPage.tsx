@@ -12,6 +12,7 @@ import { RespaldoSinCamara } from "../components/respaldo-sin-camara"
 import { TiraDePrendas } from "../components/tira-de-prendas"
 import { useCamara } from "../hooks/useCamara"
 import { usePose } from "../hooks/usePose"
+import { ESTABILIDAD_INICIAL, siguienteEstabilidad } from "../lib/estabilidadDePose"
 import { ANCLA_ESTANDAR, VISIBILIDAD_MINIMA, calcularTransformPrenda } from "../lib/landmarkMath"
 import { parDeAnclaje } from "../lib/parDeAnclaje"
 import { calcularPasos } from "../lib/pasosGuiados"
@@ -60,11 +61,28 @@ export function ProbadorPage() {
   const slug = categorias.find((c) => c.id === prenda?.categoriaId)?.slug ?? ""
   const par = parDeAnclaje(slug)
   const visibles = par.filter((i) => (puntos[i]?.visibility ?? 0) >= VISIBILIDAD_MINIMA).length
+  const veLosDosPuntos = visibles === 2
+
+  // Histéresis: el diseño dice «cuando el detector ve los dos hombros por
+  // encima del umbral durante un segundo seguido», y la primera versión
+  // miraba el cuadro actual y nada más. Con la visibilidad oscilando
+  // alrededor del umbral (luz mala, media vuelta, ropa oscura) el paso 2 y
+  // la prenda parpadeaban a 30 fps. El efecto corre una vez por cuadro
+  // porque `puntos` cambia de identidad en cada cuadro; `siguienteEstabilidad`
+  // devuelve el mismo objeto cuando no hay nada que cambiar, así que esto no
+  // agrega un render por cuadro.
+  const [estabilidad, setEstabilidad] = useState(ESTABILIDAD_INICIAL)
+  useEffect(() => {
+    setEstabilidad((previo) => siguienteEstabilidad(previo, veLosDosPuntos, performance.now()))
+  }, [puntos, veLosDosPuntos])
 
   const pasos = calcularPasos({
     hayCamara: estado === "lista",
     modeloListo,
-    puntosVisibles: visibles,
+    // Mientras la pose se está asentando se informa «te veo a medias», que
+    // es justo lo que hay que hacer (ponerse de frente), y no se marca el
+    // paso 2 hasta que aguantó el segundo entero.
+    puntosVisibles: estabilidad.estable ? 2 : Math.min(visibles, 1),
     prendaElegida: Boolean(prenda),
   })
 
@@ -167,6 +185,7 @@ export function ProbadorPage() {
             puntos={puntos}
             par={par}
             urlPrenda={prenda?.arOverlayImageUrl ?? null}
+            poseEstable={estabilidad.estable}
             onVideo={setVideo}
             onErrorPrenda={alFallarLaPrenda}
           />

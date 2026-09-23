@@ -7,11 +7,23 @@ interface Props {
   puntos: PuntoPose[]
   par: [number, number]
   urlPrenda: string | null
+  /** ¿La pose viene estable (ver `estabilidadDePose`)? Mientras lo sea, un
+   * cuadro suelto sin puntos deja la prenda donde estaba en vez de
+   * apagarla: es la otra mitad de la histéresis, la que se ve. */
+  poseEstable: boolean
   onVideo: (v: HTMLVideoElement | null) => void
   onErrorPrenda: () => void
 }
 
-export function EscenaProbador({ stream, puntos, par, urlPrenda, onVideo, onErrorPrenda }: Props) {
+export function EscenaProbador({
+  stream,
+  puntos,
+  par,
+  urlPrenda,
+  poseEstable,
+  onVideo,
+  onErrorPrenda,
+}: Props) {
   const video = useRef<HTMLVideoElement>(null)
   const prenda = useRef<HTMLImageElement>(null)
   const caja = useRef<HTMLDivElement>(null)
@@ -51,12 +63,20 @@ export function EscenaProbador({ stream, puntos, par, urlPrenda, onVideo, onErro
       img.naturalWidth || 1, img.naturalHeight || 1,
       ANCLA_ESTANDAR,
     )
-    img.style.opacity = t.visible ? "1" : "0"
-    if (!t.visible) return
+    if (!t.visible) {
+      // Con la pose estable, un cuadro suelto sin los dos puntos no apaga la
+      // prenda: se deja donde estaba. Sin esto, la histéresis del panel
+      // arreglaba el parpadeo de los pasos pero la prenda seguía
+      // prendiéndose y apagándose a 30 fps, que es lo que se ve.
+      if (poseEstable) return
+      img.style.opacity = "0"
+      return
+    }
+    img.style.opacity = "1"
     img.style.width = `${t.width}px`
     img.style.height = `${t.height}px`
     img.style.transform = `translate(${t.left + proy.offsetX}px, ${t.top + proy.offsetY}px) rotate(${t.rotationDeg}deg)`
-  }, [puntos, par, urlPrenda])
+  }, [puntos, par, urlPrenda, poseEstable])
 
   return (
     <div ref={caja} className="relative aspect-[3/4] w-full min-w-0 overflow-hidden rounded-2xl bg-secondary">
