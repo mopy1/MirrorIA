@@ -23,3 +23,26 @@ export function elegirPrendaInicial(
   if (!id || fallidas?.has(id)) return null
   return prendasProbables(productos).find((p) => p.id === id) ?? null
 }
+
+/**
+ * ¿Toca aplicar la prenda del enlace?
+ *
+ * Solo una vez por enlace. Antes el efecto decía «si no hay prenda puesta y
+ * ya llegó el catálogo, poné la del enlace», y eso volvía a dispararse cada
+ * vez que la prenda se soltaba: si entrabas por `/probador/A`, elegías B de
+ * la tira y el PNG de B fallaba, la pantalla mostraba el cartel rojo «no se
+ * pudo cargar» y, al mismo tiempo, la prenda A puesta de nuevo.
+ *
+ * `marcaAplicada` es el `productoId` que ya se aplicó (cadena vacía si se
+ * entró a `/probador` sin id, `null` si todavía no se aplicó nada). Comparar
+ * contra el id —y no un booleano— permite que navegar de `/probador/A` a
+ * `/probador/B` sin recargar sí ponga la B.
+ */
+export function debeAplicarPrendaDelEnlace(
+  marcaAplicada: string | null,
+  productoId: string | undefined,
+  catalogoCargado: boolean,
+): boolean {
+  if (!catalogoCargado) return false
+  return marcaAplicada !== (productoId ?? "")
+}

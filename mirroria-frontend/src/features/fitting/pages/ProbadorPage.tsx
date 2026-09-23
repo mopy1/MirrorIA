@@ -15,7 +15,11 @@ import { usePose } from "../hooks/usePose"
 import { ANCLA_ESTANDAR, VISIBILIDAD_MINIMA, calcularTransformPrenda } from "../lib/landmarkMath"
 import { parDeAnclaje } from "../lib/parDeAnclaje"
 import { calcularPasos } from "../lib/pasosGuiados"
-import { elegirPrendaInicial, prendasProbables } from "../lib/prendasProbables"
+import {
+  debeAplicarPrendaDelEnlace,
+  elegirPrendaInicial,
+  prendasProbables,
+} from "../lib/prendasProbables"
 import { proyeccionCover } from "../lib/proyeccionCover"
 import { recorteCover } from "../lib/recorteCover"
 
@@ -38,11 +42,20 @@ export function ProbadorPage() {
   // de los ~30 renders por segundo que dispara `usePose`.
   const probables = useMemo(() => prendasProbables(productos), [productos])
 
-  // La prenda del enlace se aplica una sola vez, cuando el catalogo llego
-  // (o cuando falla una y hay que reevaluar sin ella).
+  // La prenda del enlace se aplica UNA sola vez por enlace. La condición
+  // anterior era «si no hay prenda puesta», y eso se volvía a cumplir cada
+  // vez que una prenda se soltaba por un PNG roto: la clienta veía el cartel
+  // rojo de error y, al mismo tiempo, la prenda del enlace puesta otra vez
+  // (ver `debeAplicarPrendaDelEnlace`).
+  const enlaceAplicado = useRef<string | null>(null)
   useEffect(() => {
-    if (!prenda && productos.length) setPrenda(elegirPrendaInicial(productos, productoId, fallidas))
-  }, [productos, productoId, prenda, fallidas])
+    if (!debeAplicarPrendaDelEnlace(enlaceAplicado.current, productoId, productos.length > 0)) {
+      return
+    }
+    enlaceAplicado.current = productoId ?? ""
+    const inicial = elegirPrendaInicial(productos, productoId, fallidas)
+    if (inicial) setPrenda(inicial)
+  }, [productos, productoId, fallidas])
 
   const slug = categorias.find((c) => c.id === prenda?.categoriaId)?.slug ?? ""
   const par = parDeAnclaje(slug)
