@@ -30,6 +30,13 @@ export function usePose(video: HTMLVideoElement | null, activo: boolean) {
     let cancelado = false
     let cuadro = 0
     ;(async () => {
+      // `forVisionTasks(base)` arma el nombre del wasm solo: pide
+      // `vision_wasm_internal.*` si el navegador soporta SIMD y
+      // `vision_wasm_nosimd_internal.*` si no. La tercera variante que trae
+      // el paquete (`vision_wasm_module_internal.*`, 11,7 MB) solo se pide
+      // con el segundo argumento en true (multi-input GL), que acá no se
+      // usa: por eso no está en `public/mediapipe/`. Medido con el
+      // recorrido de navegador, que anota los pedidos reales.
       const fileset = await FilesetResolver.forVisionTasks("/mediapipe")
       const d = await PoseLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task" },
