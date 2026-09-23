@@ -69,12 +69,6 @@ export function calcularTransformPrenda(
     return OCULTA
   }
 
-  // Sin espejar, los parámetros vienen en orden de pantalla (derecho a derecha, izquierdo a izquierda);
-  // se intercambian para que la lógica de atan2 funcione igual en ambos casos.
-  if (!espejado) {
-    [izquierdo, derecho] = [derecho, izquierdo]
-  }
-
   // El cuadro crudo no está espejado, pero el preview de la cámara frontal sí:
   // se espeja acá para que la prenda caiga donde la clienta se ve.
   const izqX = (espejado ? 1 - izquierdo.x : izquierdo.x) * anchoContenedor
