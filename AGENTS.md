@@ -35,7 +35,8 @@ en este repo:
 
 ```text
 /home/lmc/projects/MirrorIA/
-├── docker-compose.yml          # Postgres 16 (único servicio dockerizado por ahora)
+├── docker-compose.yml          # DEV local: Postgres + backend + frontend, HTTP plano sin dominio
+├── docker-compose.prod.yml     # override SOLO para la VM real (dominio + Let's Encrypt, ver §7)
 ├── db/init/001-extensions.sql  # crea pgcrypto automáticamente en el primer arranque del volumen
 ├── .env / .env.example         # POSTGRES_PASSWORD compartido por docker-compose
 ├── AGENTS.md                   # 🌟 Este manual maestro
@@ -94,8 +95,11 @@ docker compose up -d postgres-db
 # Backend (puerto 3000, prefijo /api/v1, Swagger en /api/docs)
 cd mirroria-backend && npm run start:dev
 
-# Frontend (todavía no existe — próximo paso)
+# Frontend (puerto 5174)
 cd mirroria-frontend && npm run dev
+
+# Todo dockerizado a la vez (Postgres + backend + frontend), HTTP plano en localhost:80
+docker compose up -d --build
 ```
 
 ## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-22)
@@ -141,3 +145,23 @@ cd mirroria-frontend && npm run dev
 - ✅ Auditoría de arquitectura (2026-09-22) sobre los 89 commits de `pagos`/`ia`/reportes que no
   hizo el usuario: backend sin violaciones; 3 archivos del frontend que superaban la Regla 1.B
   (< 150 líneas) corregidos — ver la sección dedicada en cada `AGENTS.md` de proyecto.
+- 🔧 **Docker arreglado (2026-09-27):** el `docker-compose.yml`/`nginx.conf` que había quedado
+  commiteado (`feat(infra): HTTPS con Let's Encrypt`) exigía el dominio real
+  (`mirroria.duckdns.org`) + certificados de Let's Encrypt montados desde el host — imposible de
+  levantar en una laptop de desarrollo sin esos certificados. El contenedor que seguía "andando"
+  local era una imagen vieja (de antes de ese commit), no la que el repo realmente construye hoy.
+  Se separó en dos: `nginx.conf` (default, HTTP plano, `server_name _`, lo que usa
+  `docker-compose.yml` solo) y `nginx.prod.conf` (dominio+SSL, solo con el override
+  `docker-compose.prod.yml`, `ARG NGINX_CONF` del Dockerfile). Verificado con
+  `docker compose up -d --build`: los 3 servicios levantan en `localhost:80` sin ningún
+  certificado, `/api/` llega al backend, y un estático faltante en `/prendas/` sigue dando 404
+  (no `index.html` con 200).
+- 🔁 **Probador web (RF13) migrado de pose-detection propio a Decart VTON (2026-09-27):**
+  `mirroria-frontend` dejó de usar `@mediapipe/tasks-vision` + landmarks/anclaje manual para
+  el `/probador` — ahora usa la API realtime de Decart (`lucy-vton-3.5`, `@decartai/sdk`), que
+  viste a la clienta con la foto real del producto en vez de un PNG recortado siguiendo dos
+  puntos de anclaje. Backend ganó `modules/probador/` (token efímero de Decart, `DECART_API_KEY`
+  nunca sale del servidor). **Esto es solo del frontend web** — el vestidor 3D con AR del
+  `mirroria-mobile` (ML Kit + `.glb`) no se tocó y sigue usando `arOverlayImageUrl`/
+  `public/prendas/` como antes; ver el detalle completo en `mirroria-frontend/AGENTS.md` y
+  `mirroria-backend/AGENTS.md`.
