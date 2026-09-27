@@ -23,7 +23,7 @@ export function PanelGuiado({ pasos }: { pasos: PasosProbador }) {
     <div className="rounded-2xl border border-border bg-background/95 p-4">
       <ol className="flex flex-col gap-2">
         <Paso n={1} texto="Permití la cámara" estado={pasos.camara} />
-        <Paso n={2} texto="Ubicate de frente, a metro y medio" estado={pasos.ubicacion} />
+        <Paso n={2} texto="Conectá con la IA" estado={pasos.ia} />
         <Paso n={3} texto="Elegí la prenda" estado={pasos.prenda} />
       </ol>
       <p className="mt-3 text-sm text-muted-foreground">{pasos.mensaje}</p>

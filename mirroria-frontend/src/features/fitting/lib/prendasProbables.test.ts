@@ -5,44 +5,46 @@ import {
   prendasProbables,
 } from "./prendasProbables"
 
-const p = (id: string, arOverlayImageUrl: string | null) =>
-  ({ id, arOverlayImageUrl }) as Parameters<typeof prendasProbables>[0][number]
+const p = (id: string, tieneFoto: boolean) =>
+  ({ id, imagenes: tieneFoto ? [{ url: "/x.jpg", esArAsset: false, orden: 0 }] : [] }) as Parameters<
+    typeof prendasProbables
+  >[0][number]
 
 describe("prendasProbables", () => {
-  it("deja solo las prendas que tienen recorte", () => {
-    expect(prendasProbables([p("1", "/prendas/a.png"), p("2", null)]).map((x) => x.id)).toEqual(["1"])
+  it("deja solo las prendas que tienen al menos una foto", () => {
+    expect(prendasProbables([p("1", true), p("2", false)]).map((x) => x.id)).toEqual(["1"])
   })
 })
 
 describe("elegirPrendaInicial", () => {
-  it("elige la prenda pedida cuando tiene recorte", () => {
-    const lista = [p("1", "/prendas/a.png"), p("2", "/prendas/b.png")]
+  it("elige la prenda pedida cuando tiene foto", () => {
+    const lista = [p("1", true), p("2", true)]
     expect(elegirPrendaInicial(lista, "2")?.id).toBe("2")
   })
 
   it("un id que no existe no rompe: abre sin prenda puesta", () => {
     // Review Focus 1
-    expect(elegirPrendaInicial([p("1", "/prendas/a.png")], "999")).toBeNull()
+    expect(elegirPrendaInicial([p("1", true)], "999")).toBeNull()
   })
 
-  it("un producto sin recorte tampoco se pone", () => {
+  it("un producto sin foto tampoco se pone", () => {
     // Review Focus 1
-    expect(elegirPrendaInicial([p("1", null)], "1")).toBeNull()
+    expect(elegirPrendaInicial([p("1", false)], "1")).toBeNull()
   })
 
   it("sin id no elige ninguna: la clienta elige de la tira", () => {
-    expect(elegirPrendaInicial([p("1", "/prendas/a.png")])).toBeNull()
+    expect(elegirPrendaInicial([p("1", true)])).toBeNull()
   })
 
-  it("una prenda marcada como fallida no se vuelve a elegir aunque exista y tenga recorte", () => {
-    // Corta el bucle infinito: si el PNG de la prenda del enlace ya falló,
-    // no hay que devolverla otra vez.
-    const lista = [p("1", "/prendas/a.png")]
+  it("una prenda marcada como fallida no se vuelve a elegir aunque exista y tenga foto", () => {
+    // Corta el bucle infinito: si la foto de la prenda del enlace ya falló
+    // como referencia, no hay que devolverla otra vez.
+    const lista = [p("1", true)]
     expect(elegirPrendaInicial(lista, "1", new Set(["1"]))).toBeNull()
   })
 
   it("el conjunto de fallidas vacío o ausente se comporta como antes", () => {
-    const lista = [p("1", "/prendas/a.png")]
+    const lista = [p("1", true)]
     expect(elegirPrendaInicial(lista, "1", new Set())?.id).toBe("1")
     expect(elegirPrendaInicial(lista, "1")?.id).toBe("1")
   })

@@ -1279,6 +1279,59 @@ mirroria-frontend/
 > (pensado para tablet/desktop, no mobile-first), reusando el mismo patrón de `AdminRoute` pero
 > aceptando esos roles en vez de solo `ADMIN`.
 
+## 🔁 Estado real (2026-09-27): `/probador` migrado de pose-detection propio a Decart VTON
+
+Decisión del usuario: dejar de mantener el detector de pose + anclaje manual construido antes
+(las secciones de arriba tituladas "probador"/"vestidor" con `@mediapipe/tasks-vision`,
+`landmarkMath`, `proyeccionCover`, etc. — **todo ese código se borró**, quedan como historial de
+lo que se probó, no como estado actual) y usar en su lugar la API de
+**[Decart](https://platform.decart.ai)** (modelo `lucy-vton-3.5`, "virtual try-on" real: viste a
+la persona con la foto de la prenda en vez de anclar un PNG recortado a dos puntos del cuerpo).
+
+**Esto es exclusivamente del frontend web.** El vestidor 3D con AR de `mirroria-mobile` (ML Kit +
+`.glb`, ver `mirroria-mobile/AGENTS.md`) no se tocó — sigue usando `arOverlayImageUrl` y las
+fotos de `public/prendas/` tal cual. Por eso ese campo, esas fotos, y la `location ^~ /prendas/`
+de `nginx.conf` **no se borraron**: siguen siendo infraestructura viva para el móvil aunque el
+probador web ya no las use.
+
+- **Borrado:** `@mediapipe/tasks-vision` (dependencia + `public/mediapipe/`, 28 MB de wasm/modelo
+  sin ninguna referencia ya), `hooks/usePose.ts`, `lib/{landmarkMath,proyeccionCover,recorteCover,
+  parDeAnclaje,estabilidadDePose,urlDeRecorte,avisoDeFoto}.ts` (+ sus tests),
+  `components/{escena-probador,panel-guiado}.tsx` (versión vieja), el harness de Playwright
+  `scripts/probar-probador.cjs` (con su generador de video de cámara falsa,
+  `../scripts/prendas/hacer-video-de-prueba.py`, y la dependencia `playwright` que solo él usaba).
+- **Se mantuvo, adaptado:** `hooks/useCamara.ts` (sigue haciendo falta `getUserMedia`),
+  `components/{tira-de-prendas,respaldo-sin-camara}.tsx` (ya usaban `producto.imagenes`, no
+  `arOverlayImageUrl`, así que no necesitaron cambios reales), `lib/prendasProbables.ts` (el
+  filtro pasó de "tiene `arOverlayImageUrl`" a "tiene al menos una foto en `imagenes`" — cualquier
+  producto sembrado ya sirve, no solo los que tenían un recorte hecho a mano) y
+  `lib/pasosGuiados.ts` (el panel de 3 pasos se quedó, pero el paso 2 pasó de "ubicate de frente"
+  —pose— a "conectá con la IA" —estado de la conexión realtime—, porque encuadrar el cuerpo ya lo
+  resuelve el modelo del lado del servidor).
+- **Nuevo:** `lib/promptDePrenda.ts` (arma el prompt en inglés que espera VTON 3.5, patrón
+  "Substitute the current X with...", a partir de `producto.titulo`/`descripcion`/categoría —
+  ver la guía de prompting de Decart), `api/probadorApi.ts` (pide el token efímero al backend),
+  `hooks/useProbadorIA.ts` (conecta `client.realtime.connect()` con el stream de la cámara,
+  expone el stream ya editado y `probarPrenda()`, que hace `rt.set({prompt, image})` sobre la
+  conexión existente sin reconectar), `hooks/useProbador.ts` (orquesta todo lo anterior —
+  `ProbadorPage.tsx` quedó como página delgada, solo JSX, Regla 1.B.2).
+  `components/escena-probador.tsx` se reescribió mucho más simple: ya no dibuja overlay a mano,
+  solo muestra el stream remoto de Decart (o el crudo de la cámara mientras conecta).
+- **Backend nuevo:** `mirroria-backend/src/modules/probador/` — un solo endpoint,
+  `POST /probador/token` (público, sin `JwtAuthGuard`, igual que el resto de `/probador`), que
+  llama `client.tokens.create()` del SDK de Decart y devuelve un `apiKey` efímero (10 min) al
+  navegador. La clave real (`DECART_API_KEY`, en `.env`, gitignoreada) **nunca sale del
+  servidor** — mismo criterio que ya usa `pagos` con las claves de Stripe. Sin la variable
+  configurada, el endpoint devuelve 503 (`ProbadorNoConfiguradoException`) — ver
+  `mirroria-backend/AGENTS.md`.
+- **Pendiente, a propósito:** el usuario tiene una cuenta gratis de Decart con crédito
+  ($1000, ~13.9 h de uso realtime a $0.02/seg) pero **todavía no puso la clave real** en
+  `mirroria-backend/.env` — sin eso, `/probador` en el navegador se queda en el paso "Conectá con
+  la IA" para siempre (el token nunca llega). No hay rate-limiting en el endpoint del token
+  (`/probador/token` es público y no gastar crédito de más queda, por ahora, en manos de que la
+  ruta no se difunda) — si esto se vuelve un problema real, la solución es un guard de límite de
+  tasa (`@nestjs/throttler` no está instalado todavía), no algo que se resolvió acá.
+
 ---
 
 ## 🛠️ 3. Reglas de Implementación para Agentes IA
