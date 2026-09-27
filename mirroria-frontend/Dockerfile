@@ -12,7 +12,11 @@ ENV VITE_API_URL=/api/v1
 RUN npm run build
 
 FROM nginx:alpine AS runtime
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Default = nginx.conf (HTTP plano, sin dominio ni certificados) para que
+# levantar esto en una laptop de desarrollo funcione tal cual. La VM real
+# pasa `--build-arg NGINX_CONF=nginx.prod.conf` (ver docker-compose.prod.yml).
+ARG NGINX_CONF=nginx.conf
+COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,20 @@
+# Override SOLO para la VM real (dominio + Let's Encrypt) — nunca se usa
+# solo. Se levanta junto con el docker-compose.yml de base:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# El archivo base (docker-compose.yml) sigue siendo el que se usa tal cual
+# en una máquina de desarrollo (HTTP plano, sin este archivo).
+services:
+  mirroria-frontend:
+    build:
+      context: ./mirroria-frontend
+      args:
+        NGINX_CONF: nginx.prod.conf
+    ports:
+      - "443:443"
+    volumes:
+      # Certificados de Let's Encrypt: los genera/renueva certbot en el HOST
+      # de la VM (no hay certbot acá adentro), read-only porque nginx solo
+      # necesita leerlos — mismo patrón que case-frontend.
+      - /etc/letsencrypt:/etc/letsencrypt:ro

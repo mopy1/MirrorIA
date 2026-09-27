@@ -3,7 +3,6 @@ services:
   postgres-db:
     image: postgres:16
     container_name: mirroria_postgres
-    restart: always
     environment:
       POSTGRES_USER: mirroria
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -28,7 +27,6 @@ services:
   mirroria-backend:
     build: ./mirroria-backend
     container_name: mirroria_backend
-    restart: always
     env_file:
       - ./mirroria-backend/.env
     environment:
@@ -50,18 +48,16 @@ services:
   # ⚛️ Frontend React — build de Vite servido por nginx, que además hace de
   # reverse proxy de /api/ hacia mirroria-backend (mismo origen para el
   # navegador: sin CORS que configurar, sin dominio que atar en build time).
+  # Este archivo es el default de DESARROLLO LOCAL: HTTP plano en el 80, sin
+  # dominio ni certificados (usa nginx.conf, ver su Dockerfile). El
+  # despliegue real (HTTPS + Let's Encrypt) se levanta agregando el override
+  # `docker-compose.prod.yml`, nunca modificando este archivo — ver ese
+  # archivo para el porqué.
   mirroria-frontend:
     build: ./mirroria-frontend
     container_name: mirroria_frontend
-    restart: always
     ports:
       - "80:80"
-      - "443:443"
-    volumes:
-      # Certificados de Let's Encrypt: los genera/renueva certbot en el HOST
-      # de la VM (no hay certbot acá adentro), read-only porque nginx solo
-      # necesita leerlos — mismo patrón que case-frontend.
-      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - mirroria-backend
 
