@@ -1,4 +1,6 @@
+import { ArrowUpRight } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
+import { Link } from "react-router-dom"
 import { unsplashUrl } from "@/lib/unsplash"
 import { FEATURE_HIGHLIGHTS } from "./feature-highlights.data"
 
@@ -30,7 +32,23 @@ export function FeatureHighlights() {
             <primary.icon className="size-7" weight="light" />
             <p className="mt-4 text-xl font-medium">{primary.title}</p>
             <p className="mt-2 max-w-[38ch] text-sm text-white/80">{primary.body}</p>
+            {primary.href && (
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium">
+                Probar ahora
+                <ArrowUpRight className="size-4" weight="bold" />
+              </span>
+            )}
           </div>
+          {/* Capa de click a toda la tarjeta, encima de la foto y el
+              degradado (que son puramente decorativos) — mismo criterio de
+              foco visible que el resto del sitio. */}
+          {primary.href && (
+            <Link
+              to={primary.href}
+              className="absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              aria-label={primary.title}
+            />
+          )}
         </motion.article>
 
         {rest.map((feature, index) => (

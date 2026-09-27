@@ -6,6 +6,9 @@ export interface FeatureHighlight {
   title: string
   body: string
   imageId?: string
+  /** Si existe, la tarjeta entera es un link (ver feature-highlights.tsx) —
+   * solo la tiene "Vestidor virtual" hoy, es la única con una página propia. */
+  href?: string
 }
 
 export const FEATURE_HIGHLIGHTS: FeatureHighlight[] = [
@@ -15,6 +18,7 @@ export const FEATURE_HIGHLIGHTS: FeatureHighlight[] = [
     body: "Activá la cámara y mirá cómo te queda la prenda antes de reservarla.",
     // Unsplash, licencia libre: mujer probándose ropa en el probador.
     imageId: "1753161027818-28b1f73a8fdf",
+    href: "/probador",
   },
   {
     icon: MapPinLine,
