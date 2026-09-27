@@ -137,7 +137,11 @@ export function ProductDetail({ producto }: { producto: Producto }) {
             Agregar al carrito
           </Button>
 
-          {producto.arOverlayImageUrl && (
+          {/* El probador web (Decart VTON) usa la foto real del producto, no
+              arOverlayImageUrl (ese campo sigue siendo del vestidor AR del
+              móvil) — cualquier producto con al menos una foto se puede
+              probar. */}
+          {(producto.imagenes?.length ?? 0) > 0 && (
             <Link to={`/probador/${producto.id}`}>
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
                 Probármela
