@@ -59,7 +59,8 @@ src/
     ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
     ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
     ├── pagos/                     # ✅ implementado — pagos (RF19: Stripe con webhook firmado + cobro manual QR/efectivo)
-    └── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
+    ├── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
+    └── probador/                  # ✅ implementado — token efimero de Decart para el probador web (RF13, sin tabla propia)
 ```
 
 Cada módulo `🚧 placeholder` hoy es solo un `<nombre>.module.ts` con `@Module({})` vacío,
@@ -552,6 +553,27 @@ reglas de este documento, y corregir lo que no las respetara — no dar por sent
 
 (La auditoría del **frontend** sí encontró y corrigió 3 violaciones reales de la Regla 1.B
 de `mirroria-frontend/AGENTS.md` — ver ese documento, sección de la misma fecha.)
+
+## ✅ Estado actual: `modules/probador/` — token efímero de Decart (RF13, 2026-09-27)
+
+El probador virtual web (`/probador` en `mirroria-frontend`) migró de un detector de pose propio
+a la API realtime de [Decart](https://platform.decart.ai) (modelo `lucy-vton-3.5`, virtual
+try-on real) — ver `mirroria-frontend/AGENTS.md` para el detalle completo del lado del cliente.
+Este módulo es la única pieza que hace falta del lado del servidor: sin tabla propia, sin
+relación con ningún otro módulo.
+
+- **`POST /probador/token`** (público, sin `JwtAuthGuard` — mismo criterio que el resto de
+  `/probador`, probarse una prenda no exige cuenta): llama `client.tokens.create()` del SDK
+  (`@decartai/sdk`) con la clave real (`DECART_API_KEY`, env var) y devuelve al navegador un
+  `apiKey` efímero de 10 minutos, restringido a `lucy-vton-3.5` (`allowedModels`). La clave real
+  **nunca sale de este servidor** — mismo criterio que ya usa `pagos` con las claves de Stripe.
+- **Sin `DECART_API_KEY` el endpoint responde 503** (`ProbadorNoConfiguradoException`), mismo
+  patrón que `IaNoConfiguradaException` en `ia/` — el resto del sitio sigue funcionando igual.
+- **Sin rate-limiting todavía:** el endpoint es público y no hay `@nestjs/throttler` instalado
+  en el proyecto — cada llamada gasta crédito real de la cuenta de Decart. Aceptado por ahora
+  (mismo tamaño de riesgo que cualquier otro endpoint público sin proteger de este proyecto de
+  examen); si se vuelve un problema real, la solución es un guard de límite de tasa, no algo que
+  ya esté resuelto acá.
 
 ## 🗺️ Roadmap de los módulos que faltan
 

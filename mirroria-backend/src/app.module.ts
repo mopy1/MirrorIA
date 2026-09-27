@@ -10,6 +10,7 @@ import { IaModule } from './modules/ia/ia.module.js';
 import { InventarioModule } from './modules/inventario/inventario.module.js';
 import { PagosModule } from './modules/pagos/pagos.module.js';
 import { PromocionesModule } from './modules/promociones/promociones.module.js';
+import { ProbadorModule } from './modules/probador/probador.module.js';
 import { ProveedoresModule } from './modules/proveedores/proveedores.module.js';
 import { ReservasModule } from './modules/reservas/reservas.module.js';
 import { SeguridadModule } from './modules/seguridad/seguridad.module.js';
@@ -41,6 +42,7 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
     PagosModule,
     PromocionesModule,
     IaModule,
+    ProbadorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
