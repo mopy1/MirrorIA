@@ -67,6 +67,16 @@ export class VentasController {
     return this.ventasService.findAll({ sucursalId });
   }
 
+  // "Mis Pedidos & Compras" del perfil — mismo patrón que GET /reservas/mias.
+  // Declarado antes de GET :id a propósito: si fuera después, Nest matchearía
+  // "mias" contra el parámetro :id en vez de contra esta ruta literal.
+  @Get('mias')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  misVentas(@CurrentUser() user: JwtPayload): Promise<VentaResponseDto[]> {
+    return this.ventasService.findAll({ clienteId: user.sub });
+  }
+
   // Una clienta vuelve de la pasarela de pago y necesita poder consultar el
   // estado real de SU compra (la URL se puede escribir a mano, no prueba
   // nada) — sin esto recibía 403 y nunca sabía si se cobró. El listado

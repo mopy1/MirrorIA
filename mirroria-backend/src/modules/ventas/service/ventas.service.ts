@@ -96,9 +96,12 @@ export class VentasService {
     return venta;
   }
 
-  async findAll(filtro: { sucursalId?: string }): Promise<VentaResponseDto[]> {
+  async findAll(filtro: { sucursalId?: string; clienteId?: string }): Promise<VentaResponseDto[]> {
+    const where: { sucursalId?: string; clienteId?: string } = {};
+    if (filtro.sucursalId) where.sucursalId = filtro.sucursalId;
+    if (filtro.clienteId) where.clienteId = filtro.clienteId;
     const ventas = await this.ventaRepository.find({
-      where: filtro.sucursalId ? { sucursalId: filtro.sucursalId } : {},
+      where,
       order: { createdAt: 'DESC' },
     });
     return Promise.all(ventas.map((venta) => this.cargarYMapear(venta)));
