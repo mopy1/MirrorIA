@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, FlatList, RefreshControl } from 'react-native';
+import { View, FlatList, RefreshControl, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ShoppingBag } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/common/ScreenHeader';
+import { Icon } from '@/components/ui/icon';
 import { SearchInput } from '../components/SearchInput';
 import { CategoryChips } from '../components/CategoryChips';
 import { ProductCardMobile } from '../components/ProductCardMobile';
@@ -61,9 +63,7 @@ export function CatalogScreen() {
   }, [products, selectedCategoryId, search]);
 
   const handlePressProduct = (product: ProductoResponseDto) => {
-    if (product.modeloArUrl) {
-      router.push('/(tabs)/probador');
-    }
+    router.push(`/producto/${product.id}`);
   };
 
   const handlePressTryOn = (_product: ProductoResponseDto) => {
@@ -76,6 +76,15 @@ export function CatalogScreen() {
         title="Catálogo"
         subtitle="Prendas exclusivas & Probador 3D"
         showLogo={false}
+        rightAction={
+          <Pressable
+            onPress={() => router.push('/carrito')}
+            hitSlop={8}
+            className="w-9 h-9 items-center justify-center rounded-full active:bg-muted"
+          >
+            <Icon as={ShoppingBag} size={20} className="text-foreground" />
+          </Pressable>
+        }
       />
 
       <View className="px-4 pt-3 pb-1">
@@ -96,6 +105,14 @@ export function CatalogScreen() {
           keyExtractor={(item) => item.id}
           numColumns={2}
           keyboardShouldPersistTaps="handled"
+          // Android recorta (oculta) vistas hermanas fuera de una heurística
+          // de bounding box cuando hay imágenes pesadas en la lista — el
+          // texto debajo de la imagen (título/precio) desaparecía en
+          // algunas tarjetas al scrollear, aunque el dato llegaba bien
+          // (confirmado: la ficha de detalle del mismo producto sí lo
+          // mostraba). Desactivar el "clipping" cuesta memoria, aceptable
+          // para un catálogo de este tamaño.
+          removeClippedSubviews={false}
           contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 24 }}
           renderItem={({ item }) => (
             <ProductCardMobile

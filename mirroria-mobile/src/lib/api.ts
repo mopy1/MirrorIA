@@ -2,8 +2,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { storage } from './storage';
 
-const CLOUDFLARE_TUNNEL_URL =
-  'https://tulsa-maintenance-deployment-occasion.trycloudflare.com/api/v1';
+const AZURE_BACKEND_URL = 'https://mirroria.duckdns.org/api/v1';
 
 function getDefaultApiUrl(): string {
   // 1. En la PC local (navegador web), va directo a localhost
@@ -20,8 +19,10 @@ function getDefaultApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // 3. Túnel público Cloudflare (garantiza conexión desde cualquier celular)
-  return CLOUDFLARE_TUNNEL_URL;
+  // 3. Backend real en la VM de Azure (dominio fijo + HTTPS, funciona desde
+  // cualquier red, no solo Wi-Fi local — reemplaza al viejo túnel de Cloudflare,
+  // que era una URL efímera y ya no corre)
+  return AZURE_BACKEND_URL;
 }
 
 export const API_URL = getDefaultApiUrl();

@@ -1,36 +1,25 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
-import {
-  Ruler,
-  ShoppingBag,
-  MapPin,
-  MessageCircle,
-  ChevronRight,
-} from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ShoppingBag, MapPin, ChevronRight } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
 
 export function ProfileNavigationMenu() {
+  const router = useRouter();
+
   const menuItems = [
     {
-      title: 'Mis Medidas & Avatar 3D',
-      subtitle: 'Configurá tu figura para el probador',
-      icon: Ruler,
-    },
-    {
       title: 'Mis Pedidos & Compras',
-      subtitle: 'Historial y comprobantes',
+      subtitle: 'Historial y estado de tus compras',
       icon: ShoppingBag,
+      onPress: () => router.push('/pedidos'),
     },
     {
       title: 'Sucursales & Probadores Físicos',
       subtitle: 'Direcciones y horarios de atención',
       icon: MapPin,
-    },
-    {
-      title: 'Asesoría de Imagen por WhatsApp',
-      subtitle: 'Consultas directas con estilistas',
-      icon: MessageCircle,
+      onPress: () => router.push('/sucursales'),
     },
   ];
 
@@ -39,6 +28,7 @@ export function ProfileNavigationMenu() {
       {menuItems.map((item, index) => (
         <Pressable
           key={item.title}
+          onPress={item.onPress}
           className={`p-4 flex-row items-center justify-between active:bg-muted/50 ${
             index > 0 ? 'border-t border-border/40' : ''
           }`}

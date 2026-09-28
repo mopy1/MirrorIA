@@ -30,6 +30,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-web-browser": "~57.0.3",
     "lucide-react-native": "^1.21.0",
     "mirroria-pose-detector": "file:./modules/mirroria-pose-detector",
     "nativewind": "^4.2.6",

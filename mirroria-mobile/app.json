@@ -38,7 +38,8 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-dev-client",
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

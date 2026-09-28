@@ -1,5 +1,6 @@
 package com.margelo.nitro.mirroriaposedetector
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
@@ -22,6 +23,15 @@ import java.util.concurrent.TimeUnit
  * asíncrona. `PoseLandmark` sin calificar es el data class que generó
  * nitrogen (mismo paquete que este archivo); `MlKitPoseLandmark` es el de
  * la librería de Google, con el mismo nombre — de ahí el alias.
+ *
+ * `poseDetector` se dispara con `.process()` en `init {}` sobre un bitmap
+ * en blanco, en cuanto se crea la instancia — no para obtener un resultado
+ * (se descarta), sino para forzar temprano la carga pesada del modelo
+ * TFLite que ML Kit hace recién en su primera llamada real. Sin este
+ * precalentamiento, esa carga competía por tiempo con el timeout de 800ms
+ * de `processFrameAndroid` contra el primer frame real de la cámara, y
+ * los primeros segundos de detección (a veces todos, si el frame processor
+ * no le daba tiempo a terminar) llegaban a `Tasks.await` con timeout.
  */
 @DoNotStrip
 @Keep
@@ -32,6 +42,16 @@ class MirroriaPoseDetector : HybridMirroriaPoseDetectorSpec() {
         .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
         .build()
     )
+  }
+
+  init {
+    val warmupBitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
+    val warmupImage = InputImage.fromBitmap(warmupBitmap, 0)
+    poseDetector.process(warmupImage)
+      .addOnCompleteListener {
+        Log.i(TAG, "Precalentamiento de ML Kit completo")
+        warmupBitmap.recycle()
+      }
   }
 
   @Volatile
