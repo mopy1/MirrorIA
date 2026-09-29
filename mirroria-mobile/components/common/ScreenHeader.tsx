@@ -38,9 +38,9 @@ export function ScreenHeader({
         {showLogo ? (
           <BrandLogo size="default" />
         ) : (
-          <View>
+          <View className="flex-1">
             {title && (
-              <Text className="text-xl font-bold tracking-tight text-foreground">
+              <Text numberOfLines={1} className="text-xl font-bold tracking-tight text-foreground">
                 {title}
               </Text>
             )}

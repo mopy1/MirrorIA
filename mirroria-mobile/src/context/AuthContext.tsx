@@ -4,6 +4,17 @@ import { setUnauthorizedCallback } from '@/src/lib/api';
 import { storage } from '@/src/lib/storage';
 import { AuthContext, type AuthContextValue } from './auth-context';
 
+/** `exp` del JWT (segundos) ya pasado. Token ilegible = se trata como vencido. */
+function tokenVencido(token: string): boolean {
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { exp } = JSON.parse(atob(payload)) as { exp?: number };
+    return typeof exp === 'number' && exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UsuarioResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -12,8 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function loadStoredUser() {
       try {
         const raw = await storage.getItem('mirroria_user');
-        if (raw) {
+        const token = await storage.getItem('mirroria_token');
+        // El JWT dura 1h: con uno vencido la app mostraba la sesión abierta y
+        // recién fallaba (401) al agregar al carrito o reservar.
+        if (raw && token && !tokenVencido(token)) {
           setUser(JSON.parse(raw) as UsuarioResponse);
+        } else if (raw || token) {
+          await storage.removeItem('mirroria_token');
+          await storage.removeItem('mirroria_user');
         }
       } catch {
         setUser(null);

@@ -10,7 +10,10 @@ import { formatMoney } from '@/src/lib/money';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ApiError } from '@/src/lib/api';
 import { cartApi } from '../api/cartApi';
-import { catalogApi } from '@/src/features/catalog/api/catalogApi';
+import {
+  indiceVariantes,
+  type VarianteConProducto,
+} from '@/src/features/catalog/lib/indiceVariantes';
 import type { ProductoResponseDto } from '@/src/features/catalog/types/catalog.types';
 import type { CarritoItem } from '../types/cart.types';
 import { CartItemRow } from '../components/CartItemRow';
@@ -28,22 +31,22 @@ export function CartScreen() {
   const router = useRouter();
 
   const [items, setItems] = useState<CarritoItem[]>([]);
-  const [productos, setProductos] = useState<ProductoResponseDto[]>([]);
+  const [indice, setIndice] = useState<Map<string, VarianteConProducto>>(new Map());
   const [loading, setLoading] = useState(true);
   const [sucursalId, setSucursalId] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const [carrito, prods] = await Promise.all([
-        cartApi.getCarrito(user.id),
-        catalogApi.getProductos(),
-      ]);
+      const [carrito, idx] = await Promise.all([cartApi.getCarrito(user.id), indiceVariantes()]);
       setItems(carrito.items);
-      setProductos(prods);
+      setIndice(idx);
     } catch {
       setItems([]);
     } finally {
@@ -59,16 +62,13 @@ export function CartScreen() {
 
   const enriched: EnrichedItem[] = items
     .map((item) => {
-      const producto = productos.find((p) =>
-        p.variantes?.some((v) => v.id === item.varianteId),
-      );
-      const variante = producto?.variantes?.find((v) => v.id === item.varianteId);
-      if (!producto || !variante) return null;
+      const encontrada = indice.get(item.varianteId);
+      if (!encontrada) return null;
       return {
         item,
-        producto,
-        tallaNombre: variante.tallaNombre,
-        colorNombre: variante.colorNombre,
+        producto: encontrada.producto,
+        tallaNombre: encontrada.variante.tallaNombre,
+        colorNombre: encontrada.variante.colorNombre,
       };
     })
     .filter((x): x is EnrichedItem => x !== null);
@@ -110,11 +110,17 @@ export function CartScreen() {
           <ActivityIndicator color="#8a1538" />
         </View>
       ) : enriched.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-6 gap-2">
+        <View className="flex-1 items-center justify-center px-6 gap-3">
           <Icon as={ShoppingBag} size={32} className="text-muted-foreground/40" />
           <Text className="text-sm text-muted-foreground text-center">
-            Tu carrito está vacío.
+            {user ? 'Tu carrito está vacío.' : 'Iniciá sesión para ver tu carrito.'}
           </Text>
+          <Button
+            variant={user ? 'outline' : 'default'}
+            onPress={() => router.push(user ? '/(tabs)/catalogo' : '/(auth)/login')}
+          >
+            <Text>{user ? 'Ver catálogo' : 'Iniciar sesión'}</Text>
+          </Button>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 200 }}>
@@ -145,6 +151,11 @@ export function CartScreen() {
           <Button disabled={!sucursalId || checkingOut} onPress={handleCheckout}>
             <Text>{checkingOut ? 'Procesando…' : 'Comprar'}</Text>
           </Button>
+          {!sucursalId && (
+            <Text className="text-[11px] text-center text-muted-foreground">
+              Elegí la sucursal donde vas a retirar tu compra.
+            </Text>
+          )}
         </View>
       )}
     </View>

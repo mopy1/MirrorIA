@@ -5,7 +5,7 @@ import {
   ShoppingBag,
   Glasses,
   Ticket,
-  Sparkles,
+  ShoppingCart,
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
@@ -36,11 +36,11 @@ export function QuickActionsBar() {
       onPress: () => router.push('/(tabs)/perfil'),
     },
     {
-      title: 'Tendencias',
-      subtitle: 'Top elegidos',
-      icon: Sparkles,
+      title: 'Mi carrito',
+      subtitle: 'Pagar y seguir',
+      icon: ShoppingCart,
       color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      onPress: () => router.push('/(tabs)/catalogo'),
+      onPress: () => router.push('/carrito'),
     },
   ];
 

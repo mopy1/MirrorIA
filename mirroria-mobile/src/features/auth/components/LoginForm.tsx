@@ -27,6 +27,7 @@ export function LoginForm() {
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -51,12 +52,17 @@ export function LoginForm() {
         <Controller
           control={control}
           name="email"
-          render={({ field: { onChange, onBlur, value } }) => (
+          render={({ field: { onChange, onBlur, value, ref } }) => (
             <Input
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
+              ref={ref}
               placeholder="tu@email.com"
+              autoComplete="email"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => setFocus('password')}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -75,12 +81,16 @@ export function LoginForm() {
         <Controller
           control={control}
           name="password"
-          render={({ field: { onChange, onBlur, value } }) => (
+          render={({ field: { onChange, onBlur, value, ref } }) => (
             <Input
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
+              ref={ref}
               placeholder="••••••••"
+              autoComplete="current-password"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit(submit)}
               secureTextEntry
               autoCapitalize="none"
               className={errors.password ? 'border-destructive' : ''}

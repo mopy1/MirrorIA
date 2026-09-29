@@ -28,6 +28,7 @@ export function RegisterForm() {
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -53,12 +54,17 @@ export function RegisterForm() {
         <Controller
           control={control}
           name="fullName"
-          render={({ field: { onChange, onBlur, value } }) => (
+          render={({ field: { onChange, onBlur, value, ref } }) => (
             <Input
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
+              ref={ref}
               placeholder="María Pérez"
+              autoComplete="name"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => setFocus('email')}
               autoCapitalize="words"
               className={errors.fullName ? 'border-destructive' : ''}
             />
@@ -75,12 +81,17 @@ export function RegisterForm() {
         <Controller
           control={control}
           name="email"
-          render={({ field: { onChange, onBlur, value } }) => (
+          render={({ field: { onChange, onBlur, value, ref } }) => (
             <Input
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
+              ref={ref}
               placeholder="tu@email.com"
+              autoComplete="email"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => setFocus('password')}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -99,12 +110,16 @@ export function RegisterForm() {
         <Controller
           control={control}
           name="password"
-          render={({ field: { onChange, onBlur, value } }) => (
+          render={({ field: { onChange, onBlur, value, ref } }) => (
             <Input
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
+              ref={ref}
               placeholder="Mínimo 8 caracteres"
+              autoComplete="new-password"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit(submit)}
               secureTextEntry
               autoCapitalize="none"
               className={errors.password ? 'border-destructive' : ''}

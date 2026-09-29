@@ -20,7 +20,7 @@ export function GuestPromptCard() {
           Iniciá sesión en MirrorIA
         </Text>
         <Text className="text-xs text-muted-foreground text-center leading-relaxed max-w-[280px]">
-          Guardá tus prendas favoritas para el probador IA, apartá prendas para probarte en tienda y disfrutá de atención personalizada.
+          Comprá desde el celular, apartá prendas para probarte en tienda y seguí tus pedidos.
         </Text>
       </View>
 

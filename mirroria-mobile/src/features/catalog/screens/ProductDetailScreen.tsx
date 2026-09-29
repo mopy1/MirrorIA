@@ -29,6 +29,7 @@ export function ProductDetailScreen() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [showReservar, setShowReservar] = useState(false);
   const [reservando, setReservando] = useState(false);
+  const [enCarrito, setEnCarrito] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -41,14 +42,20 @@ export function ProductDetailScreen() {
 
   const image = product ? getPrimaryImageUrl(product.imagenes) ?? product.imagenes?.[0]?.url : null;
 
+  // La prenda se ve siempre; el login se pide recién al querer comprar o reservar.
+  const pedirLogin = () => router.push('/(auth)/login');
+
   async function handleAgregarAlCarrito() {
-    if (!user || !varianteId) return;
+    if (!isAuthenticated || !user) return pedirLogin();
+    if (!varianteId) return;
     setAddingToCart(true);
     setFeedback(null);
     try {
       await cartApi.addItem(user.id, varianteId, 1);
       setFeedback('Agregado al carrito ✓');
+      setEnCarrito(true);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return pedirLogin();
       setFeedback(err instanceof ApiError ? err.message : 'No se pudo agregar al carrito');
     } finally {
       setAddingToCart(false);
@@ -68,6 +75,7 @@ export function ProductDetailScreen() {
       setFeedback('Reserva confirmada — la vas a ver en tu perfil ✓');
       setShowReservar(false);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return pedirLogin();
       setFeedback(err instanceof ApiError ? err.message : 'No se pudo reservar');
     } finally {
       setReservando(false);
@@ -90,22 +98,6 @@ export function ProductDetailScreen() {
           <Text className="text-sm text-muted-foreground text-center">
             No se pudo cargar este producto.
           </Text>
-        </View>
-      </View>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <View className="flex-1 bg-background">
-        <ScreenHeader title={product.titulo} showLogo={false} showBack />
-        <View className="flex-1 items-center justify-center px-6 gap-3">
-          <Text className="text-sm text-muted-foreground text-center">
-            Iniciá sesión para comprar o reservar esta prenda.
-          </Text>
-          <Button size="sm" onPress={() => router.push('/(auth)/login')}>
-            <Text>Iniciar sesión</Text>
-          </Button>
         </View>
       </View>
     );
@@ -147,7 +139,6 @@ export function ProductDetailScreen() {
           </View>
 
           <View className="gap-2">
-            <Text className="text-xs font-bold text-foreground">Talla y color</Text>
             <VarianteSelector
               variantes={product.variantes ?? []}
               selectedId={varianteId}
@@ -168,10 +159,16 @@ export function ProductDetailScreen() {
               <Text>{addingToCart ? 'Agregando…' : 'Agregar al carrito'}</Text>
             </Button>
 
+            {enCarrito && (
+              <Button variant="secondary" onPress={() => router.push('/carrito')}>
+                <Text>Ver carrito y pagar</Text>
+              </Button>
+            )}
+
             <Button
               variant="outline"
               disabled={!varianteId}
-              onPress={() => setShowReservar((v) => !v)}
+              onPress={() => (isAuthenticated ? setShowReservar((v) => !v) : pedirLogin())}
             >
               <Icon as={CalendarClock} size={16} className="text-foreground" />
               <Text>Reservar para probar en tienda</Text>
@@ -184,7 +181,12 @@ export function ProductDetailScreen() {
 
           {!varianteId && (
             <Text className="text-[11px] text-muted-foreground text-center">
-              Elegí una talla y color para continuar.
+              Elegí color y talla para continuar.
+            </Text>
+          )}
+          {!isAuthenticated && (
+            <Text className="text-[11px] text-muted-foreground text-center">
+              Para comprar o reservar te vamos a pedir que inicies sesión.
             </Text>
           )}
         </View>

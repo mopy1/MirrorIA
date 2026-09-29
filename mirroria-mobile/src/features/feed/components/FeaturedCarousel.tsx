@@ -46,9 +46,7 @@ export function FeaturedCarousel({ products }: FeaturedCarouselProps) {
           return (
             <Pressable
               key={item.id}
-              onPress={() =>
-                router.push({ pathname: '/(tabs)/probador', params: { productoId: item.id } })
-              }
+              onPress={() => router.push(`/producto/${item.id}`)}
               className="w-40 rounded-2xl bg-card border border-border/70 overflow-hidden active:opacity-90 shadow-sm"
             >
               <View
