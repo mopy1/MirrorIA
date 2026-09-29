@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
+import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { CambiarEstadoReservaDto } from '../dto/cambiar-estado-reserva.dto.js';
 import { CreateReservaDto } from '../dto/create-reserva.dto.js';
 import type { CupoReservaResponseDto } from '../dto/cupo-reserva-response.dto.js';
@@ -65,10 +66,14 @@ export class ReservasController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
   findAll(
+    @CurrentUser() user: JwtPayload,
     @Query('sucursalId') sucursalId?: string,
     @Query('estado') estado?: string,
   ): Promise<ReservaResponseDto[]> {
-    return this.reservasService.findAll({ sucursalId, estado });
+    return this.reservasService.findAll({
+      sucursalId: sucursalDelStaff(user) ?? sucursalId,
+      estado,
+    });
   }
 
   // Dueño (cliente) o staff — no ambos guards a la vez porque el cliente no
@@ -84,6 +89,10 @@ export class ReservasController {
     if (!esStaff && reserva.clienteId !== user.sub) {
       throw new ForbiddenActionException('No podés ver la reserva de otro cliente');
     }
+    const propia = esStaff ? sucursalDelStaff(user) : undefined;
+    if (propia && reserva.sucursalId !== propia) {
+      throw new ForbiddenActionException('La reserva es de otra sucursal');
+    }
     return this.reservasService.findOneResponse(id);
   }
 
@@ -92,10 +101,15 @@ export class ReservasController {
   @Patch(':id/estado')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
-  cambiarEstado(
+  async cambiarEstado(
     @Param('id') id: string,
     @Body() dto: CambiarEstadoReservaDto,
+    @CurrentUser() user: JwtPayload,
   ): Promise<ReservaResponseDto> {
+    const propia = sucursalDelStaff(user);
+    if (propia && (await this.reservasService.findOne(id)).sucursalId !== propia) {
+      throw new ForbiddenActionException('La reserva es de otra sucursal');
+    }
     return this.reservasService.cambiarEstado(id, dto.estado as EstadoReserva);
   }
 

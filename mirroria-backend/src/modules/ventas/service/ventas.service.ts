@@ -325,7 +325,7 @@ export class VentasService {
       // La venta ya descontó cantidadDisponible arriba (ajustarStock, RF20).
       // Si concreta una reserva, cerrarla libera su cantidadReservada.
       if (params.reservaId) {
-        await this.reservasService.completarPorVenta(params.reservaId, manager);
+        await this.reservasService.completarPorVenta(params.reservaId, params.sucursalId, manager);
       }
 
       return this.toResponse(venta, itemsGuardados);

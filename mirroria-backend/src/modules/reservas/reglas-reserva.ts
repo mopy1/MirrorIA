@@ -32,6 +32,12 @@ export const REGLAS_RESERVA = {
    * puede reservar). El resto queda siempre para la venta directa.
    */
   fraccionReservable: 0.5,
+  /**
+   * Una reserva EN_TIENDA sin venta (se probó y no compró) se cierra sola
+   * pasadas estas horas desde la hora prevista, para liberar el stock. No
+   * cuenta como falta: la clienta sí vino.
+   */
+  horasMaximasEnTienda: 4,
 } as const;
 
 /** Cada cuánto corre la barrida automática de reservas vencidas. */

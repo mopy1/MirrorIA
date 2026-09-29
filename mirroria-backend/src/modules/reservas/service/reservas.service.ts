@@ -21,8 +21,11 @@ import { ReservaItem } from '../entities/reserva-item.entity.js';
 // completarPorVenta — nunca desde acá. Cualquier estado no listado como
 // origen es terminal (no admite más transiciones).
 const TRANSICIONES_MANUALES: Partial<Record<EstadoReserva, EstadoReserva[]>> = {
+  // EN_TIENDA directo desde PENDIENTE: si la clienta llega antes de que la
+  // tienda confirmara, el cajero no tiene que hacer dos pasos en el mostrador.
   [EstadoReserva.PENDIENTE]: [
     EstadoReserva.CONFIRMADA,
+    EstadoReserva.EN_TIENDA,
     EstadoReserva.CANCELADA,
     EstadoReserva.EXPIRADA,
   ],
@@ -32,6 +35,9 @@ const TRANSICIONES_MANUALES: Partial<Record<EstadoReserva, EstadoReserva[]>> = {
     EstadoReserva.EXPIRADA,
     EstadoReserva.NO_SHOW,
   ],
+  // Se probó y no compró: antes EN_TIENDA solo salía con una venta y el stock
+  // quedaba reservado para siempre. CANCELADA libera el stock y no es falta.
+  [EstadoReserva.EN_TIENDA]: [EstadoReserva.CANCELADA],
 };
 
 const ESTADOS_ACTIVOS = [
@@ -215,7 +221,8 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
    * Vence las reservas cuya hora (+ tolerancia) ya pasó sin que la clienta
    * llegara: CONFIRMADA → NO_SHOW (la tienda la esperaba), PENDIENTE →
    * EXPIRADA (nunca se llegó a confirmar). Las dos cuentan como falta y las dos
-   * liberan el stock reservado. EN_TIENDA no se toca: la clienta está ahí.
+   * liberan el stock reservado. EN_TIENDA recién se cierra (CANCELADA, sin
+   * falta) si pasaron `horasMaximasEnTienda` sin que se cobrara la venta.
    */
   async expirarVencidas(): Promise<number> {
     const limite = new Date(Date.now() - REGLAS_RESERVA.toleranciaMinutos * MS_MINUTO);
@@ -226,10 +233,23 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
       },
       take: 200,
     });
+    const enTiendaOlvidadas = await this.reservaRepository.find({
+      where: {
+        estado: EstadoReserva.EN_TIENDA,
+        fechaHoraPrevista: LessThan(
+          new Date(Date.now() - REGLAS_RESERVA.horasMaximasEnTienda * 60 * MS_MINUTO),
+        ),
+      },
+      take: 200,
+    });
     let cerradas = 0;
-    for (const reserva of vencidas) {
+    for (const reserva of [...vencidas, ...enTiendaOlvidadas]) {
       const destino =
-        reserva.estado === EstadoReserva.CONFIRMADA ? EstadoReserva.NO_SHOW : EstadoReserva.EXPIRADA;
+        reserva.estado === EstadoReserva.CONFIRMADA
+          ? EstadoReserva.NO_SHOW
+          : reserva.estado === EstadoReserva.EN_TIENDA
+            ? EstadoReserva.CANCELADA
+            : EstadoReserva.EXPIRADA;
       try {
         await this.dataSource.transaction(async (manager) => {
           // Se relee con bloqueo: otra barrida o el staff pudo moverla recién.
@@ -316,11 +336,18 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
   // Llamado por VentasService cuando una venta presencial referencia una
   // reserva: la cierra y libera el stock reservado (el stock físico ya lo
   // descontó la venta por su cuenta, vía ajustarStock).
-  async completarPorVenta(id: string, manager: EntityManager): Promise<void> {
+  async completarPorVenta(id: string, sucursalId: string, manager: EntityManager): Promise<void> {
     const reservaRepo = manager.getRepository(Reserva);
     const reserva = await reservaRepo.findOne({ where: { id } });
     if (!reserva) {
       throw new RecursoNoEncontradoException('Reserva', id);
+    }
+    // Sin esto se podía cobrar en una sucursal la reserva de otra: el stock se
+    // descontaba en una y la reserva se liberaba en la otra.
+    if (reserva.sucursalId !== sucursalId) {
+      throw new OperacionInvalidaException(
+        'La reserva es de otra sucursal: se tiene que cobrar en la sucursal donde se reservó',
+      );
     }
     if (reserva.estado !== EstadoReserva.EN_TIENDA) {
       throw new OperacionInvalidaException(

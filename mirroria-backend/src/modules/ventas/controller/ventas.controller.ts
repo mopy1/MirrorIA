@@ -16,6 +16,8 @@ import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
+import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { CheckoutCarritoDto } from '../dto/checkout-carrito.dto.js';
 import { CreateVentaPresencialDto } from '../dto/create-venta-presencial.dto.js';
 import type { VentaResponseDto } from '../dto/ventas-response.dto.js';
@@ -38,6 +40,11 @@ export class VentasController {
     @Body() dto: CreateVentaPresencialDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<VentaResponseDto> {
+    // Un cajero cobra en su sucursal: si no, descontaría stock de otra.
+    const propia = sucursalDelStaff(user);
+    if (propia && dto.sucursalId !== propia) {
+      throw new ForbiddenActionException('Solo podés registrar ventas en tu sucursal');
+    }
     return this.ventasService.registrarPresencial(dto, user.sub);
   }
 

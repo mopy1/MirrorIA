@@ -674,3 +674,21 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
 - **Trampa encontrada al probar**: las fechas son `timestamp without time zone`; el backend
   escribe y compara con la zona del proceso, así que un `UPDATE ... now()` hecho a mano desde
   psql (UTC) queda corrido 4 horas respecto de lo que ve la app en una máquina en -04.
+
+## 🏬 Flujo de mostrador de reservas (2026-09-29)
+
+- **Alcance por sucursal del staff** (`core/security/sucursal-del-staff.ts`): ENCARGADO_SUCURSAL y
+  CAJERO solo ven y cambian reservas de su `sucursalId` del JWT (el `?sucursalId=` que manden se
+  ignora), y un CAJERO solo registra ventas presenciales en su sucursal. ADMIN sin límite. Staff
+  sin sucursal asignada → 403 (dejar el filtro vacío abriría todas).
+- **Transiciones nuevas**: PENDIENTE → EN_TIENDA (la clienta llegó antes de que la tienda
+  confirmara: un paso en vez de dos) y EN_TIENDA → CANCELADA ("se probó y no compró"). Antes
+  EN_TIENDA solo salía con una venta y el stock quedaba reservado para siempre. Además la barrida
+  cierra sola (CANCELADA) las EN_TIENDA con más de `horasMaximasEnTienda` (4 h) desde la hora
+  prevista. Ninguna de las dos cuenta como falta.
+- **`completarPorVenta` exige la misma sucursal** que la venta: antes se podía cobrar en una
+  sucursal la reserva de otra (stock descontado en una, reserva liberada en la otra) → 409.
+- **Código de reserva**: el "código" que ve la clienta es `id.slice(0, 8).toUpperCase()` (web y
+  móvil); el panel admin lo muestra y busca por ese prefijo. No hay columna nueva.
+- Verificado con 14 escenarios contra la API real (Postgres local), más los 21 de las reglas
+  anti-acaparamiento; 182 unitarias en verde; e2e con las mismas 2 fallas preexistentes.
