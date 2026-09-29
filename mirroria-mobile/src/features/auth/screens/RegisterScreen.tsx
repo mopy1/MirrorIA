@@ -12,6 +12,7 @@ import { Sparkles } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { AuthBackButton } from '@/components/common/AuthBackButton';
 import { RegisterForm } from '../components/RegisterForm';
 
 export function RegisterScreen() {
@@ -80,6 +81,7 @@ export function RegisterScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <AuthBackButton />
       <Pressable
         className="flex-1"
         onPress={Keyboard.dismiss}
