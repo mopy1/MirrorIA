@@ -1,11 +1,8 @@
 import { CalendarBlank } from "@phosphor-icons/react"
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useAuth } from "@/hooks/useAuth"
-import { useCreateResource } from "@/hooks/useCreateResource"
-import { reservationsApi } from "../../api/reservationsApi"
+import { CupoReservaInfo } from "./cupo-reserva-info"
+import { useReservarEnTienda } from "./useReservarEnTienda"
 
 interface ReservarEnTiendaProps {
   varianteId: string | null
@@ -18,34 +15,12 @@ interface ReservarEnTiendaProps {
  * aunque se renderiza dentro de `product-detail` — mismo criterio que
  * `BranchPicker` de `features/branches/` importado ahí mismo.
  *
- * Simplificación real: reserva una sola variante a la vez (la ya
- * seleccionada en la ficha), no un carrito de varias prendas distintas en
- * una sola reserva — RF09 pide "seleccionar varias prendas", que acá se
- * cubre agregando más de una reserva si hace falta, no fusionándolas en un
- * flujo tipo carrito aparte (hubiera duplicado casi toda la feature `cart`).
+ * Reserva una sola unidad de la variante ya seleccionada en la ficha
+ * (reglas anti-acaparamiento del backend: 1 unidad por variante, máx. 2
+ * reservas activas, horario entre +30 min y +48 h — ver `useCupoReserva`).
  */
 export function ReservarEnTienda({ varianteId, sucursalId }: ReservarEnTiendaProps) {
-  const { isAuthenticated } = useAuth()
-  const navigate = useNavigate()
-  const [fechaHora, setFechaHora] = useState("")
-  const [cantidad, setCantidad] = useState("1")
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const { submit, isLoading, error } = useCreateResource(reservationsApi.create)
-
-  async function handleReservar() {
-    if (!isAuthenticated) {
-      navigate("/login")
-      return
-    }
-    if (!varianteId || !sucursalId || !fechaHora) return
-    setFeedback(null)
-    const result = await submit({
-      sucursalId,
-      fechaHoraPrevista: new Date(fechaHora).toISOString(),
-      items: [{ varianteId, cantidad: Number(cantidad) }],
-    })
-    if (result) setFeedback("Reserva creada — la vas a ver en \"Mis reservas\".")
-  }
+  const r = useReservarEnTienda(varianteId, sucursalId)
 
   return (
     <div className="mt-4 flex flex-col gap-2 rounded-xl border border-dashed border-border p-3">
@@ -56,45 +31,48 @@ export function ReservarEnTienda({ varianteId, sucursalId }: ReservarEnTiendaPro
       {!sucursalId ? (
         <p className="text-xs text-muted-foreground">Elegí una sucursal arriba para reservar ahí.</p>
       ) : (
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground" htmlFor="fecha-reserva">
-              Fecha y hora
-            </label>
-            <Input
-              id="fecha-reserva"
-              type="datetime-local"
-              value={fechaHora}
-              onChange={(e) => setFechaHora(e.target.value)}
-              className="w-56"
-            />
+        <>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground" htmlFor="fecha-reserva">
+                Fecha y hora
+              </label>
+              <Input
+                id="fecha-reserva"
+                type="datetime-local"
+                value={r.fechaHora}
+                min={r.ventana.min}
+                max={r.ventana.max}
+                aria-invalid={r.fueraDeVentana || undefined}
+                onChange={(e) => r.setFechaHora(e.target.value)}
+                className="w-56"
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={!r.puedeEnviar || r.isLoading}
+              onClick={r.reservar}
+            >
+              {r.isLoading ? "Reservando..." : "Reservar"}
+            </Button>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground" htmlFor="cantidad-reserva">
-              Cantidad
-            </label>
-            <Input
-              id="cantidad-reserva"
-              type="number"
-              min="1"
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
-              className="w-20"
-            />
-          </div>
-          <Button
-            variant="outline"
-            disabled={!varianteId || !fechaHora || isLoading}
-            onClick={handleReservar}
-          >
-            Reservar
-          </Button>
-        </div>
+          {r.fueraDeVentana && (
+            <p className="text-xs text-destructive">
+              Elegí un horario entre {r.cupo?.anticipacionMinimaMinutos ?? 30} min y{" "}
+              {r.cupo?.ventanaMaximaHoras ?? 48} h desde ahora.
+            </p>
+          )}
+          <CupoReservaInfo cupo={r.cupo} />
+        </>
       )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      {feedback && (
+      {r.error && (
+        <p role="alert" className="text-xs text-destructive">
+          {r.error}
+        </p>
+      )}
+      {r.feedback && (
         <p role="status" className="text-xs text-foreground">
-          {feedback}
+          {r.feedback}
         </p>
       )}
     </div>

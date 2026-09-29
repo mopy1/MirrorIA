@@ -1,18 +1,16 @@
-import { CheckCircle, Warning } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
 import { useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { ProductImagePlaceholder } from "@/components/common/ProductImagePlaceholder"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import { BranchPicker } from "@/features/branches/components/branch-picker"
-import { useAuth } from "@/hooks/useAuth"
-import { useCart } from "@/hooks/useCart"
 import { formatMoney } from "@/lib/money"
-import { cn } from "cn"
 import { useDisponibilidad } from "@/features/inventory/hooks/useDisponibilidad"
 import { ReservarEnTienda } from "@/features/reservations/components/reservar-en-tienda"
 import type { Producto } from "../../types/catalog.types"
+import { EstadoStock } from "./estado-stock"
+import { useAgregarAlCarrito } from "./useAgregarAlCarrito"
 import { VariantSwatchGroup } from "./variant-swatch-group"
 
 // Sin `orden` expuesto por variante (el backend solo lo tiene en /catalogo/tallas, no
@@ -36,7 +34,6 @@ export function ProductDetail({ producto }: { producto: Producto }) {
   const [tallaId, setTallaId] = useState<string | null>(null)
   const [colorId, setColorId] = useState<string | null>(null)
   const [sucursalId, setSucursalId] = useState<string | null>(null)
-  const [feedback, setFeedback] = useState<string | null>(null)
   const [imgError, setImgError] = useState(false)
 
   // Si solo hay una opción, no hay elección real que hacer — se preselecciona
@@ -54,20 +51,7 @@ export function ProductDetail({ producto }: { producto: Producto }) {
     sucursalId ?? undefined
   )
 
-  const { isAuthenticated } = useAuth()
-  const { addItem, isLoading: cartLoading } = useCart()
-  const navigate = useNavigate()
-
-  async function handleAddToCart() {
-    if (!isAuthenticated) {
-      navigate("/login")
-      return
-    }
-    if (!variante) return
-    setFeedback(null)
-    await addItem(variante.id, 1)
-    setFeedback("Se agregó al carrito.")
-  }
+  const { agregar, isLoading: cartLoading, feedback, error: cartError } = useAgregarAlCarrito()
 
   const sinStock = variante && sucursalId && cantidadDisponible === 0
 
@@ -114,17 +98,7 @@ export function ProductDetail({ producto }: { producto: Producto }) {
         </div>
 
         {variante && sucursalId && !stockLoading && (
-          <p
-            className={cn(
-              "mt-3 flex items-center gap-1.5 text-sm",
-              sinStock ? "text-destructive" : "text-foreground"
-            )}
-          >
-            {sinStock ? <Warning className="size-4" /> : <CheckCircle className="size-4" />}
-            {sinStock
-              ? "Sin stock en esta sucursal"
-              : `${cantidadDisponible} disponibles en esta sucursal`}
-          </p>
+          <EstadoStock cantidadDisponible={cantidadDisponible ?? 0} />
         )}
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -132,7 +106,7 @@ export function ProductDetail({ producto }: { producto: Producto }) {
             size="lg"
             className="w-full sm:w-auto"
             disabled={!variante || cartLoading || Boolean(sinStock)}
-            onClick={handleAddToCart}
+            onClick={() => agregar(variante?.id)}
           >
             Agregar al carrito
           </Button>
@@ -153,6 +127,11 @@ export function ProductDetail({ producto }: { producto: Producto }) {
         {feedback && (
           <p role="status" className="mt-3 text-sm text-foreground">
             {feedback}
+          </p>
+        )}
+        {cartError && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {cartError}
           </p>
         )}
 

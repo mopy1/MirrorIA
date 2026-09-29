@@ -1332,6 +1332,32 @@ probador web ya no las use.
   ruta no se difunda) — si esto se vuelve un problema real, la solución es un guard de límite de
   tasa (`@nestjs/throttler` no está instalado todavía), no algo que se resolvió acá.
 
+## ✅ Estado real (2026-09-29): reglas anti-acaparamiento en reservas y carrito
+
+El backend agregó topes de stock (1 unidad por variante y máx. 3 prendas por reserva, horario
+entre +30 min y +48 h, máx. 2 reservas activas, bloqueo por 2 faltas en 30 días, vencimiento
+automático a `EXPIRADA`/`NO_SHOW`, máx. 3 unidades por variante en el carrito, máx. 2 compras
+sin pagar). Del lado del front:
+- **`reservations/api`**: `getCupo()` → `GET /reservas/mias/cupo`, tipo `CupoReserva`.
+  `hooks/useCupoReserva.ts` lo carga (solo con sesión) y expone `reload()`.
+- **`reservations/lib/ventanaReserva.ts`** (+ test vitest): `min`/`max` del `datetime-local`
+  en hora LOCAL (`YYYY-MM-DDTHH:mm`) según el cupo, o 30 min / 48 h por defecto; el `min` se
+  redondea al minuto siguiente para no quedar segundos antes de lo que acepta el backend.
+- **`reservar-en-tienda/`** partido en `reservar-en-tienda.tsx` (JSX) + `useReservarEnTienda.ts`
+  + `cupo-reserva-info.tsx`: sin input de cantidad (siempre 1), si `!puedeReservar` muestra el
+  `motivo` y deshabilita Reservar, "Reservas activas: X de Y", aviso de tolerancia/falta, y
+  recarga el cupo después de cada intento. El error del backend se ve tal cual (`apiFetch` ya une
+  `message[]`).
+- **`MyReservationsPage`**: etiquetas para la clienta (`lib/estadoReserva.ts`: `EXPIRADA` →
+  "Vencida", `NO_SHOW` → "No te presentaste"), aviso arriba si `cupo.bloqueadaHasta`, y ahora
+  también muestra el error al cancelar.
+- **`product-detail`**: "Agregar al carrito" antes se tragaba el error (la promesa rechazada no
+  se atrapaba y no mostraba nada). Ahora `useAgregarAlCarrito.ts` muestra el mensaje real del 409
+  ("Podés llevar hasta 3 unidades..."). Se extrajo `estado-stock.tsx` para dejar el archivo bajo
+  150 líneas. El checkout (`useCheckout`) ya mostraba el `message` del backend tal cual.
+- **Pendiente:** no existe página "Mis pedidos"/compras propias en el router, así que el 409 de
+  "2 compras sin pagar" en el checkout se muestra sin link (el texto del backend la menciona).
+
 ---
 
 ## 🛠️ 3. Reglas de Implementación para Agentes IA

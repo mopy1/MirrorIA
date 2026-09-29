@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api"
-import type { Reserva } from "../types/reservations.types"
+import type { CupoReserva, Reserva } from "../types/reservations.types"
 
 export interface CreateReservaDto {
   sucursalId: string
@@ -12,6 +12,8 @@ export const reservationsApi = {
     apiFetch<Reserva>("/reservas", { method: "POST", body: JSON.stringify(dto) }),
 
   getMisReservas: () => apiFetch<Reserva[]>("/reservas/mias"),
+
+  getCupo: () => apiFetch<CupoReserva>("/reservas/mias/cupo"),
 
   cancelar: (id: string) => apiFetch<Reserva>(`/reservas/${id}/cancelar`, { method: "PATCH" }),
 

@@ -1,3 +1,5 @@
+import { Warning } from "@phosphor-icons/react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -6,6 +8,8 @@ import { useVariantesConProducto } from "@/features/catalog/hooks/useVariantesCo
 import { useCreateResource } from "@/hooks/useCreateResource"
 import { useResourceList } from "@/hooks/useResourceList"
 import { reservationsApi } from "../api/reservationsApi"
+import { useCupoReserva } from "../hooks/useCupoReserva"
+import { etiquetaEstadoReserva } from "../lib/estadoReserva"
 
 const CANCELABLES = ["PENDIENTE", "CONFIRMADA"]
 
@@ -13,13 +17,18 @@ export function MyReservationsPage() {
   const { items, isLoading, error, reload } = useResourceList(reservationsApi.getMisReservas)
   const { sucursales } = useSucursales()
   const { variantes } = useVariantesConProducto()
-  const { submit: cancelar, isLoading: isCancelando } = useCreateResource((id: string) =>
+  // La ruta es protegida: siempre hay sesión acá.
+  const { cupo, reload: recargarCupo } = useCupoReserva(true)
+  const { submit: cancelar, isLoading: isCancelando, error: errorCancelar } = useCreateResource((id: string) =>
     reservationsApi.cancelar(id)
   )
 
   async function handleCancelar(id: string) {
     const result = await cancelar(id)
-    if (result) reload()
+    if (result) {
+      reload()
+      recargarCupo()
+    }
   }
 
   return (
@@ -29,7 +38,19 @@ export function MyReservationsPage() {
         Prendas apartadas para probarte en una sucursal.
       </p>
 
-      {error && <p className="mt-6 text-sm text-destructive">{error}</p>}
+      {cupo?.bloqueadaHasta && (
+        <Alert variant="destructive" className="mt-6">
+          <Warning />
+          <AlertDescription>
+            {cupo.motivo ??
+              `No podés hacer reservas nuevas hasta el ${new Date(cupo.bloqueadaHasta).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" })}.`}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {(error || errorCancelar) && (
+        <p className="mt-6 text-sm text-destructive">{error ?? errorCancelar}</p>
+      )}
 
       {isLoading ? (
         <div className="mt-8 space-y-4">
@@ -59,7 +80,7 @@ export function MyReservationsPage() {
                       })}
                     </p>
                   </div>
-                  <Badge variant="secondary">{reserva.estado}</Badge>
+                  <Badge variant="secondary">{etiquetaEstadoReserva(reserva.estado)}</Badge>
                 </div>
 
                 <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
