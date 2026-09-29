@@ -295,3 +295,31 @@ Al ejecutar `npx expo start --tunnel`, el proceso falla abruptamente con `sessio
    EXPO_UNSTABLE_TUNNEL_V2=1 npx expo start --tunnel
    ```
 3. **Authtoken personal de Ngrok:** Registrar un token gratuito propio en `~/.ngrok2/ngrok.yml` si se requiere exponer túneles directos.
+
+---
+
+## 🧪 QA de flujo completo en celular real (2026-09-29)
+
+Recorrido completo por ADB en el TECNO_LJ6 contra el backend de Azure: registro → catálogo →
+ficha → carrito → checkout → pago en efectivo → mis pedidos → reserva → pase de tienda →
+cancelar reserva → modo invitado. Bugs reales encontrados y arreglados:
+
+1. **Catálogo: nombre y precio desaparecían en algunas tarjetas.** El bloque de texto tenía
+   `flex-1` dentro de una tarjeta de alto automático; en Android eso le da base 0 y, según
+   cuándo termina de cargar la foto, queda con 0 px. Regla: **no usar `flex-1` en el eje vertical
+   de un contenedor sin alto fijo**.
+2. **Carrito siempre vacío (no se podía comprar).** El carrito del backend solo guarda
+   `{varianteId, cantidad}` y el listado `GET /catalogo/productos` **no trae variantes** (solo el
+   detalle `GET /catalogo/productos/:id`). Se resuelve con `catalog/lib/indiceVariantes.ts`
+   (varianteId → producto, cacheado 5 min), mismo cruce que la web.
+3. **Pantallas del Stack (producto, carrito, pago, pedidos, sucursales) bajo la barra de
+   estado**: toda ruta fuera de `(tabs)` tiene que envolverse en `SafeAreaView`.
+4. **JWT vencido (1 h) con la app mostrándose logueada**: se descarta al arrancar
+   (`AuthContext`), y un 401 en acciones lleva al login.
+5. **"Mañana 10:00" en la reserva era "ahora + 24 h".** Ahora es la hora real.
+
+Trampa de desarrollo (no es bug de la app): **en WSL, Metro no detecta ediciones hechas con
+`sed -i`** (reemplaza el archivo por uno nuevo y el watcher no se entera); con un editor normal o
+escribiendo el archivo en el lugar sí recarga. Si un cambio "no aparece", relanzar la app.
+Relanzar el dev client con el deep link `mirroria://expo-development-client/?url=...` mientras la
+app ya está abierta tira `App react context shouldn't be created before` — cerrar la app antes.
