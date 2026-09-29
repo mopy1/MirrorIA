@@ -160,3 +160,16 @@ docker compose up -d --build
   nunca sale del servidor). El móvil hizo la misma migración el 2026-09-29 (ver
   `mirroria-mobile/AGENTS.md`); el detalle de la web está en `mirroria-frontend/AGENTS.md` y
   `mirroria-backend/AGENTS.md`.
+
+## 🧭 8. Dónde está todo (actualizado 2026-09-29) — leer antes de pedir una mejora
+
+- **Reglas de negocio** (topes de reserva/compra, vencimiento, faltas, flujo de mostrador,
+  alcance por sucursal, código de reserva): vault `U/2-2026/SI2/Parcial1/App/Reglas_de_Negocio.md`
+  (qué hace cada regla y en qué archivo se cambia) + `mirroria-backend/AGENTS.md` (detalle técnico).
+- **Despliegue a Azure sin GitHub**: `bash scripts/deploy-azure.sh` (bundle por scp, respaldo de
+  imágenes, se frena si la VM tiene cambios sueltos) — vault `App/Despliegue_Azure.md`. Los
+  despliegues los corre el usuario: el modo automático bloquea desplegar a producción.
+- **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios).
+- **Móvil**: probador IA con Decart, QA completo en celular real y trampas de ADB/WSL en
+  `mirroria-mobile/AGENTS.md`; resumen en vault `App/Mobile.md`.
+- **Push a GitHub**: suspendido por el usuario — solo commits locales hasta nuevo aviso.
