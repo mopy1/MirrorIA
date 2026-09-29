@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { QrCode, Store, Calendar, CheckCircle2, Clock } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
@@ -29,6 +29,7 @@ function formatFechaHora(iso: string): string {
 export function StorePassCard() {
   const [reserva, setReserva] = useState<ReservaResponseDto | null | undefined>(undefined);
   const [sucursalNombre, setSucursalNombre] = useState<string>('');
+  const [recarga, setRecarga] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,8 +51,22 @@ export function StorePassCard() {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [recarga]),
   );
+
+  const cancelar = (id: string) =>
+    Alert.alert('¿Cancelar la reserva?', 'La prenda deja de estar apartada para vos.', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, cancelar',
+        style: 'destructive',
+        onPress: () =>
+          reservasApi
+            .cancelar(id)
+            .then(() => setRecarga((n) => n + 1))
+            .catch(() => Alert.alert('No se pudo cancelar', 'Probá de nuevo en un momento.')),
+      },
+    ]);
 
   if (reserva === undefined) return null;
 
@@ -116,6 +131,10 @@ export function StorePassCard() {
       <Text className="text-[10px] text-muted-foreground text-center">
         Presentá este código en el mostrador para ingresar directo a tu probador sin hacer fila.
       </Text>
+
+      <Pressable onPress={() => cancelar(reserva.id)} hitSlop={6} className="self-center">
+        <Text className="text-[11px] font-semibold text-destructive">Cancelar reserva</Text>
+      </Pressable>
     </View>
   );
 }

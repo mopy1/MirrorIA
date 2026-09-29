@@ -17,7 +17,7 @@ export function ProfileNavigationMenu() {
     },
     {
       title: 'Sucursales & Probadores Físicos',
-      subtitle: 'Direcciones y horarios de atención',
+      subtitle: 'Direcciones, mapa y teléfono',
       icon: MapPin,
       onPress: () => router.push('/sucursales'),
     },

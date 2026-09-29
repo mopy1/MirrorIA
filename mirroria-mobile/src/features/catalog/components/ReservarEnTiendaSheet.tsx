@@ -7,14 +7,25 @@ import type { SucursalResponseDto } from '@/src/features/sucursales/types/sucurs
 
 interface Slot {
   label: string;
-  hoursFromNow: number;
+  fecha: () => Date;
 }
 
+const enHoras = (h: number) => () => new Date(Date.now() + h * 3600_000);
+
+// "Mañana 10:00" es mañana a las 10:00 hora local, no "ahora + 24 h" (así
+// estaba antes: reservando a las 11:56 quedaba para mañana a las 11:56).
+const mananaALas = (hora: number) => () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(hora, 0, 0, 0);
+  return d;
+};
+
 const SLOTS: Slot[] = [
-  { label: 'Hoy en 2 hs', hoursFromNow: 2 },
-  { label: 'Hoy en 4 hs', hoursFromNow: 4 },
-  { label: 'Mañana 10:00', hoursFromNow: 24 },
-  { label: 'Mañana 16:00', hoursFromNow: 30 },
+  { label: 'Hoy en 2 hs', fecha: enHoras(2) },
+  { label: 'Hoy en 4 hs', fecha: enHoras(4) },
+  { label: 'Mañana 10:00', fecha: mananaALas(10) },
+  { label: 'Mañana 16:00', fecha: mananaALas(16) },
 ];
 
 interface ReservarEnTiendaSheetProps {
@@ -105,9 +116,7 @@ export function ReservarEnTiendaSheet({
         disabled={!puedeConfirmar}
         onPress={() => {
           if (!sucursalId || slotIndex === null) return;
-          const fecha = new Date(
-            Date.now() + SLOTS[slotIndex].hoursFromNow * 60 * 60 * 1000,
-          );
+          const fecha = SLOTS[slotIndex].fecha();
           onConfirm(sucursalId, fecha.toISOString());
         }}
       >

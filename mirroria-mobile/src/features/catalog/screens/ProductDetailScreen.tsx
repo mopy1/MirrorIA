@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CalendarClock, ShoppingBag, Sparkles } from 'lucide-react-native';
@@ -30,6 +30,14 @@ export function ProductDetailScreen() {
   const [showReservar, setShowReservar] = useState(false);
   const [reservando, setReservando] = useState(false);
   const [enCarrito, setEnCarrito] = useState(false);
+  const [reservado, setReservado] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // La hoja de reserva aparece debajo de los botones, fuera de la vista:
+  // se baja sola para que se note que se abrió.
+  useEffect(() => {
+    if (showReservar) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }, [showReservar]);
 
   useEffect(() => {
     if (!id) return;
@@ -72,7 +80,8 @@ export function ProductDetailScreen() {
         fechaHoraPrevista,
         items: [{ varianteId, cantidad: 1 }],
       });
-      setFeedback('Reserva confirmada — la vas a ver en tu perfil ✓');
+      setFeedback('Reserva confirmada ✓');
+      setReservado(true);
       setShowReservar(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return pedirLogin();
@@ -106,7 +115,7 @@ export function ProductDetailScreen() {
   return (
     <View className="flex-1 bg-background">
       <ScreenHeader title={product.titulo} showLogo={false} showBack />
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 32 }}>
         <View style={{ aspectRatio: 4 / 5 }} className="w-full bg-muted/30">
           {image && (
             <Image source={{ uri: image }} className="w-full h-full" resizeMode="cover" />
@@ -158,6 +167,12 @@ export function ProductDetailScreen() {
               <Icon as={ShoppingBag} size={16} className="text-primary-foreground" />
               <Text>{addingToCart ? 'Agregando…' : 'Agregar al carrito'}</Text>
             </Button>
+
+            {reservado && (
+              <Button variant="secondary" onPress={() => router.push('/(tabs)/perfil')}>
+                <Text>Ver mi Pase de Tienda</Text>
+              </Button>
+            )}
 
             {enCarrito && (
               <Button variant="secondary" onPress={() => router.push('/carrito')}>

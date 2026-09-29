@@ -29,7 +29,7 @@ export function ProductCardMobile({
   return (
     <Pressable
       onPress={() => onPress(product)}
-      className="flex-1 m-1.5 rounded-2xl bg-card border border-border/70 overflow-hidden shadow-sm active:opacity-90"
+      className="m-1.5 rounded-2xl bg-card border border-border/70 overflow-hidden shadow-sm active:opacity-90"
     >
       {/* Contenedor de Imagen */}
       <View

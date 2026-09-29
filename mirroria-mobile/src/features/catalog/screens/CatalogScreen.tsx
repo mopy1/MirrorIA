@@ -114,12 +114,16 @@ export function CatalogScreen() {
           // para un catálogo de este tamaño.
           removeClippedSubviews={false}
           contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 24 }}
+          // Ancho fijo de media columna: con flex-1, una prenda sola en la
+          // última fila (o un único resultado de búsqueda) ocupaba todo el ancho.
           renderItem={({ item }) => (
-            <ProductCardMobile
-              product={item}
-              onPress={handlePressProduct}
-              onPressTryOn={handlePressTryOn}
-            />
+            <View style={{ width: '50%' }}>
+              <ProductCardMobile
+                product={item}
+                onPress={handlePressProduct}
+                onPressTryOn={handlePressTryOn}
+              />
+            </View>
           )}
           ListEmptyComponent={
             <CatalogEmptyState

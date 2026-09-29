@@ -126,9 +126,6 @@ export function PaymentScreen() {
           <View className="items-center gap-3 py-8">
             <Icon as={CheckCircle2} size={48} className="text-emerald-600" />
             <Text className="text-sm font-bold text-foreground">¡Pago confirmado!</Text>
-            <Button size="sm" onPress={() => router.replace('/(tabs)')}>
-              <Text>Volver al inicio</Text>
-            </Button>
           </View>
         )}
 
@@ -174,12 +171,32 @@ export function PaymentScreen() {
             <Text className="text-xs text-center text-muted-foreground">
               {instrucciones.instrucciones}
             </Text>
-            <Text className="text-xs font-bold text-foreground">
-              Referencia: {instrucciones.referencia}
-            </Text>
+            {/* El UUID completo es ilegible para dictárselo al cajero: se
+                destacan los primeros 8 caracteres y el resto queda chico. */}
+            <View className="items-center gap-0.5">
+              <Text className="text-[11px] text-muted-foreground">Tu pedido</Text>
+              <Text selectable className="text-2xl font-bold tracking-widest text-foreground">
+                #{instrucciones.referencia.slice(0, 8).toUpperCase()}
+              </Text>
+              <Text selectable className="text-[10px] text-muted-foreground">
+                {instrucciones.referencia}
+              </Text>
+            </View>
             <Text className="text-[11px] text-muted-foreground text-center">
-              Mostrale esta referencia al cajero en la sucursal para confirmar tu pago.
+              Mostrale este número al cajero en la sucursal para confirmar tu pago.
+              También lo vas a encontrar en Mis pedidos.
             </Text>
+          </View>
+        )}
+
+        {vista !== 'metodo' && (
+          <View className="gap-2.5">
+            <Button onPress={() => router.replace('/pedidos')}>
+              <Text>Ver mis pedidos</Text>
+            </Button>
+            <Button variant="outline" onPress={() => router.replace('/(tabs)/catalogo')}>
+              <Text>Seguir comprando</Text>
+            </Button>
           </View>
         )}
       </ScrollView>

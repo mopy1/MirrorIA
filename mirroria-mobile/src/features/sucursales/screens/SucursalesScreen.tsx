@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator } from 'react-native';
-import { MapPin, Phone } from 'lucide-react-native';
+import { View, ScrollView, ActivityIndicator, Linking } from 'react-native';
+import { MapPin, Navigation, Phone } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/common/ScreenHeader';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
 import { sucursalesApi } from '../api/sucursalesApi';
 import type { SucursalResponseDto } from '../types/sucursales.types';
 
@@ -47,6 +48,34 @@ export function SucursalesScreen() {
                   <Text className="text-[11px] text-muted-foreground">{s.telefono}</Text>
                 </View>
               )}
+              <View className="flex-row gap-2 mt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() =>
+                    Linking.openURL(
+                      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        `${s.nombre}, ${s.direccion}, ${s.ciudadNombre}, Bolivia`
+                      )}`
+                    )
+                  }
+                >
+                  <Icon as={Navigation} size={14} className="text-foreground" />
+                  <Text>Cómo llegar</Text>
+                </Button>
+                {s.telefono && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onPress={() => Linking.openURL(`tel:${s.telefono!.replace(/[^\d+]/g, '')}`)}
+                  >
+                    <Icon as={Phone} size={14} className="text-foreground" />
+                    <Text>Llamar</Text>
+                  </Button>
+                )}
+              </View>
             </View>
           ))}
           {sucursales.length === 0 && (
