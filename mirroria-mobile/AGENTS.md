@@ -323,3 +323,13 @@ Trampa de desarrollo (no es bug de la app): **en WSL, Metro no detecta ediciones
 escribiendo el archivo en el lugar sí recarga. Si un cambio "no aparece", relanzar la app.
 Relanzar el dev client con el deep link `mirroria://expo-development-client/?url=...` mientras la
 app ya está abierta tira `App react context shouldn't be created before` — cerrar la app antes.
+
+### Reglas anti-acaparamiento en móvil (2026-09-29)
+Espejo de las reglas del backend (ver `mirroria-backend/AGENTS.md`): la hoja de reserva carga
+`GET /reservas/mias/cupo`, solo ofrece horarios dentro de +30 min / +48 h, muestra el motivo si la
+clienta no puede reservar (2 activas o bloqueo por faltas) y avisa que no presentarse cuenta como
+falta. El Pase de Tienda muestra un pase por cada reserva activa (hasta 2) y el aviso de bloqueo.
+Si el checkout se rechaza por compras sin pagar, el carrito ofrece ir a Mis pedidos.
+Trampa de QA por ADB: el teclado del TECNO aplica mayúscula automática a la primera letra de lo
+que se inyecta con `adb shell input text`, incluso en campos con `autoCapitalize="none"` — para
+probar login usar contraseñas que empiecen con número.

@@ -1,53 +1,52 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { QrCode, Store, Calendar, CheckCircle2, Clock } from 'lucide-react-native';
+import { Store, Ban } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
-import { Badge } from '@/components/ui/badge';
 import { reservasApi } from '@/src/features/reservas/api/reservasApi';
 import { sucursalesApi } from '@/src/features/sucursales/api/sucursalesApi';
-import type { ReservaResponseDto } from '@/src/features/reservas/types/reservas.types';
+import type {
+  CupoReserva,
+  ReservaResponseDto,
+} from '@/src/features/reservas/types/reservas.types';
+import { PaseReserva } from './PaseReserva';
 
 const ESTADOS_ACTIVOS = ['PENDIENTE', 'CONFIRMADA', 'EN_TIENDA'];
 
-const ESTADO_LABEL: Record<string, { label: string; icon: typeof CheckCircle2 }> = {
-  PENDIENTE: { label: 'Pendiente de confirmar', icon: Clock },
-  CONFIRMADA: { label: 'Confirmada', icon: CheckCircle2 },
-  EN_TIENDA: { label: 'En tienda', icon: CheckCircle2 },
-};
-
-function formatFechaHora(iso: string): string {
-  return new Date(iso).toLocaleString('es-BO', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+interface Datos {
+  activas: ReservaResponseDto[];
+  cupo: CupoReserva | null;
+  sucursales: Record<string, string>;
 }
 
+/**
+ * Pases de las reservas activas (hasta `maxReservasActivas`, hoy 2) y, si la
+ * clienta quedó bloqueada por faltas, el motivo y hasta cuándo.
+ */
 export function StorePassCard() {
-  const [reserva, setReserva] = useState<ReservaResponseDto | null | undefined>(undefined);
-  const [sucursalNombre, setSucursalNombre] = useState<string>('');
+  const [datos, setDatos] = useState<Datos | null>(null);
   const [recarga, setRecarga] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      reservasApi
-        .misReservas()
-        .then(async (reservas) => {
-          const activa =
-            reservas.find((r) => ESTADOS_ACTIVOS.includes(r.estado)) ?? null;
+      Promise.all([
+        reservasApi.misReservas(),
+        reservasApi.getCupo().catch(() => null),
+        sucursalesApi.getSucursales().catch(() => []),
+      ])
+        .then(([reservas, cupo, sucursales]) => {
           if (cancelled) return;
-          setReserva(activa);
-          if (activa) {
-            const sucursales = await sucursalesApi.getSucursales().catch(() => []);
-            const s = sucursales.find((s) => s.id === activa.sucursalId);
-            if (!cancelled) setSucursalNombre(s?.nombre ?? 'Sucursal');
-          }
+          setDatos({
+            activas: reservas
+              .filter((r) => ESTADOS_ACTIVOS.includes(r.estado))
+              .sort((a, b) => a.fechaHoraPrevista.localeCompare(b.fechaHoraPrevista)),
+            cupo,
+            sucursales: Object.fromEntries(sucursales.map((s) => [s.id, s.nombre])),
+          });
         })
-        .catch(() => !cancelled && setReserva(null));
+        .catch(() => !cancelled && setDatos({ activas: [], cupo: null, sucursales: {} }));
       return () => {
         cancelled = true;
       };
@@ -68,73 +67,42 @@ export function StorePassCard() {
       },
     ]);
 
-  if (reserva === undefined) return null;
-
-  if (reserva === null) {
-    return (
-      <View className="rounded-3xl bg-card border border-border/70 p-5 items-center gap-2">
-        <Icon as={Store} size={24} className="text-muted-foreground/50" />
-        <Text className="text-xs text-muted-foreground text-center">
-          No tenés reservas activas. Elegí una prenda del catálogo y tocá{' '}
-          <Text className="text-xs font-semibold text-foreground">
-            "Reservar para probar en tienda"
-          </Text>
-          .
-        </Text>
-      </View>
-    );
-  }
-
-  const estadoInfo = ESTADO_LABEL[reserva.estado] ?? {
-    label: reserva.estado,
-    icon: Clock,
-  };
+  if (!datos) return null;
+  const bloqueada = datos.cupo?.bloqueadaHasta ? datos.cupo : null;
 
   return (
-    <View className="rounded-3xl bg-card border border-border/80 p-5 shadow-sm gap-4 relative overflow-hidden">
-      <View className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary" />
-
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
-          <Icon as={Store} size={18} className="text-primary" />
-          <Text className="text-sm font-bold text-foreground">Pase de Tienda</Text>
-        </View>
-
-        <Badge
-          variant={reserva.estado === 'PENDIENTE' ? 'secondary' : 'success'}
-          className="px-2 py-0.5 flex-row items-center gap-1"
-        >
-          <Icon as={estadoInfo.icon} size={11} />
-          <Text className="text-[10px] font-bold">{estadoInfo.label}</Text>
-        </Badge>
-      </View>
-
-      <View className="flex-row items-center gap-4 bg-muted/30 p-3.5 rounded-2xl">
-        <View className="w-16 h-16 rounded-xl bg-background border border-border items-center justify-center shadow-xs">
-          <Icon as={QrCode} size={36} className="text-foreground" />
-        </View>
-
-        <View className="flex-1 gap-1">
-          <Text className="text-xs font-bold text-foreground">{sucursalNombre}</Text>
-          <View className="flex-row items-center gap-1">
-            <Icon as={Calendar} size={12} className="text-muted-foreground" />
-            <Text className="text-[11px] text-muted-foreground">
-              {formatFechaHora(reserva.fechaHoraPrevista)}
-            </Text>
-          </View>
-          <Text className="text-[10px] text-primary font-semibold">
-            Código: {reserva.id.slice(0, 8).toUpperCase()}
+    <View className="gap-3">
+      {bloqueada && (
+        <View className="rounded-3xl border border-destructive/30 bg-destructive/5 p-4 flex-row gap-3">
+          <Icon as={Ban} size={20} className="text-destructive mt-0.5" />
+          <Text className="flex-1 text-[11px] text-foreground leading-relaxed">
+            {bloqueada.motivo}
           </Text>
         </View>
-      </View>
+      )}
 
-      <Text className="text-[10px] text-muted-foreground text-center">
-        Presentá este código en el mostrador para ingresar directo a tu probador sin hacer fila.
-      </Text>
+      {datos.activas.map((r) => (
+        <PaseReserva
+          key={r.id}
+          reserva={r}
+          sucursalNombre={datos.sucursales[r.sucursalId] ?? 'Sucursal'}
+          toleranciaMinutos={datos.cupo?.toleranciaMinutos ?? 30}
+          onCancelar={() => cancelar(r.id)}
+        />
+      ))}
 
-      <Pressable onPress={() => cancelar(reserva.id)} hitSlop={6} className="self-center">
-        <Text className="text-[11px] font-semibold text-destructive">Cancelar reserva</Text>
-      </Pressable>
+      {datos.activas.length === 0 && !bloqueada && (
+        <View className="rounded-3xl bg-card border border-border/70 p-5 items-center gap-2">
+          <Icon as={Store} size={24} className="text-muted-foreground/50" />
+          <Text className="text-xs text-muted-foreground text-center">
+            No tenés reservas activas. Elegí una prenda del catálogo y tocá{' '}
+            <Text className="text-xs font-semibold text-foreground">
+              "Reservar para probar en tienda"
+            </Text>
+            .
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

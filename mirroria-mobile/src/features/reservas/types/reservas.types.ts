@@ -24,3 +24,19 @@ export interface CreateReservaRequest {
   fechaHoraPrevista: string;
   items: ReservaItemDto[];
 }
+
+/** GET /reservas/mias/cupo — reglas de reserva y situación de la clienta. */
+export interface CupoReserva {
+  puedeReservar: boolean;
+  motivo: string | null;
+  reservasActivas: number;
+  maxReservasActivas: number;
+  faltasRecientes: number;
+  faltasParaBloqueo: number;
+  bloqueadaHasta: string | null;
+  maxUnidadesPorVariante: number;
+  maxPrendasPorReserva: number;
+  anticipacionMinimaMinutos: number;
+  ventanaMaximaHoras: number;
+  toleranciaMinutos: number;
+}

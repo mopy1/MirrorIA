@@ -144,6 +144,11 @@ export function CartScreen() {
       {enriched.length > 0 && (
         <View className="p-4 border-t border-border/50 bg-background gap-3">
           {error && <Text className="text-xs font-semibold text-destructive">{error}</Text>}
+          {error?.includes('sin pagar') && (
+            <Button variant="outline" onPress={() => router.push('/pedidos')}>
+              <Text>Ver mis pedidos pendientes</Text>
+            </Button>
+          )}
           <View className="flex-row items-center justify-between">
             <Text className="text-sm font-semibold text-muted-foreground">Total</Text>
             <Text className="text-lg font-bold text-primary">{formatMoney(totalCents)}</Text>
