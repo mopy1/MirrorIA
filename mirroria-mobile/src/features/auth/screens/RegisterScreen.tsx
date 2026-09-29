@@ -125,7 +125,7 @@ export function RegisterScreen() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-xl">Creá tu cuenta</CardTitle>
                 <CardDescription>
-                  Registrate para acceder al probador 3D, guardar tus favoritos y comprar
+                  Registrate para acceder al probador con IA, guardar tus favoritos y comprar
                 </CardDescription>
               </CardHeader>
               <CardContent>

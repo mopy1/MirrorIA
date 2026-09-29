@@ -22,7 +22,7 @@ export function FeaturedCarousel({ products }: FeaturedCarouselProps) {
     <View className="gap-3">
       <View className="flex-row items-center justify-between px-1">
         <Text className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Colección con probador 3D
+          Colección con probador IA
         </Text>
         <Pressable
           onPress={() => router.push('/(tabs)/catalogo')}
@@ -46,7 +46,9 @@ export function FeaturedCarousel({ products }: FeaturedCarouselProps) {
           return (
             <Pressable
               key={item.id}
-              onPress={() => router.push('/(tabs)/probador')}
+              onPress={() =>
+                router.push({ pathname: '/(tabs)/probador', params: { productoId: item.id } })
+              }
               className="w-40 rounded-2xl bg-card border border-border/70 overflow-hidden active:opacity-90 shadow-sm"
             >
               <View
@@ -67,7 +69,7 @@ export function FeaturedCarousel({ products }: FeaturedCarouselProps) {
                   <Badge variant="default" className="px-1.5 py-0.5">
                     <Icon as={Glasses} size={10} className="text-primary-foreground mr-1" />
                     <Text className="text-[9px] font-bold text-primary-foreground">
-                      3D
+                      IA
                     </Text>
                   </Badge>
                 </View>

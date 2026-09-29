@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CalendarClock, ShoppingBag } from 'lucide-react-native';
+import { CalendarClock, ShoppingBag, Sparkles } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/common/ScreenHeader';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -122,6 +122,18 @@ export function ProductDetailScreen() {
         </View>
 
         <View className="p-4 gap-5">
+          {image && (
+            <Button
+              variant="secondary"
+              onPress={() =>
+                router.push({ pathname: '/(tabs)/probador', params: { productoId: product.id } })
+              }
+            >
+              <Icon as={Sparkles} size={16} className="text-secondary-foreground" />
+              <Text>Probármela con IA</Text>
+            </Button>
+          )}
+
           <View className="gap-1">
             <Text className="text-lg font-bold text-foreground">{product.titulo}</Text>
             <Text className="text-xl font-bold text-primary">

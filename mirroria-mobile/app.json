@@ -18,7 +18,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +42,14 @@
       "expo-secure-store",
       "expo-dev-client",
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      ["@livekit/react-native-expo-plugin", {"android": {"audioType": "media"}}],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "MirrorIA usa la cámara para probarte prendas en vivo con IA."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,11 +1,11 @@
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FittingRoomScreen } from '@/src/features/virtual-fitting/screens/FittingRoomScreen';
+import { ProbadorScreen } from '@/src/features/probador/screens/ProbadorScreen';
 
-export default function FittingRoomTab() {
+export default function ProbadorTab() {
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-background">
-      <FittingRoomScreen />
+      <ProbadorScreen />
     </SafeAreaView>
   );
 }

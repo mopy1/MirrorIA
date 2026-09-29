@@ -13,7 +13,7 @@ import {
 const TAB_CONFIG: Record<string, { label: string; icon: LucideIcon }> = {
   index: { label: 'Inicio', icon: Sparkles },
   catalogo: { label: 'Catálogo', icon: ShoppingBag },
-  probador: { label: 'Vestidor 3D', icon: Glasses },
+  probador: { label: 'Probador IA', icon: Glasses },
   perfil: { label: 'Perfil', icon: User },
 };
 
@@ -88,7 +88,7 @@ export function AnimatedTabBar({ state, navigation }: BottomTabBarProps) {
             >
               {/* Ancho explícito (no intrínseco) para que textAlign:'center'
                   centre de verdad, incluso con la etiqueta más larga
-                  ("Vestidor 3D") — sin esto, el texto se centra contra su
+                  ("Probador IA") — sin esto, el texto se centra contra su
                   propio ancho de contenido, no contra la columna. */}
               <View style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
                 <IconComponent size={22} color={color} strokeWidth={isFocused ? 2.4 : 1.8} />

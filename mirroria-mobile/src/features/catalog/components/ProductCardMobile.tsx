@@ -23,7 +23,8 @@ export function ProductCardMobile({
     getPrimaryImageUrl(product.imagenes) ??
     product.imagenes?.[0]?.url;
 
-  const has3D = Boolean(product.modeloArUrl);
+  // Con foto se puede probar: es la referencia que recibe el probador IA.
+  const canTryOn = Boolean(primaryImage);
 
   return (
     <Pressable
@@ -50,8 +51,8 @@ export function ProductCardMobile({
           </View>
         )}
 
-        {/* Badge 3D flotante */}
-        {has3D && (
+        {/* Badge del probador IA */}
+        {canTryOn && (
           <View className="absolute top-2 left-2">
             <Badge
               variant="default"
@@ -59,7 +60,7 @@ export function ProductCardMobile({
             >
               <Icon as={Glasses} size={11} className="text-primary-foreground" />
               <Text className="text-[10px] font-bold text-primary-foreground">
-                3D Listo
+                Probador IA
               </Text>
             </Badge>
           </View>
@@ -80,7 +81,7 @@ export function ProductCardMobile({
             {formatMoney(product.precioCents)}
           </Text>
 
-          {has3D && (
+          {canTryOn && (
             <Pressable
               onPress={() => onPressTryOn?.(product)}
               hitSlop={6}

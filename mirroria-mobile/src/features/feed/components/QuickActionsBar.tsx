@@ -22,7 +22,7 @@ export function QuickActionsBar() {
       onPress: () => router.push('/(tabs)/catalogo'),
     },
     {
-      title: 'Vestidor 3D',
+      title: 'Probador IA',
       subtitle: 'Probate ropa',
       icon: Glasses,
       color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',

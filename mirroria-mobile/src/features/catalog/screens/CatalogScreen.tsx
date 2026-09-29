@@ -66,15 +66,15 @@ export function CatalogScreen() {
     router.push(`/producto/${product.id}`);
   };
 
-  const handlePressTryOn = (_product: ProductoResponseDto) => {
-    router.push('/(tabs)/probador');
+  const handlePressTryOn = (product: ProductoResponseDto) => {
+    router.push({ pathname: '/(tabs)/probador', params: { productoId: product.id } });
   };
 
   return (
     <View className="flex-1 bg-background">
       <ScreenHeader
         title="Catálogo"
-        subtitle="Prendas exclusivas & Probador 3D"
+        subtitle="Prendas exclusivas & Probador IA"
         showLogo={false}
         rightAction={
           <Pressable

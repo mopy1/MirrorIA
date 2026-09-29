@@ -1,4 +1,5 @@
 import '@/global.css';
+import '@/src/lib/webrtc';
 
 import React, { useEffect } from 'react';
 import { NAV_THEME } from '@/lib/theme';

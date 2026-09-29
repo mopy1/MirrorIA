@@ -25,7 +25,7 @@ export function HeroBanner() {
 
       {/* Título & Copy */}
       <Text className="text-2xl font-extrabold text-white tracking-tight leading-tight">
-        Moda exclusiva con probador 3D
+        Moda exclusiva con probador IA
       </Text>
       <Text className="text-xs text-white/80 mt-2 leading-relaxed max-w-[280px]">
         Mirá cómo te queda cada prenda en tu celular antes de pedirla o retirarla en tienda.
@@ -47,7 +47,7 @@ export function HeroBanner() {
           className="px-3.5 py-2 rounded-xl bg-white/15 border border-white/25 flex-row items-center gap-1.5"
         >
           <Icon as={Glasses} size={14} className="text-white" />
-          <Text className="text-xs font-medium text-white">Vestidor 3D</Text>
+          <Text className="text-xs font-medium text-white">Probador IA</Text>
         </Pressable>
       </View>
     </View>
