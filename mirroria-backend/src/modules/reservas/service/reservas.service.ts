@@ -328,6 +328,14 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     if (reserva.clienteId !== clienteId) {
       throw new ForbiddenActionException('No podés cancelar la reserva de otro cliente');
     }
+    // Ya en la tienda la cierra el staff (con la venta o con "No compró"): si
+    // la clienta la cancelara desde el celular mientras se prueba, la venta
+    // del cajero con esa reserva fallaría.
+    if (reserva.estado === EstadoReserva.EN_TIENDA) {
+      throw new OperacionInvalidaException(
+        'Ya estás en la tienda con esta reserva: pedile al personal que la cierre',
+      );
+    }
     return this.dataSource.transaction((manager) =>
       this.transicionar(reserva, EstadoReserva.CANCELADA, manager),
     );
