@@ -16,6 +16,7 @@ import type { VentaResponseDto } from '../dto/ventas-response.dto.js';
 import { CanalVenta, EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { VentaItem } from '../entities/venta-item.entity.js';
 import { CarritosService } from './carritos.service.js';
+import { maxComprasPendientes, REGLAS_COMPRA } from '../reglas-compra.js';
 
 interface ItemAVender {
   varianteId: string;
@@ -79,6 +80,22 @@ export class VentasService {
     if (carrito.items.length === 0) {
       throw new OperacionInvalidaException(
         'El carrito está vacío, no se puede completar la compra',
+      );
+    }
+    // El carrito ya lo limita al agregar, pero un carrito viejo (de antes del
+    // tope) o editado por otra vía no debe poder saltárselo en el checkout.
+    if (carrito.items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
+      throw new OperacionInvalidaException(
+        `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color por compra`,
+      );
+    }
+    const pendientes = await this.ventaRepository.count({
+      where: { clienteId: usuarioId, estado: EstadoVenta.PENDIENTE },
+    });
+    if (pendientes >= maxComprasPendientes()) {
+      throw new OperacionInvalidaException(
+        `Tenés ${pendientes} compras sin pagar. Pagá o esperá a que venza alguna ` +
+          'antes de hacer otra (las encontrás en Mis pedidos).',
       );
     }
 

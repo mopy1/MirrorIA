@@ -18,6 +18,11 @@ import {
 } from './../src/modules/pagos/service/pasarela/simulada.pasarela.js';
 import type { JwtPayload } from './../src/core/security/jwt-payload.interface.js';
 
+// Estas pruebas encadenan varias compras PENDIENTE de la misma clienta a
+// proposito (miden stock y cupon a lo largo de la secuencia): se levanta el
+// tope anti-acaparamiento, que tiene su propia prueba fuera de este archivo.
+process.env.VENTAS_MAX_COMPRAS_PENDIENTES = '1000';
+
 // uuid fijos: siembra determinista, mismo patron que motor-consulta.e2e-spec.ts.
 const ID = {
   ciudad: '00000000-0000-4000-9000-000000000001',
@@ -226,7 +231,7 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     // hay planificador, la barrida corre al inicio de tres endpoints de uso
     // normal, asi que alcanza con dos clientas operando a la vez con una venta
     // vencida en el medio.
-    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 4 } as never);
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 3 } as never);
     const venta = await ventas.checkoutCarrito(ID.cliente, {
       sucursalId: ID.suc, canal: 'WEB',
     } as never);
@@ -242,8 +247,8 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
 
-    // Lo que importa: +4, no +8.
-    expect(await stockDe(ID.var)).toBe(stockConLaVentaViva + 4);
+    // Lo que importa: +3, no +6.
+    expect(await stockDe(ID.var)).toBe(stockConLaVentaViva + 3);
     expect((await ventas.findOne(venta.id)).estado).toBe('CANCELADA');
 
     // Y tampoco quedo un segundo ajuste "legitimo" en el historial.

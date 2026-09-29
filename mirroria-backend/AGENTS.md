@@ -639,3 +639,38 @@ npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule comp
 - `synchronize: true` en TypeORM mientras no haya nada en producción (ver `core/config/typeorm.config.ts`)
   — análogo a `ddl-auto=update` en erp-backend. Si el proyecto pasa de examen a algo real,
   reemplazar por migraciones (`typeorm migration:generate`) y apagar `synchronize`.
+
+## 🛡️ Reglas anti-acaparamiento de stock (2026-09-29)
+
+Reservar era gratis y sin topes: una sola cuenta podía apartar todo el stock de una variante,
+para cualquier fecha futura, y nada lo liberaba salvo el staff a mano. Mismo agujero en la compra
+online (una venta PENDIENTE descuenta stock hasta que se paga o vence). **Sin columnas nuevas**:
+todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR/efectivo.**
+
+- **`reservas/reglas-reserva.ts`** (fuente única de los números): 1 unidad por variante, máx. 3
+  prendas por reserva, máx. 2 reservas activas por clienta, reservar entre 30 min y 48 h hacia
+  adelante, vencimiento automático 30 min después de la hora elegida (PENDIENTE → EXPIRADA,
+  CONFIRMADA → NO_SHOW, liberando el stock), 2 faltas (EXPIRADA/NO_SHOW) en 30 días bloquean
+  reservar 30 días desde la última (fechadas por `fecha_hora_prevista`), y como mucho la mitad
+  del stock libre de cada variante/sucursal puede estar reservada (`ceil`, así la última unidad
+  sí se reserva).
+- **Vencimiento**: `ReservasService.expirarVencidas()` corre con un `setInterval` de 5 min
+  (`unref`, se limpia en `onModuleDestroy`) y además al inicio de `create`, `findAll` y `cupo`.
+- **`GET /reservas/mias/cupo`** (clienta autenticada): reglas + situación propia (activas,
+  faltas, `bloqueadaHasta`, `motivo`). Web y móvil lo usan para no ofrecer lo que se va a rechazar.
+- **`InventarioSucursalService.ajustarReserva`**: nuevo `fraccionMaximaReservable` opcional, y
+  **bloqueo de fila (`pessimistic_write`) cuando corre dentro de una transacción** — antes dos
+  reservas simultáneas leían el mismo `cantidadReservada` y apartaban la misma unidad (verificado:
+  8 reservas concurrentes sobre stock 2 → exactamente 1 entra).
+- **`ventas/reglas-compra.ts`**: máx. 3 unidades por variante (al agregar al carrito y de nuevo en
+  el checkout) y máx. `VENTAS_MAX_COMPRAS_PENDIENTES` (default 2) compras online sin pagar por
+  clienta. `pagos/ExpiracionService` ganó el mismo intervalo de 5 min: antes un sistema ocioso no
+  liberaba el stock de compras vencidas hasta que alguien lo usara.
+- El `test/pagos.e2e-spec.ts` sube `VENTAS_MAX_COMPRAS_PENDIENTES` a propósito (encadena ventas
+  pendientes de la misma clienta para medir stock/cupón) y su prueba de cancelación simultánea
+  pasó de 4 a 3 unidades por el tope nuevo. Verificado: 182 unitarias en verde; e2e con las
+  mismas 2 fallas preexistentes de `ia`/`motor-consulta` que ya fallaban antes de este cambio;
+  21 escenarios de reglas probados contra la API real con Postgres local.
+- **Trampa encontrada al probar**: las fechas son `timestamp without time zone`; el backend
+  escribe y compara con la zona del proceso, así que un `UPDATE ... now()` hecho a mano desde
+  psql (UTC) queda corrido 4 horas respecto de lo que ve la app en una máquina en -04.

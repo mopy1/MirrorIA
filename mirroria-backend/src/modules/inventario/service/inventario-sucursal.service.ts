@@ -21,6 +21,12 @@ export interface AjustarReservaParams {
   tipoMovimiento: TipoMovimientoInventario.RESERVA | TipoMovimientoInventario.LIBERACION_RESERVA;
   usuarioId?: string | null;
   manager?: EntityManager;
+  /**
+   * Tope opcional de cuánto del stock disponible puede estar reservado a la
+   * vez (0..1, redondeando hacia arriba). Lo decide quien reserva — acá solo
+   * se aplica, porque es el único lugar que ve los números con la fila bloqueada.
+   */
+  fraccionMaximaReservable?: number;
 }
 
 export interface AjustarStockParams {
@@ -135,8 +141,11 @@ export class InventarioSucursalService {
     const manager = params.manager ?? this.dataSource.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
 
+    // Dentro de una transacción se bloquea la fila: sin esto dos reservas
+    // simultáneas leían el mismo `cantidadReservada` y apartaban la misma unidad.
     let fila = await invRepo.findOne({
       where: { varianteId: params.varianteId, sucursalId: params.sucursalId },
+      ...(params.manager ? { lock: { mode: 'pessimistic_write' as const } } : {}),
     });
     if (!fila) {
       fila = invRepo.create({
@@ -149,7 +158,11 @@ export class InventarioSucursalService {
     }
 
     if (params.cantidad > 0) {
-      const disponibleReal = fila.cantidadDisponible - fila.cantidadReservada;
+      let disponibleReal = fila.cantidadDisponible - fila.cantidadReservada;
+      if (params.fraccionMaximaReservable !== undefined) {
+        const tope = Math.ceil(fila.cantidadDisponible * params.fraccionMaximaReservable);
+        disponibleReal = Math.min(disponibleReal, tope - fila.cantidadReservada);
+      }
       if (params.cantidad > disponibleReal) {
         throw new StockInsuficienteException(
           params.varianteId,

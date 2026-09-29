@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -8,6 +8,7 @@ import { EstadoPago, MetodoPago, Pago } from '../entities/pago.entity.js';
 const MINUTOS_TARJETA_POR_DEFECTO = 30;
 const MINUTOS_MANUAL_POR_DEFECTO = 1440; // un dia
 const VENTAS_POR_BARRIDA = 200;
+const MINUTOS_ENTRE_BARRIDAS = 5;
 
 /**
  * Libera el stock de las compras que nunca se pagaron.
@@ -24,13 +25,29 @@ const VENTAS_POR_BARRIDA = 200;
  * venta sin ningun pago usa el plazo de tarjeta, el corto: nunca se llego a
  * elegir un metodo, y es el caso del 503 de arriba.
  *
- * No hay planificador: esto se dispara cuando el sistema se usa, y tambien a
- * mano desde un endpoint de administracion. Un sistema ocioso no libera stock
- * hasta que alguien lo use — costo aceptado y declarado en el spec.
+ * Se dispara cuando el sistema se usa, a mano desde un endpoint de
+ * administracion y, desde 2026-09-29, tambien con un intervalo liviano cada
+ * MINUTOS_ENTRE_BARRIDAS: antes un sistema ocioso no liberaba stock hasta que
+ * alguien lo usara, y eso dejaba el stock tomado por compras que nadie iba a
+ * pagar. Los plazos no cambiaron.
  */
 @Injectable()
-export class ExpiracionService {
+export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ExpiracionService.name);
+  private barrida: ReturnType<typeof setInterval> | null = null;
+
+  onModuleInit(): void {
+    this.barrida = setInterval(() => {
+      this.expirarVencidas().catch((err) =>
+        this.logger.error(`Barrida de ventas vencidas fallo: ${String(err)}`),
+      );
+    }, MINUTOS_ENTRE_BARRIDAS * 60_000);
+    this.barrida.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.barrida) clearInterval(this.barrida);
+  }
 
   constructor(
     @InjectRepository(Pago) private readonly pagoRepository: Repository<Pago>,

@@ -19,6 +19,7 @@ import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { CambiarEstadoReservaDto } from '../dto/cambiar-estado-reserva.dto.js';
 import { CreateReservaDto } from '../dto/create-reserva.dto.js';
+import type { CupoReservaResponseDto } from '../dto/cupo-reserva-response.dto.js';
 import type { ReservaResponseDto } from '../dto/reserva-response.dto.js';
 import { EstadoReserva } from '../entities/reserva.entity.js';
 import { ReservasService } from '../service/reservas.service.js';
@@ -46,6 +47,14 @@ export class ReservasController {
   @Get('mias')
   misReservas(@CurrentUser() user: JwtPayload): Promise<ReservaResponseDto[]> {
     return this.reservasService.findAll({ clienteId: user.sub });
+  }
+
+  // Reglas de reserva + situación de la clienta (activas, faltas, bloqueo):
+  // web y móvil la usan para no ofrecer lo que el backend va a rechazar.
+  // Declarada antes de ':id' para que 'mias' no se tome como un id.
+  @Get('mias/cupo')
+  miCupo(@CurrentUser() user: JwtPayload): Promise<CupoReservaResponseDto> {
+    return this.reservasService.cupo(user.sub);
   }
 
   // Consulta de staff, por sucursal/estado (RF: encargado "consultar reservas").

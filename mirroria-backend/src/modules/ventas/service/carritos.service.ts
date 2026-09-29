@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
+import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
+import { REGLAS_COMPRA } from '../reglas-compra.js';
 import type { AddItemCarritoDto } from '../dto/add-item-carrito.dto.js';
 import type { CarritoResponseDto } from '../dto/ventas-response.dto.js';
 import { Carrito } from '../entities/carrito.entity.js';
@@ -35,6 +37,12 @@ export class CarritosService {
 
     const carrito = await this.findOrCreateActivo(usuarioId);
     const existente = carrito.items.find((i) => i.varianteId === dto.varianteId);
+    const total = (existente?.cantidad ?? 0) + dto.cantidad;
+    if (total > REGLAS_COMPRA.maxUnidadesPorVariante) {
+      throw new OperacionInvalidaException(
+        `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color`,
+      );
+    }
     if (existente) {
       existente.cantidad += dto.cantidad;
     } else {
