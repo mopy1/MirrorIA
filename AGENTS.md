@@ -129,14 +129,10 @@ docker compose up -d --build
   backend ya existe y está protegido por rol, pero no hay UI todavía) — no forma parte del
   alcance de `pagos`, es venta presencial (RF17-18).
 - ✅ `mirroria-mobile/` (React Native + Expo SDK 57 + NativeWind v4 + React Native Reusables):
-  scaffold base modular, diseño boutique con acento vino de marca, persistencia con
-  `expo-secure-store`, feature `auth` (Login y Register), y **Vestidor 3D con AR real en vivo**
-  (cerrado 2026-09-22): cámara en vivo (frontal y trasera) + detección de pose por un módulo
-  nativo propio (ML Kit vía Nitro) + prenda 2D siguiendo el cuerpo o modelo 3D `.glb` real
-  (`three.js`/`@react-three/fiber`) con posición, escala, giro plano y giro lateral calculados
-  a partir de los landmarks — ver `mirroria-mobile/AGENTS.md`, sección dedicada, para la
-  arquitectura completa y los ~11 bugs reales encontrados y arreglados en el camino. Android-first
-  a propósito; paridad iOS queda fuera de alcance.
+  auth, catálogo, carrito, pago, pedidos, sucursales y **Probador IA con Decart VTON**
+  (2026-09-29): el vestidor AR anterior (ML Kit + `.glb` con three.js) se eliminó entero y se
+  reemplazó por el mismo Decart que usa la web, sobre WebRTC nativo (LiveKit). Requiere el dev
+  build (`com.mirroria.app`), no corre en Expo Go — ver `mirroria-mobile/AGENTS.md`.
 - ✅ Backend dockerizado (`docker-compose.yml`, servicio `mirroria-backend`) junto a Postgres —
   falta dockerizar el frontend y el despliegue en Azure.
 - ✅ Asistente de reportes por IA (CU24) migrado de Gemini a **DeepSeek** (2026-09-22, decisión
@@ -161,7 +157,6 @@ docker compose up -d --build
   el `/probador` — ahora usa la API realtime de Decart (`lucy-vton-3.5`, `@decartai/sdk`), que
   viste a la clienta con la foto real del producto en vez de un PNG recortado siguiendo dos
   puntos de anclaje. Backend ganó `modules/probador/` (token efímero de Decart, `DECART_API_KEY`
-  nunca sale del servidor). **Esto es solo del frontend web** — el vestidor 3D con AR del
-  `mirroria-mobile` (ML Kit + `.glb`) no se tocó y sigue usando `arOverlayImageUrl`/
-  `public/prendas/` como antes; ver el detalle completo en `mirroria-frontend/AGENTS.md` y
+  nunca sale del servidor). El móvil hizo la misma migración el 2026-09-29 (ver
+  `mirroria-mobile/AGENTS.md`); el detalle de la web está en `mirroria-frontend/AGENTS.md` y
   `mirroria-backend/AGENTS.md`.
