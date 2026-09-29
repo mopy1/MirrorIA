@@ -10,6 +10,7 @@ import { useResourceList } from "@/hooks/useResourceList"
 import { reservationsApi } from "../api/reservationsApi"
 import { useCupoReserva } from "../hooks/useCupoReserva"
 import { etiquetaEstadoReserva } from "../lib/estadoReserva"
+import { codigoReserva } from "../lib/codigoReserva"
 
 const CANCELABLES = ["PENDIENTE", "CONFIRMADA"]
 
@@ -78,6 +79,12 @@ export function MyReservationsPage() {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
+                      Código para el mostrador:{" "}
+                      <span className="font-mono font-semibold tracking-wider">
+                        #{codigoReserva(reserva.id)}
+                      </span>
                     </p>
                   </div>
                   <Badge variant="secondary">{etiquetaEstadoReserva(reserva.estado)}</Badge>

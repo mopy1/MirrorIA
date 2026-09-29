@@ -1,7 +1,8 @@
 import { useState } from "react"
-import { CalendarBlank, WarningCircle } from "@phosphor-icons/react"
+import { CalendarBlank, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -12,6 +13,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { branchesApi } from "@/features/branches/api/branchesApi"
 import { reservationsApi } from "@/features/reservations/api/reservationsApi"
+import { coincideCodigo } from "@/features/reservations/lib/codigoReserva"
+import { useAuth } from "@/hooks/useAuth"
 import { useResourceList } from "@/hooks/useResourceList"
 import { ReservasTable } from "../components/reservas-table"
 
@@ -19,10 +22,18 @@ const TODAS_LAS_SUCURSALES = "__todas__"
 
 export function ReservasAdminPage() {
   const [sucursalId, setSucursalId] = useState("")
+  const [codigo, setCodigo] = useState("")
+  // Encargado/cajero solo ven su sucursal (lo fuerza el backend): el selector
+  // es solo para ADMIN.
+  const { user } = useAuth()
+  const esAdmin = user?.role === "ADMIN"
   const sucursales = useResourceList(branchesApi.getSucursales)
   const reservas = useResourceList(() =>
     reservationsApi.getAll({ sucursalId: sucursalId || undefined })
   )
+  const visibles = reservas.items.filter((r) => coincideCodigo(r.id, codigo))
+  // Para staff de sucursal el backend ya devuelve solo las de su sucursal.
+  const suSucursal = sucursales.items.find((s) => s.id === reservas.items[0]?.sucursalId)?.nombre
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 xl:p-10 space-y-6 max-w-7xl 2xl:max-w-[1536px] w-full mx-auto">
@@ -35,11 +46,24 @@ export function ReservasAdminPage() {
         </div>
         <Badge variant="secondary" className="gap-1.5 py-1 px-3 text-xs font-normal w-fit">
           <CalendarBlank className="size-3.5 text-muted-foreground" />
-          <span>{reservas.items.length} reservas</span>
+          <span>{visibles.length} reservas</span>
         </Badge>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative w-full sm:w-72">
+          <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            placeholder="Código de la clienta (ej. D6018924)"
+            aria-label="Buscar reserva por código"
+            className="h-10 pl-9 font-mono uppercase placeholder:normal-case placeholder:font-sans"
+          />
+        </div>
+        {!esAdmin ? (
+          <p className="text-sm text-muted-foreground">Sucursal: {suSucursal ?? "la tuya"}</p>
+        ) : (
         <div className="relative w-full sm:w-64">
           <Select
             value={sucursalId || TODAS_LAS_SUCURSALES}
@@ -67,6 +91,7 @@ export function ReservasAdminPage() {
             </SelectContent>
           </Select>
         </div>
+        )}
       </div>
 
       {reservas.error && (
@@ -80,7 +105,7 @@ export function ReservasAdminPage() {
         <Skeleton className="h-72 w-full rounded-xl" />
       ) : (
         <ReservasTable
-          reservas={reservas.items}
+          reservas={visibles}
           sucursales={sucursales.items}
           onReload={reservas.reload}
         />

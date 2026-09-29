@@ -6,6 +6,8 @@ import { cn } from "cn"
 const TRANSICIONES: Record<string, { estado: string; label: string; variant?: "default" | "outline" | "ghost"; className?: string }[]> = {
   PENDIENTE: [
     { estado: "CONFIRMADA", label: "Confirmar", variant: "default", className: "h-7 text-xs px-2.5" },
+    // La clienta llegó antes de que se confirmara: un paso en vez de dos.
+    { estado: "EN_TIENDA", label: "Cliente llegó", variant: "outline", className: "h-7 text-xs px-2.5" },
     { estado: "CANCELADA", label: "Cancelar", variant: "ghost", className: "h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10" },
     { estado: "EXPIRADA", label: "Expirar", variant: "outline", className: "h-7 text-xs px-2 text-muted-foreground" },
   ],
@@ -14,6 +16,11 @@ const TRANSICIONES: Record<string, { estado: string; label: string; variant?: "d
     { estado: "CANCELADA", label: "Cancelar", variant: "ghost", className: "h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10" },
     { estado: "NO_SHOW", label: "No asistió", variant: "outline", className: "h-7 text-xs px-2 text-muted-foreground" },
     { estado: "EXPIRADA", label: "Expirar", variant: "outline", className: "h-7 text-xs px-2 text-muted-foreground" },
+  ],
+  // Se probó y no compró: libera las prendas apartadas (no cuenta como falta).
+  // Si compra, la reserva se cierra sola al cobrar la venta presencial.
+  EN_TIENDA: [
+    { estado: "CANCELADA", label: "No compró", variant: "outline", className: "h-7 text-xs px-2.5" },
   ],
 }
 
