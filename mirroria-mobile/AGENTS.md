@@ -148,6 +148,7 @@ mirroria-mobile/
 │       │   ├── components/PrendaSelector.tsx  # Tira horizontal de prendas con foto
 │       │   ├── components/PrendaActual.tsx    # Nombre, precio y "Ver prenda" (ficha real con tallas/carrito)
 │       │   ├── components/PermisoCamara.tsx   # Cuando no se pudo abrir la cámara
+│       │   ├── components/ProbadorApagado.tsx # Estado inicial: no conecta con Decart hasta que se enciende
 │       │   ├── components/ProbadorHeader.tsx  # Título y estado de la IA
 │       │   └── screens/ProbadorScreen{.tsx,.web.tsx}  # Orquestador (la variante web solo deriva a la tienda web)
 │       │
@@ -208,7 +209,12 @@ getUserMedia (@livekit/react-native-webrtc)      [hooks/useCamaraLocal.ts]
 - **Al regenerar `android/` con `expo prebuild`, restaurar `android/gradle.properties`**: el
   prebuild pisa `org.gradle.workers.max=2` y `reactNativeArchitectures=arm64-v8a`, que existen a
   propósito para que Gradle no agote los 8 GB de RAM de la laptop.
-- Cada sesión gasta crédito real de la cuenta de Decart (mismo aviso que en el backend).
+- **Cada sesión gasta crédito real de la cuenta de Decart**, así que la sesión nunca arranca
+  sola: la pestaña abre "en pausa" (`ProbadorApagado`) y solo se conecta con "Encender
+  probador". Se apaga sola al salir de la pestaña (`useFocusEffect` — las pestañas de Expo
+  Router quedan montadas, sin esto la sesión seguía cobrando en segundo plano), al mandar la app
+  a segundo plano (`AppState`) y con el botón de apagado de la escena. Apagar = cortar la cámara;
+  sin stream, `useProbadorIA` desconecta.
 
 ---
 

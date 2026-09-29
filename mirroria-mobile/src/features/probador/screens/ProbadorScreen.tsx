@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AppState, ScrollView, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { catalogApi } from '@/src/features/catalog/api/catalogApi';
 import type {
   CategoriaResponseDto,
@@ -10,6 +10,7 @@ import { getPrimaryImageUrl } from '@/src/lib/images';
 import { ProbadorHeader } from '../components/ProbadorHeader';
 import { ProbadorEscena } from '../components/ProbadorEscena';
 import { PermisoCamara } from '../components/PermisoCamara';
+import { ProbadorApagado } from '../components/ProbadorApagado';
 import { PrendaSelector } from '../components/PrendaSelector';
 import { PrendaActual } from '../components/PrendaActual';
 import { useCamaraLocal, type Lado } from '../hooks/useCamaraLocal';
@@ -18,13 +19,24 @@ import { esProbable, promptDePrenda } from '../lib/promptDePrenda';
 
 export function ProbadorScreen() {
   const { productoId } = useLocalSearchParams<{ productoId?: string }>();
+  const [encendido, setEncendido] = useState(false);
   const [lado, setLado] = useState<Lado>('user');
   const [intento, setIntento] = useState(0);
   const [prendas, setPrendas] = useState<ProductoResponseDto[]>([]);
   const [categorias, setCategorias] = useState<CategoriaResponseDto[]>([]);
   const [seleccionada, setSeleccionada] = useState<ProductoResponseDto | null>(null);
 
-  const { stream, estado: estadoCamara } = useCamaraLocal(lado, intento);
+  const { stream, estado: estadoCamara } = useCamaraLocal(encendido, lado, intento);
+
+  // Decart cobra mientras la sesión está abierta: se apaga al salir de la
+  // pestaña (las pestañas quedan montadas) y al mandar la app a segundo plano.
+  useFocusEffect(useCallback(() => () => setEncendido(false), []));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') setEncendido(false);
+    });
+    return () => sub.remove();
+  }, []);
   const { remotoUrl, estado, probarPrenda } = useProbadorIA(stream);
 
   useEffect(() => {
@@ -62,7 +74,9 @@ export function ProbadorScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 36 }}
       >
-        {estadoCamara === 'sin-permiso' ? (
+        {!encendido ? (
+          <ProbadorApagado onEncender={() => setEncendido(true)} />
+        ) : estadoCamara === 'sin-permiso' ? (
           <PermisoCamara onReintentar={reintentar} />
         ) : (
           <ProbadorEscena
@@ -72,6 +86,7 @@ export function ProbadorScreen() {
             espejo={lado === 'user'}
             onCambiarCamara={() => setLado((l) => (l === 'user' ? 'environment' : 'user'))}
             onReconectar={reintentar}
+            onApagar={() => setEncendido(false)}
           />
         )}
 

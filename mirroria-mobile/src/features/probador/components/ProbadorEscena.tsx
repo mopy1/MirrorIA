@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { RTCView, type MediaStream } from '@livekit/react-native-webrtc';
-import { RefreshCw, SwitchCamera } from 'lucide-react-native';
+import { Power, RefreshCw, SwitchCamera } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
 import type { EstadoIA } from '../hooks/useProbadorIA';
@@ -13,6 +13,7 @@ interface ProbadorEscenaProps {
   espejo: boolean;
   onCambiarCamara: () => void;
   onReconectar: () => void;
+  onApagar: () => void;
 }
 
 /**
@@ -27,6 +28,7 @@ export function ProbadorEscena({
   espejo,
   onCambiarCamara,
   onReconectar,
+  onApagar,
 }: ProbadorEscenaProps) {
   const localUrl = local?.toURL() ?? null;
   const principal = remotoUrl ?? localUrl;
@@ -70,6 +72,15 @@ export function ProbadorEscena({
           <Text className="text-xs font-semibold text-white">Se cortó la IA · Reconectar</Text>
         </Pressable>
       )}
+
+      <Pressable
+        onPress={onApagar}
+        hitSlop={8}
+        accessibilityLabel="Apagar probador"
+        className="absolute top-16 right-3 w-10 h-10 items-center justify-center rounded-full bg-black/50 active:opacity-80"
+      >
+        <Icon as={Power} size={18} className="text-white" />
+      </Pressable>
 
       <Pressable
         onPress={onCambiarCamara}

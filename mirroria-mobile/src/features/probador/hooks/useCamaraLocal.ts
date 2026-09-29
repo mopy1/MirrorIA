@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mediaDevices, type MediaStream } from '@livekit/react-native-webrtc';
 
-export type EstadoCamara = 'pidiendo' | 'lista' | 'sin-permiso';
+export type EstadoCamara = 'apagada' | 'pidiendo' | 'lista' | 'sin-permiso';
 export type Lado = 'user' | 'environment';
 
 /**
@@ -10,14 +10,19 @@ export type Lado = 'user' | 'environment';
  * si falta, así que no hace falta un hook de permisos aparte.
  *
  * Cambiar de cámara abre un stream nuevo: la sesión de Decart se rearma sola
- * porque `useProbadorIA` depende del stream.
+ * porque `useProbadorIA` depende del stream. Con `encendida: false` no hay
+ * stream, y sin stream no hay sesión de Decart (no se gasta crédito).
  */
-export function useCamaraLocal(lado: Lado, intento: number) {
+export function useCamaraLocal(encendida: boolean, lado: Lado, intento: number) {
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [estado, setEstado] = useState<EstadoCamara>('pidiendo');
+  const [estado, setEstado] = useState<EstadoCamara>('apagada');
   const vivo = useRef(true);
 
   useEffect(() => {
+    if (!encendida) {
+      setEstado('apagada');
+      return;
+    }
     vivo.current = true;
     let actual: MediaStream | null = null;
     setEstado('pidiendo');
@@ -46,7 +51,7 @@ export function useCamaraLocal(lado: Lado, intento: number) {
       actual?.release();
       setStream(null);
     };
-  }, [lado, intento]);
+  }, [encendida, lado, intento]);
 
   return { stream, estado };
 }
