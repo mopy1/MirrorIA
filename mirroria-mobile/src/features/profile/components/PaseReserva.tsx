@@ -67,20 +67,25 @@ export function PaseReserva({
               {formatFechaHora(reserva.fechaHoraPrevista)}
             </Text>
           </View>
-          <Text className="text-[10px] text-primary font-semibold">
-            Código: {reserva.id.slice(0, 8).toUpperCase()}
+          <Text className="text-[10px] text-muted-foreground mt-0.5">Código para el mostrador</Text>
+          {/* Mismo código que ve la web y que el cajero busca en el panel. */}
+          <Text selectable className="text-lg font-bold tracking-widest text-primary">
+            #{reserva.id.slice(0, 8).toUpperCase()}
           </Text>
         </View>
       </View>
 
       <Text className="text-[10px] text-muted-foreground text-center">
-        Presentá este código en el mostrador. Si no llegás hasta {toleranciaMinutos} min después
+        Dictale este código al personal en el mostrador. Si no llegás hasta {toleranciaMinutos} min después
         de la hora, la reserva vence sola y cuenta como falta.
       </Text>
 
-      <Pressable onPress={onCancelar} hitSlop={6} className="self-center">
-        <Text className="text-[11px] font-semibold text-destructive">Cancelar reserva</Text>
-      </Pressable>
+      {/* Ya en la tienda la cierra el personal (con la venta o "No compró"). */}
+      {reserva.estado !== 'EN_TIENDA' && (
+        <Pressable onPress={onCancelar} hitSlop={6} className="self-center">
+          <Text className="text-[11px] font-semibold text-destructive">Cancelar reserva</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
