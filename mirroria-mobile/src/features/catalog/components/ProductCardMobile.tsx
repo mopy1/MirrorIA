@@ -67,10 +67,14 @@ export function ProductCardMobile({
         )}
       </View>
 
-      {/* Contenido del Producto */}
-      <View className="p-3 justify-between flex-1 gap-1.5">
+      {/* Contenido del Producto — sin flex-1: en una tarjeta de alto automático
+          eso le daba base 0 y en Android el nombre y el precio quedaban con 0px
+          de alto en algunas tarjetas según cuándo cargaba la foto. El título
+          reserva siempre 2 líneas para que todas las tarjetas midan lo mismo. */}
+      <View className="p-3 gap-1.5">
         <Text
           numberOfLines={2}
+          style={{ minHeight: 30 }}
           className="text-xs font-semibold text-foreground leading-tight"
         >
           {product.titulo}
