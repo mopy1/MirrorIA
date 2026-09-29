@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { AlertCircle } from 'lucide-react-native';
 
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
@@ -111,7 +112,7 @@ export function RegisterForm() {
           control={control}
           name="password"
           render={({ field: { onChange, onBlur, value, ref } }) => (
-            <Input
+            <PasswordInput
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -120,8 +121,6 @@ export function RegisterForm() {
               autoComplete="new-password"
               returnKeyType="go"
               onSubmitEditing={handleSubmit(submit)}
-              secureTextEntry
-              autoCapitalize="none"
               className={errors.password ? 'border-destructive' : ''}
             />
           )}
