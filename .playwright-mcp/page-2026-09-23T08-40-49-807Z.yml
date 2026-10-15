@@ -1,0 +1,128 @@
+- generic [ref=f5e3]:
+  - navigation [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - link [ref=f5e6] [cursor=pointer]:
+        - /url: /proyectos
+      - separator [ref=f5e7]
+      - link [ref=f5e8] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/diagrama
+      - link [ref=f5e9] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/tareas
+      - link [ref=f5e10] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/notas
+      - link [ref=f5e11] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/xmi
+      - link [ref=f5e12] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/generador
+      - separator [ref=f5e69]
+      - button "Colaboradores" [ref=f5e70]
+    - generic [ref=f5e13]:
+      - separator [ref=f5e14]
+      - button "Cambiar a modo claro" [ref=f5e15]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f5e16] [cursor=pointer]':
+        - generic [ref=f5e17]: QA
+  - main [ref=f5e19]:
+    - generic [ref=f5e71]:
+      - button "Entidad" [ref=f5e73]
+      - generic [ref=f5e74]:
+        - generic [ref=f5e75]: Colaboración
+        - generic [ref=f5e81]:
+          - button "QA" [ref=f5e82]
+          - generic [ref=f5e83]: (Esperando otros colaboradores...)
+      - application [ref=f5e84]:
+        - generic "Control Panel" [ref=f5e87]:
+          - button "Zoom In" [ref=f5e88] [cursor=pointer]
+          - button "Zoom Out" [ref=f5e91] [cursor=pointer]
+          - button "Fit View" [ref=f5e94] [cursor=pointer]
+          - button "Toggle Interactivity" [ref=f5e97] [cursor=pointer]
+        - img "Mini Map" [ref=f5e101]
+        - link "React Flow attribution" [ref=f5e103] [cursor=pointer]:
+          - /url: https://reactflow.dev/attribution
+          - text: React Flow
+  - complementary "Panel Asistente IA y Manual CASE" [ref=f5e20]:
+    - separator "Arrastra para redimensionar el panel (Doble clic para restablecer)" [ref=f5e21]
+    - generic [ref=f5e23]:
+      - generic [ref=f5e24]:
+        - generic [ref=f5e30]:
+          - generic [ref=f5e31]:
+            - generic [ref=f5e32]: Copilot
+            - generic [ref=f5e33]: Diagrama
+          - generic [ref=f5e34]: Asistente Autónomo
+        - generic [ref=f5e35]:
+          - button "Manual" [ref=f5e36]
+          - button "Reiniciar conversación" [ref=f5e38] [cursor=pointer]
+          - button "Cerrar panel Copilot" [ref=f5e39] [cursor=pointer]
+      - generic [ref=f5e40]:
+        - generic [ref=f5e41]:
+          - generic [ref=f5e42]: ¡Hola! Soy tu copiloto y manual contextual de CASE Tool. Puedo modelar tablas y relaciones directamente en tu lienzo con guía anti-colisión, además de generar Spring Boot 3.4 y ADRs.
+          - generic [ref=f5e45]: 04:40 AM
+        - generic [ref=f5e109]:
+          - paragraph [ref=f5e112]: ¿Qué tablas me recomendás para modelar una peluquería pequeña? Dame solo indicaciones, no las crees todavía.
+          - generic [ref=f5e113]: 04:40 AM
+        - generic [ref=f5e114]:
+          - generic [ref=f5e116]:
+            - generic [ref=f5e117]: "Para una peluquería pequeña, te recomendaría estas tablas:"
+            - generic [ref=f5e119]:
+              - generic [ref=f5e120]: •
+              - generic [ref=f5e121]:
+                - strong [ref=f5e122]: Cliente
+                - text: ": datos de la persona que se atiende (id, nombre, teléfono, email, fecha de alta)."
+            - generic [ref=f5e123]:
+              - generic [ref=f5e124]: •
+              - generic [ref=f5e125]:
+                - strong [ref=f5e126]: Empleado
+                - text: ": el personal que atiende (id, nombre, rol —peluquero, colorista, etc.—, teléfono, activo)."
+            - generic [ref=f5e127]:
+              - generic [ref=f5e128]: •
+              - generic [ref=f5e129]:
+                - strong [ref=f5e130]: Servicio
+                - text: ": el catálogo de lo que ofrecés (id, nombre, descripción, duración estimada, precio)."
+            - generic [ref=f5e131]:
+              - generic [ref=f5e132]: •
+              - generic [ref=f5e133]:
+                - strong [ref=f5e134]: Turno
+                - text: ": el corazón del sistema; cada cita agendada (id, fecha_hora, estado —pendiente/confirmado/cancelado/asistió—, cliente_id, empleado_id)."
+            - generic [ref=f5e135]:
+              - generic [ref=f5e136]: •
+              - generic [ref=f5e137]:
+                - strong [ref=f5e138]: Turno_Servicio
+                - text: ": tabla intermedia N:M, porque un turno puede incluir varios servicios y un servicio aparece en muchos turnos (turno_id, servicio_id, precio_al_momento)."
+            - generic [ref=f5e139]:
+              - generic [ref=f5e140]: •
+              - generic [ref=f5e141]:
+                - strong [ref=f5e142]: Pago
+                - text: ": registro de cobros (id, turno_id, monto, método de pago, fecha)."
+            - generic [ref=f5e144]: "Relaciones clave:"
+            - generic [ref=f5e145]:
+              - generic [ref=f5e146]: •
+              - generic [ref=f5e147]: Cliente 1:N Turno (un cliente agenda muchos turnos).
+            - generic [ref=f5e148]:
+              - generic [ref=f5e149]: •
+              - generic [ref=f5e150]: Empleado 1:N Turno (un empleado atiende muchos turnos).
+            - generic [ref=f5e151]:
+              - generic [ref=f5e152]: •
+              - generic [ref=f5e153]:
+                - text: Turno N:M Servicio, resuelto con
+                - strong [ref=f5e154]: Turno_Servicio
+                - text: .
+            - generic [ref=f5e155]:
+              - generic [ref=f5e156]: •
+              - generic [ref=f5e157]: Turno 1:N Pago (o 1:1 si cobrás todo de una sola vez).
+            - generic [ref=f5e160]:
+              - text: "Opcionales si querés crecer un poco:"
+              - strong [ref=f5e161]: Producto
+              - text: e
+              - strong [ref=f5e162]: Inventario
+              - text: (si vendés shampoo, tinturas, etc.) y
+              - strong [ref=f5e163]: Horario_Empleado
+              - text: (para saber disponibilidad y evitar solapamientos al agendar).
+            - generic [ref=f5e165]: Si querés, decime y te las armo en el diagrama con sus relaciones.
+          - generic [ref=f5e166]: 04:40 AM
+      - generic [ref=f5e57]:
+        - textbox "Escribe tablas, relaciones o toma foto a un diagrama..." [ref=f5e108]
+        - generic [ref=f5e59]:
+          - generic [ref=f5e60]: ↵ Enviar • ⇧↵ Salto de línea
+          - generic [ref=f5e64]:
+            - button "Tomar foto de diagrama o adjuntar imagen" [ref=f5e66] [cursor=pointer]
+            - button "Dictar por voz (o mantén [Espacio] o [V] para Push-to-Talk rápido)" [ref=f5e68] [cursor=pointer]
+            - button [disabled]

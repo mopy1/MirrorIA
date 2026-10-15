@@ -1,0 +1,26 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - heading "Proyectos" [level=1] [ref=f4e48]
+      - paragraph [ref=f4e7]: Modelos de base de datos en los que colaborás.
+    - generic [ref=f4e8]:
+      - textbox "Buscar proyectos..." [ref=f4e49]
+      - button "Cambiar a modo claro" [ref=f4e50]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f4e51] [cursor=pointer]':
+        - generic [ref=f4e12]: QA
+  - generic [ref=f4e52]:
+    - generic [ref=f4e53]:
+      - link "Abrir proyecto QA Copilot Test" [ref=f4e54] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw
+      - generic:
+        - generic:
+          - generic: QA Copilot Test
+          - generic [ref=f4e55]:
+            - generic [ref=f4e56]: ADMIN
+            - button "Editar proyecto" [ref=f4e57]
+            - button "Eliminar proyecto" [ref=f4e58]
+        - generic: Prueba de fixes de copilot
+      - generic:
+        - generic: QA
+        - generic: 23 sept 2026
+    - button "Crear proyecto nuevo" [ref=f4e59] [cursor=pointer]

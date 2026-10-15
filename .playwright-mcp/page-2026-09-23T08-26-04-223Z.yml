@@ -1,0 +1,37 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e26]:
+    - banner [ref=f2e27]:
+      - generic [ref=f2e28]:
+        - heading [level=1] [ref=f2e127]: Proyectos
+        - paragraph [ref=f2e30]: Modelos de base de datos en los que colaborás.
+      - generic [ref=f2e31]:
+        - textbox [ref=f2e128]:
+          - /placeholder: Buscar proyectos...
+        - button [ref=f2e129]
+        - button [ref=f2e130] [cursor=pointer]:
+          - generic [ref=f2e35]: QA
+    - generic [ref=f2e75]:
+      - generic [ref=f2e118]:
+        - link [ref=f2e131] [cursor=pointer]:
+          - /url: /proyectos/prj-15u198y
+        - generic:
+          - generic:
+            - generic: (editado)
+            - generic [ref=f2e120]:
+              - generic [ref=f2e121]: ADMIN
+              - button [ref=f2e132]
+              - button [expanded] [ref=f2e133]
+          - generic: Proyecto de prueba para verificar editar/eliminar
+        - generic:
+          - generic: QA
+          - generic: 23 sept 2026
+      - button [ref=f2e134] [cursor=pointer]:
+        - generic [ref=f2e125]: Crear proyecto nuevo
+  - dialog [ref=f2e138]:
+    - generic [ref=f2e139]:
+      - heading "¿Eliminar este proyecto?" [level=2] [ref=f2e140]
+      - paragraph [ref=f2e141]: Se va a eliminar "(editado)" junto con su diagrama, tareas y notas. Esta acción no se puede deshacer.
+    - generic [ref=f2e142]:
+      - button "Cancelar" [active] [ref=f2e143]
+      - button "Eliminar" [ref=f2e144]
+    - button "Cerrar" [ref=f2e145]

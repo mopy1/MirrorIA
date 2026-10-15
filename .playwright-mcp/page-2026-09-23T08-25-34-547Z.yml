@@ -1,0 +1,26 @@
+- generic [ref=f2e26]:
+  - banner [ref=f2e27]:
+    - generic [ref=f2e28]:
+      - heading "Proyectos" [level=1] [ref=f2e71]
+      - paragraph [ref=f2e30]: Modelos de base de datos en los que colaborás.
+    - generic [ref=f2e31]:
+      - textbox "Buscar proyectos..." [ref=f2e72]
+      - button "Cambiar a modo claro" [ref=f2e73]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f2e74] [cursor=pointer]':
+        - generic [ref=f2e35]: QA
+  - generic [ref=f2e75]:
+    - generic [ref=f2e76]:
+      - link "Abrir proyecto QA Edit Test" [ref=f2e77] [cursor=pointer]:
+        - /url: /proyectos/prj-15u198y
+      - generic:
+        - generic:
+          - generic: QA Edit Test
+          - generic [ref=f2e78]:
+            - generic [ref=f2e79]: ADMIN
+            - button "Editar proyecto" [ref=f2e80]
+            - button "Eliminar proyecto" [ref=f2e81]
+        - generic: Proyecto de prueba para verificar editar/eliminar
+      - generic:
+        - generic: QA
+        - generic: 23 sept 2026
+    - button "Crear proyecto nuevo" [ref=f2e82] [cursor=pointer]

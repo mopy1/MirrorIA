@@ -1,0 +1,52 @@
+- generic [ref=f5e3]:
+  - navigation [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - link [ref=f5e6] [cursor=pointer]:
+        - /url: /proyectos
+      - separator [ref=f5e7]
+      - link [ref=f5e8] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/diagrama
+      - link [ref=f5e9] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/tareas
+      - link [ref=f5e10] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/notas
+      - link [ref=f5e11] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/xmi
+      - link [ref=f5e12] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/generador
+    - generic [ref=f5e13]:
+      - separator [ref=f5e14]
+      - button "Cambiar a modo claro" [ref=f5e15]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f5e16] [cursor=pointer]':
+        - generic [ref=f5e17]: QA
+  - main [ref=f5e19]
+  - complementary "Panel Asistente IA y Manual CASE" [ref=f5e20]:
+    - separator "Arrastra para redimensionar el panel (Doble clic para restablecer)" [ref=f5e21]
+    - generic [ref=f5e23]:
+      - generic [ref=f5e24]:
+        - generic [ref=f5e30]:
+          - generic [ref=f5e31]:
+            - generic [ref=f5e32]: Copilot
+            - generic [ref=f5e33]: General
+          - generic [ref=f5e34]: Asistente Autónomo
+        - generic [ref=f5e35]:
+          - button "Manual" [ref=f5e36]
+          - button "Reiniciar conversación" [ref=f5e38] [cursor=pointer]
+          - button "Cerrar panel Copilot" [ref=f5e39] [cursor=pointer]
+      - generic [ref=f5e41]:
+        - generic [ref=f5e42]: ¡Hola! Soy tu copiloto y manual contextual de CASE Tool. Puedo modelar tablas y relaciones directamente en tu lienzo con guía anti-colisión, además de generar Spring Boot 3.4 y ADRs.
+        - generic [ref=f5e45]: 04:40 AM
+      - generic [ref=f5e46]:
+        - generic [ref=f5e47]: Sugerencias rápidas
+        - generic [ref=f5e52]:
+          - button "¿Cómo crear una relación N:M?" [ref=f5e53]
+          - button "¿Qué tipos de datos soporta?" [ref=f5e54]
+          - button "Sugerir decisiones de arquitectura" [ref=f5e55]
+      - generic [ref=f5e57]:
+        - textbox "Escribe tu consulta, pide crear tablas o sube un diagrama..." [ref=f5e58]
+        - generic [ref=f5e59]:
+          - generic [ref=f5e60]: ↵ Enviar • ⇧↵ Salto de línea
+          - generic [ref=f5e64]:
+            - button "Tomar foto de diagrama o adjuntar imagen" [ref=f5e66] [cursor=pointer]
+            - button "Dictar por voz (o mantén [Espacio] o [V] para Push-to-Talk rápido)" [ref=f5e68] [cursor=pointer]
+            - button [disabled]

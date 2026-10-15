@@ -1,0 +1,36 @@
+- generic [ref=f6e1]:
+  - generic [ref=f6e5]:
+    - banner [ref=f6e6]:
+      - generic [ref=f6e7]:
+        - heading [level=1] [ref=f6e24]: Proyectos
+        - paragraph [ref=f6e9]: Modelos de base de datos en los que colaborás.
+      - generic [ref=f6e10]:
+        - textbox [ref=f6e25]:
+          - /placeholder: Buscar proyectos...
+        - button [ref=f6e26]
+        - button [ref=f6e27] [cursor=pointer]:
+          - generic [ref=f6e14]: QA
+    - generic [ref=f6e16]:
+      - generic [ref=f6e17]:
+        - generic [ref=f6e18]: Todavía no tenés proyectos
+        - generic [ref=f6e19]: Creá tu primer proyecto para empezar a modelar una base de datos.
+      - button [expanded] [ref=f6e28] [cursor=pointer]:
+        - generic [ref=f6e22]: Crear proyecto nuevo
+  - dialog [ref=f6e32]:
+    - generic [ref=f6e33]:
+      - generic [ref=f6e34]:
+        - heading "Nuevo proyecto" [level=2] [ref=f6e35]
+        - paragraph [ref=f6e36]: Un proyecto es un modelo de base de datos en el que podés colaborar con otras personas.
+      - generic [ref=f6e37]:
+        - group [ref=f6e38]:
+          - generic [ref=f6e39]: Nombre
+          - textbox "Nombre" [active] [ref=f6e40]:
+            - /placeholder: Sistema de Veterinaria
+        - group [ref=f6e41]:
+          - generic [ref=f6e42]: Descripción
+          - textbox "Descripción" [ref=f6e43]:
+            - /placeholder: Modelo de dueños, mascotas y citas médicas
+      - generic [ref=f6e44]:
+        - button "Cancelar" [ref=f6e45]
+        - button "Crear proyecto" [ref=f6e46]
+    - button "Cerrar" [ref=f6e47]

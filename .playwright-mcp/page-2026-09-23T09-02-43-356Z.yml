@@ -1,0 +1,84 @@
+- generic [ref=f7e1]:
+  - generic [ref=f7e5]:
+    - navigation [ref=f7e6]:
+      - generic [ref=f7e7]:
+        - link [ref=f7e8] [cursor=pointer]:
+          - /url: /proyectos
+        - separator [ref=f7e9]
+        - link [ref=f7e10] [cursor=pointer]:
+          - /url: /proyectos/prj-4an9mu/diagrama
+        - link [ref=f7e11] [cursor=pointer]:
+          - /url: /proyectos/prj-4an9mu/tareas
+        - link [ref=f7e12] [cursor=pointer]:
+          - /url: /proyectos/prj-4an9mu/notas
+        - link [ref=f7e13] [cursor=pointer]:
+          - /url: /proyectos/prj-4an9mu/xmi
+        - link [ref=f7e14] [cursor=pointer]:
+          - /url: /proyectos/prj-4an9mu/generador
+        - separator [ref=f7e15]
+        - button [ref=f7e83]
+      - generic [ref=f7e17]:
+        - separator [ref=f7e18]
+        - button [ref=f7e84]
+        - button [ref=f7e85] [cursor=pointer]:
+          - generic [ref=f7e21]: QA
+    - main [ref=f7e23]:
+      - generic [ref=f7e24]:
+        - generic [ref=f7e25]:
+          - generic [ref=f7e26]:
+            - heading [level=1] [ref=f7e86]: Notas
+            - paragraph [ref=f7e28]: El por qué de cada decisión de diseño.
+          - button [expanded] [ref=f7e87]: Nueva nota
+        - generic [ref=f7e31]:
+          - generic [ref=f7e32]: Todavía no hay notas
+          - generic [ref=f7e33]: Registrá la primera decisión de diseño del proyecto.
+    - complementary [ref=f7e88]:
+      - separator [ref=f7e89]
+      - generic [ref=f7e37]:
+        - generic [ref=f7e38]:
+          - generic [ref=f7e44]:
+            - generic [ref=f7e45]:
+              - generic [ref=f7e46]: Copilot
+              - generic [ref=f7e47]: Notas
+            - generic [ref=f7e48]: Asistente Autónomo
+          - generic [ref=f7e49]:
+            - button [ref=f7e90]:
+              - generic [ref=f7e51]: Manual
+            - button [ref=f7e91] [cursor=pointer]
+            - button [ref=f7e92] [cursor=pointer]
+        - generic [ref=f7e55]:
+          - generic [ref=f7e56]: ¡Hola! Soy tu copiloto y manual contextual de CASE Tool. Puedo modelar tablas y relaciones directamente en tu lienzo con guía anti-colisión, además de generar Spring Boot 3.4 y ADRs.
+          - generic [ref=f7e59]: 05:02 AM
+        - generic [ref=f7e60]:
+          - generic [ref=f7e61]: Sugerencias rápidas
+          - generic [ref=f7e66]:
+            - button [ref=f7e93]: ¿Qué es un ADR y por qué es inmutable?
+            - button [ref=f7e94]: ¿Cómo justificar decisiones de arquitectura ante el docente?
+            - button [ref=f7e95]: Sugerir decisiones de arquitectura
+        - generic [ref=f7e71]:
+          - textbox [ref=f7e96]:
+            - /placeholder: Pide documentar decisiones arquitectónicas o registrar ADRs...
+          - generic [ref=f7e73]:
+            - generic [ref=f7e74]: ↵ Enviar • ⇧↵ Salto de línea
+            - generic [ref=f7e78]:
+              - button [ref=f7e97] [cursor=pointer]
+              - button [ref=f7e98] [cursor=pointer]
+              - button [disabled]
+  - dialog [ref=f7e102]:
+    - generic [ref=f7e103]:
+      - generic [ref=f7e104]:
+        - heading "Nueva nota" [level=2] [ref=f7e105]
+        - paragraph [ref=f7e106]: Dejá registrado el por qué de un cambio, para que el equipo lo entienda después.
+      - generic [ref=f7e107]:
+        - group [ref=f7e108]:
+          - generic [ref=f7e109]: Qué se hizo
+          - textbox "Qué se hizo" [active] [ref=f7e110]:
+            - /placeholder: Crear tabla Cliente
+        - group [ref=f7e111]:
+          - generic [ref=f7e112]: Por qué
+          - textbox "Por qué" [ref=f7e113]:
+            - /placeholder: El enunciado pide separar dueño y mascota
+      - generic [ref=f7e114]:
+        - button "Cancelar" [ref=f7e115]
+        - button "Guardar nota" [ref=f7e116]
+    - button "Cerrar" [ref=f7e117]

@@ -1,0 +1,265 @@
+- generic [ref=f5e3]:
+  - navigation [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - link [ref=f5e6] [cursor=pointer]:
+        - /url: /proyectos
+      - separator [ref=f5e7]
+      - link [ref=f5e8] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/diagrama
+      - link [ref=f5e9] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/tareas
+      - link [ref=f5e10] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/notas
+      - link [ref=f5e11] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/xmi
+      - link [ref=f5e12] [cursor=pointer]:
+        - /url: /proyectos/prj-n2c9fw/generador
+      - separator [ref=f5e69]
+      - button "Colaboradores" [ref=f5e70]
+    - generic [ref=f5e13]:
+      - separator [ref=f5e14]
+      - button "Cambiar a modo claro" [ref=f5e15]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f5e16] [cursor=pointer]':
+        - generic [ref=f5e17]: QA
+  - main [ref=f5e19]:
+    - generic [ref=f5e71]:
+      - button "Entidad" [ref=f5e73]
+      - generic [ref=f5e74]:
+        - generic [ref=f5e75]: Colaboración
+        - generic [ref=f5e81]:
+          - button "QA" [ref=f5e82]
+          - generic [ref=f5e83]: (Esperando otros colaboradores...)
+      - application [ref=f5e84]:
+        - generic [ref=f5e86]:
+          - generic:
+            - generic:
+              - img:
+                - group "Edge from 41 to 42" [ref=f5e250] [cursor=pointer]
+            - generic:
+              - generic: ◆ Composición
+              - button "(1)" [ref=f5e254]
+              - button "(1..*)" [ref=f5e255]
+            - generic:
+              - group [ref=f5e256]:
+                - generic [ref=f5e257]:
+                  - generic [ref=f5e262]:
+                    - generic "Factura" [ref=f5e263]
+                    - generic [ref=f5e264]:
+                      - generic [ref=f5e265]: Table
+                      - button [ref=f5e266]
+                  - generic [ref=f5e268]:
+                    - generic [ref=f5e269]:
+                      - generic [ref=f5e270]:
+                        - button [ref=f5e271]
+                        - generic "id" [ref=f5e275]
+                      - generic [ref=f5e276]:
+                        - generic "BIGINT" [ref=f5e277]
+                        - button [ref=f5e278]
+                    - separator [ref=f5e281]
+                    - generic [ref=f5e282]:
+                      - generic "numero" [ref=f5e284]
+                      - generic [ref=f5e285]:
+                        - generic "VARCHAR" [ref=f5e286]
+                        - button [ref=f5e287]
+                    - generic [ref=f5e290]:
+                      - generic "fecha" [ref=f5e292]
+                      - generic [ref=f5e293]:
+                        - generic "TIMESTAMP" [ref=f5e294]
+                        - button [ref=f5e295]
+                    - generic [ref=f5e298]:
+                      - generic "total" [ref=f5e300]
+                      - generic [ref=f5e301]:
+                        - generic "DECIMAL" [ref=f5e302]
+                        - button [ref=f5e303]
+                    - generic [ref=f5e306]:
+                      - generic "cliente_id" [ref=f5e308]
+                      - generic [ref=f5e309]:
+                        - generic "BIGINT" [ref=f5e310]
+                        - button [ref=f5e311]
+              - group [ref=f5e314]:
+                - generic [ref=f5e315]:
+                  - generic [ref=f5e320]:
+                    - generic "DetalleFactura" [ref=f5e321]
+                    - generic [ref=f5e322]:
+                      - generic [ref=f5e323]: Table
+                      - button [ref=f5e324]
+                  - generic [ref=f5e326]:
+                    - generic [ref=f5e327]:
+                      - generic [ref=f5e328]:
+                        - button [ref=f5e329]
+                        - generic "id" [ref=f5e333]
+                      - generic [ref=f5e334]:
+                        - generic "BIGINT" [ref=f5e335]
+                        - button [ref=f5e336]
+                    - separator [ref=f5e339]
+                    - generic [ref=f5e340]:
+                      - generic "factura_id" [ref=f5e342]
+                      - generic [ref=f5e343]:
+                        - generic "BIGINT" [ref=f5e344]
+                        - button [ref=f5e345]
+                    - generic [ref=f5e348]:
+                      - generic "producto" [ref=f5e350]
+                      - generic [ref=f5e351]:
+                        - generic "VARCHAR" [ref=f5e352]
+                        - button [ref=f5e353]
+                    - generic [ref=f5e356]:
+                      - generic "cantidad" [ref=f5e358]
+                      - generic [ref=f5e359]:
+                        - generic "INTEGER" [ref=f5e360]
+                        - button [ref=f5e361]
+                    - generic [ref=f5e364]:
+                      - generic "precio_unitario" [ref=f5e366]
+                      - generic [ref=f5e367]:
+                        - generic "DECIMAL" [ref=f5e368]
+                        - button [ref=f5e369]
+                    - generic [ref=f5e372]:
+                      - generic "subtotal" [ref=f5e374]
+                      - generic [ref=f5e375]:
+                        - generic "DECIMAL" [ref=f5e376]
+                        - button [ref=f5e377]
+        - generic "Control Panel" [ref=f5e87]:
+          - button "Zoom In" [disabled]
+          - button "Zoom Out" [ref=f5e91] [cursor=pointer]
+          - button "Fit View" [ref=f5e94] [cursor=pointer]
+          - button "Toggle Interactivity" [ref=f5e97] [cursor=pointer]
+        - img "Mini Map" [ref=f5e101]
+        - link "React Flow attribution" [ref=f5e103] [cursor=pointer]:
+          - /url: https://reactflow.dev/attribution
+          - text: React Flow
+  - complementary "Panel Asistente IA y Manual CASE" [ref=f5e20]:
+    - separator "Arrastra para redimensionar el panel (Doble clic para restablecer)" [ref=f5e21]
+    - generic [ref=f5e23]:
+      - generic [ref=f5e24]:
+        - generic [ref=f5e30]:
+          - generic [ref=f5e31]:
+            - generic [ref=f5e32]: Copilot
+            - generic [ref=f5e33]: Diagrama
+          - generic [ref=f5e34]: Asistente Autónomo
+        - generic [ref=f5e35]:
+          - button "Manual" [ref=f5e36]
+          - button "Reiniciar conversación" [ref=f5e38] [cursor=pointer]
+          - button "Cerrar panel Copilot" [ref=f5e39] [cursor=pointer]
+      - generic [ref=f5e40]:
+        - generic [ref=f5e41]:
+          - generic [ref=f5e42]: ¡Hola! Soy tu copiloto y manual contextual de CASE Tool. Puedo modelar tablas y relaciones directamente en tu lienzo con guía anti-colisión, además de generar Spring Boot 3.4 y ADRs.
+          - generic [ref=f5e45]: 04:40 AM
+        - generic [ref=f5e109]:
+          - paragraph [ref=f5e112]: ¿Qué tablas me recomendás para modelar una peluquería pequeña? Dame solo indicaciones, no las crees todavía.
+          - generic [ref=f5e113]: 04:40 AM
+        - generic [ref=f5e114]:
+          - generic [ref=f5e116]:
+            - generic [ref=f5e117]: "Para una peluquería pequeña, te recomendaría estas tablas:"
+            - generic [ref=f5e119]:
+              - generic [ref=f5e120]: •
+              - generic [ref=f5e121]:
+                - strong [ref=f5e122]: Cliente
+                - text: ": datos de la persona que se atiende (id, nombre, teléfono, email, fecha de alta)."
+            - generic [ref=f5e123]:
+              - generic [ref=f5e124]: •
+              - generic [ref=f5e125]:
+                - strong [ref=f5e126]: Empleado
+                - text: ": el personal que atiende (id, nombre, rol —peluquero, colorista, etc.—, teléfono, activo)."
+            - generic [ref=f5e127]:
+              - generic [ref=f5e128]: •
+              - generic [ref=f5e129]:
+                - strong [ref=f5e130]: Servicio
+                - text: ": el catálogo de lo que ofrecés (id, nombre, descripción, duración estimada, precio)."
+            - generic [ref=f5e131]:
+              - generic [ref=f5e132]: •
+              - generic [ref=f5e133]:
+                - strong [ref=f5e134]: Turno
+                - text: ": el corazón del sistema; cada cita agendada (id, fecha_hora, estado —pendiente/confirmado/cancelado/asistió—, cliente_id, empleado_id)."
+            - generic [ref=f5e135]:
+              - generic [ref=f5e136]: •
+              - generic [ref=f5e137]:
+                - strong [ref=f5e138]: Turno_Servicio
+                - text: ": tabla intermedia N:M, porque un turno puede incluir varios servicios y un servicio aparece en muchos turnos (turno_id, servicio_id, precio_al_momento)."
+            - generic [ref=f5e139]:
+              - generic [ref=f5e140]: •
+              - generic [ref=f5e141]:
+                - strong [ref=f5e142]: Pago
+                - text: ": registro de cobros (id, turno_id, monto, método de pago, fecha)."
+            - generic [ref=f5e144]: "Relaciones clave:"
+            - generic [ref=f5e145]:
+              - generic [ref=f5e146]: •
+              - generic [ref=f5e147]: Cliente 1:N Turno (un cliente agenda muchos turnos).
+            - generic [ref=f5e148]:
+              - generic [ref=f5e149]: •
+              - generic [ref=f5e150]: Empleado 1:N Turno (un empleado atiende muchos turnos).
+            - generic [ref=f5e151]:
+              - generic [ref=f5e152]: •
+              - generic [ref=f5e153]:
+                - text: Turno N:M Servicio, resuelto con
+                - strong [ref=f5e154]: Turno_Servicio
+                - text: .
+            - generic [ref=f5e155]:
+              - generic [ref=f5e156]: •
+              - generic [ref=f5e157]: Turno 1:N Pago (o 1:1 si cobrás todo de una sola vez).
+            - generic [ref=f5e160]:
+              - text: "Opcionales si querés crecer un poco:"
+              - strong [ref=f5e161]: Producto
+              - text: e
+              - strong [ref=f5e162]: Inventario
+              - text: (si vendés shampoo, tinturas, etc.) y
+              - strong [ref=f5e163]: Horario_Empleado
+              - text: (para saber disponibilidad y evitar solapamientos al agendar).
+            - generic [ref=f5e165]: Si querés, decime y te las armo en el diagrama con sus relaciones.
+          - generic [ref=f5e166]: 04:40 AM
+        - generic [ref=f5e167]:
+          - paragraph [ref=f5e170]: Creame las tablas Factura y DetalleFactura con una relación de composición entre ellas (Factura es el todo, DetalleFactura la parte).
+          - generic [ref=f5e171]: 04:41 AM
+        - generic [ref=f5e172]:
+          - generic [ref=f5e174]:
+            - generic [ref=f5e175]: Creo las tablas Factura y DetalleFactura con sus atributos y la relación de composición (Factura como todo, DetalleFactura como parte).
+            - code [ref=f5e179]: "`"
+            - code [ref=f5e183]: "`"
+          - generic [ref=f5e382]: ✓ Todos los cambios aplicados
+          - generic [ref=f5e186]:
+            - generic [ref=f5e187]:
+              - generic [ref=f5e188]:
+                - generic [ref=f5e194]:
+                  - text: "Tabla:"
+                  - strong [ref=f5e195]: Factura
+                - generic "Posición calculada sin colisiones" [ref=f5e196]: (80, 100)
+              - generic [ref=f5e201]:
+                - generic [ref=f5e202]: "id: BIGINT (PK)"
+                - generic [ref=f5e203]: "numero: VARCHAR"
+                - generic [ref=f5e204]: "fecha: TIMESTAMP"
+                - generic [ref=f5e205]: "total: DECIMAL"
+                - generic [ref=f5e206]: "cliente_id: BIGINT"
+              - generic [ref=f5e207]: ✓ Tabla creada en el lienzo
+            - generic [ref=f5e209]:
+              - generic [ref=f5e210]:
+                - generic [ref=f5e216]:
+                  - text: "Tabla:"
+                  - strong [ref=f5e217]: DetalleFactura
+                - generic "Posición calculada sin colisiones" [ref=f5e218]: (460, 100)
+              - generic [ref=f5e223]:
+                - generic [ref=f5e224]: "id: BIGINT (PK)"
+                - generic [ref=f5e225]: "factura_id: BIGINT"
+                - generic [ref=f5e226]: "producto: VARCHAR"
+                - generic [ref=f5e227]: "cantidad: INTEGER"
+                - generic [ref=f5e228]: "precio_unitario: DECIMAL"
+                - generic [ref=f5e229]: "subtotal: DECIMAL"
+              - generic [ref=f5e230]: ✓ Tabla creada en el lienzo
+            - generic [ref=f5e232]:
+              - generic [ref=f5e233]:
+                - generic [ref=f5e237]: Relación UML
+                - generic [ref=f5e238]:
+                  - generic [ref=f5e239]: ◆
+                  - text: Composición
+              - generic [ref=f5e240]:
+                - generic [ref=f5e241]: Factura
+                - generic [ref=f5e242]: (1)
+                - generic [ref=f5e245]: (1..*)
+                - generic [ref=f5e246]: DetalleFactura
+              - generic [ref=f5e247]: ✓ Relación aplicada en el lienzo
+          - generic [ref=f5e249]: 04:41 AM
+      - generic [ref=f5e57]:
+        - textbox "Escribe tablas, relaciones o toma foto a un diagrama..." [ref=f5e108]
+        - generic [ref=f5e59]:
+          - generic [ref=f5e60]: ↵ Enviar • ⇧↵ Salto de línea
+          - generic [ref=f5e64]:
+            - button "Tomar foto de diagrama o adjuntar imagen" [ref=f5e66] [cursor=pointer]
+            - button "Dictar por voz (o mantén [Espacio] o [V] para Push-to-Talk rápido)" [ref=f5e68] [cursor=pointer]
+            - button [disabled]

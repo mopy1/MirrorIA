@@ -1,0 +1,49 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e26]:
+    - banner [ref=f2e27]:
+      - generic [ref=f2e28]:
+        - heading [level=1] [ref=f2e85]: Proyectos
+        - paragraph [ref=f2e30]: Modelos de base de datos en los que colaborás.
+      - generic [ref=f2e31]:
+        - textbox [ref=f2e86]:
+          - /placeholder: Buscar proyectos...
+        - button [ref=f2e87]
+        - button [ref=f2e88] [cursor=pointer]:
+          - generic [ref=f2e35]: QA
+    - generic [ref=f2e75]:
+      - generic [ref=f2e76]:
+        - link [ref=f2e89] [cursor=pointer]:
+          - /url: /proyectos/prj-15u198y
+        - generic:
+          - generic:
+            - generic: QA Edit Test
+            - generic [ref=f2e78]:
+              - generic [ref=f2e79]: ADMIN
+              - button [expanded] [ref=f2e90]
+              - button [ref=f2e91]
+          - generic: Proyecto de prueba para verificar editar/eliminar
+        - generic:
+          - generic: QA
+          - generic: 23 sept 2026
+      - button [ref=f2e92] [cursor=pointer]:
+        - generic [ref=f2e83]: Crear proyecto nuevo
+  - dialog [ref=f2e96]:
+    - generic [ref=f2e97]:
+      - generic [ref=f2e98]:
+        - heading "Editar proyecto" [level=2] [ref=f2e99]
+        - paragraph [ref=f2e100]: Actualizá el nombre y la descripción de este proyecto.
+      - generic [ref=f2e101]:
+        - group [ref=f2e102]:
+          - generic [ref=f2e103]: Nombre
+          - textbox "Nombre" [active] [ref=f2e104]:
+            - /placeholder: Sistema de Veterinaria
+            - text: QA Edit Test
+        - group [ref=f2e105]:
+          - generic [ref=f2e106]: Descripción
+          - textbox "Descripción" [ref=f2e107]:
+            - /placeholder: Modelo de dueños, mascotas y citas médicas
+            - text: Proyecto de prueba para verificar editar/eliminar
+      - generic [ref=f2e108]:
+        - button "Cancelar" [ref=f2e109]
+        - button "Guardar cambios" [ref=f2e110]
+    - button "Cerrar" [ref=f2e111]

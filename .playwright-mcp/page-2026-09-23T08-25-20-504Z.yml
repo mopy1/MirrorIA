@@ -1,0 +1,15 @@
+- generic [ref=f2e26]:
+  - banner [ref=f2e27]:
+    - generic [ref=f2e28]:
+      - heading "Proyectos" [level=1] [ref=f2e29]
+      - paragraph [ref=f2e30]: Modelos de base de datos en los que colaborás.
+    - generic [ref=f2e31]:
+      - textbox "Buscar proyectos..." [ref=f2e32]
+      - button "Cambiar a modo claro" [ref=f2e33]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f2e34] [cursor=pointer]':
+        - generic [ref=f2e35]: QA
+  - generic [ref=f2e37]:
+    - generic [ref=f2e38]:
+      - generic [ref=f2e39]: Todavía no tenés proyectos
+      - generic [ref=f2e40]: Creá tu primer proyecto para empezar a modelar una base de datos.
+    - button "Crear proyecto nuevo" [ref=f2e42] [cursor=pointer]

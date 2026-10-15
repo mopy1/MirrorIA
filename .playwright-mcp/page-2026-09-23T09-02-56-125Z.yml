@@ -1,0 +1,67 @@
+- generic [ref=f7e5]:
+  - navigation [ref=f7e6]:
+    - generic [ref=f7e7]:
+      - link [ref=f7e8] [cursor=pointer]:
+        - /url: /proyectos
+      - separator [ref=f7e9]
+      - link [ref=f7e10] [cursor=pointer]:
+        - /url: /proyectos/prj-4an9mu/diagrama
+      - link [ref=f7e11] [cursor=pointer]:
+        - /url: /proyectos/prj-4an9mu/tareas
+      - link [ref=f7e12] [cursor=pointer]:
+        - /url: /proyectos/prj-4an9mu/notas
+      - link [ref=f7e13] [cursor=pointer]:
+        - /url: /proyectos/prj-4an9mu/xmi
+      - link [ref=f7e14] [cursor=pointer]:
+        - /url: /proyectos/prj-4an9mu/generador
+      - separator [ref=f7e15]
+      - button "Colaboradores" [ref=f7e120]
+    - generic [ref=f7e17]:
+      - separator [ref=f7e18]
+      - button "Cambiar a modo claro" [ref=f7e121]
+      - 'button "Menú de usuario: qa_edit_test" [ref=f7e122] [cursor=pointer]':
+        - generic [ref=f7e21]: QA
+  - main [ref=f7e23]:
+    - generic [ref=f7e24]:
+      - generic [ref=f7e25]:
+        - generic [ref=f7e26]:
+          - heading "Notas" [level=1] [ref=f7e123]
+          - paragraph [ref=f7e28]: El por qué de cada decisión de diseño.
+        - button "Nueva nota" [active] [ref=f7e124]
+      - generic [ref=f7e126]:
+        - generic [ref=f7e127]: QA
+        - generic [ref=f7e129]:
+          - generic [ref=f7e130]:
+            - generic [ref=f7e131]: qa_edit_test Crear tabla Cliente
+            - generic [ref=f7e132]: 23 sept, 05:02 a. m.
+          - paragraph [ref=f7e133]: "\"El enunciado pide separar dueño y mascota\""
+  - complementary "Panel Asistente IA y Manual CASE" [ref=f7e134]:
+    - separator "Arrastra para redimensionar el panel (Doble clic para restablecer)" [ref=f7e135]
+    - generic [ref=f7e37]:
+      - generic [ref=f7e38]:
+        - generic [ref=f7e44]:
+          - generic [ref=f7e45]:
+            - generic [ref=f7e46]: Copilot
+            - generic [ref=f7e47]: Notas
+          - generic [ref=f7e48]: Asistente Autónomo
+        - generic [ref=f7e49]:
+          - button "Manual" [ref=f7e136]
+          - button "Reiniciar conversación" [ref=f7e137] [cursor=pointer]
+          - button "Cerrar panel Copilot" [ref=f7e138] [cursor=pointer]
+      - generic [ref=f7e55]:
+        - generic [ref=f7e56]: ¡Hola! Soy tu copiloto y manual contextual de CASE Tool. Puedo modelar tablas y relaciones directamente en tu lienzo con guía anti-colisión, además de generar Spring Boot 3.4 y ADRs.
+        - generic [ref=f7e59]: 05:02 AM
+      - generic [ref=f7e60]:
+        - generic [ref=f7e61]: Sugerencias rápidas
+        - generic [ref=f7e66]:
+          - button "¿Qué es un ADR y por qué es inmutable?" [ref=f7e139]
+          - button "¿Cómo justificar decisiones de arquitectura ante el docente?" [ref=f7e140]
+          - button "Sugerir decisiones de arquitectura" [ref=f7e141]
+      - generic [ref=f7e71]:
+        - textbox "Pide documentar decisiones arquitectónicas o registrar ADRs..." [ref=f7e142]
+        - generic [ref=f7e73]:
+          - generic [ref=f7e74]: ↵ Enviar • ⇧↵ Salto de línea
+          - generic [ref=f7e78]:
+            - button "Tomar foto de diagrama o adjuntar imagen" [ref=f7e143] [cursor=pointer]
+            - button "Dictar por voz (o mantén [Espacio] o [V] para Push-to-Talk rápido)" [ref=f7e144] [cursor=pointer]
+            - button [disabled]
