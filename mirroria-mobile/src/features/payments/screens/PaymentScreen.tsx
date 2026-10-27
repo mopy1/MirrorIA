@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, Image, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { CreditCard, QrCode, Banknote, CheckCircle2 } from 'lucide-react-native';
@@ -12,9 +12,13 @@ import { ApiError } from '@/src/lib/api';
 import { cartApi } from '@/src/features/cart/api/cartApi';
 import { pagosApi } from '../api/pagosApi';
 import type { VentaResponseDto } from '@/src/features/cart/types/cart.types';
-import type { InstruccionesResponseDto } from '../types/payments.types';
+import { CobroQrView } from '../components/CobroQrView';
+import type {
+  EstadoCobroQrResponseDto,
+  InstruccionesResponseDto,
+} from '../types/payments.types';
 
-type Vista = 'metodo' | 'instrucciones' | 'exito';
+type Vista = 'metodo' | 'instrucciones' | 'qr' | 'exito';
 
 export function PaymentScreen() {
   const { ventaId } = useLocalSearchParams<{ ventaId: string }>();
@@ -26,6 +30,13 @@ export function PaymentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('metodo');
   const [instrucciones, setInstrucciones] = useState<InstruccionesResponseDto | null>(null);
+  const [pagoQr, setPagoQr] = useState<EstadoCobroQrResponseDto | null>(null);
+
+  // El banco avisó: la venta ya está PAGADA en el backend, solo falta mostrarlo.
+  const onQrPagado = useCallback((estado: EstadoCobroQrResponseDto) => {
+    setPagoQr(estado);
+    setVista('exito');
+  }, []);
 
   useEffect(() => {
     if (!ventaId) return;
@@ -72,7 +83,7 @@ export function PaymentScreen() {
     }
   }
 
-  async function handleManual(metodo: 'QR' | 'EFECTIVO') {
+  async function handleManual(metodo: 'EFECTIVO') {
     setProcesando(metodo);
     setError(null);
     try {
@@ -125,7 +136,23 @@ export function PaymentScreen() {
         {vista === 'exito' && (
           <View className="items-center gap-3 py-8">
             <Icon as={CheckCircle2} size={48} className="text-emerald-600" />
-            <Text className="text-sm font-bold text-foreground">¡Pago confirmado!</Text>
+            <Text className="text-sm font-bold text-foreground">
+              {pagoQr ? 'Pago recibido' : '¡Pago confirmado!'}
+            </Text>
+            {pagoQr?.transaccion && (
+              <Text selectable className="text-xs text-muted-foreground">
+                Transacción {pagoQr.transaccion}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {vista === 'qr' && (
+          <View className="gap-2.5">
+            <CobroQrView ventaId={ventaId} onPagado={onQrPagado} />
+            <Button variant="outline" onPress={() => setVista('metodo')}>
+              <Text>Elegir otro método</Text>
+            </Button>
           </View>
         )}
 
@@ -138,10 +165,13 @@ export function PaymentScreen() {
             <Button
               variant="outline"
               disabled={procesando !== null}
-              onPress={() => handleManual('QR')}
+              onPress={() => {
+                setError(null);
+                setVista('qr');
+              }}
             >
               <Icon as={QrCode} size={16} className="text-foreground" />
-              <Text>{procesando === 'QR' ? 'Generando…' : 'Pagar con QR'}</Text>
+              <Text>Pagar con QR</Text>
             </Button>
             <Button
               variant="outline"
@@ -161,13 +191,6 @@ export function PaymentScreen() {
 
         {vista === 'instrucciones' && instrucciones && (
           <View className="items-center gap-4 p-5 rounded-2xl bg-card border border-border/70">
-            {instrucciones.qrUrl && (
-              <Image
-                source={{ uri: instrucciones.qrUrl }}
-                className="w-40 h-40 rounded-xl bg-muted/30"
-                resizeMode="contain"
-              />
-            )}
             <Text className="text-xs text-center text-muted-foreground">
               {instrucciones.instrucciones}
             </Text>

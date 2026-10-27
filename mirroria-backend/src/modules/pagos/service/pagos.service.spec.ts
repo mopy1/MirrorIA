@@ -83,7 +83,7 @@ describe('PagosService — cobro manual', () => {
   it('iniciar un cobro libera antes el stock de las compras vencidas', async () => {
     // Sin planificador, esta llamada ES el mecanismo de liberacion: si se borra,
     // el inventario vuelve a retenerse para siempre y nada mas lo notaria.
-    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+    await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
     expect(expiracion.expirarVencidas).toHaveBeenCalled();
   });
 
@@ -95,13 +95,13 @@ describe('PagosService — cobro manual', () => {
     expect(expiracion.expirarVencidas).toHaveBeenCalled();
   });
 
-  it('iniciar un cobro por QR crea un pago PENDIENTE por el total de la venta', async () => {
-    const res = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+  it('iniciar un cobro en efectivo crea un pago PENDIENTE por el total de la venta', async () => {
+    const res = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
     expect(pagoRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         ventaId: 'v1',
         montoCents: 25000,
-        metodo: MetodoPago.QR,
+        metodo: MetodoPago.EFECTIVO,
         proveedorPago: ProveedorPago.MANUAL,
         estado: EstadoPago.PENDIENTE,
       }),
@@ -115,18 +115,10 @@ describe('PagosService — cobro manual', () => {
     expect(guardado.eventId).toMatch(/^manual:/);
   });
 
-  it('por QR devuelve la imagen configurada; por efectivo no', async () => {
-    const qr = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
-    expect(qr.qrUrl).toBe('https://ejemplo/qr.png');
-
-    const efectivo = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
-    expect(efectivo.qrUrl).toBeNull();
-  });
-
   it('nadie puede iniciar el pago de una venta ajena', async () => {
     ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'OTRO', estado: 'PENDIENTE', totalCents: 100 });
     await expect(
-      service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO),
+      service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO),
     ).rejects.toThrow();
     expect(pagoRepo.save).not.toHaveBeenCalled();
   });
@@ -134,7 +126,7 @@ describe('PagosService — cobro manual', () => {
   it('una venta que no esta PENDIENTE no se puede pagar', async () => {
     ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'cli1', estado: 'CANCELADA', totalCents: 100 });
     await expect(
-      service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO),
+      service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO),
     ).rejects.toThrow(VentaNoPagableException);
   });
 
@@ -191,6 +183,15 @@ describe('PagosService — cobro manual', () => {
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
   });
 
+  it('un QR de Wayra NO se puede confirmar a mano: lo acredita el aviso del banco', async () => {
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      proveedorPago: ProveedorPago.WAYRA,
+    });
+    await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow(VentaNoPagableException);
+    expect(ventas.marcarPagada).not.toHaveBeenCalled();
+  });
+
   describe('si la venta ya no se puede cobrar cuando el cajero confirma', () => {
     // Pasa de verdad: la expiracion cancela una venta vencida mientras el cajero
     // tiene la pantalla abierta. Antes la transaccion revertia entera y el
@@ -223,8 +224,8 @@ describe('PagosService — cobro manual', () => {
   });
 
   it('dos cobros manuales generan event_id distintos', async () => {
-    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
-    await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+    await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
+    await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
     const [primero, segundo] = pagoRepo.save.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
     expect(primero).not.toBe(segundo);
   });
@@ -241,8 +242,8 @@ describe('PagosService — cobro manual', () => {
           eventId: 'manual:existente',
         });
 
-      const primera = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
-      const segunda = await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+      const primera = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
+      const segunda = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
 
       expect(segunda.pagoId).toBe(primera.pagoId);
       // La primera llamada crea (entidad sin id todavia); la segunda guarda
@@ -269,7 +270,7 @@ describe('PagosService — cobro manual', () => {
     it('si no hay ningun pago pendiente para la venta, se crea uno nuevo', async () => {
       pagoRepo.findOne.mockResolvedValue(null);
 
-      await service.iniciarManual('v1', { metodo: MetodoPago.QR }, DUENO);
+      await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
 
       expect(pagoRepo.save.mock.calls[0][0]).not.toHaveProperty('id');
       expect(pagoRepo.save).toHaveBeenCalledWith(

@@ -28,9 +28,9 @@ describe('Pago', () => {
     expect(eventId?.options.nullable).not.toBe(true);
   });
 
-  it('los tres metodos y los dos proveedores del diseno', () => {
+  it('los tres metodos y los tres proveedores (Wayra = QR dinamico)', () => {
     expect(Object.values(MetodoPago)).toEqual(['TARJETA', 'QR', 'EFECTIVO']);
-    expect(Object.values(ProveedorPago)).toEqual(['STRIPE', 'MANUAL']);
+    expect(Object.values(ProveedorPago)).toEqual(['STRIPE', 'MANUAL', 'WAYRA']);
     expect(Object.values(EstadoPago)).toEqual(['PENDIENTE', 'APROBADO', 'RECHAZADO', 'REEMBOLSADO']);
   });
 });

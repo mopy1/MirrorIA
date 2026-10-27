@@ -33,7 +33,7 @@ export class PagosService {
   ) {}
 
   /**
-   * Arranca un cobro por QR o efectivo. No cobra nada: crea el registro en
+   * Arranca un cobro en efectivo. No cobra nada: crea el registro en
    * PENDIENTE y devuelve lo que la clienta necesita ver. Quien cobra de verdad
    * es una persona, confirmando despues.
    */
@@ -76,16 +76,14 @@ export class PagosService {
           }),
         );
 
-    const esQr = dto.metodo === MetodoPago.QR;
+    // El QR ya no pasa por aca: tiene su propio camino (`CobroQrService`), que
+    // se acredita solo con el aviso del banco en vez de esperar a un cajero.
     return {
       pagoId: pago.id,
       metodo: dto.metodo,
       montoCents: venta.totalCents,
       referencia: venta.numeroComprobante ?? venta.id,
-      qrUrl: esQr ? (this.config.get<string>('PAGOS_QR_URL') ?? null) : null,
-      instrucciones: esQr
-        ? 'Escaneá el código con la app de tu banco y mostrá el comprobante al retirar.'
-        : 'Pagá en efectivo al retirar tu pedido en la sucursal elegida.',
+      instrucciones: 'Pagá en efectivo al retirar tu pedido en la sucursal elegida.',
     };
   }
 
@@ -250,6 +248,12 @@ export class PagosService {
     if (pago.metodo === MetodoPago.TARJETA) {
       throw new VentaNoPagableException(
         'un cobro con tarjeta lo confirma la pasarela, no una persona',
+      );
+    }
+    // Lo mismo con el QR dinamico: lo acredita el aviso firmado del banco.
+    if (pago.proveedorPago === ProveedorPago.WAYRA) {
+      throw new VentaNoPagableException(
+        'un cobro por QR lo confirma el banco, no una persona',
       );
     }
     if (pago.estado === EstadoPago.APROBADO) {

@@ -58,7 +58,7 @@ src/
     ├── reservas/                  # ✅ implementado — reservas, reserva_items (RF09-12, transiciones de estado, integración con ventas)
     ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
     ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
-    ├── pagos/                     # ✅ implementado — pagos (RF19: Stripe con webhook firmado + cobro manual QR/efectivo)
+    ├── pagos/                     # ✅ implementado — pagos (RF19: Stripe con webhook firmado + QR dinámico con banco simulado Wayra + efectivo manual)
     ├── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
     └── probador/                  # ✅ implementado — token efimero de Decart para el probador web (RF13, sin tabla propia)
 ```
@@ -509,12 +509,49 @@ solo veían el canal presencial. `pagos` cierra ese circuito.
 - **La moneda de Stripe es configurable** (`STRIPE_MONEDA`) y cae en `usd` — el boliviano puede
   no estar habilitado en una cuenta de prueba de Stripe.
 
-**El QR no es una integración.** Es una imagen del equipo (`PAGOS_QR_URL`) y la confirmación la
-hace una persona; el mismo QR sirve para todas las ventas, así que el sistema **no puede
-vincular un pago con una compra concreta** salvo por monto y hora — no hay forma de que el
-sistema sepa por sí solo qué transferencia corresponde a qué venta. Además mueve **dinero real a
-una cuenta personal** del equipo, lo que se aparta de la exclusión de "dinero real" del capítulo
-1 del documento del proyecto (pendiente de declarar ahí, ver aviso al usuario).
+**Hasta 2026-10-26 el QR no era una integración** (una imagen fija `PAGOS_QR_URL`, confirmada
+a mano por un cajero). Ya no existe: ver la sección siguiente.
+
+### QR dinámico con el banco simulado Wayra (2026-10-26)
+
+Conseguir credenciales de una pasarela QR real (QR interoperable boliviano) no estaba a
+nuestro alcance, así que se simula el BANCO, no el cobro. El lado del comercio es el mismo que
+tendría con un proveedor real:
+
+- `POST /pagos/ventas/:ventaId/qr` (JWT, dueña) → `CobroQrService.iniciar`: crea un `Pago`
+  `proveedor=WAYRA`, `metodo=QR`, con un **token al azar de 18 bytes** en `referencia_externa`, y
+  devuelve el PNG del QR (`qrcode`, data URL). El QR codifica `<base>/wayra/pagar/<token>`,
+  donde `<base>` es `WAYRA_URL_BASE` o, si está vacía, el **origen de `PAGOS_URL_EXITO`** (en la
+  VM ya apunta a `https://mirroria.duckdns.org`, así que funciona sin configurar nada). Recargar
+  reutiliza el QR pendiente.
+- `GET /pagos/qr/:pagoId` (JWT, dueña): lo que consultan la web y la app cada 2,5 s.
+- `POST /pagos/qr/aviso` (público, header `x-wayra-firma`): aviso del banco firmado con
+  HMAC-SHA256 sobre el cuerpo crudo. Secreto: `WAYRA_SECRETO_AVISOS` o uno derivado de
+  `JWT_SECRET`. **Es la única vía que acredita un QR**; `confirmarManual` rechaza los `WAYRA`.
+  Al acreditar: pago `APROBADO`, venta `PAGADA` y cualquier otro intento pendiente de esa venta
+  (p. ej. efectivo) pasa a `RECHAZADO`, todo en una transacción. Idempotente (aviso repetido no
+  cobra dos veces), rechaza montos distintos al del QR, y si la venta ya no es pagable deja el
+  pago `RECHAZADO` con `motivoReembolso`.
+- **Wayra** (`controller/wayra.controller.ts`, `service/wayra/`): `GET /wayra/cobros/:token` y
+  `POST /wayra/cobros/:token/pagar` (públicos). Cuentas ficticias con saldo fijo, PIN de 4
+  dígitos cualquiera, valida saldo, y avisa al comercio **firmando el aviso igual que un banco
+  externo** (llama en proceso al mismo método que atiende `/pagos/qr/aviso`). Reemplazarlo por
+  un proveedor real no toca `CobroQrService`.
+- **Concurrencia (revisión 2026-10-26):** la aprobación es un `UPDATE ... WHERE estado =
+  'PENDIENTE'` dentro de la transacción; si afecta 0 filas el aviso no acredita. Dos pagos
+  simultáneos del mismo QR → uno solo pasa (probado en `test/pagos.e2e-spec.ts` contra
+  Postgres). El `catch` solo trata como "venta no pagable" a `OperacionInvalidaException` /
+  `RecursoNoEncontradoException`; cualquier otro error se propaga. La barrida de vencidas
+  rechaza pagos con `update` condicionado en vez de `save` (no pisa la marca de reembolso).
+- **`WAYRA_HABILITADO=false`** apaga Wayra (404). Debe apagarse si algún día hay pasarela
+  real: con Wayra prendido cualquier clienta puede "pagar" su compra sin dinero. En producción
+  sin `WAYRA_SECRETO_AVISOS` ni `JWT_SECRET`, firmar/verificar avisos lanza error.
+- **Hora del pago:** se guarda en `event_id` como `wayra:<transaccion>@<epoch ms>` y NO se usa
+  `updatedAt`, que con columnas `timestamp` sin zona se lee corrido 4 horas (trampa P13).
+  Sin columnas nuevas, sin migración.
+- Frontend web: `/pago/:ventaId?metodo=QR` (`features/payments/components/pago-qr.tsx`) y la app
+  del banco en `/wayra/pagar/:token` (`features/wayra/`, pública, sin layout de la tienda).
+  Móvil: `features/payments/components/CobroQrView.tsx`.
 
 **Verificado (2026-09-21):** 150 unitarias + 50 e2e en verde (`npm test` / `npm run test:e2e`),
 `npm run lint` y `npm run build` limpios en el backend, `tsc --noEmit` y `npm run build` limpios

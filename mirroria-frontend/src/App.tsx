@@ -23,6 +23,7 @@ import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
 import { OrderConfirmationPage } from "@/features/checkout/pages/OrderConfirmationPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
+import { WayraPagoPage } from "@/features/wayra/pages/WayraPagoPage"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
 import { AdminLayout } from "@/layouts/AdminLayout"
 import { StorefrontLayout } from "@/layouts/StorefrontLayout"
@@ -119,6 +120,10 @@ function App() {
             }
           />
         ))}
+
+        {/* La app del banco (Wayra) que abre el QR de cobro: pública y sin el
+            layout de la tienda, porque representa OTRA app. */}
+        <Route path="/wayra/pagar/:token" element={<WayraPagoPage />} />
 
         <Route
           path="/login"

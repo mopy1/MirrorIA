@@ -1,5 +1,7 @@
 import { apiFetch } from '@/src/lib/api';
 import type {
+  CobroQrResponseDto,
+  EstadoCobroQrResponseDto,
   InstruccionesResponseDto,
   MetodoPagoManual,
   SesionTarjetaResponse,
@@ -21,5 +23,14 @@ export const pagosApi = {
       method: 'POST',
       body: JSON.stringify({ metodo }),
     });
+  },
+
+  /** QR por compra: se acredita solo cuando el banco avisa, nadie lo confirma a mano. */
+  async iniciarQr(ventaId: string): Promise<CobroQrResponseDto> {
+    return apiFetch<CobroQrResponseDto>(`/pagos/ventas/${ventaId}/qr`, { method: 'POST' });
+  },
+
+  async estadoQr(pagoId: string): Promise<EstadoCobroQrResponseDto> {
+    return apiFetch<EstadoCobroQrResponseDto>(`/pagos/qr/${pagoId}`);
   },
 };
