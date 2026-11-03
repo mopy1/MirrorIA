@@ -1,3 +1,5 @@
+name: mirroria
+
 services:
   # 🐘 Base de Datos PostgreSQL
   postgres-db:
