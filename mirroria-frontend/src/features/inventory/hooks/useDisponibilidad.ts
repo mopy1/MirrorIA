@@ -15,7 +15,12 @@ export function useDisponibilidad(varianteId: string | undefined, sucursalId: st
     inventoryApi
       .getDisponibilidad({ varianteId, sucursalId })
       .then((filas) => {
-        if (!cancelado) setCantidadDisponible(filas[0]?.cantidadDisponible ?? 0)
+        // Lo libre para comprar: lo reservado por otras clientas no se vende.
+        const fila = filas[0]
+        if (!cancelado)
+          setCantidadDisponible(
+            fila ? Math.max(0, fila.cantidadDisponible - (fila.cantidadReservada ?? 0)) : 0
+          )
       })
       .catch(() => {
         if (!cancelado) setCantidadDisponible(null)

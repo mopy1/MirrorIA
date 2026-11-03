@@ -11,6 +11,8 @@ export interface CartLineItem {
   precioUnitCents: number
   subtotalCents: number
   imagenUrl?: string
+  /** false: la prenda se dio de baja; el backend rechaza el checkout hasta quitarla. */
+  disponible: boolean
 }
 
 /**
@@ -22,9 +24,28 @@ export function useCartLineItems() {
   const { carrito, isLoading: cartLoading, removeItem } = useCart()
   const { variantes, isLoading: catalogoLoading, error } = useVariantesConProducto()
 
-  const lineItems: CartLineItem[] = (carrito?.items ?? []).flatMap((item) => {
+  const lineItems: CartLineItem[] = (carrito?.items ?? []).flatMap((item): CartLineItem[] => {
     const variante = variantes.find((v) => v.varianteId === item.varianteId)
-    if (!variante) return []
+    // Antes un ítem que ya no está en el catálogo se ocultaba en silencio: no
+    // se podía quitar y el checkout fallaba. Ahora se muestra para quitarlo
+    // (salvo si el catálogo no cargó: ahí no se sabe nada).
+    if (!variante || !variante.activo) {
+      if (catalogoLoading || error) return []
+      return [
+        {
+          varianteId: item.varianteId,
+          cantidad: item.cantidad,
+          productoId: variante?.productoId ?? "",
+          productoTitulo: variante?.productoTitulo ?? "Prenda",
+          tallaNombre: variante?.tallaNombre ?? "—",
+          colorNombre: variante?.colorNombre ?? "—",
+          precioUnitCents: 0,
+          subtotalCents: 0,
+          imagenUrl: variante?.imagenUrl,
+          disponible: false,
+        },
+      ]
+    }
     return [
       {
         varianteId: item.varianteId,
@@ -36,6 +57,7 @@ export function useCartLineItems() {
         precioUnitCents: variante.precioCents,
         subtotalCents: variante.precioCents * item.cantidad,
         imagenUrl: variante.imagenUrl,
+        disponible: true,
       },
     ]
   })

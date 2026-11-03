@@ -128,8 +128,12 @@ describe('ExpiracionService', () => {
       expect(ventas.cancelarPorPagoNoCompletado).toHaveBeenCalledWith(
         'v-45', expect.stringContaining('vencido'),
       );
-      // No hay ninguna fila de pago que marcar.
-      expect(pagoRepo.update).not.toHaveBeenCalled();
+      // No hay ninguna fila de pago que marcar: el update condicionado por
+      // venta no toca nada (0 filas), pero tampoco falla.
+      expect(pagoRepo.update).toHaveBeenCalledWith(
+        { ventaId: 'v-45', estado: EstadoPago.PENDIENTE },
+        { estado: EstadoPago.RECHAZADO },
+      );
     });
 
     it('sin pago y dentro del plazo, la venta NO se toca', async () => {

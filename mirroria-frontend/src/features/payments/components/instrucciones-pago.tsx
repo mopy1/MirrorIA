@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api"
 import { paymentsApi } from "../api/paymentsApi"
 import type { Instrucciones } from "../types/payments.types"
 import { DetallePagoCard } from "./detalle-pago-card"
+import { VolverAlCarrito } from "./volver-al-carrito"
 
 /** Pantalla de instrucciones de pago en efectivo — la venta ya existe y
  * está `PENDIENTE`, un CAJERO/ADMIN confirma el cobro a mano más tarde.
@@ -18,7 +19,7 @@ export function InstruccionesPago() {
   const location = useLocation()
   // Por qué llegó acá, cuando no vino eligiendo: el checkout la manda para
   // este lado si el cobro con tarjeta no se pudo iniciar (503 sin claves de
-  // Stripe). Su carrito ya está vacío, así que este es el único camino abierto.
+  // Stripe). Su carrito quedó vacío: puede pagar acá o volver al carrito.
   const motivo = (location.state as { motivo?: string } | null)?.motivo ?? null
 
   const [instrucciones, setInstrucciones] = useState<Instrucciones | null>(null)
@@ -89,9 +90,12 @@ export function InstruccionesPago() {
         </AlertDescription>
       </Alert>
 
-      <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }), "mt-8")}>
-        Volver a la tienda
-      </Link>
+      <div className="mt-8 flex flex-wrap items-start justify-center gap-3">
+        {ventaId && <VolverAlCarrito ventaId={ventaId} />}
+        <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }))}>
+          Volver a la tienda
+        </Link>
+      </div>
     </div>
   )
 }

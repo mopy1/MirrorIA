@@ -8,6 +8,7 @@ import { VentaNoPagableException } from '../exception/venta-no-pagable.exception
 import { CobroSobreVentaMuertaException } from '../exception/cobro-sobre-venta-muerta.exception.js';
 import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
+import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { FirmaWebhookInvalidaException } from '../exception/firma-webhook-invalida.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
 import type { ExpiracionService } from './expiracion.service.js';
@@ -28,14 +29,20 @@ describe('PagosService — cobro manual', () => {
    */
   let pagoRepoTx: Record<string, ReturnType<typeof vi.fn>>;
   let ventas: { findOne: ReturnType<typeof vi.fn>; marcarPagada: ReturnType<typeof vi.fn> };
-  let expiracion: { expirarVencidas: ReturnType<typeof vi.fn> };
+  let expiracion: {
+    expirarVencidas: ReturnType<typeof vi.fn>;
+    cancelarVenta: ReturnType<typeof vi.fn>;
+    vencimientoTarjeta: ReturnType<typeof vi.fn>;
+  };
   let pasarela: {
     estaConfigurada: ReturnType<typeof vi.fn>;
     crearSesion: ReturnType<typeof vi.fn>;
     recuperarSesion: ReturnType<typeof vi.fn>;
+    cerrarSesion: ReturnType<typeof vi.fn>;
     verificarEvento: ReturnType<typeof vi.fn>;
   };
   let service: PagosService;
+  let estadoVentaBloqueada: string;
 
   beforeEach(() => {
     pagoRepo = {
@@ -43,6 +50,7 @@ describe('PagosService — cobro manual', () => {
       save: vi.fn((e) => Promise.resolve({ id: 'p1', ...e })),
       findOne: vi.fn(),
       find: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({ affected: 1 }),
     };
     ventas = {
       findOne: vi.fn().mockResolvedValue({
@@ -55,20 +63,31 @@ describe('PagosService — cobro manual', () => {
       save: vi.fn((e) => Promise.resolve({ id: 'p1', ...e })),
       findOne: vi.fn(),
       find: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({ affected: 1 }),
     };
     const config = { get: vi.fn().mockReturnValue('https://ejemplo/qr.png') } as unknown as ConfigService;
     // El manager de la transaccion expone su PROPIO repositorio. Asi una
     // asercion sobre `pagoRepoTx.save` prueba que la escritura ocurrio dentro
     // de la transaccion, y una sobre `pagoRepo.save`, que ocurrio fuera.
-    const manager = { getRepository: () => pagoRepoTx };
+    // `query` es el SELECT ... FOR UPDATE de la venta: estado de la fila bloqueada.
+    estadoVentaBloqueada = 'PENDIENTE';
+    const manager = {
+      getRepository: () => pagoRepoTx,
+      query: vi.fn(() => Promise.resolve([{ estado: estadoVentaBloqueada }])),
+    };
     const dataSource = {
       transaction: (cb: (m: unknown) => unknown) => cb(manager),
     } as unknown as DataSource;
-    expiracion = { expirarVencidas: vi.fn().mockResolvedValue(0) };
+    expiracion = {
+      expirarVencidas: vi.fn().mockResolvedValue(0),
+      cancelarVenta: vi.fn(),
+      vencimientoTarjeta: vi.fn(() => new Date()),
+    };
     pasarela = {
       estaConfigurada: vi.fn().mockReturnValue(true),
       crearSesion: vi.fn(),
       recuperarSesion: vi.fn().mockResolvedValue(null),
+      cerrarSesion: vi.fn().mockResolvedValue(true),
       verificarEvento: vi.fn(),
     };
     service = new PagosService(
@@ -98,7 +117,7 @@ describe('PagosService — cobro manual', () => {
 
   it('iniciar un cobro en efectivo crea un pago PENDIENTE por el total de la venta', async () => {
     const res = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
-    expect(pagoRepo.save).toHaveBeenCalledWith(
+    expect(pagoRepoTx.save).toHaveBeenCalledWith(
       expect.objectContaining({
         ventaId: 'v1',
         montoCents: 25000,
@@ -112,7 +131,7 @@ describe('PagosService — cobro manual', () => {
 
   it('el pago manual lleva un event_id propio, que es donde vive la unicidad', async () => {
     await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
-    const guardado = pagoRepo.save.mock.calls[0][0] as { eventId: string };
+    const guardado = pagoRepoTx.save.mock.calls[0][0] as { eventId: string };
     expect(guardado.eventId).toMatch(/^manual:/);
   });
 
@@ -121,7 +140,7 @@ describe('PagosService — cobro manual', () => {
     await expect(
       service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO),
     ).rejects.toThrow();
-    expect(pagoRepo.save).not.toHaveBeenCalled();
+    expect(pagoRepoTx.save).not.toHaveBeenCalled();
   });
 
   it('una venta que no esta PENDIENTE no se puede pagar', async () => {
@@ -202,6 +221,30 @@ describe('PagosService — cobro manual', () => {
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
   });
 
+  it('confirmar efectivo sobre una venta ya PAGADA por otro medio es 409 y no aprueba nada', async () => {
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+      proveedorPago: ProveedorPago.MANUAL,
+    });
+    estadoVentaBloqueada = 'PAGADA';
+    await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow(VentaNoPagableException);
+    expect(pagoRepoTx.save).not.toHaveBeenCalled();
+    expect(pagoRepo.save).not.toHaveBeenCalled();
+    expect(ventas.marcarPagada).not.toHaveBeenCalled();
+  });
+
+  it('confirmar efectivo rechaza los demas intentos pendientes de la venta', async () => {
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+      proveedorPago: ProveedorPago.MANUAL,
+    });
+    await service.confirmarManual('p1', CAJERO);
+    expect(pagoRepoTx.update).toHaveBeenCalledWith(
+      expect.objectContaining({ ventaId: 'v1', estado: EstadoPago.PENDIENTE }),
+      { estado: EstadoPago.RECHAZADO },
+    );
+  });
+
   describe('si la venta ya no se puede cobrar cuando el cajero confirma', () => {
     // Pasa de verdad: la expiracion cancela una venta vencida mientras el cajero
     // tiene la pantalla abierta. Antes la transaccion revertia entera y el
@@ -236,7 +279,7 @@ describe('PagosService — cobro manual', () => {
   it('dos cobros manuales generan event_id distintos', async () => {
     await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
     await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
-    const [primero, segundo] = pagoRepo.save.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
+    const [primero, segundo] = pagoRepoTx.save.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
     expect(primero).not.toBe(segundo);
   });
 
@@ -244,7 +287,7 @@ describe('PagosService — cobro manual', () => {
     it('dos llamadas seguidas sobre la misma venta dejan una sola fila: la segunda reutiliza la existente', async () => {
       // Primera llamada: no hay ningun pago pendiente todavia.
       // Segunda llamada: ya existe la fila que creo la primera.
-      pagoRepo.findOne
+      pagoRepoTx.findOne
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({
           id: 'p1', ventaId: 'v1', metodo: MetodoPago.QR,
@@ -258,12 +301,12 @@ describe('PagosService — cobro manual', () => {
       expect(segunda.pagoId).toBe(primera.pagoId);
       // La primera llamada crea (entidad sin id todavia); la segunda guarda
       // la fila YA existente (con su id), no una entidad nueva.
-      expect(pagoRepo.save.mock.calls[0][0]).not.toHaveProperty('id');
-      expect(pagoRepo.save.mock.calls[1][0]).toMatchObject({ id: 'p1' });
+      expect(pagoRepoTx.save.mock.calls[0][0]).not.toHaveProperty('id');
+      expect(pagoRepoTx.save.mock.calls[1][0]).toMatchObject({ id: 'p1' });
     });
 
     it('si la clienta cambia de metodo (QR a efectivo), se actualiza la fila existente en vez de crear otra', async () => {
-      pagoRepo.findOne.mockResolvedValue({
+      pagoRepoTx.findOne.mockResolvedValue({
         id: 'p1', ventaId: 'v1', metodo: MetodoPago.QR,
         estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL,
         eventId: 'manual:existente',
@@ -272,18 +315,18 @@ describe('PagosService — cobro manual', () => {
       const res = await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
 
       expect(res.pagoId).toBe('p1');
-      expect(pagoRepo.save).toHaveBeenCalledWith(
+      expect(pagoRepoTx.save).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'p1', metodo: MetodoPago.EFECTIVO }),
       );
     });
 
     it('si no hay ningun pago pendiente para la venta, se crea uno nuevo', async () => {
-      pagoRepo.findOne.mockResolvedValue(null);
+      pagoRepoTx.findOne.mockResolvedValue(null);
 
       await service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO);
 
-      expect(pagoRepo.save.mock.calls[0][0]).not.toHaveProperty('id');
-      expect(pagoRepo.save).toHaveBeenCalledWith(
+      expect(pagoRepoTx.save.mock.calls[0][0]).not.toHaveProperty('id');
+      expect(pagoRepoTx.save).toHaveBeenCalledWith(
         expect.objectContaining({ ventaId: 'v1', estado: EstadoPago.PENDIENTE }),
       );
     });
@@ -295,7 +338,7 @@ describe('PagosService — cobro manual', () => {
       await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow(
         PasarelaNoConfiguradaException,
       );
-      expect(pagoRepo.save).not.toHaveBeenCalled();
+      expect(pagoRepoTx.save).not.toHaveBeenCalled();
       expect(ventas.findOne).not.toHaveBeenCalled();
     });
 
@@ -313,7 +356,7 @@ describe('PagosService — cobro manual', () => {
       pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://pasarela/pagar' });
       const res = await service.iniciarTarjeta('v1', DUENO);
       expect(res.url).toBe('https://pasarela/pagar');
-      expect(pagoRepo.save).toHaveBeenCalledWith(
+      expect(pagoRepoTx.save).toHaveBeenCalledWith(
         expect.objectContaining({
           metodo: MetodoPago.TARJETA,
           proveedorPago: ProveedorPago.STRIPE,
@@ -327,7 +370,7 @@ describe('PagosService — cobro manual', () => {
       // El evento real llega despues; hasta entonces la unicidad la da la sesion.
       pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
       await service.iniciarTarjeta('v1', DUENO);
-      const guardado = pagoRepo.save.mock.calls[0][0] as { eventId: string };
+      const guardado = pagoRepoTx.save.mock.calls[0][0] as { eventId: string };
       expect(guardado.eventId).toBe('sesion:ses_1');
     });
 
@@ -342,7 +385,7 @@ describe('PagosService — cobro manual', () => {
         pasarela.recuperarSesion.mockResolvedValue({
           id: 'ses_1', url: 'https://pasarela/pagar',
         });
-        pagoRepo.findOne
+        pagoRepoTx.findOne
           .mockResolvedValueOnce(null) // primera llamada: no hay nada
           .mockResolvedValueOnce({
             id: 'p1', ventaId: 'v1', metodo: MetodoPago.TARJETA,
@@ -355,7 +398,7 @@ describe('PagosService — cobro manual', () => {
 
         expect(segunda.url).toBe(primera.url);
         expect(pasarela.crearSesion).toHaveBeenCalledTimes(1);
-        expect(pagoRepo.save).toHaveBeenCalledTimes(1);
+        expect(pagoRepoTx.save).toHaveBeenCalledTimes(1);
       });
 
       it('si la sesion guardada ya caduco se abre otra, pero sobre la MISMA fila', async () => {
@@ -363,7 +406,7 @@ describe('PagosService — cobro manual', () => {
         // tampoco tiene que dejar dos filas pendientes por una sola venta.
         pasarela.crearSesion.mockResolvedValue({ id: 'ses_2', url: 'https://pasarela/otra' });
         pasarela.recuperarSesion.mockResolvedValue(null); // caducada
-        pagoRepo.findOne.mockResolvedValue({
+        pagoRepoTx.findOne.mockResolvedValue({
           id: 'p1', ventaId: 'v1', metodo: MetodoPago.TARJETA,
           estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE,
           referenciaExterna: 'ses_1', eventId: 'sesion:ses_1',
@@ -372,19 +415,19 @@ describe('PagosService — cobro manual', () => {
         const res = await service.iniciarTarjeta('v1', DUENO);
 
         expect(res.url).toBe('https://pasarela/otra');
-        expect(pagoRepo.save).toHaveBeenCalledWith(
+        expect(pagoRepoTx.save).toHaveBeenCalledWith(
           expect.objectContaining({
             id: 'p1', referenciaExterna: 'ses_2', eventId: 'sesion:ses_2',
           }),
         );
         // No se creo una entidad nueva: se reescribio la existente.
-        expect(pagoRepo.create).not.toHaveBeenCalled();
+        expect(pagoRepoTx.create).not.toHaveBeenCalled();
       });
 
       it('solo busca pagos de STRIPE pendientes de ESA venta', async () => {
         pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
         await service.iniciarTarjeta('v1', DUENO);
-        expect(pagoRepo.findOne).toHaveBeenCalledWith({
+        expect(pagoRepoTx.findOne).toHaveBeenCalledWith({
           where: {
             ventaId: 'v1',
             estado: EstadoPago.PENDIENTE,
@@ -423,6 +466,37 @@ describe('PagosService — cobro manual', () => {
 
       const { descripcion } = pasarela.crearSesion.mock.calls[0][0] as { descripcion: string };
       expect(descripcion).toBe('MirrorIA — Compra F-000123');
+    });
+
+    it('si la sesion guardada ya se pago (webhook en camino) NO abre otra: 409', async () => {
+      pasarela.recuperarSesion.mockResolvedValue('completa');
+      pagoRepoTx.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE,
+        referenciaExterna: 'ses_1',
+      });
+      await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow(OperacionInvalidaException);
+      expect(pasarela.crearSesion).not.toHaveBeenCalled();
+      expect(pagoRepoTx.save).not.toHaveBeenCalled();
+    });
+
+    it('con total 0 (cupon del 100%) no se abre sesion: 409', async () => {
+      ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'cli1', estado: 'PENDIENTE', totalCents: 0 });
+      await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow(VentaNoPagableException);
+      expect(pasarela.crearSesion).not.toHaveBeenCalled();
+    });
+
+    it('si la venta dejo de estar PENDIENTE al bloquearla, no se abre sesion', async () => {
+      estadoVentaBloqueada = 'CANCELADA';
+      await expect(service.iniciarTarjeta('v1', DUENO)).rejects.toThrow(VentaNoPagableException);
+      expect(pasarela.crearSesion).not.toHaveBeenCalled();
+    });
+
+    it('la sesion vence cuando vence la venta (expiraEn), no a las 24 h', async () => {
+      const vence = new Date(Date.now() + 30 * 60_000);
+      expiracion.vencimientoTarjeta.mockReturnValue(vence);
+      pasarela.crearSesion.mockResolvedValue({ id: 'ses_1', url: 'https://x' });
+      await service.iniciarTarjeta('v1', DUENO);
+      expect(pasarela.crearSesion).toHaveBeenCalledWith(expect.objectContaining({ expiraEn: vence }));
     });
 
     it('nadie puede iniciar el cobro de una venta ajena', async () => {
@@ -472,10 +546,40 @@ describe('PagosService — cobro manual', () => {
       expect(ventas.marcarPagada).toHaveBeenCalledWith('v1', expect.anything());
       // Y el pago se escribio con el repositorio DEL MANAGER, no con el suelto:
       // es lo unico que distingue una escritura atomica de dos sueltas.
-      expect(pagoRepoTx.save).toHaveBeenCalledWith(
-        expect.objectContaining({ estado: EstadoPago.APROBADO }),
+      // UPDATE condicionado a PENDIENTE (no save del objeto leido antes).
+      expect(pagoRepoTx.update).toHaveBeenCalledWith(
+        { id: 'p1', estado: EstadoPago.PENDIENTE },
+        { estado: EstadoPago.APROBADO, eventId: 'evt_1' },
       );
       expect(pagoRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('al aprobar la tarjeta, los demas intentos pendientes quedan RECHAZADO (no doble cobro)', async () => {
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      });
+      await service.procesarEvento(CUERPO, 'buena');
+      expect(pagoRepoTx.update).toHaveBeenCalledWith(
+        expect.objectContaining({ ventaId: 'v1', estado: EstadoPago.PENDIENTE }),
+        { estado: EstadoPago.RECHAZADO },
+      );
+    });
+
+    it('si otro cobro gano mientras tanto (pago ya no PENDIENTE), se marca para reembolso', async () => {
+      pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
+      pagoRepo.findOne.mockResolvedValue({
+        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      });
+      pagoRepoTx.update.mockResolvedValueOnce({ affected: 0 });
+      pagoRepoTx.findOne.mockResolvedValue({ id: 'p1', estado: EstadoPago.RECHAZADO });
+      const res = await service.procesarEvento(CUERPO, 'buena');
+      expect(res.procesado).toBe(false);
+      expect(ventas.marcarPagada).not.toHaveBeenCalled();
+      expect(pagoRepo.update).toHaveBeenCalledWith(
+        { id: 'p1' },
+        { motivoReembolso: expect.stringContaining('reembolso') },
+      );
     });
 
     it('EL MISMO evento entregado dos veces cobra UNA sola vez', async () => {
@@ -568,8 +672,9 @@ describe('PagosService — cobro manual', () => {
       const res = await service.procesarEvento(Buffer.from('{}'), 'buena');
 
       expect(res.procesado).toBe(false);
-      expect(pagoRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ motivoReembolso: expect.stringContaining('reembolso') }),
+      expect(pagoRepo.update).toHaveBeenCalledWith(
+        { id: 'p1' },
+        { motivoReembolso: expect.stringContaining('reembolso') },
       );
     });
 
@@ -583,6 +688,39 @@ describe('PagosService — cobro manual', () => {
       ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
 
       await expect(service.procesarEvento(Buffer.from('{}'), 'buena')).resolves.toBeDefined();
+    });
+  });
+
+  describe('volver al carrito (la clienta cancela su compra sin pagar)', () => {
+    it('cancela con la logica del vencimiento y cierra antes la sesion de tarjeta', async () => {
+      pagoRepo.findOne.mockResolvedValue({ id: 'p1', referenciaExterna: 'cs_1' });
+      await service.cancelarPorClienta('v1', DUENO);
+      expect(pasarela.cerrarSesion).toHaveBeenCalledWith('cs_1');
+      expect(expiracion.cancelarVenta).toHaveBeenCalledWith('v1', expect.any(String));
+    });
+
+    it('nadie cancela una compra ajena', async () => {
+      await expect(
+        service.cancelarPorClienta('v1', { ...DUENO, sub: 'otra' }),
+      ).rejects.toThrow('No podés operar');
+      expect(expiracion.cancelarVenta).not.toHaveBeenCalled();
+    });
+
+    it('una compra que no esta PENDIENTE no se cancela', async () => {
+      ventas.findOne.mockResolvedValue({ id: 'v1', clienteId: 'cli1', estado: 'PAGADA' });
+      await expect(service.cancelarPorClienta('v1', DUENO)).rejects.toThrow(
+        OperacionInvalidaException,
+      );
+      expect(expiracion.cancelarVenta).not.toHaveBeenCalled();
+    });
+
+    it('si la sesion de Stripe ya se completo (pudo cobrarse) NO se cancela', async () => {
+      pagoRepo.findOne.mockResolvedValue({ id: 'p1', referenciaExterna: 'cs_1' });
+      pasarela.cerrarSesion.mockResolvedValue(false);
+      await expect(service.cancelarPorClienta('v1', DUENO)).rejects.toThrow(
+        OperacionInvalidaException,
+      );
+      expect(expiracion.cancelarVenta).not.toHaveBeenCalled();
     });
   });
 });

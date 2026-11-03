@@ -32,11 +32,17 @@ export function CartItem({ item, onRemove }: CartItemProps) {
       <div className="flex flex-1 flex-col justify-between">
         <div>
           <p className="text-sm font-medium text-foreground">{item.productoTitulo}</p>
-          <p className="text-sm text-muted-foreground">
-            Talla {item.tallaNombre} · {item.colorNombre} · Cantidad {item.cantidad}
-          </p>
+          {item.disponible ? (
+            <p className="text-sm text-muted-foreground">
+              Talla {item.tallaNombre} · {item.colorNombre} · Cantidad {item.cantidad}
+            </p>
+          ) : (
+            <p className="text-sm text-destructive">Ya no está disponible: quitala para continuar.</p>
+          )}
         </div>
-        <p className="text-sm text-foreground">{formatMoney(item.subtotalCents)}</p>
+        {item.disponible && (
+          <p className="text-sm text-foreground">{formatMoney(item.subtotalCents)}</p>
+        )}
       </div>
 
       <Button

@@ -9,6 +9,7 @@ import { checkoutApi } from "@/features/checkout/api/checkoutApi"
 import type { Venta } from "@/features/checkout/types/checkout.types"
 import { ApiError } from "@/lib/api"
 import { formatMoney } from "@/lib/money"
+import { VolverAlCarrito } from "./volver-al-carrito"
 
 /**
  * La pasarela vuelve a /pago/exito y /pago/cancelado con el id de la venta
@@ -93,13 +94,12 @@ export function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
         <>
           <XCircle className="size-14 text-muted-foreground" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Pago cancelado</h1>
-          {/* Decía "podés volver a intentarlo desde el checkout" y era falso: el
-              checkout ya vació el carrito al crear esta venta, así que no hay
-              nada que volver a comprar. Lo que sí sigue abierto es pagar ESTA
-              compra, que ya existe y tiene el stock reservado. */}
+          {/* El checkout vacía el carrito al crear la venta: la compra sigue
+              reservada y se puede pagar por otro medio, o cancelarla y
+              recuperar las prendas en el carrito (VolverAlCarrito). */}
           <p className="mt-2 text-sm text-muted-foreground">
-            No completaste el pago con tarjeta. Tu compra sigue pendiente y tu carrito ya se
-            vació al crearla, así que el pago se retoma desde acá — no desde el checkout.
+            No completaste el pago con tarjeta. Tu compra sigue reservada: podés pagarla con otro
+            medio o cancelarla y volver a tu carrito con las mismas prendas.
           </p>
         </>
       ) : pendiente ? (
@@ -141,6 +141,7 @@ export function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
             <span>Volver a consultar</span>
           </Button>
         )}
+        {pendiente && cancelado && <VolverAlCarrito ventaId={venta.id} />}
         <Link to="/tienda" className={cn(buttonVariants(pendiente ? { variant: "outline" } : undefined))}>
           Volver a la tienda
         </Link>

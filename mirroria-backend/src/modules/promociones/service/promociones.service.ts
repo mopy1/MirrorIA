@@ -210,8 +210,22 @@ export class PromocionesService {
 
     const descuentoCents = this.calcularDescuento(cupon, subtotalCents);
 
+    // UPDATE atómico condicionado al tope: con "leer, sumar y guardar" dos
+    // checkouts simultáneos leían el mismo contador y el cupón superaba
+    // usosMaximos. La base aplica uno tras otro y el que no entra no suma.
+    const { affected } = await repo
+      .createQueryBuilder()
+      .update(Cupon)
+      .set({ usosActuales: () => 'usos_actuales + 1' })
+      .where('id = :id', { id: cupon.id })
+      .andWhere('(usos_maximos IS NULL OR usos_actuales < usos_maximos)')
+      .execute();
+    if (affected !== 1) {
+      throw new CuponInvalidoException(
+        `El cupón ${codigoNormalizado} ha agotado todos sus usos disponibles`,
+      );
+    }
     cupon.usosActuales += 1;
-    await repo.save(cupon);
 
     return { cupon, descuentoCents };
   }
@@ -226,10 +240,14 @@ export class PromocionesService {
    */
   async liberarCupon(cuponId: string, manager?: EntityManager): Promise<void> {
     const repo = manager ? manager.getRepository(Cupon) : this.cuponRepository;
-    const cupon = await repo.findOne({ where: { id: cuponId } });
-    if (!cupon) return;
-    cupon.usosActuales = Math.max(0, cupon.usosActuales - 1);
-    await repo.save(cupon);
+    // Atómico, mismo motivo que consumirCupon. Si el cupón ya no existe, no
+    // afecta filas y no pasa nada.
+    await repo
+      .createQueryBuilder()
+      .update(Cupon)
+      .set({ usosActuales: () => 'GREATEST(0, usos_actuales - 1)' })
+      .where('id = :id', { id: cuponId })
+      .execute();
   }
 
   private calcularDescuento(cupon: Cupon, subtotalCents: number): number {

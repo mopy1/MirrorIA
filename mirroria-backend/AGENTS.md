@@ -82,7 +82,8 @@ modules/pagos/
 ├── pagos.module.ts               # importa VentasModule; PASARELA → PasarelaStripe
 ├── controller/
 │   ├── pagos.controller.ts       # /pagos: sesion (tarjeta), webhook, manual (efectivo), confirmar,
-│   │                             # pendientes, expirar-vencidas, ventas/:id/qr, qr/:pagoId, qr/aviso
+│   │                             # pendientes, expirar-vencidas, ventas/:id/qr, qr/:pagoId, qr/aviso,
+│   │                             # ventas/:id/cancelar ("volver al carrito", dueña, 204)
 │   └── wayra.controller.ts       # /wayra/cobros/:token y /:token/pagar (públicos, banco simulado)
 ├── dto/                          # iniciar-pago (solo EFECTIVO), instrucciones, pago, cobro-qr-response, wayra
 ├── entities/pago.entity.ts       # ProveedorPago STRIPE|MANUAL|WAYRA · MetodoPago TARJETA|QR|EFECTIVO ·
@@ -91,7 +92,7 @@ modules/pagos/
 │                                 # firma-webhook-invalida (400), pasarela-no-configurada (503)
 └── service/
     ├── pagos.service.ts          # tarjeta (Stripe) + efectivo (confirmación de cajero)
-    ├── expiracion.service.ts     # barrida cada 5 min de ventas PENDIENTE vencidas
+    ├── expiracion.service.ts     # barrida cada 5 min de ventas PENDIENTE vencidas + cancelarVenta()
     ├── pasarela/                 # interfaz Pasarela + PasarelaStripe (real) + PasarelaSimulada (solo tests)
     ├── qr/
     │   ├── cobro-qr.service.ts   # lado COMERCIO: genera el QR, estado para la clienta, procesa el aviso
@@ -781,3 +782,44 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
   `GET /pagos/pendientes` (subconsulta `venta_id IN (SELECT id FROM ventas WHERE sucursal_id=…)`,
   sin relación ORM) y `POST /pagos/:pagoId/confirmar` (lee la venta vía `VentasService`, 403 si
   es de otra sucursal, antes de aprobar).
+- **Volver al carrito (2026-11-03).** Bug: el checkout vacía el carrito, así que una clienta que
+  salía de Stripe sin pagar volvía y sus prendas "desaparecían" (la venta seguía PENDIENTE
+  reteniendo stock hasta vencer). Ahora `VentasService.cancelarPorPagoNoCompletado` también
+  devuelve los `venta_items` al carrito (`CarritosService.devolverItems`, misma transacción,
+  `sumarAlCarrito` con tope `REGLAS_COMPRA.maxUnidadesPorVariante`, saltea variantes/productos
+  inactivos, no valida stock igual que `addItem`) — lo aprovechan el vencimiento y el endpoint
+  nuevo `POST /pagos/ventas/:ventaId/cancelar` (`PagosService.cancelarPorClienta`: dueña, venta
+  PENDIENTE, 204). `ExpiracionService.cancelarVenta(ventaId, motivo)` es el camino único de
+  cancelación (venta + `update` condicionado de sus pagos PENDIENTE → RECHAZADO). Antes de
+  cancelar, `Pasarela.cerrarSesion` expira la sesión de Stripe abierta
+  (`checkout.sessions.expire`); si ya está `complete` o Stripe rechaza el expire (pago en
+  curso) responde 409 y no cancela. El vencimiento automático NO cierra la sesión (sigue la
+  regla de reembolso de "pago sobre venta cancelada"). Verificado contra la API real con Stripe
+  test: sesión queda `expired`, stock/carrito restaurados, 403 ajena, 409 doble cancelación.
+- **Concurrencia en compras/cobros (2026-11-03).** Antes todo era "leer, modificar y `save`":
+  - `InventarioSucursalService.ajustarStock`: `asegurarFila` (INSERT … ON CONFLICT DO NOTHING) +
+    `UPDATE cantidad_disponible = cantidad_disponible + :delta WHERE … AND <libre> + :delta >= 0`;
+    `affected !== 1` → 409 `StockInsuficiente`. Sin `manager` abre su propia transacción (stock +
+    movimiento juntos). Param `respetarReservadas` (lo pasa `registrarVenta` si no hay `reservaId`):
+    `<libre>` = `disponible - reservada`. `ajustarTransito` también es UPDATE atómico.
+  - `VentasService.checkoutCarrito`: una transacción con el carrito `FOR UPDATE`, conteo de
+    pendientes, `registrarVenta(params, manager)` y `vaciar(usuarioId, manager)`. Online
+    (`canal ≠ PRESENCIAL`) rechaza variantes/productos inactivos (409).
+  - `VentasService.marcarPagada`: `UPDATE … WHERE estado='PENDIENTE'`; si 0 filas, PAGADA →
+    idempotente, otro estado → `OperacionInvalida` (los llamadores marcan reembolso).
+  - `PromocionesService.consumirCupon`/`liberarCupon`: UPDATE atómico (`usos_actuales < usos_maximos`
+    / `GREATEST(0, …-1)`).
+  - `CarritosService`: `findOrCreateActivo` con INSERT … ON CONFLICT DO NOTHING; `addItem`/
+    `removeItem` en transacción con el carrito `FOR UPDATE`; `addItem` rechaza inactivos (409).
+  - `PagosService`: `estadoVentaBloqueada` (SQL `SELECT estado FROM ventas … FOR UPDATE`, sin
+    importar la entidad, regla 1). Orden de bloqueo único venta → pagos en tarjeta, efectivo y QR
+    (`cobro-qr.service.ts` también bloquea la venta primero). `iniciarManual`/`iniciarTarjeta`
+    bajo ese bloqueo (doble clic → un pago). Webhook: UPDATE condicionado a PENDIENTE + rechaza los
+    demás pendientes (`rechazarOtrosPendientes`); `confirmarManual` → 409 si la venta ya está
+    PAGADA, y también rechaza los demás. `iniciarTarjeta`: 409 si total 0; 409 si la sesión
+    guardada está `complete` (`Pasarela.recuperarSesion` ahora devuelve `SesionPago | 'completa' |
+    null`); `crearSesion` recibe `expiraEn` (`ExpiracionService.vencimientoTarjeta`) y Stripe lo
+    acota a 31 min–23 h (`expires_at`).
+  - Verificado contra Postgres real (backend compilado en :3100): 6 checkouts de la última unidad →
+    1 venta, stock 0, 1 movimiento; 4 checkouts del mismo carrito → 1 venta; cupón de 1 uso en 4
+    paralelos → 1; 3 "pagar" simultáneos → 1 pago/sesión.

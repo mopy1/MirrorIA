@@ -116,6 +116,17 @@ export class PagosController {
     return this.pagosService.iniciarTarjeta(ventaId, user);
   }
 
+  @Post('ventas/:ventaId/cancelar')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Cancelar una compra propia sin pagar y devolver sus prendas al carrito',
+  })
+  cancelar(@Param('ventaId') ventaId: string, @CurrentUser() user: JwtPayload): Promise<void> {
+    return this.pagosService.cancelarPorClienta(ventaId, user);
+  }
+
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

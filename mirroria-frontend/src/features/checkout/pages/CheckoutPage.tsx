@@ -34,6 +34,7 @@ export function CheckoutPage() {
   } = useValidarCupon()
 
   const subtotalCents = lineItems.reduce((sum, item) => sum + item.subtotalCents, 0)
+  const hayNoDisponibles = lineItems.some((i) => !i.disponible)
 
   function handleConfirmar() {
     confirmar(metodo, cuponAplicado?.codigo)
@@ -103,6 +104,15 @@ export function CheckoutPage() {
         </p>
       </div>
 
+      {hayNoDisponibles && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Tu carrito tiene prendas que ya no están disponibles. Quitalas desde el carrito para
+            continuar.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -112,7 +122,7 @@ export function CheckoutPage() {
       <Button
         size="lg"
         className="w-full"
-        disabled={!sucursalId || lineItems.length === 0 || isLoading}
+        disabled={!sucursalId || lineItems.length === 0 || hayNoDisponibles || isLoading}
         onClick={handleConfirmar}
       >
         {isLoading ? "Procesando pedido..." : "Confirmar pedido"}

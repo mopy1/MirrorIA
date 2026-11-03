@@ -6,9 +6,17 @@ import { Cupon, TipoDescuentoCupon } from '../entities/cupon.entity.js';
 describe('PromocionesService', () => {
   let service: PromocionesService;
   let mockCuponRepo: Partial<Repository<Cupon>>;
+  // UPDATE atómico: se simula el query builder y cuántas filas afecta.
+  let qb: Record<string, ReturnType<typeof vi.fn>>;
+  let filasAfectadas: number;
 
   beforeEach(() => {
+    filasAfectadas = 1;
+    qb = {} as typeof qb;
+    for (const m of ['update', 'set', 'where', 'andWhere']) qb[m] = vi.fn(() => qb);
+    qb.execute = vi.fn(() => Promise.resolve({ affected: filasAfectadas }));
     mockCuponRepo = {
+      createQueryBuilder: vi.fn(() => qb) as never,
       findOne: vi.fn(),
       find: vi.fn(),
       create: vi.fn((entity) => entity as Cupon),
@@ -160,33 +168,42 @@ describe('PromocionesService', () => {
       const res = await service.consumirCupon('PROMO10', 10000);
       expect(res.descuentoCents).toBe(1000);
       expect(cuponMock.usosActuales).toBe(3);
-      expect(mockCuponRepo.save).toHaveBeenCalledWith(cuponMock);
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(usos_maximos IS NULL OR usos_actuales < usos_maximos)',
+      );
+    });
+
+    it('si otro checkout tomó el último uso a la vez, la base no suma y se rechaza', async () => {
+      mockCuponRepo.findOne = vi.fn().mockResolvedValue({
+        id: 'c1',
+        codigo: 'UNO',
+        tipoDescuento: TipoDescuentoCupon.PORCENTAJE,
+        valor: 10,
+        fechaInicio: new Date(Date.now() - 86400000),
+        fechaFin: new Date(Date.now() + 86400000),
+        usosMaximos: 1,
+        usosActuales: 0,
+        montoMinimoCents: null,
+        activo: true,
+      } as Cupon);
+      filasAfectadas = 0;
+      await expect(service.consumirCupon('UNO', 10000)).rejects.toThrow(/agotado/);
     });
   });
 
   describe('liberarCupon', () => {
-    it('devuelve un uso del cupon', async () => {
-      const cupon = { id: 'c1', usosActuales: 5 } as Cupon;
-      mockCuponRepo.findOne = vi.fn().mockResolvedValue(cupon);
+    it('devuelve un uso del cupon con piso en 0, en un UPDATE atómico', async () => {
       await service.liberarCupon('c1');
-      expect(mockCuponRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ usosActuales: 4 }),
+      expect(qb.set).toHaveBeenCalledWith({ usosActuales: expect.any(Function) });
+      expect((qb.set.mock.calls[0][0] as { usosActuales: () => string }).usosActuales()).toBe(
+        'GREATEST(0, usos_actuales - 1)',
       );
-    });
-
-    it('no deja el contador en negativo', async () => {
-      const cupon = { id: 'c1', usosActuales: 0 } as Cupon;
-      mockCuponRepo.findOne = vi.fn().mockResolvedValue(cupon);
-      await service.liberarCupon('c1');
-      expect(mockCuponRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ usosActuales: 0 }),
-      );
+      expect(qb.where).toHaveBeenCalledWith('id = :id', { id: 'c1' });
     });
 
     it('un cupon inexistente no rompe: cancelar una venta no puede fallar por esto', async () => {
-      mockCuponRepo.findOne = vi.fn().mockResolvedValue(null);
+      filasAfectadas = 0;
       await expect(service.liberarCupon('no-existe')).resolves.toBeUndefined();
-      expect(mockCuponRepo.save).not.toHaveBeenCalled();
     });
   });
 });

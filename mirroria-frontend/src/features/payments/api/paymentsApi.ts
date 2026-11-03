@@ -24,6 +24,10 @@ export const paymentsApi = {
 
   estadoQr: (pagoId: string) => apiFetch<EstadoCobroQrRespuesta>(`/pagos/qr/${pagoId}`),
 
+  /** Volver al carrito: cancela la compra sin pagar (libera stock y cupón) y devuelve sus prendas al carrito. */
+  cancelar: (ventaId: string) =>
+    apiFetch<void>(`/pagos/ventas/${ventaId}/cancelar`, { method: "POST" }),
+
   pendientes: () => apiFetch<Pago[]>("/pagos/pendientes"),
 
   confirmar: (pagoId: string) =>

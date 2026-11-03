@@ -5,7 +5,14 @@ import { cn } from "cn"
 
 // Solo se renderiza con al menos un ítem (CartPage muestra un estado vacío
 // aparte) — por eso no necesita un estado "disabled" propio.
-export function CartSummary({ subtotalCents }: { subtotalCents: number }) {
+export function CartSummary({
+  subtotalCents,
+  bloqueado = false,
+}: {
+  subtotalCents: number
+  /** Hay prendas dadas de baja: el checkout las rechazaría. */
+  bloqueado?: boolean
+}) {
   return (
     <div className="rounded-2xl border border-border p-6">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -16,9 +23,15 @@ export function CartSummary({ subtotalCents }: { subtotalCents: number }) {
         Envío y sucursal de entrega se definen en el siguiente paso.
       </p>
 
-      <Link to="/checkout" className={cn(buttonVariants({ size: "lg" }), "mt-5 w-full")}>
-        Continuar a la compra
-      </Link>
+      {bloqueado ? (
+        <p className="mt-5 text-sm text-destructive">
+          Quitá las prendas que ya no están disponibles para continuar.
+        </p>
+      ) : (
+        <Link to="/checkout" className={cn(buttonVariants({ size: "lg" }), "mt-5 w-full")}>
+          Continuar a la compra
+        </Link>
+      )}
     </div>
   )
 }

@@ -72,7 +72,7 @@ describe('CobroQrService', () => {
     };
     const dataSource = {
       transaction: (cb: (m: unknown) => unknown) =>
-        cb({ getRepository: () => pagoRepoTx }),
+        cb({ getRepository: () => pagoRepoTx, query: () => Promise.resolve([]) }),
     } as unknown as DataSource;
     service = new CobroQrService(
       pagoRepo as unknown as Repository<Pago>,

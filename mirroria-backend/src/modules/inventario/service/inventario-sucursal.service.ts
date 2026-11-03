@@ -41,6 +41,12 @@ export interface AjustarStockParams {
   usuarioId?: string | null;
   /** Para participar de una transacción ya abierta por el llamador (ventas, ordenes-compra). */
   manager?: EntityManager;
+  /**
+   * Al restar, exige que alcance lo NO reservado (disponible - reservada). Lo
+   * piden las ventas que no concretan una reserva: no pueden llevarse unidades
+   * apartadas por otra clienta.
+   */
+  respetarReservadas?: boolean;
 }
 
 @Injectable()
@@ -75,36 +81,50 @@ export class InventarioSucursalService {
    * ninguna otra ruta debe tocar cantidadDisponible directamente.
    */
   async ajustarStock(params: AjustarStockParams): Promise<InventarioSucursal> {
+    // Sin transacción del llamador (ajuste manual) se abre una: stock y
+    // movimiento quedan juntos o no queda ninguno.
+    if (!params.manager) {
+      return this.dataSource.transaction((manager) => this.ajustarStock({ ...params, manager }));
+    }
     await this.sucursalesService.assertExists(params.sucursalId);
     await this.productosService.findVarianteById(params.varianteId);
 
-    const manager = params.manager ?? this.dataSource.manager;
+    const manager = params.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
+    const donde = { varianteId: params.varianteId, sucursalId: params.sucursalId };
+    await this.asegurarFila(manager, params.varianteId, params.sucursalId);
 
-    let fila = await invRepo.findOne({
-      where: { varianteId: params.varianteId, sucursalId: params.sucursalId },
-    });
-    if (!fila) {
-      fila = invRepo.create({
-        varianteId: params.varianteId,
-        sucursalId: params.sucursalId,
-        cantidadDisponible: 0,
-        cantidadReservada: 0,
-        cantidadEnTransito: 0,
-      });
+    // UPDATE atómico condicionado, no "leer, sumar y guardar": con checkouts
+    // simultáneos todos leían el mismo número y se pisaban (6 ventas de 1 u.
+    // bajaban 2). La base aplica los deltas uno tras otro y rechaza el que
+    // dejaría el stock en negativo. Una venta que no concreta una reserva
+    // tampoco puede llevarse unidades apartadas por otra clienta.
+    const libre = params.respetarReservadas
+      ? 'cantidad_disponible - cantidad_reservada'
+      : 'cantidad_disponible';
+    const qb = invRepo
+      .createQueryBuilder()
+      .update(InventarioSucursal)
+      .set({ cantidadDisponible: () => 'cantidad_disponible + :delta' })
+      .where('variante_id = :varianteId AND sucursal_id = :sucursalId');
+    if (params.cantidad < 0) {
+      qb.andWhere(`${libre} + :delta >= 0`);
     }
-
-    const nuevaCantidad = fila.cantidadDisponible + params.cantidad;
-    if (nuevaCantidad < 0) {
+    const { affected } = await qb
+      .setParameters({ ...donde, delta: params.cantidad })
+      .execute();
+    if (affected !== 1) {
+      const actual = await invRepo.findOneOrFail({ where: donde });
       throw new StockInsuficienteException(
         params.varianteId,
         params.sucursalId,
-        fila.cantidadDisponible,
+        params.respetarReservadas
+          ? actual.cantidadDisponible - actual.cantidadReservada
+          : actual.cantidadDisponible,
         -params.cantidad,
       );
     }
-    fila.cantidadDisponible = nuevaCantidad;
-    fila = await invRepo.save(fila);
+    const fila = await invRepo.findOneOrFail({ where: donde });
 
     const movRepo = manager.getRepository(MovimientoInventario);
     await movRepo.save(
@@ -121,6 +141,21 @@ export class InventarioSucursalService {
     );
 
     return fila;
+  }
+
+  /** Crea la fila en 0 si no existe; si otra transacción la crea a la vez, no falla. */
+  private async asegurarFila(
+    manager: EntityManager,
+    varianteId: string,
+    sucursalId: string,
+  ): Promise<void> {
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(InventarioSucursal)
+      .values({ varianteId, sucursalId, cantidadDisponible: 0, cantidadReservada: 0, cantidadEnTransito: 0 })
+      .orIgnore()
+      .execute();
   }
 
   /**
@@ -201,19 +236,15 @@ export class InventarioSucursalService {
     sucursalId: string,
     delta: number,
   ): Promise<void> {
-    const invRepo = manager.getRepository(InventarioSucursal);
-    let fila = await invRepo.findOne({ where: { varianteId, sucursalId } });
-    if (!fila) {
-      fila = invRepo.create({
-        varianteId,
-        sucursalId,
-        cantidadDisponible: 0,
-        cantidadReservada: 0,
-        cantidadEnTransito: 0,
-      });
-    }
-    fila.cantidadEnTransito = Math.max(0, fila.cantidadEnTransito + delta);
-    await invRepo.save(fila);
+    // Atómico por la misma razón que ajustarStock.
+    await this.asegurarFila(manager, varianteId, sucursalId);
+    await manager
+      .createQueryBuilder()
+      .update(InventarioSucursal)
+      .set({ cantidadEnTransito: () => 'GREATEST(0, cantidad_en_transito + :delta)' })
+      .where('variante_id = :varianteId AND sucursal_id = :sucursalId')
+      .setParameters({ varianteId, sucursalId, delta })
+      .execute();
   }
 
   private toResponse(fila: InventarioSucursal): InventarioSucursalResponseDto {

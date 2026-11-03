@@ -44,7 +44,10 @@ export function CartPage() {
                 <CartItem key={item.varianteId} item={item} onRemove={removeItem} />
               ))}
             </div>
-            <CartSummary subtotalCents={subtotalCents} />
+            <CartSummary
+              subtotalCents={subtotalCents}
+              bloqueado={lineItems.some((i) => !i.disponible)}
+            />
           </div>
         )
       )}

@@ -87,22 +87,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       if (minutosTranscurridos < limiteMin) continue;
 
       try {
-        await this.ventasService.cancelarPorPagoNoCompletado(
-          venta.id,
-          `pago vencido tras ${limiteMin} minutos`,
-        );
-        // Los intentos de cobro de una venta cancelada quedan RECHAZADO, no se
-        // borran: son la constancia de que se intento. Se marcan TODOS, para
-        // que ninguno quede pendiente para siempre en el panel del equipo.
-        // update condicionado y no save: un save con el objeto leido antes
-        // pisaba lo que un aviso de pago escribio mientras tanto (p. ej. la
-        // marca de reembolso de un QR pagado justo al vencer).
-        for (const pendiente of pagos) {
-          await this.pagoRepository.update(
-            { id: pendiente.id, estado: EstadoPago.PENDIENTE },
-            { estado: EstadoPago.RECHAZADO },
-          );
-        }
+        await this.cancelarVenta(venta.id, `pago vencido tras ${limiteMin} minutos`);
         canceladas++;
       } catch (error) {
         // Una venta en un estado raro no puede impedir que las demas liberen su
@@ -112,6 +97,33 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     }
 
     return canceladas;
+  }
+
+  /**
+   * Cancela una venta PENDIENTE sin pagar (vencida, o porque la clienta volvió
+   * al carrito): stock, cupón y prendas al carrito los devuelve
+   * `VentasService`. Los intentos de cobro quedan RECHAZADO, no se borran: son
+   * la constancia de que se intentó. Se marcan TODOS, para que ninguno quede
+   * pendiente para siempre en el panel del equipo. update condicionado y no
+   * save: un save con el objeto leido antes pisaba lo que un aviso de pago
+   * escribio mientras tanto (p. ej. la marca de reembolso de un QR pagado
+   * justo al vencer).
+   */
+  async cancelarVenta(ventaId: string, motivo: string): Promise<void> {
+    await this.ventasService.cancelarPorPagoNoCompletado(ventaId, motivo);
+    await this.pagoRepository.update(
+      { ventaId, estado: EstadoPago.PENDIENTE },
+      { estado: EstadoPago.RECHAZADO },
+    );
+  }
+
+  /**
+   * Cuando vence una venta pagada con tarjeta cuyo intento arranco en `desde`
+   * (mismo plazo que usa la barrida): la sesion de Stripe se cierra ahi.
+   */
+  vencimientoTarjeta(desde: Date): Date {
+    const minutos = this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO', MINUTOS_TARJETA_POR_DEFECTO);
+    return new Date(desde.getTime() + minutos * 60_000);
   }
 
   /** Los pagos PENDIENTE de esas ventas, agrupados por venta y del mas viejo al mas nuevo. */

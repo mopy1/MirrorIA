@@ -218,13 +218,19 @@ lookup), `pages/BranchesPage.tsx`.
 
 ### `features/inventory/` ↔ backend `inventario`
 `api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `hooks/useDisponibilidad.ts`
-(stock en la ficha), `types/`.
+(stock en la ficha: desde 2026-11-03 muestra lo **libre**, `cantidadDisponible - cantidadReservada`,
+igual que lo que el backend deja comprar), `types/`.
 
 ### `features/cart/` ↔ backend `ventas` (carrito)
 `api/cartApi.ts` (get, addItem, removeItem por `usuarioId`), `hooks/useCartLineItems.ts`
 (enriquece `{varianteId, cantidad}` con producto/variante en el cliente),
 `components/{cart-item,cart-summary}/`, `pages/CartPage.tsx`. El estado global vive en
 `context/CartContext`. No hay stepper de cantidad (el backend no expone PATCH de cantidad).
+2026-11-03: un ítem cuya variante ya no está en el catálogo o está inactiva ya no se oculta en
+silencio: `CartLineItem.disponible = false` (precio 0), `cart-item` lo muestra "Ya no está
+disponible" con el botón de quitar, `CartSummary bloqueado` oculta "Continuar", y `CheckoutPage`
+muestra un aviso y deshabilita "Confirmar" (el backend igual responde 409). Requiere `activo` en
+`useVariantesConProducto`.
 
 ### `features/checkout/` ↔ backend `ventas` + `pagos`
 - `api/checkoutApi.ts`: `checkout(usuarioId, sucursalId, codigoCupon?)`, `getVenta`, `getVentas`.
@@ -239,7 +245,8 @@ lookup), `pages/BranchesPage.tsx`.
 ### `features/payments/` ↔ backend `pagos`
 - `api/paymentsApi.ts`: `iniciarManual(ventaId, "EFECTIVO")`, `iniciarTarjeta`, `iniciarQr`
   (`POST /pagos/ventas/:id/qr`, crea o reutiliza el QR), `estadoQr` (`GET /pagos/qr/:pagoId`),
-  `pendientes`, `confirmar`.
+  `pendientes`, `confirmar`, `cancelar` (`POST /pagos/ventas/:id/cancelar`, 204: "volver al
+  carrito").
 - `types/payments.types.ts`: `MetodoPago = "TARJETA" | "QR" | "EFECTIVO"`, `CobroQr`
   (`qrImagen` PNG data URL, `qrContenido`, monto, estado), `EstadoCobroQrRespuesta`, `Pago`,
   `Instrucciones`.
@@ -252,8 +259,12 @@ lookup), `pages/BranchesPage.tsx`.
   `instrucciones-pago.tsx` (efectivo, muestra `motivo` si viene de un fallo de tarjeta),
   `regreso-pasarela.tsx` (toma la venta de `?venta=` o, de respaldo, de `sessionStorage`, y
   consulta su estado real;
-  si sigue pendiente ofrece "Pagar con QR" / "Pagar en efectivo" / reintentar),
-  `detalle-pago-card.tsx`.
+  si sigue pendiente ofrece "Pagar con QR" / "Pagar en efectivo" / reintentar; en
+  `/pago/cancelado` además "Cancelar y volver al carrito"),
+  `volver-al-carrito.tsx` (2026-11-03: botón que llama `paymentsApi.cancelar`, refresca el
+  `CartContext` y navega a `/carrito`; el backend devuelve las prendas de la compra al carrito —
+  antes "desaparecían" porque el checkout vacía el carrito. Se usa en `regreso-pasarela.tsx`
+  (cancelado) e `instrucciones-pago.tsx`), `detalle-pago-card.tsx`.
 
 ### `features/wayra/` ↔ backend `pagos` (banco simulado Wayra)
 La "app del banco" que abre el QR desde el celular. Ruta pública `/wayra/pagar/:token`, sin

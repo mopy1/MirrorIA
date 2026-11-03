@@ -22,7 +22,7 @@ export class PasarelaSimulada implements Pasarela {
 
   crearSesion(params: {
     montoCents: number; descripcion: string; referencia: string;
-    urlExito: string; urlCancelacion: string;
+    urlExito: string; urlCancelacion: string; expiraEn?: Date;
   }): Promise<SesionPago> {
     const id = `sim_${randomUUID()}`;
     const sesion: SesionPago = { id, url: `${params.urlExito}?sesion=${id}` };
@@ -30,8 +30,13 @@ export class PasarelaSimulada implements Pasarela {
     return Promise.resolve(sesion);
   }
 
-  recuperarSesion(sesionId: string): Promise<SesionPago | null> {
+  recuperarSesion(sesionId: string): Promise<SesionPago | 'completa' | null> {
     return Promise.resolve(this.sesiones.get(sesionId) ?? null);
+  }
+
+  cerrarSesion(sesionId: string): Promise<boolean> {
+    this.sesiones.delete(sesionId);
+    return Promise.resolve(true);
   }
 
   verificarEvento(cuerpoCrudo: Buffer, firma: string): EventoPago {

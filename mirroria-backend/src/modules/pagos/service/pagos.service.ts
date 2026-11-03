@@ -2,11 +2,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
-import type { DataSource } from 'typeorm';
-import { Repository } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
+import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
@@ -55,28 +56,33 @@ export class PagosService {
     // refresh de la pantalla de pago no debe duplicarla. Sin esto, el panel
     // de cobros del equipo acumula filas indistinguibles para una sola venta
     // y, si la expiracion cancela la venta con la primera, las duplicadas
-    // fallan al cancelar y quedan pendientes para siempre.
-    const existente = await this.pagoRepository.findOne({
-      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL },
-    });
+    // fallan al cancelar y quedan pendientes para siempre. Con la venta
+    // bloqueada: un doble clic simultaneo ya no crea dos filas.
+    const pago = await this.dataSource.transaction(async (manager) => {
+      await this.bloquearVentaPendiente(manager, ventaId);
+      const repo = manager.getRepository(Pago);
+      const existente = await repo.findOne({
+        where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL },
+      });
 
-    // Si la clienta cambio de metodo (de QR a efectivo, por ejemplo), se
-    // actualiza la misma fila en vez de crear una nueva.
-    const pago = existente
-      ? await this.pagoRepository.save({ ...existente, metodo: dto.metodo })
-      : await this.pagoRepository.save(
-          this.pagoRepository.create({
-            ventaId,
-            proveedorPago: ProveedorPago.MANUAL,
-            metodo: dto.metodo,
-            montoCents: venta.totalCents,
-            estado: EstadoPago.PENDIENTE,
-            // El unique de event_id exige un valor siempre. Para un cobro manual no
-            // hay evento de ninguna pasarela, asi que se genera uno propio.
-            eventId: `manual:${randomUUID()}`,
-            referenciaExterna: null,
-          }),
-        );
+      // Si la clienta cambio de metodo (de QR a efectivo, por ejemplo), se
+      // actualiza la misma fila en vez de crear una nueva.
+      return existente
+        ? repo.save({ ...existente, metodo: dto.metodo })
+        : repo.save(
+            repo.create({
+              ventaId,
+              proveedorPago: ProveedorPago.MANUAL,
+              metodo: dto.metodo,
+              montoCents: venta.totalCents,
+              estado: EstadoPago.PENDIENTE,
+              // El unique de event_id exige un valor siempre. Para un cobro manual no
+              // hay evento de ninguna pasarela, asi que se genera uno propio.
+              eventId: `manual:${randomUUID()}`,
+              referenciaExterna: null,
+            }),
+          );
+    });
 
     // El QR ya no pasa por aca: tiene su propio camino (`CobroQrService`), que
     // se acredita solo con el aviso del banco en vez de esperar a un cajero.
@@ -107,61 +113,107 @@ export class PagosService {
       throw new VentaNoPagableException(`su estado es ${venta.estado}`);
     }
 
-    // Mismo criterio que el camino manual: si esta venta ya tiene un cobro con
-    // tarjeta pendiente, se reutiliza. Sin esto, cada llamada abria una sesion
-    // NUEVA en la pasarela, y con dos sesiones abiertas y las dos pagadas
-    // quedaban dos cobros reales y dos filas aprobadas sobre una sola venta,
-    // sin que nada lo detectara — el panel del equipo tampoco las muestra,
-    // porque filtra por cobros manuales.
-    const existente = await this.pagoRepository.findOne({
-      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
-    });
-    if (existente?.referenciaExterna) {
-      const abierta = await this.pasarela.recuperarSesion(existente.referenciaExterna);
-      if (abierta) {
-        return { url: abierta.url };
-      }
-      // La sesion caduco o ya no acepta pagos: hay que crear otra, pero sobre
-      // la MISMA fila (abajo), para no dejar dos pendientes por una venta.
+    // Stripe no abre una sesion por 0 (cupon del 100%): se avisa en vez de
+    // dejar que la pasarela responda un error opaco.
+    if (venta.totalCents <= 0) {
+      throw new VentaNoPagableException(
+        'el total es Bs 0: no hay nada que cobrar con tarjeta, elegí pagar en la sucursal',
+      );
     }
 
-    const sesion = await this.pasarela.crearSesion({
-      montoCents: venta.totalCents,
-      descripcion: this.descripcionParaLaPasarela(venta),
-      referencia: venta.id,
-      // Con el id de la venta en la URL, la pantalla de regreso sabe que
-      // consultar sin depender solo de sessionStorage (que falla si la
-      // clienta vuelve en otra pestaña, otro dispositivo, o borro datos de
-      // navegacion).
-      urlExito: this.conVentaId(this.config.get<string>('PAGOS_URL_EXITO') ?? '', ventaId),
-      urlCancelacion: this.conVentaId(
-        this.config.get<string>('PAGOS_URL_CANCELACION') ?? '',
-        ventaId,
-      ),
+    // Con la venta bloqueada (FOR UPDATE) mientras se decide y se guarda: un
+    // doble clic simultaneo abria dos sesiones y dos filas pendientes.
+    return this.dataSource.transaction(async (manager) => {
+      await this.bloquearVentaPendiente(manager, ventaId);
+      const repo = manager.getRepository(Pago);
+      // Mismo criterio que el camino manual: si esta venta ya tiene un cobro con
+      // tarjeta pendiente, se reutiliza. Sin esto, cada llamada abria una sesion
+      // NUEVA en la pasarela, y con dos sesiones abiertas y las dos pagadas
+      // quedaban dos cobros reales y dos filas aprobadas sobre una sola venta.
+      const existente = await repo.findOne({
+        where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
+      });
+      if (existente?.referenciaExterna) {
+        const abierta = await this.pasarela.recuperarSesion(existente.referenciaExterna);
+        // Sesion ya pagada con el webhook en camino: abrir otra pisaba
+        // referenciaExterna y el webhook de la pagada quedaba "sesion desconocida".
+        if (abierta === 'completa') {
+          throw new OperacionInvalidaException(
+            'Tu pago con tarjeta ya se realizó y se está confirmando: revisá Mis pedidos en unos segundos.',
+          );
+        }
+        if (abierta) {
+          return { url: abierta.url };
+        }
+        // La sesion caduco: hay que crear otra, pero sobre la MISMA fila (abajo),
+        // para no dejar dos pendientes por una venta.
+      }
+
+      const sesion = await this.pasarela.crearSesion({
+        montoCents: venta.totalCents,
+        descripcion: this.descripcionParaLaPasarela(venta),
+        referencia: venta.id,
+        // Con el id de la venta en la URL, la pantalla de regreso sabe que
+        // consultar sin depender solo de sessionStorage.
+        urlExito: this.conVentaId(this.config.get<string>('PAGOS_URL_EXITO') ?? '', ventaId),
+        urlCancelacion: this.conVentaId(
+          this.config.get<string>('PAGOS_URL_CANCELACION') ?? '',
+          ventaId,
+        ),
+        // La sesion cierra cuando vence la venta (el reloj arranca en el
+        // intento de pago, igual que la barrida), no a las 24 h de Stripe.
+        expiraEn: this.expiracionService.vencimientoTarjeta(existente?.createdAt ?? new Date()),
+      });
+
+      await repo.save(
+        existente
+          ? {
+              ...existente,
+              montoCents: venta.totalCents,
+              eventId: `sesion:${sesion.id}`,
+              referenciaExterna: sesion.id,
+            }
+          : repo.create({
+              ventaId,
+              proveedorPago: ProveedorPago.STRIPE,
+              metodo: MetodoPago.TARJETA,
+              montoCents: venta.totalCents,
+              estado: EstadoPago.PENDIENTE,
+              // Hasta que llegue el evento firmado del webhook, la unicidad la da
+              // la sesion recien creada, no un evento (que todavia no existe).
+              eventId: `sesion:${sesion.id}`,
+              referenciaExterna: sesion.id,
+            }),
+      );
+
+      return { url: sesion.url };
     });
+  }
 
-    await this.pagoRepository.save(
-      existente
-        ? {
-            ...existente,
-            montoCents: venta.totalCents,
-            eventId: `sesion:${sesion.id}`,
-            referenciaExterna: sesion.id,
-          }
-        : this.pagoRepository.create({
-            ventaId,
-            proveedorPago: ProveedorPago.STRIPE,
-            metodo: MetodoPago.TARJETA,
-            montoCents: venta.totalCents,
-            estado: EstadoPago.PENDIENTE,
-            // Hasta que llegue el evento firmado del webhook, la unicidad la da
-            // la sesion recien creada, no un evento (que todavia no existe).
-            eventId: `sesion:${sesion.id}`,
-            referenciaExterna: sesion.id,
-          }),
-    );
-
-    return { url: sesion.url };
+  /**
+   * "Volver al carrito": la clienta abandona una compra PENDIENTE sin pagar
+   * (p. ej. salio de Stripe sin pagar). Se cancela con la misma logica que el
+   * vencimiento (stock, cupon y prendas al carrito). Antes de cancelar se
+   * cierra la sesion de tarjeta abierta: si ya se completo (o no se pudo
+   * confirmar) no se cancela, para no cancelar una compra que se esta cobrando.
+   */
+  async cancelarPorClienta(ventaId: string, user: JwtPayload): Promise<void> {
+    const venta = await this.ventasService.findOne(ventaId);
+    assertOwnUser(venta.clienteId ?? '', user);
+    if (venta.estado !== 'PENDIENTE') {
+      throw new OperacionInvalidaException(
+        `Esta compra ya no se puede cancelar: está ${venta.estado.toLowerCase()}`,
+      );
+    }
+    const tarjeta = await this.pagoRepository.findOne({
+      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
+    });
+    if (tarjeta?.referenciaExterna && !(await this.pasarela.cerrarSesion(tarjeta.referenciaExterna))) {
+      throw new OperacionInvalidaException(
+        'Tu pago con tarjeta se está procesando: esperá la confirmación antes de cancelar.',
+      );
+    }
+    await this.expiracionService.cancelarVenta(ventaId, 'la clienta volvio al carrito');
   }
 
   /**
@@ -207,27 +259,46 @@ export class PagosService {
       return { procesado: false };
     }
 
-    pago.estado = EstadoPago.APROBADO;
-    // Se guarda el id del evento real: el indice unique impide que otro pago
-    // distinto reclame el mismo evento.
-    pago.eventId = evento.id;
-
     try {
-      await this.dataSource.transaction(async (manager) => {
-        await manager.getRepository(Pago).save(pago);
+      const procesado = await this.dataSource.transaction(async (manager) => {
+        // Venta primero: mismo orden de bloqueo que efectivo y QR.
+        await this.estadoVentaBloqueada(manager, pago.ventaId);
+        const repo = manager.getRepository(Pago);
+        // UPDATE condicionado y no save del objeto leido antes: si otro cobro
+        // (QR, efectivo) gano mientras tanto, este pago ya quedo RECHAZADO y
+        // aprobarlo pisaba esa marca (doble cobro sin rastro). Se guarda el id
+        // del evento real: el indice unique impide que otro pago lo reclame.
+        const { affected } = await repo.update(
+          { id: pago.id, estado: EstadoPago.PENDIENTE },
+          { estado: EstadoPago.APROBADO, eventId: evento.id },
+        );
+        if (affected !== 1) {
+          // El mismo evento entregado dos veces a la vez: el otro ya lo aprobo.
+          const actual = await repo.findOne({ where: { id: pago.id } });
+          if (actual?.estado === EstadoPago.APROBADO && actual.eventId === evento.id) {
+            return false;
+          }
+          throw new OperacionInvalidaException('el pago ya no estaba pendiente');
+        }
         await this.ventasService.marcarPagada(pago.ventaId, manager);
+        // Igual que el QR: los otros intentos pendientes (efectivo, QR) ya no se
+        // cobran. Sin esto un cajero podia confirmar efectivo sobre una venta
+        // ya pagada con tarjeta: doble cobro.
+        await this.rechazarOtrosPendientes(repo, pago);
+        return true;
       });
-      return { procesado: true };
+      return { procesado };
     } catch (error) {
-      // La clienta PAGO, pero la venta ya no se puede cobrar: la expiracion la
-      // cancelo y su stock ya volvio al inventario. Revertir el pago perderia la
-      // constancia de que entro dinero, asi que se guarda marcado para reembolso
-      // y queda a la vista de una persona.
+      // La clienta PAGO, pero la venta ya no se puede cobrar (la expiracion la
+      // cancelo, o ya la pago otro medio). Revertir perderia la constancia de
+      // que entro dinero: se marca para reembolso, a la vista de una persona.
       this.logger.error(
         `Pago ${pago.id} cobrado sobre la venta ${pago.ventaId}, que ya no es pagable: ${String(error)}`,
       );
-      pago.motivoReembolso = 'Venta cancelada antes de acreditarse el cobro: requiere reembolso';
-      await this.pagoRepository.save(pago);
+      await this.pagoRepository.update(
+        { id: pago.id },
+        { motivoReembolso: 'Venta cancelada o ya pagada antes de acreditarse el cobro: requiere reembolso' },
+      );
       // 200 a proposito: la pasarela no tiene que reintentar algo que ya no va a
       // mejorar solo. El problema lo resuelve una persona, no un reintento.
       return { procesado: false };
@@ -278,12 +349,20 @@ export class PagosService {
     // ninguna.
     try {
       const guardado = await this.dataSource.transaction(async (manager) => {
-        const pagoGuardado = await manager.getRepository(Pago).save(pago);
+        // Venta bloqueada: si ya esta PAGADA (por tarjeta o QR) no se acepta el
+        // efectivo — antes se aprobaba igual y quedaban dos cobros.
+        if ((await this.estadoVentaBloqueada(manager, pago.ventaId)) === 'PAGADA') {
+          throw new VentaNoPagableException('la venta ya está pagada por otro medio');
+        }
+        const repo = manager.getRepository(Pago);
+        const pagoGuardado = await repo.save(pago);
         await this.ventasService.marcarPagada(pago.ventaId, manager);
+        await this.rechazarOtrosPendientes(repo, pago);
         return pagoGuardado;
       });
       return this.aDto(guardado);
     } catch (error) {
+      if (error instanceof VentaNoPagableException) throw error;
       // Mismo criterio que el webhook: la plata ya esta en la mano del cajero.
       // Dejar que la transaccion revierta entera lo dejaba con el dinero y sin
       // ninguna constancia. El pago se guarda igual, marcado para reembolso.
@@ -298,6 +377,34 @@ export class PagosService {
       // que le toca devolver el dinero.
       throw new CobroSobreVentaMuertaException(pago.id, String(error));
     }
+  }
+
+  /**
+   * SELECT ... FOR UPDATE sobre la venta, dentro de la transaccion del
+   * llamador. SQL directo y no la entidad: pagos no importa entidades de
+   * ventas (regla 1). Serializa los cobros de una misma venta.
+   */
+  private async estadoVentaBloqueada(manager: EntityManager, ventaId: string): Promise<string | null> {
+    const filas: { estado: string }[] = await manager.query(
+      'SELECT estado FROM ventas WHERE id = $1 FOR UPDATE',
+      [ventaId],
+    );
+    return filas[0]?.estado ?? null;
+  }
+
+  private async bloquearVentaPendiente(manager: EntityManager, ventaId: string): Promise<void> {
+    const estado = await this.estadoVentaBloqueada(manager, ventaId);
+    if (estado !== 'PENDIENTE') {
+      throw new VentaNoPagableException(`su estado es ${estado ?? 'desconocido'}`);
+    }
+  }
+
+  /** Los demas intentos PENDIENTE de la venta quedan RECHAZADO (mismo criterio que el QR). */
+  private async rechazarOtrosPendientes(repo: Repository<Pago>, pago: Pago): Promise<void> {
+    await repo.update(
+      { ventaId: pago.ventaId, estado: EstadoPago.PENDIENTE, id: Not(pago.id) },
+      { estado: EstadoPago.RECHAZADO },
+    );
   }
 
   /** Lo que ve el panel de cobros del equipo; con sucursalId, solo esa sucursal. */

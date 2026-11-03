@@ -26,6 +26,7 @@ export function OrderSummary({
               <span className="text-muted-foreground">
                 ({item.tallaNombre} · {item.colorNombre}) × {item.cantidad}
               </span>
+              {!item.disponible && <span className="text-destructive"> · ya no disponible</span>}
             </span>
             <span className="text-foreground">{formatMoney(item.subtotalCents)}</span>
           </div>

@@ -26,7 +26,7 @@ export class PasarelaStripe implements Pasarela {
 
   async crearSesion(params: {
     montoCents: number; descripcion: string; referencia: string;
-    urlExito: string; urlCancelacion: string;
+    urlExito: string; urlCancelacion: string; expiraEn?: Date;
   }): Promise<SesionPago> {
     if (!this.cliente) {
       throw new Error('Stripe no esta configurado');
@@ -46,11 +46,22 @@ export class PasarelaStripe implements Pasarela {
       success_url: params.urlExito,
       cancel_url: params.urlCancelacion,
       client_reference_id: params.referencia,
+      // Sin esto la sesion vive 24 h y se podia pagar una venta ya vencida.
+      // Stripe exige entre 30 min y 24 h desde ahora: se acota a ese rango.
+      expires_at: this.expiracionAcotada(params.expiraEn),
     });
     return { id: sesion.id, url: sesion.url ?? params.urlCancelacion };
   }
 
-  async recuperarSesion(sesionId: string): Promise<SesionPago | null> {
+  private expiracionAcotada(expiraEn?: Date): number {
+    const ahora = Date.now();
+    const min = ahora + 31 * 60_000; // margen de 1 min sobre el minimo de Stripe
+    const max = ahora + 23 * 60 * 60_000;
+    const deseado = expiraEn?.getTime() ?? min;
+    return Math.floor(Math.min(max, Math.max(min, deseado)) / 1000);
+  }
+
+  async recuperarSesion(sesionId: string): Promise<SesionPago | 'completa' | null> {
     if (!this.cliente) {
       throw new Error('Stripe no esta configurado');
     }
@@ -59,6 +70,9 @@ export class PasarelaStripe implements Pasarela {
       // `open` es el unico estado en el que la clienta todavia puede pagar; una
       // sesion `expired` o `complete` ya no sirve para mandarla de vuelta
       // (valores verificados contra los tipos del SDK: Session.Status).
+      if (sesion.status === 'complete') {
+        return 'completa';
+      }
       if (sesion.status !== 'open' || !sesion.url) {
         return null;
       }
@@ -68,6 +82,22 @@ export class PasarelaStripe implements Pasarela {
       // poder pagar: se anota y quien llama crea una nueva.
       this.logger.warn(`No se pudo recuperar la sesion ${sesionId}: ${String(error)}`);
       return null;
+    }
+  }
+
+  async cerrarSesion(sesionId: string): Promise<boolean> {
+    // Sin cliente no se pudo haber abierto ninguna sesion cobrable.
+    if (!this.cliente) return true;
+    try {
+      const sesion = await this.cliente.checkout.sessions.retrieve(sesionId);
+      if (sesion.status === 'expired') return true;
+      if (sesion.status !== 'open') return false; // complete: pudo cobrarse
+      // Si la clienta paga justo antes, Stripe rechaza el expire y cae al catch.
+      await this.cliente.checkout.sessions.expire(sesionId);
+      return true;
+    } catch (error) {
+      this.logger.warn(`No se pudo cerrar la sesion ${sesionId}: ${String(error)}`);
+      return false;
     }
   }
 

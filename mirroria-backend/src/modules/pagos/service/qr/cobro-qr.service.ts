@@ -222,6 +222,9 @@ export class CobroQrService {
 
     try {
       const acreditado = await this.dataSource.transaction(async (manager) => {
+        // Primero la venta (FOR UPDATE), igual que tarjeta y efectivo: mismo
+        // orden de bloqueo en los tres cobros, sin deadlocks entre ellos.
+        await manager.query('SELECT 1 FROM ventas WHERE id = $1 FOR UPDATE', [pago.ventaId]);
         const repo = manager.getRepository(Pago);
         // UPDATE condicionado a PENDIENTE, no "leer, chequear y guardar": con
         // dos avisos simultaneos sobre el mismo QR (doble toque, dos celulares)

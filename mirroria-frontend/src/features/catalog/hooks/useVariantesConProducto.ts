@@ -10,6 +10,7 @@ export interface VarianteConProducto {
   sku: string
   precioCents: number
   imagenUrl?: string
+  activo: boolean
 }
 
 /**
@@ -45,6 +46,7 @@ export function useVariantesConProducto() {
             sku: variante.sku,
             precioCents: producto.precioCents,
             imagenUrl: producto.imagenes?.[0]?.url,
+            activo: variante.activo,
           }))
         )
         if (!cancelado) setVariantes(planas)

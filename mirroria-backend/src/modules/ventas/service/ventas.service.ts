@@ -16,6 +16,7 @@ import type { CreateVentaPresencialDto } from '../dto/create-venta-presencial.dt
 import type { VentaResponseDto } from '../dto/ventas-response.dto.js';
 import { CanalVenta, EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { VentaItem } from '../entities/venta-item.entity.js';
+import { Carrito } from '../entities/carrito.entity.js';
 import { CarritosService } from './carritos.service.js';
 import { maxComprasPendientes, REGLAS_COMPRA } from '../reglas-compra.js';
 
@@ -82,41 +83,53 @@ export class VentasService {
   // ver AGENTS.md, decisión 2026-09-13.
   async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
-    const carrito = await this.carritosService.findOrCreateActivo(usuarioId);
-    if (carrito.items.length === 0) {
-      throw new OperacionInvalidaException(
-        'El carrito está vacío, no se puede completar la compra',
-      );
-    }
-    // El carrito ya lo limita al agregar, pero un carrito viejo (de antes del
-    // tope) o editado por otra vía no debe poder saltárselo en el checkout.
-    if (carrito.items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
-      throw new OperacionInvalidaException(
-        `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color por compra`,
-      );
-    }
-    const pendientes = await this.ventaRepository.count({
-      where: { clienteId: usuarioId, estado: EstadoVenta.PENDIENTE },
-    });
-    if (pendientes >= maxComprasPendientes()) {
-      throw new OperacionInvalidaException(
-        `Tenés ${pendientes} compras sin pagar. Pagá o esperá a que venza alguna ` +
-          'antes de hacer otra (las encontrás en Mis pedidos).',
-      );
-    }
+    // Todo en una transacción con el carrito bloqueado (FOR UPDATE): antes el
+    // carrito y el conteo de pendientes se leían afuera y el vaciado iba
+    // después, así que 4 checkouts simultáneos del mismo carrito creaban 4
+    // ventas (tope 2). Ahora el segundo espera y encuentra el carrito vacío.
+    return this.dataSource.transaction(async (manager) => {
+      const carrito = await manager.getRepository(Carrito).findOne({
+        where: { usuarioId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!carrito || carrito.items.length === 0) {
+        throw new OperacionInvalidaException(
+          'El carrito está vacío, no se puede completar la compra',
+        );
+      }
+      // El carrito ya lo limita al agregar, pero un carrito viejo (de antes del
+      // tope) o editado por otra vía no debe poder saltárselo en el checkout.
+      if (carrito.items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
+        throw new OperacionInvalidaException(
+          `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color por compra`,
+        );
+      }
+      const pendientes = await manager.getRepository(Venta).count({
+        where: { clienteId: usuarioId, estado: EstadoVenta.PENDIENTE },
+      });
+      if (pendientes >= maxComprasPendientes()) {
+        throw new OperacionInvalidaException(
+          `Tenés ${pendientes} compras sin pagar. Pagá o esperá a que venza alguna ` +
+            'antes de hacer otra (las encontrás en Mis pedidos).',
+        );
+      }
 
-    const venta = await this.registrarVenta({
-      items: carrito.items,
-      sucursalId: dto.sucursalId,
-      canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
-      clienteId: usuarioId,
-      cajeroId: null,
-      estadoInicial: EstadoVenta.PENDIENTE,
-      codigoCupon: dto.codigoCupon ?? null,
-    });
+      const venta = await this.registrarVenta(
+        {
+          items: carrito.items,
+          sucursalId: dto.sucursalId,
+          canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
+          clienteId: usuarioId,
+          cajeroId: null,
+          estadoInicial: EstadoVenta.PENDIENTE,
+          codigoCupon: dto.codigoCupon ?? null,
+        },
+        manager,
+      );
 
-    await this.carritosService.vaciar(usuarioId);
-    return venta;
+      await this.carritosService.vaciar(usuarioId, manager);
+      return venta;
+    });
   }
 
   async findAll(filtro: { sucursalId?: string; clienteId?: string }): Promise<VentaResponseDto[]> {
@@ -149,6 +162,15 @@ export class VentasService {
    */
   async marcarPagada(ventaId: string, manager?: EntityManager): Promise<void> {
     const repo = manager ? manager.getRepository(Venta) : this.ventaRepository;
+    // UPDATE condicionado a PENDIENTE, no "leer y guardar": un pago tardío
+    // leía PENDIENTE, la expiración cancelaba (devolviendo stock y cupón) y el
+    // save pisaba CANCELADA con PAGADA. Si la cancelación tiene la fila
+    // bloqueada, este UPDATE espera y luego no encuentra PENDIENTE.
+    const { affected } = await repo.update(
+      { id: ventaId, estado: EstadoVenta.PENDIENTE },
+      { estado: EstadoVenta.PAGADA, numeroComprobante: comprobanteDe(ventaId) },
+    );
+    if (affected === 1) return;
     const venta = await repo.findOne({ where: { id: ventaId } });
     if (!venta) {
       throw new RecursoNoEncontradoException('Venta', ventaId);
@@ -156,14 +178,7 @@ export class VentasService {
     if (venta.estado === EstadoVenta.PAGADA) {
       return;
     }
-    if (venta.estado !== EstadoVenta.PENDIENTE) {
-      throw new OperacionInvalidaException(
-        `No se puede cobrar una venta en estado ${venta.estado}`,
-      );
-    }
-    venta.estado = EstadoVenta.PAGADA;
-    venta.numeroComprobante ??= comprobanteDe(venta.id);
-    await repo.save(venta);
+    throw new OperacionInvalidaException(`No se puede cobrar una venta en estado ${venta.estado}`);
   }
 
   /**
@@ -186,7 +201,8 @@ export class VentasService {
 
   /**
    * Deshace un checkout que nunca se pago: devuelve el stock, devuelve el uso del
-   * cupon y deja la venta CANCELADA. Todo en una transaccion: o se deshacen las
+   * cupon, devuelve las prendas al carrito de la clienta y deja la venta
+   * CANCELADA. Todo en una transaccion: o se deshacen las
    * dos cosas o no se deshace ninguna.
    *
    * El movimiento se registra como AJUSTE y no como DEVOLUCION porque la
@@ -237,6 +253,12 @@ export class VentasService {
         await this.promocionesService.liberarCupon(venta.cuponId, manager);
       }
 
+      // El checkout vació el carrito al crear la venta: sin esto las prendas
+      // desaparecían al cancelar o vencer. Vuelven sumándose a lo que haya.
+      if (venta.clienteId) {
+        await this.carritosService.devolverItems(venta.clienteId, items, manager);
+      }
+
       venta.estado = EstadoVenta.CANCELADA;
       await ventaRepo.save(venta);
     });
@@ -248,12 +270,26 @@ export class VentasService {
    * es donde el inventario se actualiza automáticamente), y guarda
    * venta + venta_items en una sola transacción.
    */
-  private async registrarVenta(params: RegistrarVentaParams): Promise<VentaResponseDto> {
+  private async registrarVenta(
+    params: RegistrarVentaParams,
+    managerExterno?: EntityManager,
+  ): Promise<VentaResponseDto> {
     const variantes = await Promise.all(
       params.items.map((item) => this.productosService.findVarianteById(item.varianteId)),
     );
+    // Online no se vende lo dado de baja (el carrito puede tenerlo de antes).
+    if (params.canal !== CanalVenta.PRESENCIAL) {
+      const inactiva = variantes.find((v) => !v.activo || !v.producto?.activo);
+      if (inactiva) {
+        throw new OperacionInvalidaException(
+          `"${inactiva.producto?.titulo ?? 'Una prenda'}" ya no está disponible: quitala del carrito para continuar`,
+        );
+      }
+    }
 
-    return this.dataSource.transaction(async (manager) => {
+    const ejecutar = (fn: (manager: EntityManager) => Promise<VentaResponseDto>) =>
+      managerExterno ? fn(managerExterno) : this.dataSource.transaction(fn);
+    return ejecutar(async (manager) => {
       let subtotalCents = 0;
       const itemsAGuardar: {
         varianteId: string;
@@ -281,6 +317,8 @@ export class VentasService {
           tipoMovimiento: TipoMovimientoInventario.VENTA,
           usuarioId: params.cajeroId ?? params.clienteId ?? null,
           manager,
+          // Sin reserva, solo se vende lo que no está apartado.
+          respetarReservadas: !params.reservaId,
         });
       }
 
