@@ -70,8 +70,12 @@ export class VentasController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
-  findAll(@Query('sucursalId') sucursalId?: string): Promise<VentaResponseDto[]> {
-    return this.ventasService.findAll({ sucursalId });
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('sucursalId') sucursalId?: string,
+  ): Promise<VentaResponseDto[]> {
+    // Igual que GET /reservas: el encargado solo ve su sucursal (la del JWT manda).
+    return this.ventasService.findAll({ sucursalId: sucursalDelStaff(user) ?? sucursalId });
   }
 
   // "Mis Pedidos & Compras" del perfil — mismo patrón que GET /reservas/mias.
@@ -101,6 +105,11 @@ export class VentasController {
     // legible por nadie que no sea staff.
     if (user.role === 'CUSTOMER') {
       assertOwnUser(venta.clienteId ?? '', user);
+    } else {
+      const propia = sucursalDelStaff(user);
+      if (propia && venta.sucursalId !== propia) {
+        throw new ForbiddenActionException('La venta es de otra sucursal');
+      }
     }
     return venta;
   }

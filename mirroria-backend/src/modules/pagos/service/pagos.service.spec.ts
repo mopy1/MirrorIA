@@ -7,6 +7,7 @@ import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.en
 import { VentaNoPagableException } from '../exception/venta-no-pagable.exception.js';
 import { CobroSobreVentaMuertaException } from '../exception/cobro-sobre-venta-muerta.exception.js';
 import { PasarelaNoConfiguradaException } from '../exception/pasarela-no-configurada.exception.js';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { FirmaWebhookInvalidaException } from '../exception/firma-webhook-invalida.exception.js';
 import type { VentasService } from '../../ventas/service/ventas.service.js';
 import type { ExpiracionService } from './expiracion.service.js';
@@ -45,7 +46,7 @@ describe('PagosService — cobro manual', () => {
     };
     ventas = {
       findOne: vi.fn().mockResolvedValue({
-        id: 'v1', clienteId: 'cli1', estado: 'PENDIENTE', totalCents: 25000,
+        id: 'v1', clienteId: 'cli1', sucursalId: 's1', estado: 'PENDIENTE', totalCents: 25000,
       }),
       marcarPagada: vi.fn(),
     };
@@ -128,6 +129,15 @@ describe('PagosService — cobro manual', () => {
     await expect(
       service.iniciarManual('v1', { metodo: MetodoPago.EFECTIVO }, DUENO),
     ).rejects.toThrow(VentaNoPagableException);
+  });
+
+  it('un cajero no confirma el cobro de una venta de otra sucursal (403)', async () => {
+    pagoRepo.findOne.mockResolvedValue({
+      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+    });
+    ventas.findOne.mockResolvedValue({ id: 'v1', sucursalId: 'OTRA', estado: 'PENDIENTE' });
+    await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow(ForbiddenActionException);
+    expect(ventas.marcarPagada).not.toHaveBeenCalled();
   });
 
   it('confirmar aprueba el pago y cobra la venta', async () => {

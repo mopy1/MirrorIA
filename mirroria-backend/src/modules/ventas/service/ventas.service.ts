@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
@@ -17,6 +18,11 @@ import { CanalVenta, EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { VentaItem } from '../entities/venta-item.entity.js';
 import { CarritosService } from './carritos.service.js';
 import { maxComprasPendientes, REGLAS_COMPRA } from '../reglas-compra.js';
+
+// Comprobante corto y determinista, mismo criterio que el código de reserva
+// (#XXXXXXXX): sin tabla ni secuencia, se deriva del id al quedar PAGADA.
+export const comprobanteDe = (ventaId: string): string =>
+  `C-${ventaId.slice(0, 8).toUpperCase()}`;
 
 interface ItemAVender {
   varianteId: string;
@@ -156,6 +162,7 @@ export class VentasService {
       );
     }
     venta.estado = EstadoVenta.PAGADA;
+    venta.numeroComprobante ??= comprobanteDe(venta.id);
     await repo.save(venta);
   }
 
@@ -293,8 +300,12 @@ export class VentasService {
       const totalCents = Math.max(0, subtotalCents - descuentoCents);
 
       const ventaRepo = manager.getRepository(Venta);
+      // id generado acá (no por la BD) para poder derivar el comprobante de la
+      // venta presencial, que nace PAGADA, en el mismo INSERT.
+      const id = randomUUID();
       const venta = await ventaRepo.save(
         ventaRepo.create({
+          id,
           clienteId: params.clienteId,
           sucursalId: params.sucursalId,
           cajeroId: params.cajeroId,
@@ -302,7 +313,8 @@ export class VentasService {
           cuponId,
           canal: params.canal,
           estado: params.estadoInicial,
-          numeroComprobante: null,
+          numeroComprobante:
+            params.estadoInicial === EstadoVenta.PAGADA ? comprobanteDe(id) : null,
           subtotalCents,
           descuentoCents,
           totalCents,

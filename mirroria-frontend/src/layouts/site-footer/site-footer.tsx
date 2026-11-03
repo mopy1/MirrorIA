@@ -7,7 +7,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border/60">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <BrandLogo size="default" />
             <p className="mt-3 max-w-[28ch] text-sm text-muted-foreground">

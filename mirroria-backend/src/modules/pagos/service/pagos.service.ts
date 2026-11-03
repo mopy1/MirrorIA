@@ -6,6 +6,8 @@ import type { DataSource } from 'typeorm';
 import { Repository } from 'typeorm';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
+import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
 import type { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
@@ -256,6 +258,11 @@ export class PagosService {
         'un cobro por QR lo confirma el banco, no una persona',
       );
     }
+    // Un cajero solo confirma efectivo de ventas de su sucursal (ADMIN, todas).
+    const propia = sucursalDelStaff(user);
+    if (propia && (await this.ventasService.findOne(pago.ventaId)).sucursalId !== propia) {
+      throw new ForbiddenActionException('El cobro es de una venta de otra sucursal');
+    }
     if (pago.estado === EstadoPago.APROBADO) {
       return this.aDto(pago);
     }
@@ -293,19 +300,25 @@ export class PagosService {
     }
   }
 
-  /** Lo que ve el panel de cobros del equipo. */
-  async pendientes(): Promise<PagoResponseDto[]> {
-    const filas = await this.pagoRepository.find({
-      where: { estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL },
-      order: { createdAt: 'DESC' },
-      take: 100,
-    });
+  /** Lo que ve el panel de cobros del equipo; con sucursalId, solo esa sucursal. */
+  async pendientes(sucursalId?: string): Promise<PagoResponseDto[]> {
+    const qb = this.pagoRepository
+      .createQueryBuilder('p')
+      .where('p.estado = :estado', { estado: EstadoPago.PENDIENTE })
+      .andWhere('p.proveedorPago = :prov', { prov: ProveedorPago.MANUAL });
+    // Sin relacion ORM hacia ventas (regla 1): subconsulta por uuid.
+    if (sucursalId) {
+      qb.andWhere('p.ventaId IN (SELECT v.id FROM ventas v WHERE v.sucursal_id = :sucursalId)', {
+        sucursalId,
+      });
+    }
+    const filas = await qb.orderBy('p.createdAt', 'DESC').take(100).getMany();
     return filas.map((p) => this.aDto(p));
   }
 
   /**
    * Lo que la clienta lee en el formulario de la pasarela. Antes era
-   * `Compra <numeroComprobante ?? id>` y, como ese campo no se escribe nunca,
+   * `Compra <numeroComprobante ?? id>` y, como ese campo recien se escribe al quedar PAGADA,
    * terminaba mostrando el uuid crudo: "Compra 8f3a1c9e-4b2d-...". Se usan los
    * primeros caracteres en mayusculas, igual que el panel de ventas.
    */

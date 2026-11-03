@@ -1,5 +1,6 @@
 import { createDecartClient, models, type RealTimeClient } from "@decartai/sdk"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { ApiError } from "@/lib/api"
 import { probadorApi } from "../api/probadorApi"
 
 export type EstadoIA = "inactivo" | "conectando" | "conectado" | "error"
@@ -13,11 +14,14 @@ const MODELO = models.realtime("lucy-vton-3.5")
  * una reconexión — así lo documenta la guía de e-commerce try-on de Decart.
  *
  * El token que arma la conexión es efímero (`probadorApi.obtenerToken`,
- * 10 min): la clave real (`DECART_API_KEY`) nunca sale del backend.
+ * 5 min): la clave real (`DECART_API_KEY`) nunca sale del backend.
  */
 export function useProbadorIA(stream: MediaStream | null) {
   const [remoto, setRemoto] = useState<MediaStream | null>(null)
   const [estado, setEstado] = useState<EstadoIA>("inactivo")
+  // Solo el 429 del backend (tope de tokens por IP): ese mensaje le dice a la
+  // clienta cuánto esperar; cualquier otro fallo queda en el genérico.
+  const [limite, setLimite] = useState<string | null>(null)
   const cliente = useRef<RealTimeClient | null>(null)
   const vivo = useRef(true)
 
@@ -30,6 +34,7 @@ export function useProbadorIA(stream: MediaStream | null) {
     }
 
     setEstado("conectando")
+    setLimite(null)
     probadorApi
       .obtenerToken()
       .then(({ apiKey }) => {
@@ -56,8 +61,10 @@ export function useProbadorIA(stream: MediaStream | null) {
         }
         cliente.current = rt
       })
-      .catch(() => {
-        if (vivo.current) setEstado("error")
+      .catch((e: unknown) => {
+        if (!vivo.current) return
+        if (e instanceof ApiError && e.status === 429) setLimite(e.message)
+        setEstado("error")
       })
 
     return () => {
@@ -79,5 +86,5 @@ export function useProbadorIA(stream: MediaStream | null) {
     return true
   }, [])
 
-  return { remoto, estado, probarPrenda }
+  return { remoto, estado, limite, probarPrenda }
 }

@@ -604,13 +604,14 @@ en el frontend, **23 de 23 tablas del diseño completas por primera vez** (antes
 acá, solo modo test), el QR escaneado con un banco de verdad, y las pantallas de pago vistas por
 una persona.
 
-### Hallazgo preexistente, ajeno a este trabajo: `ventas.numeroComprobante`
+### `ventas.numeroComprobante` (resuelto 2026-11-03)
 
-Campo muerto: se crea siempre en `null` (`VentasService.registrarVenta`/`registrarPresencial`) y
-ningún punto del backend lo escribe nunca, ni siquiera al cobrar — no se tocó en esta tarea
-porque no era su alcance. Por eso la referencia que ve la clienta (`InstruccionesResponseDto`
-hace `venta.numeroComprobante ?? venta.id`, igual que `iniciarTarjeta` en la descripción de la
-sesión de Stripe) cae siempre al identificador de la venta. Vale avisarle a Leonardo.
+Se escribe al quedar la venta `PAGADA`, sin tabla ni secuencia: `comprobanteDe(id)` en
+`ventas.service.ts` = `C-` + primeros 8 caracteres del id en mayúsculas (mismo criterio que el
+código de reserva). Dos puntos únicos: `marcarPagada` (Stripe, QR Wayra y efectivo confirmado
+pasan todos por ahí) y `registrarVenta` cuando nace `PAGADA` (presencial; el id se genera con
+`randomUUID()` en el service para derivarlo en el mismo INSERT). Mientras está `PENDIENTE` sigue
+en `null`.
 
 ## ✅ Auditoría de arquitectura sobre los 89 commits de `ia`+`pagos` (2026-09-22)
 
@@ -649,11 +650,12 @@ relación con ningún otro módulo.
   **nunca sale de este servidor** — mismo criterio que ya usa `pagos` con las claves de Stripe.
 - **Sin `DECART_API_KEY` el endpoint responde 503** (`ProbadorNoConfiguradoException`), mismo
   patrón que `IaNoConfiguradaException` en `ia/` — el resto del sitio sigue funcionando igual.
-- **Sin rate-limiting todavía:** el endpoint es público y no hay `@nestjs/throttler` instalado
-  en el proyecto — cada llamada gasta crédito real de la cuenta de Decart. Aceptado por ahora
-  (mismo tamaño de riesgo que cualquier otro endpoint público sin proteger de este proyecto de
-  examen); si se vuelve un problema real, la solución es un guard de límite de tasa, no algo que
-  ya esté resuelto acá.
+- **Tope por IP (2026-11-03):** máx. 10 tokens cada 10 min por IP → 429
+  (`LimiteTokensProbadorException`). Ventana fija en un `Map` en memoria dentro de
+  `ProbadorService` (sin `@nestjs/throttler`, que no está instalado; vale porque hay una sola
+  instancia). La IP sale de `X-Real-IP` (Nginx la pisa con `$remote_addr`, en `nginx.conf` y
+  `nginx.prod.conf`), con fallback a `req.ip` si se llama directo a `:3000` (móvil en dev).
+  No se usa el primer valor de `X-Forwarded-For` porque lo controla el cliente.
 
 ## 🗺️ Roadmap de los módulos que faltan
 
@@ -773,7 +775,9 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
   móvil); el panel admin lo muestra y busca por ese prefijo. No hay columna nueva.
 - Verificado con 14 escenarios contra la API real (Postgres local), más los 21 de las reglas
   anti-acaparamiento; 182 unitarias en verde; e2e con las mismas 2 fallas preexistentes.
-- **Donde `sucursalDelStaff` NO se aplica todavía (revisado 2026-11-03):** `GET /ventas`
-  (el encargado puede pasar `?sucursalId` de otra), `GET /pagos/pendientes` y
-  `POST /pagos/:pagoId/confirmar` (un cajero ve/confirma efectivo de cualquier sucursal),
-  `POST /inventario/ajustes` y `GET /inventario/movimientos`. Si se acota, usar el mismo helper.
+- **`sucursalDelStaff` también en ventas, pagos e inventario (2026-11-03):** `GET /ventas` y
+  `GET /inventario/movimientos` (el sucursalId del JWT pisa la query), `GET /ventas/:id` (staff
+  de otra sucursal → 403), `POST /inventario/ajustes` (403 si `dto.sucursalId` no es la suya),
+  `GET /pagos/pendientes` (subconsulta `venta_id IN (SELECT id FROM ventas WHERE sucursal_id=…)`,
+  sin relación ORM) y `POST /pagos/:pagoId/confirmar` (lee la venta vía `VentasService`, 403 si
+  es de otra sucursal, antes de aprobar).

@@ -5,6 +5,8 @@ export interface SenalesProbador {
   /** ¿Se está intentando conectar en este momento? Distingue "todavía no
    * conectó" de "falló al conectar" para el mensaje del panel. */
   iaConectando: boolean
+  /** Mensaje del backend cuando se alcanzó el tope de conexiones (429). */
+  limiteIA?: string | null
   prendaElegida: boolean
 }
 
@@ -44,7 +46,9 @@ export function calcularPasos(s: SenalesProbador): PasosProbador {
       camara: "listo",
       ia: "activo",
       prenda: s.prendaElegida ? "listo" : "pendiente",
-      mensaje: s.iaConectando ? "Conectando con la IA…" : "No se pudo conectar con la IA. Reintentá.",
+      mensaje: s.iaConectando
+        ? "Conectando con la IA…"
+        : (s.limiteIA ?? "No se pudo conectar con la IA. Reintentá."),
       completo: false,
     }
   }

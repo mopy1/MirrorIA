@@ -19,11 +19,4 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Contacto", href: "#contacto" },
     ],
   },
-  {
-    title: "Legal",
-    links: [
-      { label: "Términos y condiciones", href: "#" },
-      { label: "Privacidad", href: "#" },
-    ],
-  },
 ]

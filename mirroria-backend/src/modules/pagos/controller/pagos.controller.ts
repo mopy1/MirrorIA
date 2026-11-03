@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
+import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import {
   CobroQrResponseDto,
   EstadoCobroQrResponseDto,
@@ -90,7 +91,7 @@ export class PagosController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
-    summary: 'Iniciar un cobro por QR o efectivo sobre una venta propia',
+    summary: 'Iniciar un cobro en efectivo sobre una venta propia (el QR va por /ventas/:ventaId/qr)',
   })
   iniciarManual(
     @Param('ventaId') ventaId: string,
@@ -150,8 +151,9 @@ export class PagosController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'CAJERO')
   @ApiOperation({ summary: 'Cobros manuales esperando confirmación' })
-  pendientes(): Promise<PagoResponseDto[]> {
-    return this.pagosService.pendientes();
+  pendientes(@CurrentUser() user: JwtPayload): Promise<PagoResponseDto[]> {
+    // Igual que GET /reservas: el cajero solo ve los cobros de su sucursal.
+    return this.pagosService.pendientes(sucursalDelStaff(user));
   }
 
   @Post('expirar-vencidas')

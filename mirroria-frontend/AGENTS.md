@@ -114,7 +114,6 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 | `*` | `errors/NotFoundPage` | público |
 | `/carrito` | `cart/CartPage` | `ProtectedRoute` |
 | `/checkout` | `checkout/CheckoutPage` | `ProtectedRoute` |
-| `/checkout/:id/confirmacion` | `checkout/OrderConfirmationPage` | `ProtectedRoute` — ⚠️ huérfana |
 | `/pago/:ventaId` (`?metodo=QR`) | `payments/PagoPage` | `ProtectedRoute` |
 | `/pago/exito`, `/pago/cancelado` | `payments/PagoPage` | `ProtectedRoute` |
 | `/reservas` | `reservations/MyReservationsPage` | `ProtectedRoute` |
@@ -127,21 +126,19 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 | `/admin/cobros` | `admin/CobrosAdminPage` | `StaffRoute` ADMIN, CAJERO |
 | `/admin/reportes` | `admin/ReportesAdminPage` | `StaffRoute` default (ADMIN, ENCARGADO_SUCURSAL) |
 
-**Navegación (sin páginas huérfanas salvo la marcada):**
+**Navegación (sin páginas huérfanas):**
 - Header (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
   `useCategorias`), buscador, carrito con badge. `header-auth.tsx`: sin sesión → login/registro;
   con sesión → "Mis reservas" + link de staff por rol (`ADMIN` → `/admin`, `CAJERO` →
   `/admin/cobros`, `ENCARGADO_SUCURSAL` → `/admin/reportes`, porque `/admin` redirige a una ruta
   solo ADMIN).
 - Footer (`site-footer.data.ts`): Catálogo, Vestidor virtual (`/probador`), Sucursales,
-  Reservas, Contacto (`#contacto`); Términos y Privacidad apuntan a `#` (placeholder).
+  Reservas, Contacto (`#contacto`). Sin columna Legal (no hay páginas de términos/privacidad).
 - Hero y feature-highlights enlazan a `/tienda` y `/probador`; la ficha enlaza a
   `/probador/:id`.
 - Sidebar admin (`admin-sidebar-content.tsx`): filtra ítems por `roles` (mismos del router) y
   oculta los grupos vacíos.
 - `/wayra/pagar/:token` no tiene link interno a propósito: se llega escaneando el QR.
-- `/checkout/:id/confirmacion` **no la alcanza ningún flujo** desde que el checkout navega a
-  `/pago/:ventaId` — candidata a borrar o a reutilizar como "Mis pedidos".
 
 ---
 
@@ -237,8 +234,7 @@ lookup), `pages/BranchesPage.tsx`.
     `state.motivo`.
   - `QR` → `/pago/:id?metodo=QR`. `EFECTIVO` → `/pago/:id?metodo=EFECTIVO`.
 - `components/{order-summary,cupon-input}/`, `pages/CheckoutPage.tsx` (resumen, cupón,
-  `BranchPicker`, selector Tarjeta/QR/Efectivo), `pages/OrderConfirmationPage.tsx` +
-  `hooks/useVenta.ts` (⚠️ sin navegación entrante, ver §2).
+  `BranchPicker`, selector Tarjeta/QR/Efectivo).
 
 ### `features/payments/` ↔ backend `pagos`
 - `api/paymentsApi.ts`: `iniciarManual(ventaId, "EFECTIVO")`, `iniciarTarjeta`, `iniciarQr`
@@ -388,13 +384,10 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   pantalla. Hoy la caja usa `/admin/reservas` y `/admin/cobros`.
 - **"Mis pedidos" web:** no existe; el 409 de "2 compras sin pagar" del checkout la menciona sin
   link.
-- **`OrderConfirmationPage` (`/checkout/:id/confirmacion`) huérfana** desde que el checkout
-  navega a `/pago/:ventaId`.
 - **`reportsApi.historial` sin uso** en la UI.
 - **Legado del vestidor AR:** `public/prendas/*.png`, el campo `arOverlayImageUrl` (formularios
   de producto del admin y tipos) y la `location ^~ /prendas/` de Nginx eran del AR del móvil, que
   también migró a Decart el 2026-09-29. Verificar si alguien los sigue usando antes de borrarlos.
-- **Footer:** "Términos y condiciones" y "Privacidad" apuntan a `#`.
 - **Login/registro:** falta botón para mostrar la contraseña (el móvil lo tiene).
 - **`/probador/token`** es público y sin rate-limiting (gasta crédito de Decart).
 

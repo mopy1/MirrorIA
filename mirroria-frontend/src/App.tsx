@@ -20,7 +20,6 @@ import { ProductDetailPage } from "@/features/catalog/pages/ProductDetailPage"
 import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
 import { CartPage } from "@/features/cart/pages/CartPage"
 import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
-import { OrderConfirmationPage } from "@/features/checkout/pages/OrderConfirmationPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import { WayraPagoPage } from "@/features/wayra/pages/WayraPagoPage"
@@ -52,7 +51,6 @@ const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: b
   { path: "/sucursales", Component: BranchesPage },
   { path: "/carrito", Component: CartPage, protected: true },
   { path: "/checkout", Component: CheckoutPage, protected: true },
-  { path: "/checkout/:id/confirmacion", Component: OrderConfirmationPage, protected: true },
   // Las 3 rutas de pago renderizan la misma página — PagoPage decide qué
   // mostrar mirando el pathname actual.
   { path: "/pago/:ventaId", Component: PagoPage, protected: true },

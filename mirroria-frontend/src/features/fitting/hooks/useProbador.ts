@@ -23,7 +23,7 @@ export function useProbador(productoId?: string) {
   const { productos } = useProductos()
   const { categorias } = useCategorias()
   const { stream, estado, reintentar } = useCamara()
-  const { remoto, estado: estadoIA, probarPrenda } = useProbadorIA(stream)
+  const { remoto, estado: estadoIA, limite, probarPrenda } = useProbadorIA(stream)
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [prenda, setPrenda] = useState<Producto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -75,6 +75,7 @@ export function useProbador(productoId?: string) {
     hayCamara: estado === "lista",
     iaConectada: estadoIA === "conectado",
     iaConectando: estadoIA === "conectando",
+    limiteIA: limite,
     prendaElegida: Boolean(prenda),
   })
 

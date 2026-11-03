@@ -1,8 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
+import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
+import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto.js';
 import type { InventarioSucursalResponseDto } from '../dto/inventario-response.dto.js';
 import { TipoMovimientoInventario } from '../entities/movimiento-inventario.entity.js';
@@ -31,7 +35,14 @@ export class InventarioController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
-  async ajustar(@Body() dto: AjustarStockDto): Promise<InventarioSucursalResponseDto> {
+  async ajustar(
+    @Body() dto: AjustarStockDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<InventarioSucursalResponseDto> {
+    const propia = sucursalDelStaff(user);
+    if (propia && dto.sucursalId !== propia) {
+      throw new ForbiddenActionException('Solo podés ajustar el stock de tu sucursal');
+    }
     const fila = await this.inventarioSucursalService.ajustarStock({
       varianteId: dto.varianteId,
       sucursalId: dto.sucursalId,

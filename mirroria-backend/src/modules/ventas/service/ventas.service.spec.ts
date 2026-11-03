@@ -56,6 +56,14 @@ describe('VentasService — cobro y cancelacion', () => {
     );
   });
 
+  it('marcarPagada escribe el numeroComprobante derivado del id', async () => {
+    ventaRepo.findOne.mockResolvedValue({ ...VENTA_BASE, id: 'abcdef12-3456' });
+    await service.marcarPagada('abcdef12-3456');
+    expect(ventaRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ numeroComprobante: 'C-ABCDEF12' }),
+    );
+  });
+
   it('marcarPagada es idempotente: una venta ya PAGADA no se toca ni falla', async () => {
     ventaRepo.findOne.mockResolvedValue({ ...VENTA_BASE, estado: EstadoVenta.PAGADA });
     await service.marcarPagada('v1');
