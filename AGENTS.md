@@ -3,8 +3,8 @@
 ## 🌐 1. Qué es este proyecto
 
 **MirrorIA** es el proyecto del Examen 1 de Sistemas de Información II (S2-2026): una
-plataforma de e-commerce **multi-sucursal, exclusivamente de moda femenina**, con vestidor
-virtual por realidad aumentada, reservas de prendas para probar en tienda, punto de venta
+plataforma de e-commerce **multi-sucursal, exclusivamente de moda femenina**, con probador
+virtual por IA (Decart VTON, reemplazó al vestidor AR original), reservas de prendas para probar en tienda, punto de venta
 presencial y digital, y un asistente/recomendador con IA. El enunciado completo, el diseño de
 base de datos (23 tablas, DBML) y las decisiones de diseño viven en el vault de Obsidian, no
 en este repo:
@@ -102,7 +102,7 @@ cd mirroria-frontend && npm run dev
 docker compose up -d --build
 ```
 
-## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-09-22)
+## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-03)
 
 - ✅ Postgres dockerizado y funcionando. **Las 23 tablas del diseño están completas** (antes de
   cerrar `pagos` eran 22 de 23).
@@ -113,9 +113,9 @@ docker compose up -d --build
   fijo, validación pública, consumo transaccional en ventas con cálculo de descuento), `ia`
   (CU24, reportes dinámicos por lenguaje natural — el modelo nunca escribe SQL) y **`pagos`**
   (RF19, cerrado 2026-09-21: tarjeta por Stripe con webhook firmado como única autoridad sobre
-  el cobro, más QR/efectivo confirmados a mano por un `CAJERO`/`ADMIN` — ver
-  `mirroria-backend/AGENTS.md` para el detalle real, incluida la salvedad sobre el QR y el
-  dinero real).
+  el cobro, efectivo confirmado a mano por un `CAJERO`/`ADMIN`, y desde 2026-11-03 QR dinámico
+  con el banco simulado Wayra que se acredita solo — ver más abajo y
+  `mirroria-backend/AGENTS.md`).
 - ✅ `mirroria-frontend/` — e-commerce completo funcionando de punta a punta contra el backend
   real: inicio, tienda, ficha de producto, carrito, checkout (ahora con soporte de cupones de
   descuento y cálculo reactivo de ahorros), pago de la venta (tarjeta vía Stripe, o instrucciones
@@ -133,8 +133,16 @@ docker compose up -d --build
   (2026-09-29): el vestidor AR anterior (ML Kit + `.glb` con three.js) se eliminó entero y se
   reemplazó por el mismo Decart que usa la web, sobre WebRTC nativo (LiveKit). Requiere el dev
   build (`com.mirroria.app`), no corre en Expo Go — ver `mirroria-mobile/AGENTS.md`.
-- ✅ Backend dockerizado (`docker-compose.yml`, servicio `mirroria-backend`) junto a Postgres —
-  falta dockerizar el frontend y el despliegue en Azure.
+- ✅ Todo dockerizado (`docker-compose.yml`, proyecto compose `name: mirroria`): `mirroria_postgres`,
+  `mirroria_backend` y `mirroria_frontend` (Nginx en `:80`, proxy `/api/` al backend). Despliegue
+  a Azure por `scripts/deploy-azure.sh` (ver §8).
+- ✅ **Cobro por QR dinámico con banco simulado Wayra** (rama `pago-qr`, mergeada 2026-11-03):
+  la tienda genera un QR por compra (`POST /pagos/ventas/:id/qr`) y hace polling del estado; al
+  escanearlo se abre `/wayra/pagar/:token` (la "app del banco", pública), que paga con PIN de
+  prueba y avisa al backend con firma HMAC (`POST /pagos/qr/aviso`), que acredita solo. Reemplaza
+  al QR estático confirmado a mano (`PAGOS_QR_URL` eliminado; el cobro manual quedó solo para
+  efectivo). Env opcionales `WAYRA_URL_BASE`, `WAYRA_SECRETO_AVISOS`, `WAYRA_HABILITADO` — apagar
+  Wayra el día que haya pasarela real.
 - ✅ Asistente de reportes por IA (CU24) migrado de Gemini a **DeepSeek** (2026-09-22, decisión
   del usuario) — verificado por primera vez contra un modelo real de punta a punta (ver
   `mirroria-backend/AGENTS.md`, sección del cambio de proveedor).
@@ -161,7 +169,7 @@ docker compose up -d --build
   `mirroria-mobile/AGENTS.md`); el detalle de la web está en `mirroria-frontend/AGENTS.md` y
   `mirroria-backend/AGENTS.md`.
 
-## 🧭 8. Dónde está todo (actualizado 2026-09-29) — leer antes de pedir una mejora
+## 🧭 8. Dónde está todo (actualizado 2026-11-03) — leer antes de pedir una mejora
 
 - **Reglas de negocio** (topes de reserva/compra, vencimiento, faltas, flujo de mostrador,
   alcance por sucursal, código de reserva): vault `U/2-2026/SI2/Parcial1/App/Reglas_de_Negocio.md`
@@ -172,4 +180,9 @@ docker compose up -d --build
 - **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios).
 - **Móvil**: probador IA con Decart, QA completo en celular real y trampas de ADB/WSL en
   `mirroria-mobile/AGENTS.md`; resumen en vault `App/Mobile.md`.
-- **Push a GitHub**: suspendido por el usuario — solo commits locales hasta nuevo aviso.
+- **GitHub** (`mopy1/MirrorIA`): push a `main` habilitado de nuevo (2026-11-03). La rama
+  `arreglos-vestidor-ar` es del AR viejo y quedó obsoleta (choca con el módulo pose-detector que
+  `main` ya borró) — no mergearla.
+- **Vault de la app** (`U/2-2026/SI2/Parcial1/App/`): `Backend.md`, `Frontend.md`, `Database.md`,
+  `Endpoints.md`, `Reglas_de_Negocio.md`, `Troubleshooting.md`, `Despliegue_Azure.md`, `Mobile.md`
+  — actualizados al 2026-11-03 (web; `Mobile.md` sigue al 2026-09-29).

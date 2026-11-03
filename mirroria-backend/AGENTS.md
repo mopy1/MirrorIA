@@ -9,7 +9,10 @@ de base de datos completo (23 tablas, DBML) vive en el vault, no acá:
 
 NestJS 12 (Node 24, TypeScript 6, **ESM real** — no CommonJS), TypeORM 1.x + PostgreSQL 16,
 Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`, Swagger
-(`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual).
+(`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual), oxlint.
+Integraciones: `stripe` (tarjeta), `qrcode` (PNG del QR de cobro), `@decartai/sdk` (probador),
+DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 72 (`docker logs mirroria_backend | grep
+Mapped`); contrato de cada una en el vault, `U/2-2026/SI2/Parcial1/App/Endpoints.md`.
 
 > [!IMPORTANT]
 > **Este proyecto es ESM puro** (`"type": "module"` en `package.json`, `tsconfig.json` con
@@ -23,9 +26,9 @@ Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`
 
 ```text
 src/
-├── main.ts                    # bootstrap: prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs
-├── app.module.ts               # wiring: Config + TypeORM + los 10 módulos de negocio
-├── app.controller.ts           # GET /api/v1/health (health-check, no "Hello World")
+├── main.ts                    # bootstrap: rawBody:true (firmas de webhook/aviso), prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs
+├── app.module.ts               # wiring: Config + TypeORM + CoreSecurityModule + los 11 módulos de negocio
+├── app.controller.ts           # GET /api/v1/health → { status: 'ok', service: 'mirroria-backend' }
 ├── app.service.ts
 │
 ├── core/                        # 🌐 Infraestructura transversal — CERO lógica de negocio,
@@ -36,36 +39,67 @@ src/
 │   ├── database/
 │   │   └── base.entity.ts       # BaseEntity abstracta: id uuid (gen_random_uuid), createdAt, updatedAt
 │   ├── security/
-│   │   ├── jwt-payload.interface.ts
+│   │   ├── core-security.module.ts  # @Global(): registra PassportModule una sola vez
+│   │   ├── jwt-payload.interface.ts # { sub, email, role, sucursalId }
 │   │   ├── jwt-auth.guard.ts    # @UseGuards(JwtAuthGuard) — genérico, reutilizable por cualquier módulo
 │   │   ├── roles.decorator.ts   # @Roles('ADMIN', ...)
 │   │   ├── roles.guard.ts       # exige @UseGuards(JwtAuthGuard, RolesGuard) en ese orden
 │   │   ├── current-user.decorator.ts  # @CurrentUser() user: JwtPayload
+│   │   ├── assert-own-user.ts   # 403 si el recurso no es del usuario del JWT (carrito, venta, pago)
+│   │   ├── sucursal-del-staff.ts # ADMIN → sin límite; staff → su sucursalId del JWT; sin sucursal → 403
 │   │   └── express.d.ts         # augmenta Request.user con JwtPayload
 │   └── exception/
 │       ├── business.exception.ts           # base abstracta de toda excepción de negocio
 │       ├── recurso-no-encontrado.exception.ts  # 404
 │       ├── recurso-duplicado.exception.ts      # 409
+│       ├── operacion-invalida.exception.ts     # 409 (regla de negocio violada)
+│       ├── stock-insuficiente.exception.ts     # 409
+│       ├── forbidden-action.exception.ts       # 403 (ownership / alcance, distinto del 403 por rol)
 │       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }
 │
 └── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
-                                  # TableGroups de Diseño_BD.md en el vault)
-    ├── seguridad/                # ✅ implementado — auth (registro/login/perfil)
-    ├── proveedores/               # ✅ implementado — proveedores (CRUD mínimo: crear + listar)
-    ├── catalogo/                  # ✅ implementado — categorias, temporadas, colecciones, tallas, colores, productos, variantes_producto
-    ├── sucursales/                # ✅ implementado — ciudades, sucursales
-    ├── inventario/                # ✅ implementado — inventario_sucursal, movimientos_inventario, ordenes_compra
-    ├── reservas/                  # ✅ implementado — reservas, reserva_items (RF09-12, transiciones de estado, integración con ventas)
-    ├── ventas/                    # ✅ implementado — carritos, ventas, venta_items
-    ├── promociones/               # ✅ implementado — cupones (porcentuales y monto fijo, validación y consumo en ventas)
-    ├── pagos/                     # ✅ implementado — pagos (RF19: Stripe con webhook firmado + QR dinámico con banco simulado Wayra + efectivo manual)
-    ├── ia/                        # ✅ implementado — interacciones_ia, reportes dinamicos (CU24)
-    └── probador/                  # ✅ implementado — token efimero de Decart para el probador web (RF13, sin tabla propia)
+    │                             # TableGroups de Diseño_BD.md en el vault)
+    ├── seguridad/                # ✅ auth (registro/login/perfil) + gestión de usuarios/roles/estado (RF02); security/jwt.strategy.ts
+    ├── proveedores/               # ✅ proveedores (crear, listar, ver — solo ADMIN)
+    ├── catalogo/                  # ✅ categorias, temporadas, colecciones, tallas, colores, productos, variantes_producto
+    ├── sucursales/                # ✅ ciudades, sucursales
+    ├── inventario/                # ✅ inventario_sucursal, movimientos_inventario, ordenes_compra
+    ├── reservas/                  # ✅ reservas, reserva_items (RF09-12) + reglas-reserva.ts (topes anti-acaparamiento)
+    ├── ventas/                    # ✅ carritos, ventas, venta_items + reglas-compra.ts
+    ├── promociones/               # ✅ cupones (porcentuales y monto fijo, validación y consumo en ventas)
+    ├── pagos/                     # ✅ pagos (RF19): tarjeta Stripe + QR dinámico Wayra + efectivo (ver árbol abajo)
+    ├── ia/                        # ✅ interacciones_ia, reportes dinámicos con DeepSeek (CU24)
+    └── probador/                  # ✅ token efímero de Decart para el probador web/móvil (RF13, sin tabla propia)
+
+test/                             # e2e (vitest.config.e2e.ts, requieren Postgres): app, bootstrap
+                                  # (vigila rawBody:true en main.ts), pagos, ia, motor-consulta
 ```
 
-Cada módulo `🚧 placeholder` hoy es solo un `<nombre>.module.ts` con `@Module({})` vacío,
-importado en `app.module.ts` (para que el árbol de la app ya refleje la arquitectura final)
-y con un comentario `TODO` apuntando a la sección correspondiente de `Diseño_BD.md`.
+Detalle de `modules/pagos/` (el módulo con más piezas):
+
+```text
+modules/pagos/
+├── pagos.module.ts               # importa VentasModule; PASARELA → PasarelaStripe
+├── controller/
+│   ├── pagos.controller.ts       # /pagos: sesion (tarjeta), webhook, manual (efectivo), confirmar,
+│   │                             # pendientes, expirar-vencidas, ventas/:id/qr, qr/:pagoId, qr/aviso
+│   └── wayra.controller.ts       # /wayra/cobros/:token y /:token/pagar (públicos, banco simulado)
+├── dto/                          # iniciar-pago (solo EFECTIVO), instrucciones, pago, cobro-qr-response, wayra
+├── entities/pago.entity.ts       # ProveedorPago STRIPE|MANUAL|WAYRA · MetodoPago TARJETA|QR|EFECTIVO ·
+│                                 # EstadoPago PENDIENTE|APROBADO|RECHAZADO|REEMBOLSADO
+├── exception/                    # venta-no-pagable, cobro-qr-no-pagable, cobro-sobre-venta-muerta (409),
+│                                 # firma-webhook-invalida (400), pasarela-no-configurada (503)
+└── service/
+    ├── pagos.service.ts          # tarjeta (Stripe) + efectivo (confirmación de cajero)
+    ├── expiracion.service.ts     # barrida cada 5 min de ventas PENDIENTE vencidas
+    ├── pasarela/                 # interfaz Pasarela + PasarelaStripe (real) + PasarelaSimulada (solo tests)
+    ├── qr/
+    │   ├── cobro-qr.service.ts   # lado COMERCIO: genera el QR, estado para la clienta, procesa el aviso
+    │   ├── firma-aviso.ts        # HMAC-SHA256 del aviso + secreto (WAYRA_SECRETO_AVISOS o derivado de JWT_SECRET)
+    │   └── aviso-pago-qr.ts      # tipo del aviso { id, tipo: 'cobro_qr.pagado', token, transaccion, montoCents, pagadoEn }
+    └── wayra/
+        └── wayra-banco.service.ts # lado BANCO simulado: cuentas ficticias, PIN, saldo, firma y avisa
+```
 
 ## 📂 Convención interna de cada módulo (una vez implementado)
 
@@ -149,7 +183,7 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
 `@Column({ type: 'varchar', length: 30, nullable: true }) nit!: string | null;`. Las columnas
 `not null` (`string` a secas, sin `| null`) sí se infieren bien sin este problema.
 
-## ✅ Estado actual: `modules/seguridad/` (único módulo real)
+## ✅ Estado actual: `modules/seguridad/` (primer módulo construido, 2026-09-12)
 
 - **Entidades:** `Usuario` (tabla `usuarios`: email único, password_hash, full_name, role,
   sucursal_id nullable, is_active) y `RefreshToken` (tabla `refresh_tokens`: token único,
@@ -175,8 +209,9 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
 
 ## ✅ Estado actual: `modules/proveedores/` y `modules/catalogo/`
 
-- **`proveedores`**: CRUD mínimo (`POST`/`GET /api/v1/proveedores`, `GET /:id`). Sin
-  relación hacia ningún otro módulo — es una tabla hoja, no depende de nada.
+- **`proveedores`**: CRUD mínimo (`POST`/`GET /api/v1/proveedores`, `GET /:id`), todo el
+  controller protegido con `@Roles('ADMIN')`. Sin relación hacia ningún otro módulo — es una
+  tabla hoja, no depende de nada.
 - **`catalogo`**: implementa las 7 tablas del TableGroup Catálogo. Un controller por
   recurso (`categorias`, `temporadas`, `colecciones`, `tallas`, `colores`, `productos`),
   todos bajo `/api/v1/catalogo/*`. `productos` expone además `GET /:id` (con sus variantes
@@ -193,9 +228,10 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
     `ProveedoresService` **exportado** (no su entidad ni su repositorio) y llama
     `proveedoresService.findOne(id)`. Este es el patrón a seguir cuando un módulo necesita
     validar contra otro sin romper el desacoplo de la regla 1 de arriba.
-  - Los `POST` de ambos módulos están **sin proteger a propósito** (ver TODO en cada
-    controller) — se necesita poder sembrar `proveedor → temporada → colección → categoría →
-    producto → variante` sin fricción mientras no exista provisioning real de ADMIN.
+  - ~~Los `POST` de ambos módulos están sin proteger a propósito~~ — **ya no (verificado
+    2026-11-03):** todos los `POST`/`PATCH` de `catalogo` y todo `proveedores` exigen
+    `JwtAuthGuard` + `RolesGuard` + `@Roles('ADMIN')`. Los `GET` de `catalogo` siguen públicos
+    (vitrina). Para sembrar datos hace falta un token ADMIN (ver `../scripts/sembrar-catalogo.mjs`).
 - **Verificado end-to-end (2026-09-12)**: cadena completa de seed vía `curl` contra Postgres
   real, `GET /catalogo/productos` (listado) y `GET /catalogo/productos/:id` (detalle con
   variante anidada) devolviendo el JSON esperado — este es el endpoint que consume el front
@@ -248,11 +284,12 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
     `cajeroId`, arranca en `estado: PAGADA` directo — el cajero ya cobró en el punto de caja,
     no hay pasarela de por medio.
   - **Compra digital** (`POST /ventas/carrito/:usuarioId/checkout`, RF14/RF15/RF16): toma los
-    items del carrito activo del usuario, arranca en `estado: PENDIENTE` (el cobro real
-    depende del módulo `pagos`, que todavía no existe) y vacía el carrito al terminar.
-  - `reservaId`/`cuponId` en `Venta` son columnas nullable sin relación ni validación (los
-    módulos `reservas`/`promociones` todavía no existen) — mismo criterio que
-    `venta_item_id` en `inventario`.
+    items del carrito activo del usuario, arranca en `estado: PENDIENTE` (la cobra después el
+    módulo `pagos`) y vacía el carrito al terminar. El body exige `canal: 'WEB' | 'MOVIL'`.
+  - `reservaId`/`cuponId` en `Venta` son columnas nullable sin relación ORM — mismo criterio
+    que `venta_item_id` en `inventario`. (Al escribir esto `reservas`/`promociones` no
+    existían; hoy `registrarVenta` sí los valida vía `ReservasService.completarPorVenta` y
+    `PromocionesService.consumirCupon`, dentro de la transacción de la venta.)
 - **Verificado end-to-end (2026-09-13)** contra Postgres real: ciudad → sucursal → orden de
   compra (10 unidades) → recepción parcial (6) → recepción total (4, orden pasa a `RECIBIDA`)
   → venta presencial (3 unidades, stock 10→7) → agregar 2 al carrito → checkout digital (stock
@@ -341,8 +378,11 @@ con la Web Speech API) y recibe un reporte con datos reales. El modelo entra dos
 medio corre exclusivamente el motor con SQL parametrizado — nunca hay texto de un LLM
 concatenado en una query.
 
-- **`catalogo-metricas.ts` declara 18 métricas en 7 dominios** (`ventas`, `inventario`,
-  `kardex`, `reservas`, `cupones`, `compras`, `clientes`): de qué tabla sale cada una
+- **`catalogo-metricas.ts` declara 23 métricas en 8 dominios** (`ventas`, `inventario`,
+  `kardex`, `reservas`, `cupones`, `compras`, `clientes` y `general` — este último con 5
+  métricas de conteo de la app: `cantidad_usuarios`, `cantidad_productos`,
+  `cantidad_sucursales`, `cantidad_proveedores`, `cantidad_categorias`; las de `general` que no
+  admiten filtro de sucursal no se le fuerzan a un encargado): de qué tabla sale cada una
   (`from`/`joinsBase`), qué agregación usa (`seleccion`, siempre envuelta en `COALESCE` para
   que "sin filas" sea `0` y no `null`), qué columna de fecha filtra `desde`/`hasta`, qué
   filtros y dimensiones admite, y si permite comparación entre periodos. `MotorConsultaService`
@@ -452,13 +492,14 @@ Antes de este módulo **ninguna venta digital llegaba nunca a `PAGADA`**: el che
 `PENDIENTE` y no existía nada que la cobrara, así que los reportes de ingresos de `ia` (CU24)
 solo veían el canal presencial. `pagos` cierra ese circuito.
 
-- **Dos caminos de cobro para tres métodos.** `MetodoPago` tiene `TARJETA`, `QR` y `EFECTIVO`,
-  pero solo hay dos mecanismos: **QR y efectivo son el mismo flujo con distinta pantalla**
-  (`iniciarManual`/`confirmarManual`, `ProveedorPago.MANUAL`) porque en los dos casos ningún
-  banco le avisa al sistema — un `CAJERO` o `ADMIN` confirma que el dinero llegó. **Tarjeta** va
-  por Stripe en modo de prueba (`ProveedorPago.STRIPE`), con página de pago alojada
+- **Tres métodos, tres mecanismos (desde 2026-10-26/11-03).** `MetodoPago` tiene `TARJETA`,
+  `QR` y `EFECTIVO`. **Efectivo** (`iniciarManual`/`confirmarManual`, `ProveedorPago.MANUAL`):
+  ningún banco avisa, un `CAJERO` o `ADMIN` confirma que el dinero llegó; `IniciarPagoDto`
+  solo acepta `EFECTIVO`. **QR** (`CobroQrService`, `ProveedorPago.WAYRA`): lo acredita solo el
+  aviso firmado del banco, ver la sección del QR dinámico abajo. **Tarjeta** va por Stripe en
+  modo de prueba (`ProveedorPago.STRIPE`), con página de pago alojada
   (`checkout.sessions.create`, `PasarelaStripe.crearSesion`) — el formulario de tarjeta nunca
-  toca este código.
+  toca este código. (Hasta el 2026-10-26 el QR iba por el mismo flujo manual que el efectivo.)
 - **El aviso firmado de la pasarela es la única autoridad sobre un cobro con tarjeta.** El
   regreso del navegador a `PAGOS_URL_EXITO` no prueba nada: esa URL se puede escribir a mano y
   visitarla no cobra nada. Solo `POST /pagos/webhook` (`PagosService.procesarEvento`), verificado
@@ -487,13 +528,14 @@ solo veían el canal presencial. `pagos` cierra ese circuito.
   devuelve 503 (`PasarelaNoConfiguradaException`). `iniciarManual`/`confirmarManual` no dependen
   de la pasarela en absoluto, así que el sistema entero se demuestra sin ninguna credencial —
   mismo criterio que `ia` demostrándose sin `IA_API_KEY` por la vía manual.
-- **No hay planificador.** `ExpiracionService.expirarVencidas` se dispara desde tres puntos del
-  uso normal — `iniciarManual`, `iniciarTarjeta` y `confirmarManual`, siempre antes de tocar
-  cualquier otra cosa — y desde `POST /pagos/expirar-vencidas` (`ADMIN`). Costo aceptado y
-  declarado en el spec: un sistema ocioso no libera stock hasta que alguien lo use. Los plazos
-  son distintos por método (`PAGOS_MINUTOS_VENCIMIENTO`, 30 min por defecto, para tarjeta;
-  `PAGOS_MINUTOS_VENCIMIENTO_MANUAL`, 1440, para QR/efectivo), porque pagar en el momento y
-  pagar al retirar en sucursal son plazos de negocio distintos.
+- **Sin planificador externo, pero con barrida propia.** `ExpiracionService.expirarVencidas`
+  corre con un `setInterval` de 5 min (`unref`, desde 2026-09-29), y además se dispara al inicio
+  de `iniciarManual`, `iniciarTarjeta`, `confirmarManual` y `CobroQrService.iniciar`, y desde
+  `POST /pagos/expirar-vencidas` (`ADMIN`). Parte de las **ventas** `PENDIENTE` (máx. 200 por
+  pasada), no de los pagos, para no perder ventas sin ningún intento de cobro. Los plazos son
+  distintos por método (`PAGOS_MINUTOS_VENCIMIENTO`, 30 min por defecto, para tarjeta o venta sin
+  ningún pago; `PAGOS_MINUTOS_VENCIMIENTO_MANUAL`, 1440, para QR/efectivo), y el reloj arranca en
+  el intento de pago más reciente. Un valor vacío/inválido en la variable cae al default.
 - **`main.ts` necesita recibir el cuerpo crudo** (`NestFactory.create(AppModule, { rawBody:
   true })`) o la firma del webhook no valida nunca — Stripe firma sobre los bytes exactos, y si
   el framework los parsea antes, `req.rawBody` llega vacío. **Hay una prueba que vigila
@@ -602,7 +644,8 @@ relación con ningún otro módulo.
 - **`POST /probador/token`** (público, sin `JwtAuthGuard` — mismo criterio que el resto de
   `/probador`, probarse una prenda no exige cuenta): llama `client.tokens.create()` del SDK
   (`@decartai/sdk`) con la clave real (`DECART_API_KEY`, env var) y devuelve al navegador un
-  `apiKey` efímero de 10 minutos, restringido a `lucy-vton-3.5` (`allowedModels`). La clave real
+  `apiKey` efímero de **5 minutos** (`expiresIn: 300`), restringido a `lucy-vton-3.5`
+  (`allowedModels`). Lo usan la web y, desde 2026-09-29, también el móvil. La clave real
   **nunca sale de este servidor** — mismo criterio que ya usa `pagos` con las claves de Stripe.
 - **Sin `DECART_API_KEY` el endpoint responde 503** (`ProbadorNoConfiguradoException`), mismo
   patrón que `IaNoConfiguradaException` en `ia/` — el resto del sitio sigue funcionando igual.
@@ -624,9 +667,10 @@ flowchart LR
     B --> H["🏷️ promociones ✅<br/>cupones"]
     F --> I["🤖 ia ✅<br/>interacciones_ia"]
     D --> I
+    J["🧥 probador ✅<br/>sin tabla"]
 ```
 
-**Los 10 módulos del diseño están implementados.** `pagos` era la única hoja pendiente del
+**Los 10 módulos del diseño están implementados**, más `probador` (11.º, sin tabla, 2026-09-27). `pagos` era la única hoja pendiente del
 árbol de dependencias y se cerró el 2026-09-21 (ver la sección de estado de arriba) — depende de
 `ventas` (para `marcarPagada`/`cancelarPorPagoNoCompletado`), como muestra el diagrama.
 
@@ -729,3 +773,7 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
   móvil); el panel admin lo muestra y busca por ese prefijo. No hay columna nueva.
 - Verificado con 14 escenarios contra la API real (Postgres local), más los 21 de las reglas
   anti-acaparamiento; 182 unitarias en verde; e2e con las mismas 2 fallas preexistentes.
+- **Donde `sucursalDelStaff` NO se aplica todavía (revisado 2026-11-03):** `GET /ventas`
+  (el encargado puede pasar `?sucursalId` de otra), `GET /pagos/pendientes` y
+  `POST /pagos/:pagoId/confirmar` (un cajero ve/confirma efectivo de cualquier sucursal),
+  `POST /inventario/ajustes` y `GET /inventario/movimientos`. Si se acota, usar el mismo helper.
