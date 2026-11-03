@@ -20,7 +20,11 @@ describe('ExpiracionService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(AHORA);
-    pagoRepo = { find: vi.fn().mockResolvedValue([]), save: vi.fn((e) => e) };
+    pagoRepo = {
+      find: vi.fn().mockResolvedValue([]),
+      save: vi.fn((e) => e),
+      update: vi.fn().mockResolvedValue({ affected: 1 }),
+    };
     ventas = {
       findPendientesMasViejasPrimero: vi.fn().mockResolvedValue([]),
       cancelarPorPagoNoCompletado: vi.fn(),
@@ -102,8 +106,11 @@ describe('ExpiracionService', () => {
   it('el pago vencido queda RECHAZADO, no se borra', async () => {
     sembrarConPago(pagoDeHace(45, MetodoPago.TARJETA));
     await service.expirarVencidas();
-    expect(pagoRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ estado: EstadoPago.RECHAZADO }),
+    // update condicionado a PENDIENTE: no pisa lo que un aviso de pago haya
+    // escrito en esa fila mientras la barrida corria.
+    expect(pagoRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ estado: EstadoPago.PENDIENTE }),
+      { estado: EstadoPago.RECHAZADO },
     );
   });
 
@@ -122,7 +129,7 @@ describe('ExpiracionService', () => {
         'v-45', expect.stringContaining('vencido'),
       );
       // No hay ninguna fila de pago que marcar.
-      expect(pagoRepo.save).not.toHaveBeenCalled();
+      expect(pagoRepo.update).not.toHaveBeenCalled();
     });
 
     it('sin pago y dentro del plazo, la venta NO se toca', async () => {

@@ -4,6 +4,8 @@ import { BaseEntity } from '../../../core/database/base.entity.js';
 export enum ProveedorPago {
   STRIPE = 'STRIPE',
   MANUAL = 'MANUAL',
+  /** Cobro por QR dinamico; lo acredita el aviso firmado del banco (Wayra). */
+  WAYRA = 'WAYRA',
 }
 
 export enum MetodoPago {

@@ -11,6 +11,8 @@ import { CarritosService } from './../src/modules/ventas/service/carritos.servic
 import { VentasService } from './../src/modules/ventas/service/ventas.service.js';
 import { PagosService } from './../src/modules/pagos/service/pagos.service.js';
 import { ExpiracionService } from './../src/modules/pagos/service/expiracion.service.js';
+import { CobroQrService } from './../src/modules/pagos/service/qr/cobro-qr.service.js';
+import { WayraBancoService } from './../src/modules/pagos/service/wayra/wayra-banco.service.js';
 import { PASARELA } from './../src/modules/pagos/service/pasarela/pasarela.interface.js';
 import {
   FIRMA_SIMULADA,
@@ -134,7 +136,7 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     // Se fuerza el vencimiento retrocediendo la fecha del pago. QR/EFECTIVO
     // tienen un plazo de 1440 minutos (un dia), asi que 2 horas no alcanza:
     // hay que retroceder mas de un dia.
-    await pagos.iniciarManual(venta.id, { metodo: 'QR' } as never, USUARIO_CLIENTE);
+    await pagos.iniciarManual(venta.id, { metodo: 'EFECTIVO' } as never, USUARIO_CLIENTE);
     await ds.query(
       `UPDATE pagos SET "createdAt" = "createdAt" - INTERVAL '2 days' WHERE venta_id = $1`,
       [venta.id],
@@ -266,7 +268,7 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
       sucursalId: ID.suc, canal: 'WEB',
     } as never);
     const stockTrasCheckout = await stockDe(ID.var);
-    const instr = await pagos.iniciarManual(venta.id, { metodo: 'QR' } as never, USUARIO_CLIENTE);
+    const instr = await pagos.iniciarManual(venta.id, { metodo: 'EFECTIVO' } as never, USUARIO_CLIENTE);
     await pagos.confirmarManual(instr.pagoId, USUARIO_CAJERO);
 
     expect((await ventas.findOne(venta.id)).estado).toBe('PAGADA');
@@ -297,10 +299,62 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     const venta = await ventas.checkoutCarrito(ID.cliente, {
       sucursalId: ID.suc, canal: 'WEB',
     } as never);
-    const instr = await pagos.iniciarManual(venta.id, { metodo: 'QR' } as never, USUARIO_CLIENTE);
+    const instr = await pagos.iniciarManual(venta.id, { metodo: 'EFECTIVO' } as never, USUARIO_CLIENTE);
     await pagos.confirmarManual(instr.pagoId, USUARIO_CAJERO);
 
     expect(await ingresosWeb()).toBe(antes + venta.totalCents);
+  });
+
+  it('pagar el QR desde Wayra deja la venta PAGADA sola, sin cajero, y cierra el intento en efectivo', async () => {
+    const cobroQr = app.get(CobroQrService);
+    const wayra = app.get(WayraBancoService);
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 1 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const stockTrasCheckout = await stockDe(ID.var);
+    // Primero eligio efectivo y despues se arrepintio y fue por QR.
+    const efectivo = await pagos.iniciarManual(venta.id, { metodo: 'EFECTIVO' } as never, USUARIO_CLIENTE);
+
+    const qr = await cobroQr.iniciar(venta.id, USUARIO_CLIENTE);
+    const token = qr.qrContenido.split('/wayra/pagar/')[1];
+    // Recargar la pantalla no genera otro QR.
+    expect((await cobroQr.iniciar(venta.id, USUARIO_CLIENTE)).qrContenido).toBe(qr.qrContenido);
+
+    const comprobante = await wayra.pagar(token, { cuenta: 'ahorro', pin: '0000' });
+
+    expect((await ventas.findOne(venta.id)).estado).toBe('PAGADA');
+    expect(await stockDe(ID.var)).toBe(stockTrasCheckout);
+    const estado = await cobroQr.estadoParaLaClienta(qr.pagoId, USUARIO_CLIENTE);
+    expect(estado).toMatchObject({ estado: 'PAGADO', transaccion: comprobante.transaccion });
+    const [filaEfectivo] = await ds.query(`SELECT estado FROM pagos WHERE id = $1`, [efectivo.pagoId]);
+    expect(filaEfectivo.estado).toBe('RECHAZADO');
+    // Escanear de nuevo el mismo QR: el banco dice que ya se pago.
+    await expect(wayra.pagar(token, { cuenta: 'ahorro', pin: '0000' })).rejects.toThrow(/ya fue pagado/);
+  });
+
+  it('dos pagos SIMULTANEOS del mismo QR: uno solo se acredita y el otro no emite comprobante', async () => {
+    const cobroQr = app.get(CobroQrService);
+    const wayra = app.get(WayraBancoService);
+    await carritos.addItem(ID.cliente, { varianteId: ID.var, cantidad: 1 } as never);
+    const venta = await ventas.checkoutCarrito(ID.cliente, {
+      sucursalId: ID.suc, canal: 'WEB',
+    } as never);
+    const qr = await cobroQr.iniciar(venta.id, USUARIO_CLIENTE);
+    const token = qr.qrContenido.split('/wayra/pagar/')[1];
+
+    const resultados = await Promise.allSettled([
+      wayra.pagar(token, { cuenta: 'ahorro', pin: '1111' }),
+      wayra.pagar(token, { cuenta: 'corriente', pin: '2222' }),
+    ]);
+
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect((await ventas.findOne(venta.id)).estado).toBe('PAGADA');
+    const ganador = resultados.find((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{ transaccion: string }>;
+    const estado = await cobroQr.estadoParaLaClienta(qr.pagoId, USUARIO_CLIENTE);
+    // Lo que quedo guardado es la transaccion del comprobante que SI se emitio.
+    expect(estado.transaccion).toBe(ganador.value.transaccion);
   });
 });
 

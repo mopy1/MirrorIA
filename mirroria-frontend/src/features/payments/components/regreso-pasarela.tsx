@@ -126,7 +126,12 @@ export function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         {pendiente && (
-          <Link to={`/pago/${venta.id}`} className={cn(buttonVariants())}>
+          <Link to={`/pago/${venta.id}?metodo=QR`} className={cn(buttonVariants())}>
+            Pagar con QR
+          </Link>
+        )}
+        {pendiente && (
+          <Link to={`/pago/${venta.id}`} className={cn(buttonVariants({ variant: "outline" }))}>
             Pagar en efectivo
           </Link>
         )}

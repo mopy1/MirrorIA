@@ -94,9 +94,14 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
         // Los intentos de cobro de una venta cancelada quedan RECHAZADO, no se
         // borran: son la constancia de que se intento. Se marcan TODOS, para
         // que ninguno quede pendiente para siempre en el panel del equipo.
+        // update condicionado y no save: un save con el objeto leido antes
+        // pisaba lo que un aviso de pago escribio mientras tanto (p. ej. la
+        // marca de reembolso de un QR pagado justo al vencer).
         for (const pendiente of pagos) {
-          pendiente.estado = EstadoPago.RECHAZADO;
-          await this.pagoRepository.save(pendiente);
+          await this.pagoRepository.update(
+            { id: pendiente.id, estado: EstadoPago.PENDIENTE },
+            { estado: EstadoPago.RECHAZADO },
+          );
         }
         canceladas++;
       } catch (error) {
