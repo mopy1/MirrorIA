@@ -189,8 +189,8 @@ docker compose up -d --build
   `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
   Las columnas AR quedaron para una segunda pasada (ver abajo). Mobile sin tocar.
 - 🧠 **Motor Analítico Híbrido IA (2026-11-04, en `main`):**
-  - Backend: `@duckdb/node-api` in-process (`:memory:`, max 256MB) para simulaciones What-If + bucle agéntico multi-paso en `modules/ia` (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if`) exponiendo `POST /ia/reportes/hibrido`.
-  - Frontend: componentes `<ReasoningSteps />` y `<WhatIfChart />` (Recharts comparativo Real vs Proyectado) en `src/features/reports/`, feedback en chat y thin page < 120 líneas.
+  - Backend: `@duckdb/node-api` in-process (`:memory:`, max 256MB) para simulaciones What-If + bucle agéntico multi-paso en `modules/ia` (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if`) exponiendo `POST /ia/reportes/hibrido`. Soporte completo para "Top productos más vendidos" (dimension: 'producto', límite, orden, filtros y serialización de datos JSON hacia el LLM con fecha actual).
+  - Frontend: componentes `<ReasoningSteps />` y `<WhatIfChart />` (Recharts comparativo Real vs Proyectado) en `src/features/reports/`, feedback en chat, formateo inteligente de moneda según métrica devuelta y thin page < 120 líneas.
 - 🛒 **Carrito y Pedidos (2026-11-04, en `main`):**
   - Backend: nuevo endpoint `PATCH /ventas/carrito/:usuarioId/items/:varianteId` (`UpdateItemCarritoDto` validando 1 a 3 unidades con lock pesimista).
   - Frontend: edición interactiva de cantidad en carrito (stepper 1 a 3 unidades), nueva feature `src/features/orders/` (`/mis-pedidos`, `MyOrdersPage`, `OrderCard`, `OrderStatusBadge`) consumiendo `GET /ventas/mias` y enlazada en `SiteHeader` (desktop y drawer móvil). Todos los componentes < 120 líneas.

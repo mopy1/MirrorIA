@@ -22,16 +22,26 @@ export const IA_TOOLS: ToolDefinition[] = [
         properties: {
           metrica: {
             type: 'string',
-            enum: ['ingresos', 'ventas_totales', 'cantidad_ventas', 'ticket_promedio', 'unidades', 'stock_disponible', 'stock_en_transito'],
+            enum: [
+              'ingresos', 'unidades', 'cantidad_ventas', 'ticket_promedio', 'descuentos',
+              'stock_disponible', 'stock_reservado', 'stock_en_transito', 'movimientos_unidades',
+              'cantidad_reservas', 'unidades_reservadas', 'canjes_cupon', 'cantidad_ordenes',
+              'clientes_activos', 'cantidad_usuarios', 'cantidad_productos', 'cantidad_sucursales',
+            ],
             description: 'Nombre de la metrica semantica a consultar.',
           },
           dimension: {
             type: 'string',
-            enum: ['sucursal', 'mes', 'categoria'],
+            enum: ['producto', 'categoria', 'sucursal', 'proveedor', 'canal', 'estado', 'cliente', 'dia', 'mes', 'ninguno'],
             description: 'Dimension para agrupar los resultados.',
           },
+          limite: { type: 'number', description: 'Cantidad maxima de filas (ej. 5 para top 5, default 10).' },
+          orden: { type: 'string', enum: ['desc', 'asc'], description: 'Orden de resultados (default desc).' },
           fechaInicio: { type: 'string', description: 'Fecha inicio YYYY-MM-DD.' },
           fechaFin: { type: 'string', description: 'Fecha fin YYYY-MM-DD.' },
+          sucursalId: { type: 'string', description: 'UUID de sucursal opcional.' },
+          categoriaId: { type: 'string', description: 'UUID de categoria opcional.' },
+          canal: { type: 'string', enum: ['TIENDA_FISICA', 'ONLINE_WEB', 'ONLINE_MOVIL'], description: 'Canal de venta.' },
         },
         required: ['metrica'],
       },
@@ -60,19 +70,12 @@ export const IA_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'simular_what_if',
-      description: 'Proyecta escenarios hipoteticos (descuentos, variaciones de margen o volumen) usando DuckDB in-memory.',
+      description: 'Proyecta escenarios hipoteticos (descuentos, margen o volumen) con DuckDB.',
       parameters: {
         type: 'object',
         properties: {
-          variacionPrecioPct: {
-            type: 'number',
-            description: 'Porcentaje de cambio en precio (ej: -10 para 10% de descuento, 15 para 15% de aumento).',
-          },
-          variacionVolumenPct: {
-            type: 'number',
-            description: 'Porcentaje de cambio estimado en volumen de ventas (ej: 20 para 20% de incremento).',
-          },
-          filtroCategoria: { type: 'string', description: 'Filtrar por categoria especifica.' },
+          variacionPrecioPct: { type: 'number', description: 'Porcentaje de cambio en precio (-10 a 50).' },
+          variacionVolumenPct: { type: 'number', description: 'Porcentaje de cambio en volumen de ventas.' },
         },
         required: ['variacionPrecioPct'],
       },

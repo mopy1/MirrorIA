@@ -11,19 +11,24 @@ export type TipoGrafico = "line" | "pie" | "bar" | "bar-horizontal"
  * comparar magnitudes/ranking, no ver una proporción de un total cerrado.
  */
 const DIMENSIONES_CERRADAS = new Set(["canal", "estado", "tipo_movimiento", "rol"])
+const TIPOS_VALIDOS = new Set<TipoGrafico>(["bar-horizontal", "line", "pie", "bar"])
 
 /**
  * Elige el tipo de gráfico según la forma del reporte, no una preferencia
  * fija — mismo espíritu que ya tenía el Line-vs-Bar original:
- * 1. `dia`/`mes` (serie temporal) → línea, siempre.
- * 2. Con comparación de períodos → barras agrupadas (dos series por
+ * 1. `tipoGraficoSugerido` (si vino explícito del agente IA) → manda primero.
+ * 2. `dia`/`mes` (serie temporal) → línea, siempre.
+ * 3. Con comparación de períodos → barras agrupadas (dos series por
  *    categoría) — una torta no puede mostrar dos períodos a la vez.
- * 3. Dimensión cerrada con pocas filas → torta/dona (proporción de un todo).
- * 4. Muchas filas → barras horizontales (las etiquetas largas, ej. nombres
+ * 4. Dimensión cerrada con pocas filas → torta/dona (proporción de un todo).
+ * 5. Muchas filas → barras horizontales (las etiquetas largas, ej. nombres
  *    de producto, no se pisan como en un eje vertical rotado).
- * 5. Todo lo demás → barras verticales (el default de siempre).
+ * 6. Todo lo demás → barras verticales (el default de siempre).
  */
 export function elegirTipoGrafico(reporte: Reporte): TipoGrafico {
+  if (reporte.tipoGraficoSugerido && TIPOS_VALIDOS.has(reporte.tipoGraficoSugerido as TipoGrafico)) {
+    return reporte.tipoGraficoSugerido as TipoGrafico
+  }
   const { agruparPor } = reporte.ficha
   if (agruparPor === "dia" || agruparPor === "mes") return "line"
   if (reporte.comparacion) return "bar"

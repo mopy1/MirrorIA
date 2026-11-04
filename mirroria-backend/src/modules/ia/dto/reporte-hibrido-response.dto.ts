@@ -17,4 +17,6 @@ export class ReporteHibridoResponseDto {
   filas!: FilaReporteHibridoDto[];
   pasosEjecutados!: PasoEjecutadoDto[];
   esSimulacion!: boolean;
+  metrica?: string;
+  tipoGraficoSugerido?: string;
 }

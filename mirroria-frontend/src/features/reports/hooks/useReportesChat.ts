@@ -11,7 +11,7 @@ const TAB_RESUMEN: ReportTab = { id: "resumen", tipo: "resumen", titulo: "Resume
 function mapHibridoAReporte(h: ReporteHibridoResponse): Reporte {
   return {
     ficha: {
-      metrica: h.esSimulacion ? "simulacion" : "hibrido",
+      metrica: h.metrica || (h.esSimulacion ? "simulacion" : "hibrido"),
       agruparPor: "hibrido",
       filtros: {},
       orden: "desc",

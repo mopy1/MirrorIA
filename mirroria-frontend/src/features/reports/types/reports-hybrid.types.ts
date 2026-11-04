@@ -25,4 +25,5 @@ export interface ReporteHibridoResponse {
   pasosEjecutados: PasoEjecutado[]
   esSimulacion: boolean
   tipoGraficoSugerido?: string
+  metrica?: string
 }

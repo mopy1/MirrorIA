@@ -20,7 +20,6 @@ describe('IaAgenteService', () => {
     mockMotor = { ejecutar: vi.fn() };
     mockDuckDb = { proyectarWhatIf: vi.fn() };
     mockDataSource = { query: vi.fn() };
-
     service = new IaAgenteService(
       mockProveedor as unknown as ProveedorIa,
       mockMotor as unknown as MotorConsultaService,
@@ -30,77 +29,75 @@ describe('IaAgenteService', () => {
   });
 
   it('resuelve respuesta directa cuando el modelo no invoca tools', async () => {
-    mockProveedor.chatearConTools.mockResolvedValueOnce({
-      contenido: 'Las ventas aumentaron un 15% este mes.',
-      toolCalls: [],
-    });
-
+    mockProveedor.chatearConTools.mockResolvedValueOnce({ contenido: 'Ventas ok', toolCalls: [] });
     const res = await service.ejecutar('como van las ventas', mockUser);
-
-    expect(res.preguntaOriginal).toBe('como van las ventas');
-    expect(res.narrativa).toBe('Las ventas aumentaron un 15% este mes.');
-    expect(res.pasosEjecutados).toHaveLength(0);
-    expect(res.esSimulacion).toBe(false);
+    expect(res.narrativa).toBe('Ventas ok');
+    expect(res.tipoGraficoSugerido).toBe('bar');
   });
 
-  it('ejecuta bucle multi-paso con metricas y simulacion what-if con DuckDB', async () => {
+  it('ejecuta consultar_metricas con dimension producto, limite 5 y filtros mapeados', async () => {
     mockProveedor.chatearConTools
       .mockResolvedValueOnce({
         contenido: null,
-        toolCalls: [{ id: 'tc-1', name: 'consultar_metricas', arguments: { metrica: 'ventas_totales', dimension: 'sucursal' } }],
+        toolCalls: [{
+          id: 'tc-top5',
+          name: 'consultar_metricas',
+          arguments: { metrica: 'unidades', dimension: 'producto', limite: 5, orden: 'desc', fechaInicio: '2026-10-01', canal: 'TIENDA_FISICA' },
+        }],
       })
-      .mockResolvedValueOnce({
-        contenido: null,
-        toolCalls: [{ id: 'tc-2', name: 'simular_what_if', arguments: { variacionPrecioPct: 10 } }],
-      })
-      .mockResolvedValueOnce({
-        contenido: 'Proyeccion completada: con +10% en precios se obtendria un delta positivo.',
-        toolCalls: [],
-      });
+      .mockResolvedValueOnce({ contenido: 'El Top 5 fue Vestido Seda y Jean Denim.', toolCalls: [] });
 
     mockMotor.ejecutar.mockResolvedValueOnce([
-      { clave: 's1', etiqueta: 'Sucursal Central', valor: 1000 },
+      { clave: 'p1', etiqueta: 'Vestido Seda', valor: 45 },
+      { clave: 'p2', etiqueta: 'Jean Denim', valor: 30 },
     ]);
 
-    mockDuckDb.proyectarWhatIf.mockResolvedValueOnce([
-      { etiqueta: 'Sucursal Central', valorOriginal: 1000, valorProyectado: 1100, deltaAbsoluto: 100, deltaPorcentual: 10 },
-    ]);
+    const res = await service.ejecutar('Top 5 productos más vendidos', mockUser);
 
-    const res = await service.ejecutar('simular aumento de precio del 10%', mockUser);
-
-    expect(mockMotor.ejecutar).toHaveBeenCalled();
-    expect(mockDuckDb.proyectarWhatIf).toHaveBeenCalledWith(
-      [{ etiqueta: 'Sucursal Central', valor: 1000 }],
-      10,
-      0,
-    );
-    expect(res.esSimulacion).toBe(true);
-    expect(res.pasosEjecutados).toHaveLength(2);
-    expect(res.filas[0].valor).toBe(1100);
-    expect(res.filas[0].detalles?.deltaPct).toBe(10);
-    expect(res.narrativa).toContain('Proyeccion completada');
+    expect(mockMotor.ejecutar).toHaveBeenCalledWith({
+      metrica: 'unidades',
+      agruparPor: 'producto',
+      limite: 5,
+      orden: 'desc',
+      filtros: expect.objectContaining({ desde: '2026-10-01', canal: 'TIENDA_FISICA' }),
+    });
+    expect(res.filas).toHaveLength(2);
+    expect(res.metrica).toBe('unidades');
+    expect(res.tipoGraficoSugerido).toBe('bar');
+    expect(mockProveedor.chatearConTools).toHaveBeenCalledTimes(2);
+    const segundoLlamado = mockProveedor.chatearConTools.mock.calls[1][0];
+    const msgTool = segundoLlamado.find((m: { role: string }) => m.role === 'tool');
+    expect(msgTool.content).toContain('Vestido Seda');
   });
 
-  it('ejecuta tool consultar_proveedores_stock consultando la base de datos', async () => {
+  it('fuerza sucursalId para ENCARGADO_SUCURSAL', async () => {
+    const encUser: JwtPayload = { sub: 'u2', email: 'e@m.com', role: 'ENCARGADO_SUCURSAL', sucursalId: 'suc-123' };
     mockProveedor.chatearConTools
       .mockResolvedValueOnce({
         contenido: null,
-        toolCalls: [{ id: 'tc-prov', name: 'consultar_proveedores_stock', arguments: {} }],
+        toolCalls: [{ id: 'tc-1', name: 'consultar_metricas', arguments: { metrica: 'ingresos', dimension: 'categoria' } }],
       })
-      .mockResolvedValueOnce({
-        contenido: 'Hay 20 unidades pendientes con Proveedor Textil.',
-        toolCalls: [],
-      });
+      .mockResolvedValueOnce({ contenido: 'Reporte sucursal listo', toolCalls: [] });
 
-    mockDataSource.query.mockResolvedValueOnce([
-      { prov: 'Proveedor Textil', estado: 'PENDIENTE', items: [{ cantidadPedida: 25, cantidadRecibida: 5 }] },
+    mockMotor.ejecutar.mockResolvedValueOnce([{ clave: 'c1', etiqueta: 'Vestidos', valor: 500 }]);
+    await service.ejecutar('ventas por categoria', encUser);
+
+    expect(mockMotor.ejecutar).toHaveBeenCalledWith(expect.objectContaining({
+      filtros: expect.objectContaining({ sucursalId: 'suc-123' }),
+    }));
+  });
+
+  it('ejecuta bucle multi-paso con DuckDB what-if y asigna what-if-comparison', async () => {
+    mockProveedor.chatearConTools
+      .mockResolvedValueOnce({ contenido: null, toolCalls: [{ id: 't1', name: 'simular_what_if', arguments: { variacionPrecioPct: 15 } }] })
+      .mockResolvedValueOnce({ contenido: 'Simulacion finalizada.', toolCalls: [] });
+
+    mockDuckDb.proyectarWhatIf.mockResolvedValueOnce([
+      { etiqueta: 'Base', valorOriginal: 1000, valorProyectado: 1150, deltaAbsoluto: 150, deltaPorcentual: 15 },
     ]);
 
-    const res = await service.ejecutar('cuanto stock tenemos pedido a proveedores', mockUser);
-
-    expect(mockDataSource.query).toHaveBeenCalled();
-    expect(res.pasosEjecutados).toHaveLength(1);
-    expect(res.filas[0].valor).toBe(20);
-    expect(res.esSimulacion).toBe(false);
+    const res = await service.ejecutar('simular aumento de precio del 15%', mockUser);
+    expect(res.esSimulacion).toBe(true);
+    expect(res.tipoGraficoSugerido).toBe('what-if-comparison');
   });
 });

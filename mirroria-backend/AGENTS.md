@@ -504,10 +504,12 @@ Decisión del usuario: reemplazar `GeminiProveedor` por `DeepSeekProveedor` — 
 Evolución del módulo `ia` para soportar **consultas complejas de múltiples pasos** y **simulaciones predictivas What-If**, manteniendo 0% de riesgo de SQL Injection y cero contenedores nuevos en Docker:
 - **`DuckDbService` (`service/duckdb.service.ts`):** Motor OLAP in-memory embebido mediante `@duckdb/node-api` corriendo en el propio proceso de NestJS. Configurado con `SET max_memory = '256MB'` y `threads = 2` para proteger la RAM física del host. Expone `proyectarWhatIf` para calcular variaciones sobre datos agregados sin bloquear ni mutar PostgreSQL.
 - **`IaAgenteService` (`service/ia-agente.service.ts`) & `ia-tools.catalog.ts`:** Bucle agéntico multi-paso (hasta 3 turnos) usando Function Calling nativo de DeepSeek (`tools`/`tool_calls`). Herramientas disponibles:
-  1. `consultar_metricas`: delega al catálogo existente y `MotorConsultaService`.
+  1. `consultar_metricas`: delega al catálogo semántico y `MotorConsultaService`. Soporta las 10 dimensiones (`producto`, `categoria`, `sucursal`, `proveedor`, `canal`, `estado`, `cliente`, `dia`, `mes`, `ninguno`), `limite` (1..100), `orden` (`desc`/`asc`) y filtros (`desde`, `hasta`, `sucursalId`, `categoriaId`, `canal`). Resuelve consultas tipo "Top 5 productos más vendidos" sin restricciones artificiales.
   2. `consultar_proveedores_stock`: cruza órdenes de compra activas y pendientes a proveedores con stock físico.
   3. `simular_what_if`: corre escenarios hipotéticos (descuentos, variaciones de costo) en DuckDB in-memory.
-- **`POST /ia/reportes/hibrido` (`IaController`):** Devuelve `ReporteHibridoResponseDto` con la lista de pasos ejecutados (`pasos`), filas estructuradas con `valor` y `valorProyectado` opcional, `tipoGraficoSugerido` (`what-if-comparison` o estándar) y narrativa final ejecutiva. Protegido con `JwtAuthGuard`, `RolesGuard('ADMIN', 'ENCARGADO_SUCURSAL')` y `LimitePorIp`.
+- **Serialización de Datos hacia el LLM:** En el mensaje `{ role: 'tool', tool_call_id, content }`, `IaAgenteService` envía los datos reales devueltos por el motor en formato JSON estructurado, permitiendo que DeepSeek reconozca con exactitud los títulos de las prendas y montos numéricos para redactar su narrativa ejecutiva sin alucinaciones.
+- **Contexto Temporal y Heurísticas:** El prompt de sistema inyecta la fecha actual `${hoy}` e instrucciones directas sobre cómo mapear consultas de productos y ranking.
+- **`POST /ia/reportes/hibrido` (`IaController`):** Devuelve `ReporteHibridoResponseDto` con la lista de pasos ejecutados (`pasosEjecutados`), filas estructuradas con `valor` y `valorProyectado` opcional, `metrica` consultada, `tipoGraficoSugerido` (`what-if-comparison`, `bar-horizontal` o estándar) y narrativa final ejecutiva. Protegido con `JwtAuthGuard`, `RolesGuard('ADMIN', 'ENCARGADO_SUCURSAL')` y `LimitePorIp`.
 
 ### Trampas del esquema descubiertas al construir el catálogo (§4-bis del spec)
 

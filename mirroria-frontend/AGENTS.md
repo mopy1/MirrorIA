@@ -379,11 +379,11 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
 ### `features/reports/` ↔ backend `ia` (CU24, reportes por lenguaje natural y análisis híbrido)
 - `api/reportsApi.ts`: `preguntar` (`POST /ia/reportes`, 503 sin clave de IA), `preguntarHibrido`
   (`POST /ia/reportes/hibrido`, agente multi-paso con DuckDB), `consultar` (`POST /ia/reportes/consulta`).
-- `types/`: `reports.types.ts`, `reports-hybrid.types.ts` (`ReporteHibridoResponse`, `PasoEjecutado`, `FilaReporteHibrido`).
-- `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos),
+- `types/`: `reports.types.ts`, `reports-hybrid.types.ts` (`ReporteHibridoResponse` con `metrica` y `tipoGraficoSugerido`, `PasoEjecutado`, `FilaReporteHibrido`).
+- `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos + mapeo inteligente de métrica para formateo automático en Bolivianos),
   `useDictado` (Web Speech API).
 - `components/`: `chat-panel/` (con `ReasoningSteps` en las respuestas del asistente), `report-tabs/`,
-  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + gráfico + tabla), `report-chart.tsx` (Recharts con selección dinámica y delegación a `WhatIfChart`),
+  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + badge de "Escenario Simulado DuckDB" + gráfico + tabla + manejo seguro de cero filas), `report-chart.tsx` (Recharts con selección dinámica priorizando `tipoGraficoSugerido` y delegación a `WhatIfChart`),
   `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
 
 ### `features/admin/` (panel interno)
