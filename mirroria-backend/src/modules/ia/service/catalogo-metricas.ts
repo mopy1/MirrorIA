@@ -138,7 +138,7 @@ const VARIANTES_DE_PRODUCTO = '(SELECT fvp.id FROM variantes_producto fvp WHERE 
 /**
  * Inventario es una foto del presente: `inventario_sucursal` no guarda historia.
  * Por eso no tiene columnaFecha, no admite dia/mes y no permite comparacion.
- * Para la evolucion en el tiempo esta el kardex (Task 8).
+ * Para la evolucion en el tiempo esta el kardex.
  */
 function definicionInventario(seleccion: string): DefinicionMetrica {
   return {

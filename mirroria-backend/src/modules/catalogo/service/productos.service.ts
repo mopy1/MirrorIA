@@ -66,12 +66,9 @@ export class ProductosService {
         slug: dto.slug,
         descripcion: dto.descripcion ?? null,
         precioCents: dto.precioCents,
-        modeloArUrl: dto.modeloArUrl ?? null,
-        arOverlayImageUrl: dto.arOverlayImageUrl ?? null,
         imagenes: (dto.imagenes ?? []).map((img, index) => ({
           url: img.url,
           varianteId: img.varianteId,
-          esArAsset: img.esArAsset ?? false,
           orden: img.orden ?? index,
         })),
         activo: true,
@@ -153,15 +150,10 @@ export class ProductosService {
     if (dto.titulo !== undefined) producto.titulo = dto.titulo;
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion;
     if (dto.precioCents !== undefined) producto.precioCents = dto.precioCents;
-    if (dto.modeloArUrl !== undefined) producto.modeloArUrl = dto.modeloArUrl;
-    if (dto.arOverlayImageUrl !== undefined) {
-      producto.arOverlayImageUrl = dto.arOverlayImageUrl;
-    }
     if (dto.imagenes !== undefined) {
       producto.imagenes = dto.imagenes.map((img, index) => ({
         url: img.url,
         varianteId: img.varianteId,
-        esArAsset: img.esArAsset ?? false,
         orden: img.orden ?? index,
       }));
     }
@@ -246,8 +238,6 @@ export class ProductosService {
       slug: producto.slug,
       descripcion: producto.descripcion,
       precioCents: producto.precioCents,
-      modeloArUrl: producto.modeloArUrl,
-      arOverlayImageUrl: producto.arOverlayImageUrl,
       imagenes: producto.imagenes,
       activo: producto.activo,
       variantes: variantes?.map((v) =>

@@ -100,7 +100,11 @@ describe('OrdenesCompraService', () => {
         20,
       );
       expect(result.id).toBe('oc-123');
-      expect(result.usuarioId).toBe('usr-1');
+      // El autor se guarda en la fila pero no sale en la respuesta.
+      expect(managerRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ usuarioId: 'usr-1' }),
+      );
+      expect(result).not.toHaveProperty('usuarioId');
       expect(result.estado).toBe(EstadoOrdenCompra.PENDIENTE);
     });
 

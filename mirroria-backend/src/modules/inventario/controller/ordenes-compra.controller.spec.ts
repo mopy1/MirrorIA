@@ -42,12 +42,12 @@ describe('OrdenesCompraController', () => {
         sucursalDestinoId: 'suc-1',
         items: [{ varianteId: 'var-1', cantidadPedida: 10 }],
       };
-      service.create.mockResolvedValue({ id: 'oc-1', usuarioId: mockUser.sub });
+      service.create.mockResolvedValue({ id: 'oc-1' });
 
       const result = await controller.create(dto, mockUser);
 
       expect(service.create).toHaveBeenCalledWith(dto, mockUser.sub);
-      expect(result).toEqual({ id: 'oc-1', usuarioId: mockUser.sub });
+      expect(result).toEqual({ id: 'oc-1' });
     });
 
     it('ignora un usuarioId colado en el body (no se puede suplantar)', async () => {

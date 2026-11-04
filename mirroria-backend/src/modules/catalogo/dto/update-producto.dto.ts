@@ -7,7 +7,6 @@ import {
   IsPositive,
   IsString,
   IsUUID,
-  IsUrl,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -40,14 +39,6 @@ export class UpdateProductoDto {
   @IsInt()
   @IsPositive()
   precioCents?: number;
-
-  @IsOptional()
-  @IsUrl({ require_tld: false })
-  modeloArUrl?: string;
-
-  @IsOptional()
-  @IsUrl({ require_tld: false })
-  arOverlayImageUrl?: string;
 
   @IsOptional()
   @IsArray()

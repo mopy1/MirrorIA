@@ -33,7 +33,6 @@ export class MovimientosInventarioService {
       ventaItemId: m.ventaItemId,
       motivo: m.motivo,
       referenciaDoc: m.referenciaDoc,
-      usuarioId: m.usuarioId,
       fecha: m.fecha,
     }));
   }

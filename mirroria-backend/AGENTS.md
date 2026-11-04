@@ -72,7 +72,7 @@ src/
     ├── promociones/               # ✅ cupones (porcentuales y monto fijo, validación y consumo en ventas)
     ├── pagos/                     # ✅ pagos (RF19): tarjeta Stripe + QR dinámico Wayra + efectivo (ver árbol abajo)
     ├── ia/                        # ✅ interacciones_ia, reportes dinámicos con DeepSeek (CU24)
-    └── probador/                  # ✅ token efímero de Decart para el probador web/móvil (RF13, sin tabla propia)
+    └── probador/                  # ✅ token efímero de Decart para el probador (RF13, sin tabla propia)
 
 test/                             # e2e (vitest.config.e2e.ts, requieren Postgres): app, bootstrap
                                   # (vigila rawBody:true en main.ts), pagos, ia, motor-consulta
@@ -226,12 +226,15 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
   todos bajo `/api/v1/catalogo/*`. `productos` expone además `GET /:id` (con sus variantes
   anidadas), `POST /:id/variantes` y `PATCH /:id` (edición de prenda: categoría, colección,
   título, slug, descripción, precio en centavos, protegido con `JwtAuthGuard`, `RolesGuard` y `@Roles('ADMIN')`).
-  - **`productos.imagenes`** es `jsonb` (`ImagenProducto[]`: `{url, varianteId?, esArAsset,
-    orden}`) — se guarda y devuelve como array real de objetos, no como texto.
-  - **Legado del vestidor AR (2026-11-04):** `productos.arOverlayImageUrl` y `esArAsset` siguen
-    en la entidad y los DTO (decisión de esquema pendiente del usuario), pero ya nada los
-    escribe: la web quitó el campo de sus formularios, borró `public/prendas/` y
-    `scripts/sembrar-catalogo.mjs` dejó de asignar recortes. El probador usa la foto real.
+  - **`productos.imagenes`** es `jsonb` (`ImagenProducto[]`: `{url, varianteId?, orden}`) — se
+    guarda y devuelve como array real de objetos, no como texto. La primera foto es la que el
+    probador (Decart) usa como referencia de la prenda.
+  - **Sin campos del vestidor AR (2026-11-04):** se quitaron `modeloArUrl` (`modelo_ar_url`),
+    `arOverlayImageUrl` (`ar_overlay_image_url`) e `imagenes[].esArAsset` de entidad, DTO,
+    service y respuesta. Local: `synchronize` borra las columnas al reiniciar. Azure
+    (`NODE_ENV=production`, sin synchronize): SQL manual opcional en el vault
+    `App/Despliegue_Azure.md`; las columnas sobrantes no rompen nada. Un `esArAsset` que mande
+    un cliente viejo se descarta en silencio (`whitelist: true`).
   - **`productos.precioCents`** es `bigint` en Postgres pero el driver `pg` lo devuelve como
     `string` por defecto — se agregó un `transformer` en la entidad para que la API siempre
     entregue un `number` real. Buen ejemplo a copiar si otro módulo (`ventas`, `pagos`) usa
@@ -276,7 +279,8 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
     comía el tránsito de otras órdenes.
   - `OrdenesCompraController` (`/inventario/ordenes-compra`): todo `@Roles('ADMIN')`.
     - `POST /`: crea orden `PENDIENTE` a nombre de `user.sub` (el DTO **no** tiene `usuarioId`) y
-      sube `cantidadEnTransito`.
+      sube `cantidadEnTransito`. La respuesta (`OrdenCompraResponseDto`) **no** expone `usuarioId`
+      (2026-11-04): se guarda en la fila para auditoría, la web no lo usa.
     - `GET /` y `GET /:id`: listado y detalle con items (jsonb).
     - `PATCH /:id/recibir`: recepción parcial/total; el movimiento `RECEPCION_PROVEEDOR` queda a
       nombre de `user.sub` (quien recibe, no quien creó).
@@ -294,7 +298,8 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
     lista en `ESTADOS_ORDEN`) pero **ningún flujo lo asigna**; el front no lo modela.
   - `venta_item_id` y `usuario_id` en `MovimientoInventario` son columnas sin relación ORM ni
     validación de existencia (no hay `UsuariosService` expuesto por `seguridad` todavía) — son
-    trazabilidad de auditoría, no integridad referencial estricta.
+    trazabilidad de auditoría, no integridad referencial estricta. `GET /inventario/movimientos`
+    ya **no** devuelve `usuarioId` (2026-11-04): queda solo en la BD.
   - Exporta `InventarioSucursalService` para que `ventas` descuente stock al vender.
 - **`ventas`**: dueño de `carritos`, `ventas` y `venta_items`.
   - `Carrito.usuarioId` tiene índice **unique** (decisión propia, no está así en
@@ -674,7 +679,7 @@ relación con ningún otro módulo.
   `/probador`, probarse una prenda no exige cuenta): llama `client.tokens.create()` del SDK
   (`@decartai/sdk`) con la clave real (`DECART_API_KEY`, env var) y devuelve al navegador un
   `apiKey` efímero de **5 minutos** (`expiresIn: 300`), restringido a `lucy-vton-3.5`
-  (`allowedModels`). Lo usan la web y, desde 2026-09-29, también el móvil. La clave real
+  (`allowedModels`). Lo usa la web (el móvil viejo está congelado). La clave real
   **nunca sale de este servidor** — mismo criterio que ya usa `pagos` con las claves de Stripe.
 - **Sin `DECART_API_KEY` el endpoint responde 503** (`ProbadorNoConfiguradoException`), mismo
   patrón que `IaNoConfiguradaException` en `ia/` — el resto del sitio sigue funcionando igual.
@@ -682,7 +687,7 @@ relación con ningún otro módulo.
   (`LimiteTokensProbadorException`). Ventana fija en un `Map` en memoria dentro de
   `ProbadorService` (sin `@nestjs/throttler`, que no está instalado; vale porque hay una sola
   instancia). La IP sale de `X-Real-IP` (Nginx la pisa con `$remote_addr`, en `nginx.conf` y
-  `nginx.prod.conf`), con fallback a `req.ip` si se llama directo a `:3000` (móvil en dev).
+  `nginx.prod.conf`), con fallback a `req.ip` si se llama directo a `:3000`.
   No se usa el primer valor de `X-Forwarded-For` porque lo controla el cliente.
 
 ## 🗺️ Roadmap de los módulos que faltan
@@ -752,10 +757,10 @@ npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule comp
   reemplazar por migraciones (`typeorm migration:generate`) y apagar `synchronize`.
 
 **Dependencias (2026-11-04):** se desinstaló `source-map-support` (sin uso; Node 24 tiene
-`--enable-source-maps`). `@nestjs/mau` sigue en devDependencies solo porque lo usa el script
-`npm run deploy` (`nest deploy`, plantilla del CLI); el despliegue real es
-`../scripts/deploy-azure.sh`, así que se puede borrar junto con ese script si el usuario lo
-confirma. `tsconfig.build.tsbuildinfo` ya no se versiona (`*.tsbuildinfo` en `.gitignore`).
+`--enable-source-maps`). También se desinstaló `@nestjs/mau` y se borró el script
+`npm run deploy` (`nest deploy`, plantilla del CLI): el despliegue real es
+`../scripts/deploy-azure.sh`. `tsconfig.build.tsbuildinfo` ya no se versiona (`*.tsbuildinfo` en
+`.gitignore`). CORS sin env var: solo `http://localhost:5174` (se quitó `:8081` de Expo).
 
 ## 🛡️ Reglas anti-acaparamiento de stock (2026-09-29)
 

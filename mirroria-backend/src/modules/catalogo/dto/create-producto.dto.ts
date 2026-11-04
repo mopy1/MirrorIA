@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsInt,
   IsOptional,
   IsPositive,
@@ -20,10 +19,6 @@ export class ImagenProductoDto {
   @IsOptional()
   @IsUUID()
   varianteId?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  esArAsset?: boolean;
 
   @IsOptional()
   @IsInt()
@@ -53,14 +48,6 @@ export class CreateProductoDto {
   @IsInt()
   @IsPositive()
   precioCents!: number;
-
-  @IsOptional()
-  @IsUrl({ require_tld: false })
-  modeloArUrl?: string;
-
-  @IsOptional()
-  @IsUrl({ require_tld: false })
-  arOverlayImageUrl?: string;
 
   @IsOptional()
   @IsArray()

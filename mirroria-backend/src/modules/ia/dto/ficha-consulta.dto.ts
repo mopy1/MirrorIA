@@ -31,7 +31,7 @@ export class RangoDto {
 
 /**
  * El contrato que rellena el LLM. Es CERRADA a proposito
- * (ValidationPipe con `forbidNonWhitelisted` propio del controller de ia, ver Task 5):
+ * (ValidationPipe con `forbidNonWhitelisted` propio del controller de ia, ver ia.controller.ts):
  * cualquier propiedad que el modelo invente es 400, no algo que llegue a la base.
  */
 export class FichaConsultaDto {

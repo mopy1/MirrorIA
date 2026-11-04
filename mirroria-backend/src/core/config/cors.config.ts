@@ -6,12 +6,12 @@ import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-option
  * Sin la env var, solo permite el puerto local por defecto de Vite (mirroria-frontend).
  */
 export function buildCorsOptions(): CorsOptions {
-  const raw = process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:8081,http://127.0.0.1:8081';
+  const raw = process.env.CORS_ORIGINS ?? 'http://localhost:5174';
   const origins = raw.split(',').map((origin) => origin.trim());
 
   return {
     origin: (origin, callback) => {
-      // Permite solicitudes sin Origin (apps móviles nativas, mobile WebView, curl, etc.)
+      // Permite solicitudes sin Origin (curl, health checks, clientes nativos)
       if (!origin) {
         return callback(null, true);
       }

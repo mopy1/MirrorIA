@@ -49,6 +49,8 @@ data/
 **/.agents/
 .claude/
 **/.claude/
+skills-lock.json
+**/skills-lock.json
 cloudflared*.log
 
 
@@ -57,13 +59,7 @@ __pycache__/
 **/__pycache__/
 *.pyc
 
-# --- Pruebas del probador en navegador (npm run e2e:probador) ---
-# Capturas, fotos descargadas y el .y4m de la camara simulada (13 MB).
-mirroria-frontend/scripts/.trabajo/
-scripts/.trabajo/
-
 # --- Artefactos locales (no versionar) ---
 .playwright-mcp/
 *.tsbuildinfo
-*.y4m
 *.dump

@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react"
+import { Sparkle } from "@phosphor-icons/react"
 import { cn } from "cn"
 
 export interface BrandLogoProps {
@@ -61,7 +61,7 @@ export function BrandLogo({
           badgeStyles
         )}
       >
-        <Sparkles size={calculatedIconSize} className="shrink-0" />
+        <Sparkle size={calculatedIconSize} className="shrink-0" />
       </div>
 
       {withText && (

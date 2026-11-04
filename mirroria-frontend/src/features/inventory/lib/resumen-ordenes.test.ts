@@ -6,7 +6,6 @@ const orden = (proveedorId: string, estado: OrdenCompra["estado"], pedida: numbe
   id: `${proveedorId}-${estado}`,
   proveedorId,
   sucursalDestinoId: "s1",
-  usuarioId: "u1",
   estado,
   items: [{ varianteId: "v1", cantidadPedida: pedida, cantidadRecibida: recibida }],
   fechaPedido: "2026-11-01T10:00:00Z",

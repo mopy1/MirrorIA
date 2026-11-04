@@ -9,7 +9,7 @@ function TiraDePrendasBase({
 }: {
   prendas: Producto[]
   elegidaId: string | null
-  /** Ids cuyo recorte ya dio error: se muestran atenuados y no se pueden
+  /** Ids cuya foto ya falló al mandarla a Decart: se muestran atenuados y no se pueden
    * volver a elegir, en vez de fallar en silencio otra vez. */
   fallidas?: ReadonlySet<string>
   onElegir: (p: Producto) => void

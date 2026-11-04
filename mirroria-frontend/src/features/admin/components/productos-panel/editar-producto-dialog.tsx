@@ -68,7 +68,7 @@ export function EditarProductoDialog({
     try {
       const precioCents = Math.round(Number(form.precio) * 100)
       const imagenes = form.imagenUrl.trim()
-        ? [{ url: form.imagenUrl.trim(), orden: 0, esArAsset: false }]
+        ? [{ url: form.imagenUrl.trim(), orden: 0 }]
         : []
       await catalogApi.updateProducto(producto.id, {
         categoriaId: form.categoriaId,

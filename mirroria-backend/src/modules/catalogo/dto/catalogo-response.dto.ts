@@ -55,8 +55,6 @@ export class ProductoResponseDto {
   slug!: string;
   descripcion!: string | null;
   precioCents!: number;
-  modeloArUrl!: string | null;
-  arOverlayImageUrl!: string | null;
   imagenes!: ImagenProducto[];
   activo!: boolean;
   variantes?: VarianteResponseDto[];

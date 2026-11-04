@@ -47,7 +47,7 @@ export function CrearProductoDialog({
     event.preventDefault()
     const precioCents = Math.round(Number(form.precio) * 100)
     const imagenes = form.imagenUrl.trim()
-      ? [{ url: form.imagenUrl.trim(), orden: 0, esArAsset: false }]
+      ? [{ url: form.imagenUrl.trim(), orden: 0 }]
       : []
     const result = await submit({
       categoriaId: form.categoriaId,

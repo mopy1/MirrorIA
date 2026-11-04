@@ -80,8 +80,8 @@ export function useProbador(productoId?: string) {
   })
 
   // Dibuja el cuadro actual del video (el de la IA si ya conectó, si no el
-  // crudo de la cámara) y dispara la descarga. Mucho más simple que la
-  // versión anterior con landmarks: Decart ya devuelve la prenda puesta.
+  // crudo de la cámara) y dispara la descarga: Decart ya devuelve la prenda
+  // puesta, no hay nada que componer encima.
   const sacarFoto = useCallback(() => {
     if (!video || !video.videoWidth || !video.videoHeight) {
       setAviso("La cámara todavía no está lista.")

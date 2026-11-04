@@ -20,7 +20,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('MirrorIA API')
       .setDescription(
-        'E-commerce de moda femenina multi-sucursal con vestidor virtual AR — Examen 1 SI2',
+        'E-commerce de moda femenina multi-sucursal con probador virtual por IA (Decart) — Examen 1 SI2',
       )
       .setVersion('0.1')
       .addBearerAuth()

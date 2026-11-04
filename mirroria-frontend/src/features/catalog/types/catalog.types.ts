@@ -50,7 +50,6 @@ export interface Variante {
 export interface ImagenProducto {
   url: string
   varianteId?: string
-  esArAsset: boolean
   orden: number
 }
 
@@ -62,8 +61,6 @@ export interface Producto {
   slug: string
   descripcion: string | null
   precioCents: number
-  modeloArUrl: string | null
-  arOverlayImageUrl: string | null
   imagenes: ImagenProducto[]
   activo: boolean
   variantes?: Variante[]

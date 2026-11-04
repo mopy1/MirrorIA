@@ -19,7 +19,6 @@ export interface OrdenCompra {
   id: string
   proveedorId: string
   sucursalDestinoId: string
-  usuarioId: string
   estado: EstadoOrdenCompra
   items: OrdenCompraItem[]
   fechaPedido: string

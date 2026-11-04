@@ -19,7 +19,6 @@ export class MovimientoInventarioResponseDto {
   ventaItemId!: string | null;
   motivo!: string | null;
   referenciaDoc!: string | null;
-  usuarioId!: string | null;
   fecha!: Date;
 }
 
@@ -27,7 +26,6 @@ export class OrdenCompraResponseDto {
   id!: string;
   proveedorId!: string;
   sucursalDestinoId!: string;
-  usuarioId!: string;
   estado!: string;
   items!: OrdenCompraItem[];
   fechaPedido!: Date;

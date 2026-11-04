@@ -65,7 +65,7 @@ describe('MotorConsultaService', () => {
     await service.ejecutar(
       ficha({ metrica: 'ingresos', agruparPor: 'mes', filtros: { desde: '2026-08-01', hasta: '2026-08-31' } }),
     );
-    // El catalogo (Task 1-3, fijo) declara columnaFecha como v."createdAt" (camelCase, entre
+    // El catalogo (fijo) declara columnaFecha como v."createdAt" (camelCase, entre
     // comillas dobles) — nunca v.created_at. Ver AGENTS.md / nota de comillas en createdAt.
     expect(sqlDeLaLlamada()).toContain('v."createdAt" >= $');
     expect(paramsDeLaLlamada()).toContain('2026-08-01');

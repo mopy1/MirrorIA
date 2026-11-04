@@ -10,7 +10,7 @@ femenina multi-sucursal).
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-03 (commit `4509622`).** Las secciones 2 y 3 describen lo que existe
+> **Actualizado: 2026-11-04 (limpieza profunda, rama `feat/ordenes-compra-proveedores`).** Las secciones 2 y 3 describen lo que existe
 > hoy en `src/`, verificado contra `src/App.tsx` y `src/features/*`. El historial de sesiones
 > anteriores (2026-09-12 a 2026-09-29) está condensado en la sección 6: solo quedan las
 > decisiones y lecciones que siguen vigentes.
@@ -29,8 +29,11 @@ directrices de forma obligatoria.
   `lib/utils.ts`, no crearlo.
 - **Identidad visual:** Geist Variable (`@fontsource-variable/geist`) como única tipografía;
   acento único vino/rosa profundo en `--primary`/`--ring` (`src/index.css`), resto neutro frío;
-  `--radius: 0.75rem`. Iconos de contenido con **Phosphor** (`@phosphor-icons/react`); Lucide
-  solo donde lo usan los primitivos generados por shadcn. Animación con `motion` (`motion/react`).
+  `--radius: 0.75rem`. Iconos **100% Phosphor** (`@phosphor-icons/react`), también en los
+  primitivos de shadcn (`dialog`/`sheet` → `X`, `select` → `CaretDown`/`CaretUp`/`Check`,
+  `navigation-menu` → `CaretDown`, `brand-logo` → `Sparkle`). `lucide-react` desinstalado
+  (2026-11-04) y `components.json` con `"iconLibrary": "phosphor"`, así `shadcn add` genera los
+  componentes nuevos con Phosphor; si alguno llega con un import de lucide, cambiarlo a mano. Animación con `motion` (`motion/react`).
 - **Otras dependencias:** React Hook Form + Zod (`@hookform/resolvers`), Recharts (reportes),
   `@decartai/sdk` (probador virtual).
 - **Alias `@/*` → `src/*`:** en `vite.config.ts`, `tsconfig.app.json` **y** en el
@@ -231,7 +234,7 @@ lookup), `pages/BranchesPage.tsx`.
 `api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `api/purchaseOrdersApi.ts` (órdenes de compra: get, create, recibir y `cancelarOrden` → `PATCH /:id/cancelar`), `hooks/useDisponibilidad.ts`
 (stock en la ficha: desde 2026-11-03 muestra lo **libre**, `cantidadDisponible - cantidadReservada`,
 igual que lo que el backend deja comprar), `types/` (`inventory.types.ts`, `purchase-orders.types.ts`;
-sin `usuarioId` en el DTO de alta — el backend usa el JWT — y sin `EN_TRANSITO`, que el backend nunca asigna).
+sin `usuarioId` ni en el DTO de alta ni en `OrdenCompra` — el backend usa el JWT y ya no lo devuelve — y sin `EN_TRANSITO`, que el backend nunca asigna).
 - `hooks/useVariantesPorProveedor.ts`: cruza variante → `coleccionId` → `colecciones.proveedorId`
   en cliente (sin endpoint nuevo); da `delProveedor` y `proveedorDe(varianteId)`.
 - `hooks/useCrearOrdenForm.ts`: estado + submit del alta; arranca desde `initialProveedorId` /
@@ -336,7 +339,7 @@ sesión ni layout de la tienda (representa otra app). El token del QR es la úni
 - `lib/ventanaReserva.ts` (+test): `min`/`max` del `datetime-local` en hora local (default
   +30 min / +48 h, `min` redondeado al minuto siguiente para no recibir 409).
 - `lib/codigoReserva.ts` (+test): `codigoReserva(id)` = primeros 8 caracteres en mayúsculas
-  (el mismo del Pase de Tienda del móvil); `coincideCodigo()` tolera `#`, espacios y minúsculas.
+  (el mismo que busca el panel admin); `coincideCodigo()` tolera `#`, espacios y minúsculas.
 - `lib/estadoReserva.ts`: etiquetas para la clienta (`EXPIRADA` → "Vencida", `NO_SHOW` → "No te
   presentaste").
 - `components/reservar-en-tienda/`: `reservar-en-tienda.tsx` (JSX, siempre 1 unidad),
@@ -445,12 +448,9 @@ inexistente (ficha de prenda).
   pantalla. Hoy la caja usa `/admin/reservas` y `/admin/cobros`.
 - **"Mis pedidos" web:** no existe; el 409 de "2 compras sin pagar" del checkout la menciona sin
   link.
-- **Esquema del AR viejo (decisión pendiente del usuario):** `productos.ar_overlay_image_url` e
-  `imagenes[].esArAsset` siguen en la BD, el backend y los tipos del front
-  (`catalog.types.ts`, `catalogApi.ts`), pero ya ningún formulario los edita; los productos ya
-  sembrados pueden conservar una URL `/prendas/*.png` que hoy da 404 (nadie la lee).
-- **Login/registro:** falta botón para mostrar la contraseña (el móvil lo tiene).
-- **`/probador/token`** es público y sin rate-limiting (gasta crédito de Decart).
+- **Login/registro:** falta botón para mostrar la contraseña.
+- **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens
+  cada 10 min por IP.
 
 ---
 
@@ -504,6 +504,12 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
   formularios de producto, `ui/collapsible.tsx` (ya sin importadores) y `reportsApi.historial`.
   Hero a `.webp` (244 → 93 kB). Carga diferida de admin/probador/Wayra y gzip + caché inmutable
   de `/assets/` en Nginx (ver §0 y §2).
+- **2026-11-04 — Limpieza profunda:** fuera `modeloArUrl`, `arOverlayImageUrl` e
+  `imagenes[].esArAsset` de `catalog.types.ts`, `catalogApi.ts`, los diálogos de producto y los
+  tests; fuera `usuarioId` de `OrdenCompra`. Iconos unificados en Phosphor y `lucide-react`
+  desinstalado. `.agents/`, `.claude/` (symlinks a `.agents/skills`) y `skills-lock.json` dejaron
+  de versionarse: siguen en disco para Claude Code/Antigravity, pero son herramientas locales.
+  El único probador es Decart (`features/fitting`).
 
 ---
 

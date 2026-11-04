@@ -6,7 +6,7 @@ import {
 } from "./prendasProbables"
 
 const p = (id: string, tieneFoto: boolean) =>
-  ({ id, imagenes: tieneFoto ? [{ url: "/x.jpg", esArAsset: false, orden: 0 }] : [] }) as Parameters<
+  ({ id, imagenes: tieneFoto ? [{ url: "/x.jpg", orden: 0 }] : [] }) as Parameters<
     typeof prendasProbables
   >[0][number]
 

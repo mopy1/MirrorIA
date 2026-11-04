@@ -4,7 +4,7 @@
 
 **MirrorIA** es el proyecto del Examen 1 de Sistemas de Información II (S2-2026): una
 plataforma de e-commerce **multi-sucursal, exclusivamente de moda femenina**, con probador
-virtual por IA (Decart VTON, reemplazó al vestidor AR original), reservas de prendas para probar en tienda, punto de venta
+virtual por IA (Decart VTON, `lucy-vton-3.5` — el único probador del proyecto), reservas de prendas para probar en tienda, punto de venta
 presencial y digital, y un asistente/recomendador con IA. El enunciado completo, el diseño de
 base de datos (23 tablas, DBML) y las decisiones de diseño viven en el vault de Obsidian, no
 en este repo:
@@ -27,7 +27,7 @@ en este repo:
 |---|---|
 | Backend | **NestJS** (Node 24, TypeScript ESM, TypeORM + PostgreSQL) |
 | Frontend web | **React** |
-| Móvil | **React Native** |
+| Móvil | **React Native** — app actual congelada/obsoleta, se rehará desde cero |
 | Base de datos | **PostgreSQL 16** |
 | Despliegue | **Azure** |
 
@@ -39,8 +39,9 @@ en este repo:
 ├── docker-compose.prod.yml     # override SOLO para la VM real (dominio + Let's Encrypt, ver §7)
 ├── db/init/001-extensions.sql  # crea pgcrypto automáticamente en el primer arranque del volumen
 ├── .env / .env.example         # POSTGRES_PASSWORD compartido por docker-compose
-├── .gitignore                  # incluye .playwright-mcp/, *.tsbuildinfo, *.y4m, *.dump (artefactos locales)
+├── .gitignore                  # incluye .playwright-mcp/, *.tsbuildinfo, *.dump y las herramientas locales de IA (.agents/, .claude/, skills-lock.json)
 ├── AGENTS.md                   # 🌟 Este manual maestro
+├── docs/superpowers/           # specs + registro de decisiones de `ia` (CU24) y `pagos` (RF19), aún vigentes
 ├── scripts/
 │   ├── deploy-azure.sh          # despliegue a la VM de Azure (ver §8)
 │   ├── sembrar-catalogo.mjs     # siembra idempotente del catálogo demo contra una API corriendo
@@ -59,8 +60,8 @@ en este repo:
 │   ├── nginx.conf / nginx.prod.conf  # dev HTTP / VM con SSL: proxy /api/, fallback SPA, gzip, caché 1 año de /assets/
 │   └── src/routes/lazy-pages.ts      # React.lazy de /admin/*, probador y Wayra (bundle inicial 1.57 MB → 795 kB)
 │
-└── mirroria-mobile/            # 📱 React Native + Expo SDK 57 + NativeWind v4 + RNR — ver mirroria-mobile/AGENTS.md
-    └── AGENTS.md                # arquitectura modular (feature-based), auth login/register completado
+└── mirroria-mobile/            # 📱 CONGELADA (2026-11-04): app vieja, se rehará desde cero. No se edita ni se borra;
+                                 #    backend y web ya NO mantienen compatibilidad con ella (tipos/contratos pueden romperla)
 ```
 
 ## 🐘 4. Base de datos: cómo levantarla
@@ -110,7 +111,7 @@ cd mirroria-frontend && npm run dev
 docker compose up -d --build
 ```
 
-## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-03)
+## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-04)
 
 - ✅ Postgres dockerizado y funcionando. **Las 23 tablas del diseño están completas** (antes de
   cerrar `pagos` eran 22 de 23).
@@ -136,11 +137,9 @@ docker compose up -d --build
 - 🚧 Frontend: falta una pantalla de punto de caja (POS) para el rol `CAJERO` (el endpoint del
   backend ya existe y está protegido por rol, pero no hay UI todavía) — no forma parte del
   alcance de `pagos`, es venta presencial (RF17-18).
-- ✅ `mirroria-mobile/` (React Native + Expo SDK 57 + NativeWind v4 + React Native Reusables):
-  auth, catálogo, carrito, pago, pedidos, sucursales y **Probador IA con Decart VTON**
-  (2026-09-29): el vestidor AR anterior (ML Kit + `.glb` con three.js) se eliminó entero y se
-  reemplazó por el mismo Decart que usa la web, sobre WebRTC nativo (LiveKit). Requiere el dev
-  build (`com.mirroria.app`), no corre en Expo Go — ver `mirroria-mobile/AGENTS.md`.
+- 🧊 `mirroria-mobile/` **congelada/obsoleta (2026-11-04):** la app se rehará desde cero. La
+  carpeta queda como referencia, sin mantenimiento: el backend y la web se optimizan como si no
+  existiera (ya no compila contra los contratos actuales, p. ej. sin campos AR).
 - ✅ Todo dockerizado (`docker-compose.yml`, proyecto compose `name: mirroria`): `mirroria_postgres`,
   `mirroria_backend` y `mirroria_frontend` (Nginx en `:80`, proxy `/api/` al backend). Despliegue
   a Azure por `scripts/deploy-azure.sh` (ver §8).
@@ -182,9 +181,18 @@ docker compose up -d --build
   `sembrar-catalogo.mjs`), `scripts/prendas/` y los `.sql` de una sola vez; `.playwright-mcp/` y
   el `tsbuildinfo` del backend dejaron de versionarse. Nginx con gzip + caché inmutable de
   `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
-  `arOverlayImageUrl`/`esArAsset` siguen en BD/backend (decisión pendiente). Mobile sin tocar.
+  Las columnas AR quedaron para una segunda pasada (ver abajo). Mobile sin tocar.
+- 🧹 **Limpieza profunda (2026-11-04, rama `feat/ordenes-compra-proveedores`):** fuera los campos
+  del vestidor viejo en backend y web (`productos.modelo_ar_url`, `productos.ar_overlay_image_url`
+  e `imagenes[].esArAsset`; local los quita `synchronize`, Azure necesita el SQL manual del vault
+  `App/Despliegue_Azure.md`). `usuarioId` ya no sale en `GET /inventario/movimientos` ni en las
+  órdenes de compra. Iconos 100% Phosphor (`lucide-react` desinstalado, `components.json` con
+  `iconLibrary: "phosphor"`). Fuera `@nestjs/mau` y el script `deploy` (`nest deploy`) del
+  backend; CORS por defecto solo `:5174` (sin `:8081` de Expo). `.agents/`, `.claude/` y
+  `skills-lock.json` del front dejaron de versionarse (siguen en disco). Borrados los plans de
+  `docs/superpowers/` y el spec del probador con MediaPipe.
 
-## 🧭 8. Dónde está todo (actualizado 2026-11-03) — leer antes de pedir una mejora
+## 🧭 8. Dónde está todo (actualizado 2026-11-04) — leer antes de pedir una mejora
 
 - **Reglas de negocio** (topes de reserva/compra, vencimiento, faltas, flujo de mostrador,
   alcance por sucursal, código de reserva): vault `U/2-2026/SI2/Parcial1/App/Reglas_de_Negocio.md`
@@ -193,11 +201,11 @@ docker compose up -d --build
   imágenes, se frena si la VM tiene cambios sueltos) — vault `App/Despliegue_Azure.md`. Los
   despliegues los corre el usuario: el modo automático bloquea desplegar a producción.
 - **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios).
-- **Móvil**: probador IA con Decart, QA completo en celular real y trampas de ADB/WSL en
-  `mirroria-mobile/AGENTS.md`; resumen en vault `App/Mobile.md`.
+- **Móvil**: congelado, se rehará desde cero (aviso en vault `App/Mobile.md`). Al rehacerlo,
+  partir de los contratos actuales del vault `App/Endpoints.md`, no de `mirroria-mobile/`.
 - **GitHub** (`mopy1/MirrorIA`): push a `main` habilitado de nuevo (2026-11-03). La rama
   `arreglos-vestidor-ar` es del AR viejo y quedó obsoleta (choca con el módulo pose-detector que
   `main` ya borró) — no mergearla.
 - **Vault de la app** (`U/2-2026/SI2/Parcial1/App/`): `Backend.md`, `Frontend.md`, `Database.md`,
   `Endpoints.md`, `Reglas_de_Negocio.md`, `Troubleshooting.md`, `Despliegue_Azure.md`, `Mobile.md`
-  — actualizados al 2026-11-03 (web; `Mobile.md` sigue al 2026-09-29).
+  — actualizados al 2026-11-04 (`Mobile.md` solo con el aviso de congelada).

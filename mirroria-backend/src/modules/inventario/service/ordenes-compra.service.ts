@@ -179,7 +179,6 @@ export class OrdenesCompraService {
       id: orden.id,
       proveedorId: orden.proveedorId,
       sucursalDestinoId: orden.sucursalDestinoId,
-      usuarioId: orden.usuarioId,
       estado: orden.estado,
       items: orden.items,
       fechaPedido: orden.fechaPedido,
