@@ -1,14 +1,38 @@
 import { useState } from "react"
+import { ApiError } from "@/lib/api"
 import { reportsApi } from "../api/reportsApi"
 import { respuestaMeta, tituloDesdeTexto } from "../lib/reportes-chat.utils"
 import type { ChatMessage, ReportTab } from "../types/chat.types"
-import { ApiError } from "@/lib/api"
+import type { ReporteHibridoResponse } from "../types/reports-hybrid.types"
+import type { Reporte } from "../types/reports.types"
 
 const TAB_RESUMEN: ReportTab = { id: "resumen", tipo: "resumen", titulo: "Resumen" }
 
-/** Estado y lógica del asistente de reportes: la conversación (`mensajes`) y
- * los reportes abiertos como tabs (`tabs`) — separado de la página para que
- * `ReportesAdminPage.tsx` se quede como Thin Page (Regla 1.B). */
+function mapHibridoAReporte(h: ReporteHibridoResponse): Reporte {
+  return {
+    ficha: {
+      metrica: h.esSimulacion ? "simulacion" : "hibrido",
+      agruparPor: "hibrido",
+      filtros: {},
+      orden: "desc",
+      limite: h.filas.length,
+    },
+    filas: h.filas.map((f, i) => ({
+      clave: String(i),
+      etiqueta: f.etiqueta,
+      valor: f.valor,
+      valorProyectado: f.valorProyectado,
+      valorOriginal: f.valorOriginal,
+      detalles: f.detalles,
+    })),
+    comparacion: null,
+    narrativa: h.narrativa,
+    pasosEjecutados: h.pasosEjecutados,
+    esSimulacion: h.esSimulacion,
+    tipoGraficoSugerido: h.tipoGraficoSugerido,
+  }
+}
+
 export function useReportesChat() {
   const [mensajes, setMensajes] = useState<ChatMessage[]>([])
   const [tabs, setTabs] = useState<ReportTab[]>([TAB_RESUMEN])
@@ -24,8 +48,6 @@ export function useReportesChat() {
     if (texto.length < 3) return
     agregarMensaje({ rol: "usuario", texto })
 
-    // Preguntas tipo "¿qué podés hacer?" se responden solas, sin gastar el
-    // modelo ni crear un tab de reporte (no hay datos que mostrar).
     const meta = respuestaMeta(texto)
     if (meta) {
       agregarMensaje({ rol: "asistente", texto: meta, tono: "normal" })
@@ -39,21 +61,19 @@ export function useReportesChat() {
     setCargando(true)
 
     try {
-      const reporte = await reportsApi.preguntar(texto)
+      const hibrido = await reportsApi.preguntarHibrido(texto)
+      const reporte = mapHibridoAReporte(hibrido)
       setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, reporte, cargando: false } : t)))
       agregarMensaje({
         rol: "asistente",
-        texto: reporte.narrativa ?? `Listo — mirá la pestaña "${titulo}".`,
+        texto: hibrido.narrativa ?? `Listo — mirá la pestaña "${titulo}".`,
         tono: "normal",
         reporteTabId: tabId,
+        pasosEjecutados: hibrido.pasosEjecutados,
       })
     } catch (e) {
-      // Sin datos que mostrar, el tab que se abrió en optimista no queda
-      // colgando vacío — se saca y se vuelve al resumen.
       setTabs((prev) => prev.filter((t) => t.id !== tabId))
       setTabActivaId((actual) => (actual === tabId ? "resumen" : actual))
-      // 422 = ConsultaNoComprendidaException: el asistente entendió pero no
-      // es pregunta de negocio — es conversación, no una falla (ver Fase 1).
       if (e instanceof ApiError && e.status === 422) {
         agregarMensaje({ rol: "asistente", texto: e.message, tono: "aclaracion" })
       } else {
@@ -74,11 +94,6 @@ export function useReportesChat() {
     setTabActivaId((actual) => (actual === id ? "resumen" : actual))
   }
 
-  // A diferencia de `setTabActivaId` (que usa el propio `ReportTabs` con ids
-  // siempre válidos, porque salen de los tabs que ya están montados), el
-  // "Ver reporte" de una burbuja vieja del chat puede apuntar a un tab que
-  // ya se cerró — sin esta guarda, la pantalla se queda sin ningún tab
-  // seleccionado y el panel principal queda en blanco.
   function abrirTab(id: string) {
     if (tabs.some((t) => t.id === id)) setTabActivaId(id)
   }

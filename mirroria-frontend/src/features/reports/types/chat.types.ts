@@ -1,3 +1,4 @@
+import type { PasoEjecutado } from "./reports-hybrid.types"
 import type { Reporte } from "./reports.types"
 
 /** Tono del mensaje del asistente — decide cómo se pinta la burbuja.
@@ -15,6 +16,7 @@ export interface ChatMessage {
   /** Si el mensaje generó un reporte nuevo, el id del tab para poder abrirlo
    * desde la burbuja sin tener que ir a buscarlo en la barra de tabs. */
   reporteTabId?: string
+  pasosEjecutados?: PasoEjecutado[]
 }
 
 export type ReportTab =

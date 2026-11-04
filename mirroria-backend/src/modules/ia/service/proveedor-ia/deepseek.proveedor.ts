@@ -5,34 +5,20 @@ import { IaSinRespuestaException } from '../../exception/ia-sin-respuesta.except
 import type { ComparacionDto } from '../../dto/reporte-response.dto.js';
 import type { FilaReporte } from '../motor-consulta.service.js';
 import { construirInstruccion } from './esquema-ficha.js';
-import type { ProveedorIa } from './proveedor-ia.interface.js';
+import type { MensajeIa, ProveedorIa, ToolCallResult } from './proveedor-ia.interface.js';
 
 const URL = 'https://api.deepseek.com/chat/completions';
-// Sin tope, un DeepSeek colgado dejaba el pedido abierto indefinidamente.
 const TIMEOUT_MS = 20_000;
 
-/**
- * Habla con DeepSeek por HTTP directo (API compatible con OpenAI, mismo
- * criterio que `GeminiProveedor`: `fetch` global de Node, sin SDK nuevo).
- *
- * Diferencia real con Gemini que importa para `extraerFicha`: DeepSeek NO
- * soporta un JSON Schema forzado del lado del servidor (no hay equivalente a
- * `responseSchema`) — `response_format: {type: 'json_object'}` solo
- * garantiza JSON *valido*, no una forma en particular. Por eso
- * `construirInstruccion()` ahora describe el formato de salida en texto
- * (ver `esquema-ficha.ts`) — sin esa descripcion el modelo podia devolver
- * cualquier JSON, no necesariamente los campos de la ficha. La validacion
- * real de todos modos es responsabilidad del llamador (`IaService`, contra
- * `FichaConsultaDto`) — acá no cambia nada de esa parte.
- *
- * DeepSeek exige que la palabra "json" aparezca en algún mensaje cuando se
- * pide `json_object` (si no, la API devuelve un error) — la instruccion de
- * `extraerFicha` la incluye explicitamente por esto.
- */
+interface DeepSeekChoiceMsg {
+  content?: string | null;
+  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+}
+
 @Injectable()
 export class DeepSeekProveedor implements ProveedorIa {
   private readonly logger = new Logger(DeepSeekProveedor.name);
-  private readonly apiKey: string | undefined;
+  private readonly apiKey?: string;
   private readonly modelo: string;
 
   constructor(config: ConfigService) {
@@ -45,84 +31,70 @@ export class DeepSeekProveedor implements ProveedorIa {
   }
 
   async extraerFicha(texto: string): Promise<unknown> {
-    const json = await this.generar(
-      [
-        { role: 'system', content: construirInstruccion() },
-        { role: 'user', content: texto },
-      ],
+    const raw = await this.generar(
+      [{ role: 'system', content: construirInstruccion() }, { role: 'user', content: texto }],
       { temperature: 0, response_format: { type: 'json_object' } },
     );
-    if (json === null) return null;
     try {
-      return JSON.parse(json) as unknown;
+      return raw?.content ? JSON.parse(raw.content) : null;
     } catch {
       return null;
     }
   }
 
-  async narrar(
-    ficha: FichaConsultaDto,
-    filas: FilaReporte[],
-    comparacion?: ComparacionDto | null,
-  ): Promise<string | null> {
+  async narrar(ficha: FichaConsultaDto, filas: FilaReporte[], comp?: ComparacionDto | null): Promise<string | null> {
     const datos = filas.map((f) => `${f.etiqueta}: ${f.valor}`).join('; ');
-
-    let instruccion =
-      'Redacta en espanol un resumen ejecutivo de 2 o 3 frases sobre estos datos. ' +
-      'Usa SOLO los numeros que te doy: no estimes, no inventes, no agregues contexto. ' +
-      'Los montos vienen en centavos de boliviano.';
+    let inst = 'Redacta en espanol un resumen ejecutivo de 2 o 3 frases sobre estos datos. ' +
+      'Usa SOLO los numeros que te doy: no estimes, no inventes, no agregues contexto. Los montos vienen en centavos de boliviano.';
     let texto = `Metrica: ${ficha.metrica}. Datos: ${datos || 'sin resultados'}`;
 
-    // Si la ficha comparo dos periodos, la variacion ES la respuesta a la pregunta
-    // ("¿vendi mas que el mes pasado?"). Sin esto el modelo la ignoraba y redactaba
-    // sobre el periodo actual como si la otra mitad de la tabla no existiera.
-    if (comparacion) {
-      instruccion +=
-        ' El reporte COMPARA dos periodos: nombra la variacion (si subio o bajo, y cuanto) ' +
-        'porque es lo que se pregunto. Un porcentaje ausente significa que el periodo ' +
-        'anterior fue cero, no que no haya habido cambio.';
-      const variaciones = comparacion.variaciones
-        .map((v) => {
-          const signo = v.deltaAbsoluto >= 0 ? '+' : '';
-          const pct = v.deltaPorcentual === null ? 'sin base anterior' : `${v.deltaPorcentual}%`;
-          return `${v.etiqueta}: antes ${v.anterior}, ahora ${v.actual} (${signo}${v.deltaAbsoluto}, ${pct})`;
-        })
+    if (comp) {
+      inst += ' El reporte COMPARA dos periodos: nombra la variacion (si subio o bajo, y cuanto) porque es lo que se pregunto. ' +
+        'Un porcentaje ausente significa que el periodo anterior fue cero, no que no haya habido cambio.';
+      const vars = comp.variaciones
+        .map((v) => `${v.etiqueta}: antes ${v.anterior}, ahora ${v.actual} (${v.deltaAbsoluto >= 0 ? '+' : ''}${v.deltaAbsoluto}, ${v.deltaPorcentual === null ? 'sin base anterior' : `${v.deltaPorcentual}%`})`)
         .join('; ');
-      texto +=
-        `. Periodo de comparacion (${comparacion.rango.desde} a ${comparacion.rango.hasta}): ` +
-        `${variaciones || 'sin resultados'}`;
+      texto += `. Periodo de comparacion (${comp.rango.desde} a ${comp.rango.hasta}): ${vars || 'sin resultados'}`;
     }
 
-    return this.generar(
-      [
-        { role: 'system', content: instruccion },
-        { role: 'user', content: texto },
-      ],
-      { temperature: 0.2 },
-    );
+    const res = await this.generar([{ role: 'system', content: inst }, { role: 'user', content: texto }], { temperature: 0.2 });
+    return res?.content ?? null;
   }
 
-  /**
-   * `null` cuando DeepSeek responde con un status que no es `ok`: dejar pasar
-   * un string vacio en ese caso disfrazaria un fallo del modelo como un exito
-   * con texto en blanco. Ver `extraerFicha`/`narrar` para como cada uno
-   * interpreta ese `null`.
-   */
+  async chatearConTools(
+    mensajes: MensajeIa[],
+    tools: unknown[],
+  ): Promise<{ contenido: string | null; toolCalls?: ToolCallResult[] }> {
+    const res = await this.generar(mensajes, { temperature: 0.1, tools });
+    if (!res) return { contenido: null };
+    const toolCalls: ToolCallResult[] = [];
+    if (res.tool_calls?.length) {
+      for (const tc of res.tool_calls) {
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments); } catch {}
+        toolCalls.push({ id: tc.id, name: tc.function.name, arguments: args });
+      }
+    }
+    return { contenido: res.content ?? null, toolCalls: toolCalls.length ? toolCalls : undefined };
+  }
+
   private async generar(
-    messages: Array<{ role: 'system' | 'user'; content: string }>,
-    opciones: { temperature: number; response_format?: { type: 'json_object' } },
-  ): Promise<string | null> {
-    let res: Response;
+    messages: unknown[],
+    opciones: Record<string, unknown>,
+  ): Promise<DeepSeekChoiceMsg | null> {
     try {
-      res = await fetch(URL, {
+      const res = await fetch(URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey ?? ''}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey ?? ''}` },
         body: JSON.stringify({ model: this.modelo, messages, ...opciones }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (!res.ok) {
+        this.logger.error(`DeepSeek respondio ${res.status}: ${await res.text()}`);
+        return null;
+      }
+      const data = (await res.json()) as { choices?: Array<{ message?: DeepSeekChoiceMsg }> };
+      return data.choices?.[0]?.message ?? null;
     } catch (err) {
       if (err instanceof Error && err.name === 'TimeoutError') {
         this.logger.error(`DeepSeek no respondio en ${TIMEOUT_MS / 1000} s`);
@@ -130,15 +102,5 @@ export class DeepSeekProveedor implements ProveedorIa {
       }
       throw err;
     }
-
-    if (!res.ok) {
-      this.logger.error(`DeepSeek respondio ${res.status}: ${await res.text()}`);
-      return null;
-    }
-
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    return data.choices?.[0]?.message?.content ?? '';
   }
 }

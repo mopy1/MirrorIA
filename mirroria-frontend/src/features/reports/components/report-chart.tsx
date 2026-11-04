@@ -8,38 +8,27 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { colorPorIndice, datosGrafico, elegirTipoGrafico } from "../lib/report-chart.utils"
-import { esMetricaMoneda, formatearValor, formatearValorEje } from "../lib/report-value.utils"
+import { esMetricaMoneda, formatearValorEje } from "../lib/report-value.utils"
+import type { FilaReporteHibrido } from "../types/reports-hybrid.types"
 import type { Reporte } from "../types/reports.types"
+import { tooltipDinero } from "./report-tooltip"
+import { WhatIfChart } from "./what-if-chart/what-if-chart"
 
 const CONFIG_SERIE = {
   valor: { label: "Actual", color: "var(--primary)" },
   anterior: { label: "Período anterior", color: "var(--muted-foreground)" },
 } satisfies ChartConfig
 
-/** Reemplaza el valor crudo del tooltip default (`item.value.toLocaleString()`,
- * ver components/ui/chart.tsx) por uno consciente de la métrica — si no, un
- * reporte de dinero mostraba centavos crudos en el hover (ej. "3132500" en
- * vez de "Bs 31.325,00"). Mismo criterio de indicador+etiqueta+valor que el
- * default, simplificado. */
-function tooltipDinero(metrica: string) {
-  return (value: unknown, name: unknown, item: { color?: string; payload?: { fill?: string } }) => (
-    <div className="flex w-full items-center gap-2">
-      <div
-        className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
-        style={{ backgroundColor: item.color ?? item.payload?.fill }}
-      />
-      <div className="flex flex-1 justify-between gap-4">
-        <span className="text-muted-foreground">{String(name)}</span>
-        <span className="font-mono font-medium tabular-nums text-foreground">
-          {formatearValor(Number(value), metrica)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/** Ver `elegirTipoGrafico` para el porqué de cada tipo — acá solo el dibujo. */
 export function ReportChart({ reporte }: { reporte: Reporte }) {
+  const tieneWhatIf =
+    reporte.tipoGraficoSugerido === "what-if-comparison" ||
+    reporte.esSimulacion ||
+    reporte.filas.some((f) => f.valorProyectado !== undefined || f.detalles?.original !== undefined)
+
+  if (tieneWhatIf) {
+    return <WhatIfChart filas={reporte.filas as FilaReporteHibrido[]} />
+  }
+
   if (reporte.filas.length <= 1) return null
 
   const { metrica } = reporte.ficha
@@ -60,9 +49,7 @@ export function ReportChart({ reporte }: { reporte: Reporte }) {
         <PieChart>
           <ChartTooltip content={<ChartTooltipContent nameKey="etiqueta" hideLabel {...tooltipProps} />} />
           <Pie data={datos} dataKey="valor" nameKey="etiqueta" innerRadius="55%" outerRadius="85%" strokeWidth={2}>
-            {datos.map((d, i) => (
-              <Cell key={d.etiqueta} fill={colorPorIndice(i)} />
-            ))}
+            {datos.map((d, i) => <Cell key={d.etiqueta} fill={colorPorIndice(i)} />)}
           </Pie>
           <ChartLegend content={<ChartLegendContent nameKey="etiqueta" />} />
         </PieChart>
@@ -75,21 +62,12 @@ export function ReportChart({ reporte }: { reporte: Reporte }) {
       <ChartContainer config={CONFIG_SERIE} className="max-h-80 w-full">
         <LineChart data={datos} margin={{ bottom: muchasCategorias ? 24 : 0 }}>
           <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="etiqueta"
-            tickLine={false}
-            axisLine={false}
-            angle={muchasCategorias ? -30 : 0}
-            textAnchor={muchasCategorias ? "end" : "middle"}
-            height={muchasCategorias ? 50 : 30}
-          />
+          <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} angle={muchasCategorias ? -30 : 0} textAnchor={muchasCategorias ? "end" : "middle"} height={muchasCategorias ? 50 : 30} />
           <YAxis tickLine={false} axisLine={false} width={esDinero ? 72 : 48} tickFormatter={ejeValor} />
           <ChartTooltip content={<ChartTooltipContent {...tooltipProps} />} />
           {conVariacion && <ChartLegend content={<ChartLegendContent />} />}
           <Line dataKey="valor" stroke="var(--color-valor)" strokeWidth={2} dot={false} />
-          {conVariacion && (
-            <Line dataKey="anterior" stroke="var(--color-anterior)" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-          )}
+          {conVariacion && <Line dataKey="anterior" stroke="var(--color-anterior)" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
         </LineChart>
       </ChartContainer>
     )
@@ -101,14 +79,7 @@ export function ReportChart({ reporte }: { reporte: Reporte }) {
         <BarChart data={datos} layout="vertical" margin={{ left: 8 }}>
           <CartesianGrid horizontal={false} />
           <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={ejeValor} />
-          <YAxis
-            type="category"
-            dataKey="etiqueta"
-            tickLine={false}
-            axisLine={false}
-            width={120}
-            tick={{ fontSize: 12 }}
-          />
+          <YAxis type="category" dataKey="etiqueta" tickLine={false} axisLine={false} width={120} tick={{ fontSize: 12 }} />
           <ChartTooltip content={<ChartTooltipContent {...tooltipProps} />} />
           <Bar dataKey="valor" fill="var(--color-valor)" radius={4} />
         </BarChart>
@@ -120,14 +91,7 @@ export function ReportChart({ reporte }: { reporte: Reporte }) {
     <ChartContainer config={CONFIG_SERIE} className="max-h-80 w-full">
       <BarChart data={datos} margin={{ bottom: muchasCategorias ? 24 : 0 }}>
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="etiqueta"
-          tickLine={false}
-          axisLine={false}
-          angle={muchasCategorias ? -30 : 0}
-          textAnchor={muchasCategorias ? "end" : "middle"}
-          height={muchasCategorias ? 50 : 30}
-        />
+        <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} angle={muchasCategorias ? -30 : 0} textAnchor={muchasCategorias ? "end" : "middle"} height={muchasCategorias ? 50 : 30} />
         <YAxis tickLine={false} axisLine={false} width={esDinero ? 72 : 48} tickFormatter={ejeValor} />
         <ChartTooltip content={<ChartTooltipContent {...tooltipProps} />} />
         {conVariacion && <ChartLegend content={<ChartLegendContent />} />}

@@ -376,16 +376,15 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `panel-guiado.tsx`, `tira-de-prendas.tsx`, `respaldo-sin-camara.tsx`.
 - `pages/ProbadorPage.tsx` (thin). Público, no requiere cuenta.
 
-### `features/reports/` ↔ backend `ia` (CU24, reportes por lenguaje natural)
-- `api/reportsApi.ts`: `preguntar` (`POST /ia/reportes`, 503 sin clave de IA), `consultar`
-  (`POST /ia/reportes/consulta`, ficha armada a mano, funciona sin IA). El endpoint
-  `GET /ia/interacciones` existe en el backend pero la web no lo consume (se quitó `historial`).
-- `hooks/`: `useReportesIniciales` (tarjetas de `reportes-iniciales.data.ts` en paralelo, cada
-  una con su propio estado), `useReportesChat` (conversación + pestañas de resultados),
+### `features/reports/` ↔ backend `ia` (CU24, reportes por lenguaje natural y análisis híbrido)
+- `api/reportsApi.ts`: `preguntar` (`POST /ia/reportes`, 503 sin clave de IA), `preguntarHibrido`
+  (`POST /ia/reportes/hibrido`, agente multi-paso con DuckDB), `consultar` (`POST /ia/reportes/consulta`).
+- `types/`: `reports.types.ts`, `reports-hybrid.types.ts` (`ReporteHibridoResponse`, `PasoEjecutado`, `FilaReporteHibrido`).
+- `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos),
   `useDictado` (Web Speech API).
-- `components/`: `chat-panel/`, `report-tabs/`, `reporte-resultado.tsx`, `report-chart.tsx`
-  (Recharts), `tabla-reporte.tsx`, `resumen-reportes.tsx`; `lib/` con utilidades de gráfico y
-  valores.
+- `components/`: `chat-panel/` (con `ReasoningSteps` en las respuestas del asistente), `report-tabs/`,
+  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + gráfico + tabla), `report-chart.tsx` (Recharts con selección dinámica y delegación a `WhatIfChart`),
+  `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
 
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/

@@ -1,7 +1,12 @@
+import type { PasoEjecutado } from "./reports-hybrid.types"
+
 export interface FilaReporte {
   clave: string
   etiqueta: string
   valor: number
+  valorProyectado?: number
+  valorOriginal?: number
+  detalles?: Record<string, unknown>
 }
 
 export interface Variacion {
@@ -35,4 +40,7 @@ export interface Reporte {
   filas: FilaReporte[]
   comparacion: Comparacion | null
   narrativa: string | null
+  pasosEjecutados?: PasoEjecutado[]
+  esSimulacion?: boolean
+  tipoGraficoSugerido?: string
 }

@@ -2,6 +2,7 @@ import { ArrowRight, Sparkle, User, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { cn } from "cn"
 import type { ChatMessage } from "../../types/chat.types"
+import { ReasoningSteps } from "../reasoning-steps/reasoning-steps"
 
 const ESTILO_TONO: Record<NonNullable<ChatMessage["tono"]>, string> = {
   normal: "bg-muted text-foreground",
@@ -40,14 +41,17 @@ export function ChatMessageItem({ mensaje, onAbrirTab }: ChatMessageItemProps) {
         className={cn("mt-1 size-5 shrink-0", tono === "error" ? "text-destructive" : "text-primary")}
         weight={tono === "error" ? "regular" : "fill"}
       />
-      <div className={cn("max-w-[85%] space-y-2 rounded-2xl rounded-tl-sm px-3 py-2 text-sm", ESTILO_TONO[tono])}>
+      <div className={cn("max-w-[85%] flex flex-col gap-2 rounded-2xl rounded-tl-sm px-3 py-2 text-sm", ESTILO_TONO[tono])}>
         <p className="leading-relaxed">{mensaje.texto}</p>
+        {mensaje.pasosEjecutados && mensaje.pasosEjecutados.length > 0 && (
+          <ReasoningSteps pasos={mensaje.pasosEjecutados} />
+        )}
         {mensaje.reporteTabId && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 px-2 text-xs text-primary hover:text-primary"
+            className="h-7 gap-1 px-2 text-xs text-primary hover:text-primary self-start"
             onClick={() => onAbrirTab(mensaje.reporteTabId!)}
           >
             Ver reporte
