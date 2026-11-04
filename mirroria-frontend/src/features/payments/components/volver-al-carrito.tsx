@@ -8,7 +8,7 @@ import { paymentsApi } from "../api/paymentsApi"
 
 /** Cancela una compra PENDIENTE sin pagar y lleva a la clienta a su carrito,
  * que el backend vuelve a llenar con las prendas de esa compra. */
-export function VolverAlCarrito({ ventaId }: { ventaId: string }) {
+export function VolverAlCarrito({ ventaId, onListo }: { ventaId: string; onListo?: () => void }) {
   const { refresh } = useCart()
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
@@ -20,6 +20,8 @@ export function VolverAlCarrito({ ventaId }: { ventaId: string }) {
     try {
       await paymentsApi.cancelar(ventaId)
       await refresh()
+      // Ya en /carrito, navegar no remonta nada: quien lo usa ahí recarga solo.
+      onListo?.()
       navigate("/carrito")
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo volver al carrito")

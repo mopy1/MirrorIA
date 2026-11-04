@@ -14,7 +14,10 @@ export function VentasAdminPage() {
   const sucursales = useResourceList(branchesApi.getSucursales)
 
   const totalFacturado = useMemo(() => {
-    return ventas.items.reduce((acc, v) => acc + v.totalCents, 0)
+    // Solo lo cobrado: una venta PENDIENTE o CANCELADA no es plata recaudada.
+    return ventas.items
+      .filter((v) => v.estado === "PAGADA" || v.estado === "ENTREGADA")
+      .reduce((acc, v) => acc + v.totalCents, 0)
   }, [ventas.items])
 
   return (

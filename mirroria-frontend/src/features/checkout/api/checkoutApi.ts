@@ -14,6 +14,9 @@ export const checkoutApi = {
 
   getVenta: (id: string) => apiFetch<Venta>(`/ventas/${id}`),
 
+  /** Las compras de la clienta logueada (GET /ventas/mias), más nuevas primero. */
+  getMisVentas: () => apiFetch<Venta[]>("/ventas/mias"),
+
   getVentas: (filtro: { sucursalId?: string } = {}) => {
     const params = new URLSearchParams()
     if (filtro.sucursalId) params.set("sucursalId", filtro.sucursalId)

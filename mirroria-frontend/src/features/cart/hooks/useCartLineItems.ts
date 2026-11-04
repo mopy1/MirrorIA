@@ -62,5 +62,5 @@ export function useCartLineItems() {
     ]
   })
 
-  return { lineItems, isLoading: cartLoading || catalogoLoading, error, removeItem }
+  return { lineItems, variantes, isLoading: cartLoading || catalogoLoading, error, removeItem }
 }

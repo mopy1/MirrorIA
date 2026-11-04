@@ -3,18 +3,36 @@ import { Link } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { checkoutApi } from "@/features/checkout/api/checkoutApi"
+import { useResourceList } from "@/hooks/useResourceList"
 import { cn } from "cn"
 import { CartItem } from "../components/cart-item"
 import { CartSummary } from "../components/cart-summary"
+import { CompraPendiente } from "../components/compra-pendiente"
 import { useCartLineItems } from "../hooks/useCartLineItems"
 
 export function CartPage() {
-  const { lineItems, isLoading, error, removeItem } = useCartLineItems()
+  const { lineItems, variantes, isLoading, error, removeItem } = useCartLineItems()
+  const misVentas = useResourceList(checkoutApi.getMisVentas)
+  const pendientes = misVentas.items.filter((v) => v.estado === "PENDIENTE")
   const subtotalCents = lineItems.reduce((sum, item) => sum + item.subtotalCents, 0)
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:py-14">
       <h1 className="text-3xl font-semibold tracking-tight">Tu carrito</h1>
+
+      {pendientes.length > 0 && (
+        <div className="mt-6 space-y-4">
+          {pendientes.map((venta) => (
+            <CompraPendiente
+              key={venta.id}
+              venta={venta}
+              variantes={variantes}
+              onCancelada={misVentas.reload}
+            />
+          ))}
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive" className="mt-6">
@@ -31,7 +49,9 @@ export function CartPage() {
       ) : lineItems.length === 0 && !error ? (
         <div className="mt-16 flex flex-col items-center gap-3 text-center">
           <ShoppingBag className="size-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Todavía no agregaste nada.</p>
+          <p className="text-sm text-muted-foreground">
+            {pendientes.length > 0 ? "Tu carrito está vacío." : "Todavía no agregaste nada."}
+          </p>
           <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }))}>
             Ir a la tienda
           </Link>

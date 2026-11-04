@@ -97,7 +97,7 @@ export function CheckoutPage() {
         </div>
         <p className="text-xs text-muted-foreground">
           {metodo === "TARJETA"
-            ? "Se paga en línea. Si la pasarela no está disponible, te ofrecemos pagar en efectivo."
+            ? "Se paga en línea; tus prendas quedan apartadas 30 min hasta que pagues. Si la pasarela no está disponible, te ofrecemos pagar en efectivo."
             : metodo === "QR"
               ? "Al confirmar te mostramos un QR para pagar con la app de tu banco."
               : "Al confirmar vas a ver las instrucciones para completar el pago."}

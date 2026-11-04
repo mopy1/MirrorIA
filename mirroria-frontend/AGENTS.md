@@ -231,6 +231,15 @@ silencio: `CartLineItem.disponible = false` (precio 0), `cart-item` lo muestra "
 disponible" con el botón de quitar, `CartSummary bloqueado` oculta "Continuar", y `CheckoutPage`
 muestra un aviso y deshabilita "Confirmar" (el backend igual responde 409). Requiere `activo` en
 `useVariantesConProducto`.
+2026-11-04: `components/compra-pendiente/` — si `GET /ventas/mias` (`checkoutApi.getMisVentas`)
+trae ventas `PENDIENTE`, `CartPage` muestra una tarjeta por venta: "Tenés una compra pendiente de
+pago" + el plazo en texto (30 min tarjeta/QR, 24 h efectivo). Sin hora exacta a propósito: el
+backend no expone el vencimiento real y depende del método elegido. Con
+sus prendas (nombre, talla/color, cantidad, subtotal) y el total. Botones: "Continuar pago"
+(reintenta tarjeta con `paymentsApi.iniciarTarjeta`, que reutiliza la sesión de Stripe; si falla
+→ `/pago/:ventaId` con `motivo`, igual que `useCheckout`) y `VolverAlCarrito` (con `onListo`
+para recargar la lista, porque navegar a `/carrito` estando ahí no remonta). `useCartLineItems`
+ahora también devuelve `variantes` (sin segundo fetch del catálogo).
 
 ### `features/checkout/` ↔ backend `ventas` + `pagos`
 - `api/checkoutApi.ts`: `checkout(usuarioId, sucursalId, codigoCupon?)`, `getVenta`, `getVentas`.
@@ -264,7 +273,8 @@ muestra un aviso y deshabilita "Confirmar" (el backend igual responde 409). Requ
   `volver-al-carrito.tsx` (2026-11-03: botón que llama `paymentsApi.cancelar`, refresca el
   `CartContext` y navega a `/carrito`; el backend devuelve las prendas de la compra al carrito —
   antes "desaparecían" porque el checkout vacía el carrito. Se usa en `regreso-pasarela.tsx`
-  (cancelado) e `instrucciones-pago.tsx`), `detalle-pago-card.tsx`.
+  (cancelado), `instrucciones-pago.tsx` y `cart/compra-pendiente`; prop opcional `onListo`),
+  `detalle-pago-card.tsx`.
 
 ### `features/wayra/` ↔ backend `pagos` (banco simulado Wayra)
 La "app del banco" que abre el QR desde el celular. Ruta pública `/wayra/pagar/:token`, sin
@@ -342,7 +352,9 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
 - `components/`: `simple-resource-manager/` (tabla + diálogo de alta genérico) y sus wrappers
   `categorias-`, `temporadas-`, `tallas-`, `colores-`, `colecciones-`, `ciudades-`,
   `sucursales-panel/`; `productos-panel/` (tabla, crear, editar, agregar variante, campos);
-  `stock-table/`, `ajustar-stock-form/`; `ventas-table/`; `reservas-table/` (columna Código,
+  `stock-table/`, `ajustar-stock-form/`; `ventas-table/` (badges en `.data.ts` con las claves
+  reales de `EstadoVenta`: PENDIENTE "Pendiente de pago", PAGADA, ENTREGADA, CANCELADA,
+  DEVUELTA_PARCIAL, DEVUELTA_TOTAL — antes PAGADO/COMPLETADO/CANCELADO no coincidían); `reservas-table/` (columna Código,
   badges por estado en `.data.ts`); `estado-acciones/`; `cobros-table/`; `cupones-table/`,
   `crear-cupon-dialog/`; `usuarios-table/`, `usuario-rol-editor/` (rol + sucursal).
 - `api/usuariosAdminApi.ts` (rol y estado de usuarios).
