@@ -188,6 +188,9 @@ docker compose up -d --build
   el `tsbuildinfo` del backend dejaron de versionarse. Nginx con gzip + caché inmutable de
   `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
   Las columnas AR quedaron para una segunda pasada (ver abajo). Mobile sin tocar.
+- 🛒 **Carrito y Pedidos (2026-11-04, en `main`):**
+  - Backend: nuevo endpoint `PATCH /ventas/carrito/:usuarioId/items/:varianteId` (`UpdateItemCarritoDto` validando 1 a 3 unidades con lock pesimista).
+  - Frontend: edición interactiva de cantidad en carrito (stepper 1 a 3 unidades), nueva feature `src/features/orders/` (`/mis-pedidos`, `MyOrdersPage`, `OrderCard`, `OrderStatusBadge`) consumiendo `GET /ventas/mias` y enlazada en `SiteHeader` (desktop y drawer móvil). Todos los componentes < 120 líneas.
 - 🧹 **Limpieza profunda (2026-11-04, ya en `main`):** fuera los campos
   del vestidor viejo en backend y web (`productos.modelo_ar_url`, `productos.ar_overlay_image_url`
   e `imagenes[].esArAsset`; local los quita `synchronize`, Azure necesita el SQL manual del vault

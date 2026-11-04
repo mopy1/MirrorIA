@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { AddItemCarritoDto } from '../dto/add-item-carrito.dto.js';
+import { UpdateItemCarritoDto } from '../dto/update-item-carrito.dto.js';
 import type { CarritoResponseDto } from '../dto/ventas-response.dto.js';
 import { CarritosService } from '../service/carritos.service.js';
 
@@ -34,6 +35,17 @@ export class CarritosController {
   ): Promise<CarritoResponseDto> {
     assertOwnUser(usuarioId, user);
     return this.carritosService.addItem(usuarioId, dto);
+  }
+
+  @Patch(':usuarioId/items/:varianteId')
+  updateItem(
+    @Param('usuarioId') usuarioId: string,
+    @Param('varianteId') varianteId: string,
+    @Body() dto: UpdateItemCarritoDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CarritoResponseDto> {
+    assertOwnUser(usuarioId, user);
+    return this.carritosService.updateItem(usuarioId, varianteId, dto);
   }
 
   @Delete(':usuarioId/items/:varianteId')

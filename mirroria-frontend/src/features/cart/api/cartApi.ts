@@ -10,6 +10,12 @@ export const cartApi = {
       body: JSON.stringify({ varianteId, cantidad }),
     }),
 
+  updateItem: (usuarioId: string, varianteId: string, cantidad: number) =>
+    apiFetch<Carrito>(`/ventas/carrito/${usuarioId}/items/${varianteId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ cantidad }),
+    }),
+
   removeItem: (usuarioId: string, varianteId: string) =>
     apiFetch<Carrito>(`/ventas/carrito/${usuarioId}/items/${varianteId}`, {
       method: "DELETE",

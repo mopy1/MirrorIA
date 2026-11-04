@@ -260,10 +260,15 @@ sin `usuarioId` ni en el DTO de alta ni en `OrdenCompra` — el backend usa el J
   "Nueva orden" con el proveedor preelegido.
 
 ### `features/cart/` ↔ backend `ventas` (carrito)
-`api/cartApi.ts` (get, addItem, removeItem por `usuarioId`), `hooks/useCartLineItems.ts`
-(enriquece `{varianteId, cantidad}` con producto/variante en el cliente),
+`api/cartApi.ts` (get, addItem, updateItem, removeItem por `usuarioId`), `hooks/useCartLineItems.ts`
+(enriquece `{varianteId, cantidad}` con producto/variante en el cliente y expone `updateItem`),
 `components/{cart-item,cart-summary}/`, `pages/CartPage.tsx`. El estado global vive en
-`context/CartContext`. No hay stepper de cantidad (el backend no expone PATCH de cantidad).
+`context/CartContext`. Stepper de cantidad `[-]` y `[+]` en `cart-item` (1 a 3 unidades con `PATCH /ventas/carrito/:usuarioId/items/:varianteId`), con precio unitario y subtotal.
+
+### `features/orders/` ↔ backend `ventas` ("Mis pedidos")
+`api/ordersApi.ts` (`getMisPedidos` vía `GET /ventas/mias`, `getPedidoById`), `types/orders.types.ts` (`Pedido`, `PedidoItem`, `EstadoPedido`),
+`components/order-status-badge.tsx` (badges semánticos de estado), `components/order-card.tsx` (tarjeta de pedido con comprobante/código, fecha, lista de prendas, desglose y botón a `/pago/:id` si está PENDIENTE),
+`pages/MyOrdersPage.tsx` (ruta `/mis-pedidos` protegida en `STOREFRONT_ROUTES`, vinculada en `header-auth.tsx`).
 2026-11-03: un ítem cuya variante ya no está en el catálogo o está inactiva ya no se oculta en
 silencio: `CartLineItem.disponible = false` (precio 0), `cart-item` lo muestra "Ya no está
 disponible" con el botón de quitar, `CartSummary bloqueado` oculta "Continuar", y `CheckoutPage`

@@ -39,9 +39,6 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
   // Cada rol de staff cae en una ruta distinta porque `/admin` (sin más)
   // redirige a `/admin/catalogo`, que exige ADMIN exacto — un CAJERO o
   // ENCARGADO_SUCURSAL que la siguiera rebotaría a "/" sin entender por qué.
-  // Antes solo ADMIN tenía link acá, así que CAJERO no tenía forma de
-  // encontrar /admin/cobros salvo escribiendo la URL a mano (y ahí sí
-  // funciona, StaffRoute lo permite — el problema era solo de descubrimiento).
   const staffLink =
     user?.role === "ADMIN"
       ? { to: "/admin", label: "Panel admin" }
@@ -55,6 +52,11 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
       {staffLink.label}
     </Link>
   )
+  const pedidosLink = (
+    <Link to="/mis-pedidos" className={linkClass}>
+      Mis pedidos
+    </Link>
+  )
   const reservasLink = (
     <Link to="/reservas" className={linkClass}>
       Mis reservas
@@ -63,6 +65,7 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
 
   return compact ? (
     <div className="hidden items-center gap-3 sm:flex">
+      {pedidosLink}
       {reservasLink}
       {adminLink}
       <span className="text-sm text-muted-foreground">Hola, {user!.fullName.split(" ")[0]}</span>
@@ -72,6 +75,7 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
     </div>
   ) : (
     <div className="flex flex-col gap-2">
+      {pedidosLink}
       {reservasLink}
       {adminLink}
       <Button variant="outline" onClick={logout}>

@@ -3,9 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
+import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { REGLAS_COMPRA } from '../reglas-compra.js';
 import type { AddItemCarritoDto } from '../dto/add-item-carrito.dto.js';
+import type { UpdateItemCarritoDto } from '../dto/update-item-carrito.dto.js';
 import type { CarritoResponseDto } from '../dto/ventas-response.dto.js';
 import { Carrito, type CarritoItem } from '../entities/carrito.entity.js';
 
@@ -80,6 +82,33 @@ export class CarritosService {
       } else {
         carrito.items.push({ varianteId: dto.varianteId, cantidad: dto.cantidad });
       }
+      const guardado = await manager.getRepository(Carrito).save(carrito);
+      return this.toResponse(guardado);
+    });
+  }
+
+  async updateItem(
+    usuarioId: string,
+    varianteId: string,
+    dto: UpdateItemCarritoDto,
+  ): Promise<CarritoResponseDto> {
+    const variante = await this.productosService.findVarianteById(varianteId);
+    if (!variante.activo || !variante.producto?.activo) {
+      throw new OperacionInvalidaException('Esta prenda ya no está disponible');
+    }
+    if (dto.cantidad < 1 || dto.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante) {
+      throw new OperacionInvalidaException(
+        `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color`,
+      );
+    }
+
+    return this.carritoRepository.manager.transaction(async (manager) => {
+      const carrito = await this.findOrCreateActivo(usuarioId, manager);
+      const existente = carrito.items.find((i) => i.varianteId === varianteId);
+      if (!existente) {
+        throw new RecursoNoEncontradoException('Item en carrito', varianteId);
+      }
+      existente.cantidad = dto.cantidad;
       const guardado = await manager.getRepository(Carrito).save(carrito);
       return this.toResponse(guardado);
     });

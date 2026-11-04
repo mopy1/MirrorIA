@@ -12,7 +12,7 @@ import { CompraPendiente } from "../components/compra-pendiente"
 import { useCartLineItems } from "../hooks/useCartLineItems"
 
 export function CartPage() {
-  const { lineItems, variantes, isLoading, error, removeItem } = useCartLineItems()
+  const { lineItems, variantes, isLoading, error, removeItem, updateItem } = useCartLineItems()
   const misVentas = useResourceList(checkoutApi.getMisVentas)
   const pendientes = misVentas.items.filter((v) => v.estado === "PENDIENTE")
   const subtotalCents = lineItems.reduce((sum, item) => sum + item.subtotalCents, 0)
@@ -61,7 +61,12 @@ export function CartPage() {
           <div className="mt-8 grid gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               {lineItems.map((item) => (
-                <CartItem key={item.varianteId} item={item} onRemove={removeItem} />
+                <CartItem
+                  key={item.varianteId}
+                  item={item}
+                  onRemove={removeItem}
+                  onUpdateQuantity={updateItem}
+                />
               ))}
             </div>
             <CartSummary

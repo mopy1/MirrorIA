@@ -323,6 +323,11 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
   - **Compra digital** (`POST /ventas/carrito/:usuarioId/checkout`, RF14/RF15/RF16): toma los
     items del carrito activo del usuario, arranca en `estado: PENDIENTE` (la cobra después el
     módulo `pagos`) y vacía el carrito al terminar. El body exige `canal: 'WEB' | 'MOVIL'`.
+  - **Edición interactiva de cantidad en carrito** (`PATCH /ventas/carrito/:usuarioId/items/:varianteId`, 2026-11-04):
+    actualiza la cantidad de un ítem en el carrito en transacción con lock pesimista (`UpdateItemCarritoDto` validando
+    `1 <= cantidad <= 3` según `REGLAS_COMPRA.maxUnidadesPorVariante`), protegido con `assertOwnUser`.
+  - **Historial de compras del cliente** (`GET /ventas/mias`): retorna `VentaResponseDto[]` del usuario autenticado
+    (`clienteId: user.sub`), usado por la vista `/mis-pedidos` en frontend.
   - `reservaId`/`cuponId` en `Venta` son columnas nullable sin relación ORM — mismo criterio
     que `venta_item_id` en `inventario`. (Al escribir esto `reservas`/`promociones` no
     existían; hoy `registrarVenta` sí los valida vía `ReservasService.completarPorVenta` y

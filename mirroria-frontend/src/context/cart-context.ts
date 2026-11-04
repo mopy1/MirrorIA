@@ -7,6 +7,7 @@ export interface CartContextValue {
   isLoading: boolean
   refresh: () => Promise<void>
   addItem: (varianteId: string, cantidad: number) => Promise<void>
+  updateItem: (varianteId: string, cantidad: number) => Promise<void>
   removeItem: (varianteId: string) => Promise<void>
 }
 

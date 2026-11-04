@@ -21,7 +21,7 @@ export interface CartLineItem {
  * catálogo una vez); acá solo se cruza contra los ítems del carrito.
  */
 export function useCartLineItems() {
-  const { carrito, isLoading: cartLoading, removeItem } = useCart()
+  const { carrito, isLoading: cartLoading, removeItem, updateItem } = useCart()
   const { variantes, isLoading: catalogoLoading, error } = useVariantesConProducto()
 
   const lineItems: CartLineItem[] = (carrito?.items ?? []).flatMap((item): CartLineItem[] => {
@@ -62,5 +62,5 @@ export function useCartLineItems() {
     ]
   })
 
-  return { lineItems, variantes, isLoading: cartLoading || catalogoLoading, error, removeItem }
+  return { lineItems, variantes, isLoading: cartLoading || catalogoLoading, error, removeItem, updateItem }
 }

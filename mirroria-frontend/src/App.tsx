@@ -11,6 +11,7 @@ import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
 import { CartPage } from "@/features/cart/pages/CartPage"
 import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
+import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
 import { AdminLayout } from "@/layouts/AdminLayout"
@@ -59,6 +60,7 @@ const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: b
   { path: "/pago/:ventaId", Component: PagoPage, protected: true },
   { path: "/pago/exito", Component: PagoPage, protected: true },
   { path: "/pago/cancelado", Component: PagoPage, protected: true },
+  { path: "/mis-pedidos", Component: MyOrdersPage, protected: true },
   { path: "/reservas", Component: MyReservationsPage, protected: true },
   // Publicas a proposito: probarse una prenda no necesita cuenta.
   { path: "/probador", Component: ProbadorPage },

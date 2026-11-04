@@ -44,6 +44,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setIsLoading(false)
         }
       },
+      updateItem: async (varianteId, cantidad) => {
+        if (!user) return
+        setIsLoading(true)
+        try {
+          setCarrito(await cartApi.updateItem(user.id, varianteId, cantidad))
+        } finally {
+          setIsLoading(false)
+        }
+      },
       removeItem: async (varianteId) => {
         if (!user) return
         setIsLoading(true)
