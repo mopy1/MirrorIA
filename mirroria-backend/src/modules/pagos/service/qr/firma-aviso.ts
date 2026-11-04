@@ -20,7 +20,9 @@ export function firmaAvisoValida(cuerpo: Buffer, firma: string, secreto: string)
 /**
  * El secreto que comparten el banco y el comercio. Con WAYRA_SECRETO_AVISOS se
  * fija uno propio; si no, se deriva de JWT_SECRET para que la demo funcione sin
- * configurar nada nuevo (nunca se usa JWT_SECRET tal cual).
+ * configurar nada nuevo (nunca se usa JWT_SECRET tal cual). Consecuencia: con
+ * WAYRA_SECRETO_AVISOS vacío, rotar JWT_SECRET rota también esta firma (los
+ * avisos firmados con el secreto viejo dejan de validar).
  */
 export function secretoAvisosQr(config: { get<T = string>(clave: string): T | undefined }): string {
   const propio = config.get<string>('WAYRA_SECRETO_AVISOS');

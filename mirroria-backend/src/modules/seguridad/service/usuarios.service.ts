@@ -24,8 +24,15 @@ export class UsuariosService {
     return usuarios.map((u) => this.toResponse(u));
   }
 
-  async updateRol(id: string, dto: UpdateUsuarioRolDto): Promise<UsuarioAdminResponseDto> {
+  async updateRol(
+    id: string,
+    dto: UpdateUsuarioRolDto,
+    actualId: string,
+  ): Promise<UsuarioAdminResponseDto> {
     const usuario = await this.findOrFail(id);
+    if (usuario.role === RolUsuario.ADMIN && dto.role !== RolUsuario.ADMIN) {
+      await this.assertNoDejaSinAdmin(usuario, actualId, 'quitarte el rol de administrador');
+    }
 
     const necesitaSucursal = ROLES_CON_SUCURSAL.includes(dto.role);
     if (necesitaSucursal && !dto.sucursalId) {
@@ -43,11 +50,32 @@ export class UsuariosService {
     return this.toResponse(guardado);
   }
 
-  async updateEstado(id: string, dto: UpdateUsuarioEstadoDto): Promise<UsuarioAdminResponseDto> {
+  async updateEstado(
+    id: string,
+    dto: UpdateUsuarioEstadoDto,
+    actualId: string,
+  ): Promise<UsuarioAdminResponseDto> {
     const usuario = await this.findOrFail(id);
+    if (!dto.isActive && usuario.role === RolUsuario.ADMIN && usuario.isActive) {
+      await this.assertNoDejaSinAdmin(usuario, actualId, 'desactivar tu propia cuenta');
+    }
     usuario.isActive = dto.isActive;
     const guardado = await this.usuarioRepository.save(usuario);
     return this.toResponse(guardado);
+  }
+
+  // RF02: nadie se quita a sí mismo el acceso de ADMIN, y nunca quedan 0 ADMIN
+  // activos (nadie podría volver a gestionar usuarios desde el panel).
+  private async assertNoDejaSinAdmin(usuario: Usuario, actualId: string, accion: string) {
+    if (usuario.id === actualId) {
+      throw new OperacionInvalidaException(`No podés ${accion}: pedíselo a otro administrador`);
+    }
+    const adminsActivos = await this.usuarioRepository.count({
+      where: { role: RolUsuario.ADMIN, isActive: true },
+    });
+    if (usuario.isActive && adminsActivos <= 1) {
+      throw new OperacionInvalidaException('Es el último administrador activo: no se puede dejar sin ADMIN');
+    }
   }
 
   private async findOrFail(id: string): Promise<Usuario> {

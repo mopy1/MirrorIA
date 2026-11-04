@@ -15,16 +15,19 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('MirrorIA API')
-    .setDescription(
-      'E-commerce de moda femenina multi-sucursal con vestidor virtual AR — Examen 1 SI2',
-    )
-    .setVersion('0.1')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // En producción la API no publica su mapa completo (/api/docs).
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('MirrorIA API')
+      .setDescription(
+        'E-commerce de moda femenina multi-sucursal con vestidor virtual AR — Examen 1 SI2',
+      )
+      .setVersion('0.1')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   await app.listen(process.env.PORT ?? 3000);
 }

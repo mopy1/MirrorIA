@@ -10,7 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import { JwtOpcionalGuard } from '../../../core/security/jwt-opcional.guard.js';
+import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import type {
@@ -43,9 +46,14 @@ export class ProductosController {
     return this.productosService.findAll();
   }
 
+  // Público, pero un producto inactivo solo lo ve el ADMIN (el resto: 404).
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<ProductoResponseDto> {
-    return this.productosService.findOne(id);
+  @UseGuards(JwtOpcionalGuard)
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user?: JwtPayload,
+  ): Promise<ProductoResponseDto> {
+    return this.productosService.findOne(id, user?.role === 'ADMIN');
   }
 
   @Patch(':id')

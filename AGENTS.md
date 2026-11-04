@@ -39,7 +39,13 @@ en este repo:
 ├── docker-compose.prod.yml     # override SOLO para la VM real (dominio + Let's Encrypt, ver §7)
 ├── db/init/001-extensions.sql  # crea pgcrypto automáticamente en el primer arranque del volumen
 ├── .env / .env.example         # POSTGRES_PASSWORD compartido por docker-compose
+├── .gitignore                  # incluye .playwright-mcp/, *.tsbuildinfo, *.y4m, *.dump (artefactos locales)
 ├── AGENTS.md                   # 🌟 Este manual maestro
+├── scripts/
+│   ├── deploy-azure.sh          # despliegue a la VM de Azure (ver §8)
+│   ├── sembrar-catalogo.mjs     # siembra idempotente del catálogo demo contra una API corriendo
+│   ├── catalogo-demo.mjs        # datos del catálogo demo (productos, colores, sucursales...)
+│   └── qa/                      # QA de reglas de negocio contra la API real (Python)
 │
 ├── mirroria-backend/           # 🪞 NestJS — ver mirroria-backend/AGENTS.md (fuente de verdad)
 │   ├── AGENTS.md                # arquitectura, convenciones, estado real de cada módulo
@@ -49,7 +55,9 @@ en este repo:
 │       └── modules/              # un módulo por subdominio (seguridad, catalogo, ventas, ...)
 │
 ├── mirroria-frontend/          # ⚛️ React 19 + Tailwind v4 + shadcn/ui — ver mirroria-frontend/AGENTS.md
-│   └── AGENTS.md
+│   ├── AGENTS.md
+│   ├── nginx.conf / nginx.prod.conf  # dev HTTP / VM con SSL: proxy /api/, fallback SPA, gzip, caché 1 año de /assets/
+│   └── src/routes/lazy-pages.ts      # React.lazy de /admin/*, probador y Wayra (bundle inicial 1.57 MB → 795 kB)
 │
 └── mirroria-mobile/            # 📱 React Native + Expo SDK 57 + NativeWind v4 + RNR — ver mirroria-mobile/AGENTS.md
     └── AGENTS.md                # arquitectura modular (feature-based), auth login/register completado
@@ -158,7 +166,7 @@ docker compose up -d --build
   `docker-compose.yml` solo) y `nginx.prod.conf` (dominio+SSL, solo con el override
   `docker-compose.prod.yml`, `ARG NGINX_CONF` del Dockerfile). Verificado con
   `docker compose up -d --build`: los 3 servicios levantan en `localhost:80` sin ningún
-  certificado, `/api/` llega al backend, y un estático faltante en `/prendas/` sigue dando 404
+  certificado, `/api/` llega al backend, y un estático faltante (ej. un `.png`) sigue dando 404
   (no `index.html` con 200).
 - 🔁 **Probador web (RF13) migrado de pose-detection propio a Decart VTON (2026-09-27):**
   `mirroria-frontend` dejó de usar `@mediapipe/tasks-vision` + landmarks/anclaje manual para
@@ -168,6 +176,13 @@ docker compose up -d --build
   nunca sale del servidor). El móvil hizo la misma migración el 2026-09-29 (ver
   `mirroria-mobile/AGENTS.md`); el detalle de la web está en `mirroria-frontend/AGENTS.md` y
   `mirroria-backend/AGENTS.md`.
+
+- 🧹 **Limpieza web (2026-11-04):** fuera los restos del AR viejo en la web (`public/prendas/`,
+  su `location` de Nginx, el campo AR de los formularios admin, el bloque de recortes de
+  `sembrar-catalogo.mjs`), `scripts/prendas/` y los `.sql` de una sola vez; `.playwright-mcp/` y
+  el `tsbuildinfo` del backend dejaron de versionarse. Nginx con gzip + caché inmutable de
+  `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
+  `arOverlayImageUrl`/`esArAsset` siguen en BD/backend (decisión pendiente). Mobile sin tocar.
 
 ## 🧭 8. Dónde está todo (actualizado 2026-11-03) — leer antes de pedir una mejora
 

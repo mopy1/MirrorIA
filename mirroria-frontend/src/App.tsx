@@ -1,20 +1,10 @@
-import type { ComponentType, ReactNode } from "react"
+import { Suspense, type ComponentType, type ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
-import { CatalogoAdminPage } from "@/features/admin/pages/CatalogoAdminPage"
-import { CobrosAdminPage } from "@/features/admin/pages/CobrosAdminPage"
-import { CuponesAdminPage } from "@/features/admin/pages/CuponesAdminPage"
-import { InventarioAdminPage } from "@/features/admin/pages/InventarioAdminPage"
-import { ProveedoresAdminPage } from "@/features/admin/pages/ProveedoresAdminPage"
-import { ReportesAdminPage } from "@/features/admin/pages/ReportesAdminPage"
-import { ReservasAdminPage } from "@/features/admin/pages/ReservasAdminPage"
-import { SucursalesAdminPage } from "@/features/admin/pages/SucursalesAdminPage"
-import { UsuariosAdminPage } from "@/features/admin/pages/UsuariosAdminPage"
-import { VentasAdminPage } from "@/features/admin/pages/VentasAdminPage"
+import { PageFallback } from "@/components/common/PageFallback"
 import { LoginPage } from "@/features/auth/pages/LoginPage"
 import { RegisterPage } from "@/features/auth/pages/RegisterPage"
 import { BranchesPage } from "@/features/branches/pages/BranchesPage"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
-import { ProbadorPage } from "@/features/fitting/pages/ProbadorPage"
 import { HomePage } from "@/features/catalog/pages/HomePage"
 import { ProductDetailPage } from "@/features/catalog/pages/ProductDetailPage"
 import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
@@ -22,12 +12,25 @@ import { CartPage } from "@/features/cart/pages/CartPage"
 import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
-import { WayraPagoPage } from "@/features/wayra/pages/WayraPagoPage"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
 import { AdminLayout } from "@/layouts/AdminLayout"
 import { StorefrontLayout } from "@/layouts/StorefrontLayout"
 import { AdminRoute } from "@/routes/AdminRoute"
 import { GuestRoute } from "@/routes/GuestRoute"
+import {
+  CatalogoAdminPage,
+  CobrosAdminPage,
+  CuponesAdminPage,
+  InventarioAdminPage,
+  ProbadorPage,
+  ProveedoresAdminPage,
+  ReportesAdminPage,
+  ReservasAdminPage,
+  SucursalesAdminPage,
+  UsuariosAdminPage,
+  VentasAdminPage,
+  WayraPagoPage,
+} from "@/routes/lazy-pages"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
 import { StaffRoute } from "@/routes/StaffRoute"
 
@@ -100,72 +103,75 @@ const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRoles?: Usu
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {STOREFRONT_ROUTES.map(({ path, Component, protected: needsAuth }) => (
-          <Route
-            key={path}
-            path={path}
-            element={
-              <StorefrontLayout>
-                {needsAuth ? (
-                  <ProtectedRoute>
+      {/* Admin, probador y Wayra son diferidos (routes/lazy-pages.ts). */}
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          {STOREFRONT_ROUTES.map(({ path, Component, protected: needsAuth }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <StorefrontLayout>
+                  {needsAuth ? (
+                    <ProtectedRoute>
+                      <Component />
+                    </ProtectedRoute>
+                  ) : (
                     <Component />
-                  </ProtectedRoute>
-                ) : (
-                  <Component />
-                )}
-              </StorefrontLayout>
-            }
-          />
-        ))}
+                  )}
+                </StorefrontLayout>
+              }
+            />
+          ))}
 
-        {/* La app del banco (Wayra) que abre el QR de cobro: pública y sin el
-            layout de la tienda, porque representa OTRA app. */}
-        <Route path="/wayra/pagar/:token" element={<WayraPagoPage />} />
+          {/* La app del banco (Wayra) que abre el QR de cobro: pública y sin el
+              layout de la tienda, porque representa OTRA app. */}
+          <Route path="/wayra/pagar/:token" element={<WayraPagoPage />} />
 
-        <Route
-          path="/login"
-          element={
-            <GuestRoute>
-              <LoginPage />
-            </GuestRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <GuestRoute>
-              <RegisterPage />
-            </GuestRoute>
-          }
-        />
-
-        <Route path="/admin" element={<Navigate to="/admin/catalogo" replace />} />
-        {ADMIN_ROUTES.map(({ path, Component }) => (
           <Route
-            key={path}
-            path={path}
+            path="/login"
             element={
-              <AdminPage>
-                <Component />
-              </AdminPage>
+              <GuestRoute>
+                <LoginPage />
+              </GuestRoute>
             }
           />
-        ))}
-        {STAFF_ROUTES.map(({ path, Component, allowedRoles }) => (
           <Route
-            key={path}
-            path={path}
+            path="/register"
             element={
-              <StaffRoute allowedRoles={allowedRoles}>
-                <AdminLayout>
-                  <Component />
-                </AdminLayout>
-              </StaffRoute>
+              <GuestRoute>
+                <RegisterPage />
+              </GuestRoute>
             }
           />
-        ))}
-      </Routes>
+
+          <Route path="/admin" element={<Navigate to="/admin/catalogo" replace />} />
+          {ADMIN_ROUTES.map(({ path, Component }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <AdminPage>
+                  <Component />
+                </AdminPage>
+              }
+            />
+          ))}
+          {STAFF_ROUTES.map(({ path, Component, allowedRoles }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <StaffRoute allowedRoles={allowedRoles}>
+                  <AdminLayout>
+                    <Component />
+                  </AdminLayout>
+                </StaffRoute>
+              }
+            />
+          ))}
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

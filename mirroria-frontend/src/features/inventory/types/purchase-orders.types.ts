@@ -1,6 +1,7 @@
+// EN_TRANSITO existe en el enum del backend pero ningún flujo lo asigna
+// (no hay aviso de despacho), así que el front no lo modela.
 export const EstadoOrdenCompra = {
   PENDIENTE: "PENDIENTE",
-  EN_TRANSITO: "EN_TRANSITO",
   RECIBIDA_PARCIAL: "RECIBIDA_PARCIAL",
   RECIBIDA: "RECIBIDA",
   CANCELADA: "CANCELADA",
@@ -34,7 +35,6 @@ export interface CreateOrdenCompraItemDto {
 export interface CreateOrdenCompraDto {
   proveedorId: string
   sucursalDestinoId: string
-  usuarioId?: string
   items: CreateOrdenCompraItemDto[]
   fechaEsperada?: string
 }

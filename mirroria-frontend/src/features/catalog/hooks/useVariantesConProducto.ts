@@ -4,6 +4,8 @@ import { catalogApi } from "../api/catalogApi"
 export interface VarianteConProducto {
   varianteId: string
   productoId: string
+  /** Para cruzar con `colecciones.proveedorId` (órdenes de compra por proveedor). */
+  coleccionId: string
   productoTitulo: string
   tallaNombre: string
   colorNombre: string
@@ -40,6 +42,7 @@ export function useVariantesConProducto() {
           (producto.variantes ?? []).map((variante) => ({
             varianteId: variante.id,
             productoId: producto.id,
+            coleccionId: producto.coleccionId,
             productoTitulo: producto.titulo,
             tallaNombre: variante.tallaNombre,
             colorNombre: variante.colorNombre,

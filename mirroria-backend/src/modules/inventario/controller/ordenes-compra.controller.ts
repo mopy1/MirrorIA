@@ -36,10 +36,8 @@ export class OrdenesCompraController {
     @Body() dto: CreateOrdenCompraDto,
     @CurrentUser() user: JwtPayload,
   ): Promise<OrdenCompraResponseDto> {
-    return this.ordenesCompraService.create({
-      ...dto,
-      usuarioId: dto.usuarioId || user.sub,
-    });
+    // Siempre quien está logueado: el body no puede elegir a nombre de quién queda.
+    return this.ordenesCompraService.create(dto, user.sub);
   }
 
   @Get()
@@ -56,7 +54,13 @@ export class OrdenesCompraController {
   recibir(
     @Param('id') id: string,
     @Body() dto: RecibirOrdenCompraDto,
+    @CurrentUser() user: JwtPayload,
   ): Promise<OrdenCompraResponseDto> {
-    return this.ordenesCompraService.recibir(id, dto);
+    return this.ordenesCompraService.recibir(id, dto, user.sub);
+  }
+
+  @Patch(':id/cancelar')
+  cancelar(@Param('id') id: string): Promise<OrdenCompraResponseDto> {
+    return this.ordenesCompraService.cancelar(id);
   }
 }

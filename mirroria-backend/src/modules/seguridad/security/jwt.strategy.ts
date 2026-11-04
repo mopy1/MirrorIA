@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,6 +6,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Repository } from 'typeorm';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Usuario } from '../entities/usuario.entity.js';
+import { leerJwtSecret } from './jwt-secret.js';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -17,7 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET', 'dev_secret_change_me'),
+      secretOrKey: leerJwtSecret(config),
     });
   }
 
@@ -28,7 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       where: { id: payload.sub },
     });
     if (!usuario || !usuario.isActive) {
-      throw new Error('Usuario no válido o inactivo');
+      // 401 (no 500): el front lo toma como sesión vencida y la cierra.
+      throw new UnauthorizedException('Tu cuenta está desactivada o ya no existe');
     }
     return {
       sub: usuario.id,

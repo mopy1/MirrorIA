@@ -413,8 +413,8 @@ export const PRODUCTOS = [
  * asi que desaparecen de la tienda al instante.
  *
  * Las DOS CATEGORIAS que quedan vacias ('calzado' y 'joyeria-y-accesorios') si
- * hay que borrarlas por SQL: `categorias` no tiene ni PATCH ni DELETE. Ver
- * scripts/corregir-acentos.sql. */
+ * hay que borrarlas por SQL: `categorias` no tiene ni PATCH ni DELETE (ya se
+ * borraron una vez; el .sql de un solo uso se elimino del repo). */
 export const RETIRADOS = [
   'stiletto-limon',
   'stiletto-noche',

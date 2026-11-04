@@ -26,7 +26,7 @@ Mapped`); contrato de cada una en el vault, `U/2-2026/SI2/Parcial1/App/Endpoints
 
 ```text
 src/
-├── main.ts                    # bootstrap: rawBody:true (firmas de webhook/aviso), prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs
+├── main.ts                    # bootstrap: rawBody:true (firmas de webhook/aviso), prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs (solo si NODE_ENV !== 'production')
 ├── app.module.ts               # wiring: Config + TypeORM + CoreSecurityModule + los 11 módulos de negocio
 ├── app.controller.ts           # GET /api/v1/health → { status: 'ok', service: 'mirroria-backend' }
 ├── app.service.ts
@@ -47,6 +47,8 @@ src/
 │   │   ├── current-user.decorator.ts  # @CurrentUser() user: JwtPayload
 │   │   ├── assert-own-user.ts   # 403 si el recurso no es del usuario del JWT (carrito, venta, pago)
 │   │   ├── sucursal-del-staff.ts # ADMIN → sin límite; staff → su sucursalId del JWT; sin sucursal → 403
+│   │   ├── limite-por-ip.ts     # ipDelPedido (X-Real-IP o socket) + LimitadorPorIp + guard LimitePorIp(max, ms) → 429
+│   │   ├── jwt-opcional.guard.ts # como JwtAuthGuard pero sin rechazar: req.user si hay token válido (producto inactivo al ADMIN)
 │   │   └── express.d.ts         # augmenta Request.user con JwtPayload
 │   └── exception/
 │       ├── business.exception.ts           # base abstracta de toda excepción de negocio
@@ -55,7 +57,8 @@ src/
 │       ├── operacion-invalida.exception.ts     # 409 (regla de negocio violada)
 │       ├── stock-insuficiente.exception.ts     # 409
 │       ├── forbidden-action.exception.ts       # 403 (ownership / alcance, distinto del 403 por rol)
-│       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }
+│       ├── demasiados-pedidos.exception.ts     # 429 (LimitePorIp)
+│       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }; Postgres 23505→409, 22P02→400
 │
 └── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
     │                             # TableGroups de Diseño_BD.md en el vault)
@@ -202,7 +205,12 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
 - **JwtStrategy revalida contra BD en cada request** (no solo confía en la firma del token):
   si el usuario fue desactivado (`is_active = false`) o borrado, el token deja de servir de
   inmediato aunque no haya expirado. Trade-off consciente: una query extra por request
-  autenticado, aceptable para el volumen de un examen/MVP.
+  autenticado, aceptable para el volumen de un examen/MVP. Responde **401**
+  (`UnauthorizedException`, antes era un `Error` → 500) para que el front cierre la sesión.
+- **`JWT_SECRET` obligatorio (2026-11-04):** `security/jwt-secret.ts` (`leerJwtSecret`) lo usan
+  `JwtModule` y `JwtStrategy`; sin valor o con < 32 caracteres el arranque falla con un mensaje
+  claro (generar con `openssl rand -hex 32`). Sin fallback: el viejo `dev_secret_change_me` era
+  público. Con `WAYRA_SECRETO_AVISOS` vacío, la firma de avisos QR se deriva de él → rotarlo la rota.
 - **Verificado end-to-end (2026-09-12)** contra Postgres real (docker, puerto 5435 en host):
   registro → 201 con JWT, registro duplicado → 409, login correcto → 200, login con password
   incorrecta → 401 (`{"status":401,"message":"Credenciales incorrectas",...}`), `/me` sin
@@ -220,6 +228,10 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
   título, slug, descripción, precio en centavos, protegido con `JwtAuthGuard`, `RolesGuard` y `@Roles('ADMIN')`).
   - **`productos.imagenes`** es `jsonb` (`ImagenProducto[]`: `{url, varianteId?, esArAsset,
     orden}`) — se guarda y devuelve como array real de objetos, no como texto.
+  - **Legado del vestidor AR (2026-11-04):** `productos.arOverlayImageUrl` y `esArAsset` siguen
+    en la entidad y los DTO (decisión de esquema pendiente del usuario), pero ya nada los
+    escribe: la web quitó el campo de sus formularios, borró `public/prendas/` y
+    `scripts/sembrar-catalogo.mjs` dejó de asignar recortes. El probador usa la foto real.
   - **`productos.precioCents`** es `bigint` en Postgres pero el driver `pg` lo devuelve como
     `string` por defecto — se agregó un `transformer` en la entidad para que la API siempre
     entregue un `number` real. Buen ejemplo a copiar si otro módulo (`ventas`, `pagos`) usa
@@ -258,17 +270,28 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
     participar de una transacción abierta por el llamador (así lo usan `ventas` y la recepción
     de `ordenes_compra`).
   - `ajustarTransito(...)` mueve solo `cantidadEnTransito`, sin movimiento (el movimiento real
-    se escribe recién al recibir, vía `ajustarStock` con `RECEPCION_PROVEEDOR`).
-  - `OrdenesCompraController` (`/inventario/ordenes-compra`): endpoints protegidos con `@Roles('ADMIN', 'ENCARGADO')`.
-    - `POST /inventario/ordenes-compra`: crea orden en `PENDIENTE`, asigna `usuarioId` del JWT si el body lo omite e incrementa `cantidadEnTransito`.
-    - `GET /inventario/ordenes-compra` y `GET /:id`: consulta listado y detalle de órdenes con sus items.
-    - `PATCH /inventario/ordenes-compra/:id/recibir`: procesa recepción parcial/total, descuenta tránsito y aumenta stock disponible con `MovimientoInventario` (`RECEPCION_PROVEEDOR`).
-  - `OrdenesCompraService.create()` valida proveedor/sucursal/variantes, crea la orden en
-    `PENDIENTE` y sube `cantidadEnTransito` de cada item.
-  - `OrdenesCompraService.recibir(id, dto)` acepta recepción **parcial**: por cada item
-    recibido baja `cantidadEnTransito` y sube `cantidadDisponible` (vía `ajustarStock`), y
-    recalcula el estado de la orden a `RECIBIDA_PARCIAL` o `RECIBIDA` según cuánto se recibió
-    en total (RF11/RF12). Todo dentro de una única transacción (`DataSource.transaction`).
+    se escribe recién al recibir, vía `ajustarStock` con `RECEPCION_PROVEEDOR`). (2026-11-04)
+    `UPDATE` condicionado `cantidad_en_transito + delta >= 0`: si quedaría negativo lanza
+    `OperacionInvalidaException` (409) — ya no hay `GREATEST(0, …)`, que escondía excesos y se
+    comía el tránsito de otras órdenes.
+  - `OrdenesCompraController` (`/inventario/ordenes-compra`): todo `@Roles('ADMIN')`.
+    - `POST /`: crea orden `PENDIENTE` a nombre de `user.sub` (el DTO **no** tiene `usuarioId`) y
+      sube `cantidadEnTransito`.
+    - `GET /` y `GET /:id`: listado y detalle con items (jsonb).
+    - `PATCH /:id/recibir`: recepción parcial/total; el movimiento `RECEPCION_PROVEEDOR` queda a
+      nombre de `user.sub` (quien recibe, no quien creó).
+    - `PATCH /:id/cancelar`: `PENDIENTE|RECIBIDA_PARCIAL → CANCELADA`, resta del tránsito solo lo
+      pendiente; lo ya recibido queda en stock.
+  - `OrdenesCompraService.create(dto, usuarioId)`: 400 (`SolicitudInvalidaException`, nueva en
+    `core/exception`) si una variante se repite o `fechaEsperada` < hoy en `America/La_Paz`;
+    luego valida proveedor/sucursal/variantes y sube tránsito, en transacción.
+  - `recibir(id, dto, usuarioId)` y `cancelar(id)` comparten `bloquearAbierta()`: `findOne` con
+    `lock: { mode: 'pessimistic_write' }` dentro de la transacción (serializa recepciones
+    simultáneas: 5 a la vez de una orden de 4 u. suman 4, no 20) y 409 si la orden está
+    `RECIBIDA`/`CANCELADA`. Recibir más de lo pendiente de un ítem → 400 (no se recorta). Estado
+    final `RECIBIDA` cuando todos los ítems están completos (RF11/RF12).
+  - `EstadoOrdenCompra.EN_TRANSITO` sigue en el enum (columna varchar, sin migración; la IA lo
+    lista en `ESTADOS_ORDEN`) pero **ningún flujo lo asigna**; el front no lo modela.
   - `venta_item_id` y `usuario_id` en `MovimientoInventario` son columnas sin relación ORM ni
     validación de existencia (no hay `UsuariosService` expuesto por `seguridad` todavía) — son
     trazabilidad de auditoría, no integridad referencial estricta.
@@ -728,6 +751,12 @@ npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule comp
   — análogo a `ddl-auto=update` en erp-backend. Si el proyecto pasa de examen a algo real,
   reemplazar por migraciones (`typeorm migration:generate`) y apagar `synchronize`.
 
+**Dependencias (2026-11-04):** se desinstaló `source-map-support` (sin uso; Node 24 tiene
+`--enable-source-maps`). `@nestjs/mau` sigue en devDependencies solo porque lo usa el script
+`npm run deploy` (`nest deploy`, plantilla del CLI); el despliegue real es
+`../scripts/deploy-azure.sh`, así que se puede borrar junto con ese script si el usuario lo
+confirma. `tsconfig.build.tsbuildinfo` ya no se versiona (`*.tsbuildinfo` en `.gitignore`).
+
 ## 🛡️ Reglas anti-acaparamiento de stock (2026-09-29)
 
 Reservar era gratis y sin topes: una sola cuenta podía apartar todo el stock de una variante,
@@ -827,3 +856,23 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
   - Verificado contra Postgres real (backend compilado en :3100): 6 checkouts de la última unidad →
     1 venta, stock 0, 1 movimiento; 4 checkouts del mismo carrito → 1 venta; cupón de 1 uso en 4
     paralelos → 1; 3 "pagar" simultáneos → 1 pago/sesión.
+
+## 🔒 Endurecimiento tras auditoría (2026-11-04)
+
+- **Limitadores por IP** (`core/security/limite-por-ip.ts`, sin dependencias, ventana fija en
+  memoria — una sola instancia): `@UseGuards(LimitePorIp(max, ventanaMs))` en login (10/5 min),
+  `promociones/cupones/validar` (30/5 min) e `ia/reportes` + `ia/reportes/consulta` (20/10 min,
+  después de JwtAuthGuard/RolesGuard). El probador usa `LimitadorPorIp` desde su service (10/10 min,
+  su propio mensaje 429). `core/` no importa nada de `modules/`.
+- **Reservas:** `create` revisa el cupo dentro de la tx tras `SELECT id FROM usuarios WHERE id=$1
+  FOR UPDATE` (SQL crudo para no importar `Usuario`); `cambiarEstado`/`cancelar`/`completarPorVenta`
+  releen con `pessimistic_write` (`bloquear()`), así el stock reservado no se libera dos veces.
+  Prenda inactiva → 409. `GET /reservas?estado=` validado con `ParseEnumPipe` (400).
+- **Usuarios:** `updateRol`/`updateEstado` reciben `user.sub`; 409 si el ADMIN se degrada/desactiva
+  a sí mismo o si quedarían 0 ADMIN activos.
+- **Catálogo:** `GET /catalogo/productos/:id` → 404 si el producto está inactivo, salvo ADMIN
+  (`JwtOpcionalGuard`).
+- **Auth:** email `trim` + minúsculas en registro/login (las usuarias reales ya estaban en minúscula).
+- **IA:** `fetch` a DeepSeek con `AbortSignal.timeout(20000)` → `IaSinRespuestaException` (504).
+- **Tests:** `jwt.strategy.spec`, `usuarios.service.spec`, `reservas.service.spec`,
+  `global-exception.filter.spec`, `limite-por-ip.spec`.

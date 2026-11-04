@@ -26,10 +26,6 @@ export class CreateOrdenCompraDto {
   @IsUUID()
   sucursalDestinoId!: string;
 
-  @IsOptional()
-  @IsUUID()
-  usuarioId?: string;
-
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

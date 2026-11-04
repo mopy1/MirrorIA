@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useVariantesConProducto } from "@/features/catalog/hooks/useVariantesConProducto"
+import { ApiError } from "@/lib/api"
 import { purchaseOrdersApi } from "../../api/purchaseOrdersApi"
 import type { OrdenCompra } from "../../types/purchase-orders.types"
 import { RecibirItemRow } from "./recibir-item-row"
@@ -58,8 +59,8 @@ export function RecibirOrdenDialog({ orden, open, onOpenChange, onSuccess }: Pro
       await purchaseOrdersApi.recibirOrden(orden.id, { items: itemsDto })
       onOpenChange(false)
       onSuccess()
-    } catch {
-      setError("Error al registrar la recepción de mercadería")
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Error al registrar la recepción de mercadería")
     } finally {
       setIsLoading(false)
     }

@@ -1,11 +1,21 @@
 import { useParams } from "react-router-dom"
 import { Skeleton } from "@/components/ui/skeleton"
+import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
 import { ProductDetail } from "../components/product-detail"
 import { useProducto } from "../hooks/useProducto"
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { producto, isLoading, error } = useProducto(id)
+  const { producto, isLoading, error, noEncontrado } = useProducto(id)
+
+  if (noEncontrado) {
+    return (
+      <NotFoundPage
+        titulo="Esta prenda no está disponible."
+        detalle="Puede que el enlace esté mal escrito o que la prenda ya no se venda. El resto del catálogo sigue disponible."
+      />
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">

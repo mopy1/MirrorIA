@@ -8,6 +8,7 @@ import type { ProductosService } from '../../catalogo/service/productos.service.
 import type { InventarioSucursalService } from './inventario-sucursal.service.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { SolicitudInvalidaException } from '../../../core/exception/solicitud-invalida.exception.js';
 
 describe('OrdenesCompraService', () => {
   let service: OrdenesCompraService;
@@ -82,12 +83,11 @@ describe('OrdenesCompraService', () => {
       const dto = {
         proveedorId: 'prov-1',
         sucursalDestinoId: 'suc-1',
-        usuarioId: 'usr-1',
         items: [{ varianteId: 'var-1', cantidadPedida: 20 }],
-        fechaEsperada: '2026-12-01',
+        fechaEsperada: '2099-12-01',
       };
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, 'usr-1');
 
       expect(proveedoresService.findOne).toHaveBeenCalledWith('prov-1');
       expect(sucursalesService.assertExists).toHaveBeenCalledWith('suc-1');
@@ -103,6 +103,29 @@ describe('OrdenesCompraService', () => {
       expect(result.usuarioId).toBe('usr-1');
       expect(result.estado).toBe(EstadoOrdenCompra.PENDIENTE);
     });
+
+    it('rechaza con 400 la misma variante repetida en la orden', async () => {
+      const dto = {
+        proveedorId: 'prov-1',
+        sucursalDestinoId: 'suc-1',
+        items: [
+          { varianteId: 'var-1', cantidadPedida: 2 },
+          { varianteId: 'var-1', cantidadPedida: 3 },
+        ],
+      };
+      await expect(service.create(dto, 'usr-1')).rejects.toThrow(SolicitudInvalidaException);
+      expect(managerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con 400 una fecha esperada en el pasado', async () => {
+      const dto = {
+        proveedorId: 'prov-1',
+        sucursalDestinoId: 'suc-1',
+        items: [{ varianteId: 'var-1', cantidadPedida: 2 }],
+        fechaEsperada: '2020-01-01',
+      };
+      await expect(service.create(dto, 'usr-1')).rejects.toThrow(SolicitudInvalidaException);
+    });
   });
 
   describe('recibir', () => {
@@ -114,7 +137,7 @@ describe('OrdenesCompraService', () => {
       });
 
       await expect(
-        service.recibir('oc-1', { items: [{ varianteId: 'var-1', cantidadRecibida: 5 }] }),
+        service.recibir('oc-1', { items: [{ varianteId: 'var-1', cantidadRecibida: 5 }] }, 'usr-2'),
       ).rejects.toThrow(OperacionInvalidaException);
     });
 
@@ -122,7 +145,7 @@ describe('OrdenesCompraService', () => {
       managerRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.recibir('oc-inexistente', { items: [] }),
+        service.recibir('oc-inexistente', { items: [] }, 'usr-2'),
       ).rejects.toThrow(RecursoNoEncontradoException);
     });
 
@@ -142,8 +165,15 @@ describe('OrdenesCompraService', () => {
 
       const result = await service.recibir('oc-1', {
         items: [{ varianteId: 'var-1', cantidadRecibida: 10 }],
-      });
+      }, 'usr-2');
 
+      expect(managerRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'oc-1' },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(inventarioSucursalService.ajustarStock).toHaveBeenCalledWith(
+        expect.objectContaining({ usuarioId: 'usr-2', cantidad: 10 }),
+      );
       expect(inventarioSucursalService.ajustarTransito).toHaveBeenCalledWith(
         expect.anything(),
         'var-1',
@@ -171,10 +201,59 @@ describe('OrdenesCompraService', () => {
 
       const result = await service.recibir('oc-1', {
         items: [{ varianteId: 'var-1', cantidadRecibida: 4 }],
-      });
+      }, 'usr-2');
 
       expect(result.estado).toBe(EstadoOrdenCompra.RECIBIDA_PARCIAL);
       expect(orden.items[0].cantidadRecibida).toBe(4);
     });
+  });
+  describe('recibir: más de lo pendiente', () => {
+    it('rechaza con 400 en vez de recortar en silencio', async () => {
+      managerRepo.findOne.mockResolvedValue({
+        id: 'oc-1',
+        sucursalDestinoId: 'suc-1',
+        estado: EstadoOrdenCompra.RECIBIDA_PARCIAL,
+        items: [{ varianteId: 'var-1', cantidadPedida: 4, cantidadRecibida: 3 }],
+      });
+      await expect(
+        service.recibir('oc-1', { items: [{ varianteId: 'var-1', cantidadRecibida: 2 }] }, 'usr-2'),
+      ).rejects.toThrow(SolicitudInvalidaException);
+      expect(inventarioSucursalService.ajustarStock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelar', () => {
+    it('resta del tránsito solo lo pendiente y deja la orden CANCELADA (con lock)', async () => {
+      managerRepo.findOne.mockResolvedValue({
+        id: 'oc-1',
+        sucursalDestinoId: 'suc-1',
+        estado: EstadoOrdenCompra.RECIBIDA_PARCIAL,
+        items: [
+          { varianteId: 'var-1', cantidadPedida: 4, cantidadRecibida: 1 },
+          { varianteId: 'var-2', cantidadPedida: 2, cantidadRecibida: 2 },
+        ],
+      });
+
+      const result = await service.cancelar('oc-1');
+
+      expect(managerRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'oc-1' },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(inventarioSucursalService.ajustarTransito).toHaveBeenCalledTimes(1);
+      expect(inventarioSucursalService.ajustarTransito).toHaveBeenCalledWith(
+        expect.anything(), 'var-1', 'suc-1', -3,
+      );
+      expect(result.estado).toBe(EstadoOrdenCompra.CANCELADA);
+    });
+
+    it.each([EstadoOrdenCompra.RECIBIDA, EstadoOrdenCompra.CANCELADA])(
+      'rechaza (409) cancelar una orden %s',
+      async (estado) => {
+        managerRepo.findOne.mockResolvedValue({ id: 'oc-1', estado, items: [] });
+        await expect(service.cancelar('oc-1')).rejects.toThrow(OperacionInvalidaException);
+        expect(inventarioSucursalService.ajustarTransito).not.toHaveBeenCalled();
+      },
+    );
   });
 });

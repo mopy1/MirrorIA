@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
+import { LimitePorIp } from '../../../core/security/limite-por-ip.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import type { AuthResponseDto, UsuarioResponseDto } from '../dto/auth-response.dto.js';
@@ -31,8 +32,10 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  // Anti fuerza bruta: 10 intentos cada 5 min por IP (429).
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LimitePorIp(10, 5 * 60_000))
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
   }

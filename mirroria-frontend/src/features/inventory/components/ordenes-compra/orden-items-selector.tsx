@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Plus, Trash } from "@phosphor-icons/react"
+import { Plus } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -10,48 +10,64 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useVariantesConProducto } from "@/features/catalog/hooks/useVariantesConProducto"
+import type { VarianteConProducto } from "@/features/catalog/hooks/useVariantesConProducto"
 import type { CreateOrdenCompraItemDto } from "../../types/purchase-orders.types"
+import { OrdenItemsList } from "./orden-items-list"
 
 interface OrdenItemsSelectorProps {
   items: CreateOrdenCompraItemDto[]
   onChange: (items: CreateOrdenCompraItemDto[]) => void
+  /** Solo las prendas del proveedor elegido (colección → proveedor). */
+  variantes: VarianteConProducto[]
+  hayProveedor: boolean
+  initialVarianteId?: string
 }
 
-export function OrdenItemsSelector({ items, onChange }: OrdenItemsSelectorProps) {
-  const { variantes } = useVariantesConProducto()
-  const [varianteId, setVarianteId] = useState("")
+export function OrdenItemsSelector({
+  items,
+  onChange,
+  variantes,
+  hayProveedor,
+  initialVarianteId,
+}: OrdenItemsSelectorProps) {
+  const [varianteId, setVarianteId] = useState(initialVarianteId ?? "")
   const [cantidad, setCantidad] = useState("1")
 
   function handleAdd() {
     const qty = parseInt(cantidad, 10)
     if (!varianteId || isNaN(qty) || qty <= 0) return
-    const existing = items.find((i) => i.varianteId === varianteId)
-    if (existing) {
-      onChange(
-        items.map((i) =>
-          i.varianteId === varianteId ? { ...i, cantidadPedida: i.cantidadPedida + qty } : i
-        )
-      )
-    } else {
-      onChange([...items, { varianteId, cantidadPedida: qty }])
-    }
+    // Una variante = una línea: repetirla se suma (el backend rechaza duplicadas).
+    const existe = items.some((i) => i.varianteId === varianteId)
+    onChange(
+      existe
+        ? items.map((i) => (i.varianteId === varianteId ? { ...i, cantidadPedida: i.cantidadPedida + qty } : i))
+        : [...items, { varianteId, cantidadPedida: qty }]
+    )
     setVarianteId("")
     setCantidad("1")
   }
 
+  const placeholder = !hayProveedor
+    ? "Elegí un proveedor primero"
+    : variantes.length === 0
+      ? "Sin prendas"
+      : "Seleccionar variante"
+
   return (
     <div className="flex flex-col gap-3">
       <span className="text-xs font-medium text-foreground">Prendas a solicitar</span>
+      {hayProveedor && variantes.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Este proveedor no tiene prendas en el catálogo: asigná sus colecciones en Catálogo.
+        </p>
+      )}
       <div className="flex gap-2">
-        <Select value={varianteId} onValueChange={(v) => setVarianteId(v ?? "")}>
-          <SelectTrigger className="flex-1 text-xs">
-            <SelectValue placeholder="Seleccionar variante">
+        <Select value={varianteId} onValueChange={(v) => setVarianteId(v ?? "")} disabled={variantes.length === 0}>
+          <SelectTrigger className="flex-1 min-w-0 text-xs">
+            <SelectValue placeholder={placeholder}>
               {(id: string) => {
                 const v = variantes.find((it) => it.varianteId === id)
-                return v
-                  ? `${v.productoTitulo} · ${v.tallaNombre}/${v.colorNombre}`
-                  : "Seleccionar variante"
+                return v ? `${v.productoTitulo} · ${v.tallaNombre}/${v.colorNombre}` : placeholder
               }}
             </SelectValue>
           </SelectTrigger>
@@ -73,45 +89,16 @@ export function OrdenItemsSelector({ items, onChange }: OrdenItemsSelectorProps)
           className="w-20 text-xs"
           placeholder="Cant."
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAdd}
-          className="text-xs shrink-0"
-        >
+        <Button type="button" variant="outline" size="sm" onClick={handleAdd} disabled={!varianteId} className="text-xs shrink-0">
           <Plus data-icon="inline-start" />
           Agregar
         </Button>
       </div>
-
-      {items.length > 0 && (
-        <div className="border rounded-md divide-y max-h-36 overflow-y-auto">
-          {items.map((item) => {
-            const v = variantes.find((it) => it.varianteId === item.varianteId)
-            const nombre = v
-              ? `${v.productoTitulo} (${v.tallaNombre}/${v.colorNombre})`
-              : item.varianteId.slice(0, 8)
-            return (
-              <div key={item.varianteId} className="flex items-center justify-between p-2 text-xs">
-                <span className="truncate max-w-[240px]">{nombre}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-medium">{item.cantidadPedida} u.</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => onChange(items.filter((i) => i.varianteId !== item.varianteId))}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash />
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <OrdenItemsList
+        items={items}
+        variantes={variantes}
+        onRemove={(id) => onChange(items.filter((i) => i.varianteId !== id))}
+      />
     </div>
   )
 }

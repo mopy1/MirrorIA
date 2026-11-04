@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react"
+import type { FormEvent } from "react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,12 +13,11 @@ import {
 import { FieldGroup } from "@/components/ui/field"
 import type { Sucursal } from "@/features/branches/types/branches.types"
 import type { Proveedor } from "@/features/providers/types/providers.types"
-import { purchaseOrdersApi } from "../../api/purchaseOrdersApi"
-import type { CreateOrdenCompraItemDto } from "../../types/purchase-orders.types"
+import { useCrearOrdenForm, type OrdenInicial } from "../../hooks/useCrearOrdenForm"
 import { OrdenCabeceraFields } from "./orden-cabecera-fields"
 import { OrdenItemsSelector } from "./orden-items-selector"
 
-interface Props {
+interface Props extends OrdenInicial {
   open: boolean
   onOpenChange: (open: boolean) => void
   proveedores: Proveedor[]
@@ -31,75 +31,54 @@ export function CrearOrdenCompraDialog({
   proveedores,
   sucursales,
   onSuccess,
+  ...inicial
 }: Props) {
-  const [proveedorId, setProveedorId] = useState("")
-  const [sucursalDestinoId, setSucursalDestinoId] = useState("")
-  const [fechaEsperada, setFechaEsperada] = useState("")
-  const [items, setItems] = useState<CreateOrdenCompraItemDto[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const form = useCrearOrdenForm(open, inicial, () => {
+    onOpenChange(false)
+    onSuccess()
+  })
 
-  function reset() {
-    setProveedorId("")
-    setSucursalDestinoId("")
-    setFechaEsperada("")
-    setItems([])
-    setError(null)
-  }
-
-  async function handleSubmit(e: FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!proveedorId || !sucursalDestinoId || items.length === 0) {
-      setError("Completa proveedor, sucursal y al menos una prenda")
-      return
-    }
-    setIsLoading(true)
-    setError(null)
-    try {
-      await purchaseOrdersApi.createOrden({
-        proveedorId,
-        sucursalDestinoId,
-        items,
-        fechaEsperada: fechaEsperada || undefined,
-      })
-      reset()
-      onOpenChange(false)
-      onSuccess()
-    } catch {
-      setError("No se pudo crear la orden de compra")
-    } finally {
-      setIsLoading(false)
-    }
+    form.submit()
   }
 
-  const isFormValid = proveedorId && sucursalDestinoId && items.length > 0
+  const isFormValid = form.proveedorId && form.sucursalDestinoId && form.items.length > 0
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v) }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nueva Orden de Compra</DialogTitle>
-          <DialogDescription>Solicita reposición o stock de prendas a un proveedor.</DialogDescription>
+          <DialogDescription>Solicita reposición de prendas a un proveedor.</DialogDescription>
         </DialogHeader>
-        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        {form.error && <Alert variant="destructive"><AlertDescription>{form.error}</AlertDescription></Alert>}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <FieldGroup className="py-0 gap-3">
             <OrdenCabeceraFields
-              proveedorId={proveedorId}
-              onProveedorChange={setProveedorId}
-              sucursalDestinoId={sucursalDestinoId}
-              onSucursalChange={setSucursalDestinoId}
-              fechaEsperada={fechaEsperada}
-              onFechaChange={setFechaEsperada}
+              proveedorId={form.proveedorId}
+              onProveedorChange={form.setProveedorId}
+              sucursalDestinoId={form.sucursalDestinoId}
+              onSucursalChange={form.setSucursalDestinoId}
+              fechaEsperada={form.fechaEsperada}
+              onFechaChange={form.setFechaEsperada}
               proveedores={proveedores}
               sucursales={sucursales}
             />
-            <OrdenItemsSelector items={items} onChange={setItems} />
+            <OrdenItemsSelector
+              key={`${inicial.initialVarianteId ?? ""}-${open}`}
+              items={form.items}
+              onChange={form.setItems}
+              variantes={form.variantesDelProveedor}
+              hayProveedor={Boolean(form.proveedorId)}
+              initialVarianteId={inicial.initialVarianteId}
+            />
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={isLoading || !isFormValid}>
-              {isLoading ? "Creando..." : "Crear Orden"}
+            <Button type="submit" disabled={form.isLoading || !isFormValid}>
+              {form.isLoading && <CircleNotch data-icon="inline-start" className="animate-spin" />}
+              {form.isLoading ? "Creando..." : "Crear Orden"}
             </Button>
           </DialogFooter>
         </form>

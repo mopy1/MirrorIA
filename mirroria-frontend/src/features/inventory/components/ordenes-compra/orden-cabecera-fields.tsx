@@ -68,7 +68,12 @@ export function OrdenCabeceraFields({
 
       <Field>
         <FieldLabel>Fecha esperada (opcional)</FieldLabel>
-        <Input type="date" value={fechaEsperada} onChange={(e) => onFechaChange(e.target.value)} />
+        <Input
+          type="date"
+          min={new Date().toLocaleDateString("en-CA")}
+          value={fechaEsperada}
+          onChange={(e) => onFechaChange(e.target.value)}
+        />
       </Field>
     </>
   )

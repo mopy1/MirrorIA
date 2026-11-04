@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   Patch,
   Post,
   Query,
@@ -24,6 +26,10 @@ import type { CupoReservaResponseDto } from '../dto/cupo-reserva-response.dto.js
 import type { ReservaResponseDto } from '../dto/reserva-response.dto.js';
 import { EstadoReserva } from '../entities/reserva.entity.js';
 import { ReservasService } from '../service/reservas.service.js';
+
+// 400 (no 500 ni lista vacía) si ?estado= no es un EstadoReserva válido.
+const estadoInvalido = () =>
+  new BadRequestException(`estado inválido; valores: ${Object.values(EstadoReserva).join(', ')}`);
 
 // Todo el módulo exige sesión — no hay ninguna operación pública acá
 // (a diferencia de catalogo/sucursales/inventario).
@@ -68,7 +74,8 @@ export class ReservasController {
   findAll(
     @CurrentUser() user: JwtPayload,
     @Query('sucursalId') sucursalId?: string,
-    @Query('estado') estado?: string,
+    @Query('estado', new ParseEnumPipe(EstadoReserva, { optional: true, exceptionFactory: estadoInvalido }))
+    estado?: EstadoReserva,
   ): Promise<ReservaResponseDto[]> {
     return this.reservasService.findAll({
       sucursalId: sucursalDelStaff(user) ?? sucursalId,

@@ -8,6 +8,8 @@ const EJEMPLOS = [
   "¿Cuánto vendí este mes por sucursal?",
   "Top 5 productos más vendidos",
   "¿Cuántas reservas se cancelaron?",
+  "Unidades pedidas por proveedor este mes",
+  "¿Cuántas órdenes de compra hay por estado?",
   "¿Qué podés hacer?",
 ]
 

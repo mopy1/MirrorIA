@@ -89,12 +89,12 @@ export class ProductosService {
     return productos.map((p) => this.toResponse(p));
   }
 
-  async findOne(id: string): Promise<ProductoResponseDto> {
+  async findOne(id: string, verInactivo = false): Promise<ProductoResponseDto> {
     const producto = await this.productoRepository.findOne({
       where: { id },
       relations: { categoria: true, coleccion: true },
     });
-    if (!producto) {
+    if (!producto || (!producto.activo && !verInactivo)) {
       throw new RecursoNoEncontradoException('Producto', id);
     }
 

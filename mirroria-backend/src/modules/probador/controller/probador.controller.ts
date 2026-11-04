@@ -1,6 +1,7 @@
 import { Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { ipDelPedido } from '../../../core/security/limite-por-ip.js';
 import type { TokenProbadorResponseDto } from '../dto/token-probador-response.dto.js';
 import { ProbadorService } from '../service/probador.service.js';
 
@@ -18,10 +19,7 @@ export class ProbadorController {
     summary: 'Token efimero de Decart para el probador virtual (RF13); max. 10 cada 10 min por IP (429)',
   })
   crearToken(@Req() req: Request): Promise<TokenProbadorResponseDto> {
-    // Detras de Nginx el socket es siempre el del contenedor de nginx: la IP
-    // real llega en X-Real-IP ($remote_addr, que nginx pisa y el cliente no
-    // puede falsear). Sin nginx (movil directo a :3000), la del socket.
-    const ip = req.header('x-real-ip') ?? req.ip ?? 'desconocida';
+    const ip = ipDelPedido(req); // X-Real-IP de nginx, si no la del socket
     return this.probadorService.crearToken(ip);
   }
 }

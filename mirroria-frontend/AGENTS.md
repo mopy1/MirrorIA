@@ -23,7 +23,7 @@ directrices de forma obligatoria.
   sin `tailwind.config.js`). `react-router-dom` 7 (`BrowserRouter` en `App.tsx`);
   `AuthProvider` y `CartProvider` envuelven `<App />` en `main.tsx`.
 - **UI: shadcn/ui**, preset **Nova** sobre **Base UI** (no Radix). Primitivas instaladas en
-  `src/components/ui/`: alert, aspect-ratio, avatar, badge, button, card, chart, collapsible,
+  `src/components/ui/`: alert, aspect-ratio, avatar, badge, button, card, chart,
   dialog, field, input, label, navigation-menu, select, separator, sheet, skeleton, table, tabs,
   textarea. `cn` viene del paquete npm `cn` (`import { cn } from "cn"`) — **no** existe
   `lib/utils.ts`, no crearlo.
@@ -50,7 +50,10 @@ directrices de forma obligatoria.
 - **Docker:** `Dockerfile` multi-stage (node:24-alpine build → nginx:alpine). `ARG NGINX_CONF`:
   `nginx.conf` (default, HTTP plano en `:80`, `server_name _`, proxy `/api/` →
   `mirroria-backend:3000`) o `nginx.prod.conf` (dominio + Let's Encrypt, solo con
-  `docker-compose.prod.yml`). Contenedor `mirroria_frontend`.
+  `docker-compose.prod.yml`). Contenedor `mirroria_frontend`. Ambas confs tienen `gzip on`
+  (js/css/json/svg, `gzip_min_length 1024`) y `location ^~ /assets/` con `expires 1y` +
+  `Cache-Control "public, immutable"` (los nombres de Vite llevan hash); el `^~` hace falta para
+  ganarle a la location regex de estáticos (`try_files $uri =404`).
 
 ---
 
@@ -126,6 +129,11 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 | `/admin/cobros` | `admin/CobrosAdminPage` | `StaffRoute` ADMIN, CAJERO |
 | `/admin/reportes` | `admin/ReportesAdminPage` | `StaffRoute` default (ADMIN, ENCARGADO_SUCURSAL) |
 
+**Carga diferida:** las páginas `/admin/*`, `ProbadorPage` y `WayraPagoPage` se importan con
+`React.lazy` desde `routes/lazy-pages.ts` (un `<Suspense>` con `components/common/PageFallback`
+envuelve `<Routes>`); las de la tienda pública siguen estáticas. Bundle inicial: 1.57 MB →
+795 kB (gzip 457 → 241 kB). Una página nueva de admin se agrega ahí, no como import estático.
+
 **Navegación (sin páginas huérfanas):**
 - Header (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
   `useCategorias`), buscador, carrito con badge. `header-auth.tsx`: sin sesión → login/registro;
@@ -148,8 +156,7 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 mirroria-frontend/
 ├── public/
 │   ├── favicon.svg
-│   ├── images/hero-model.jpg          # foto del hero, local
-│   └── prendas/*.png                  # recortes del vestidor AR viejo (ver §5, legado)
+│   └── images/hero-model.webp         # foto del hero, local (webp, antes .jpg de 244 kB)
 ├── src/
 │   ├── main.tsx                       # AuthProvider > CartProvider > App
 │   ├── App.tsx                        # rutas data-driven (ver §2)
@@ -159,9 +166,10 @@ mirroria-frontend/
 │   │   ├── brand-logo.tsx             # logotipo MirrorIA
 │   │   └── common/
 │   │       ├── SearchInput.tsx        # navega a /tienda?q=
+│   │       ├── PageFallback.tsx       # Skeleton del <Suspense> de las páginas diferidas
 │   │       └── ProductImagePlaceholder.tsx  # fallback cuando un producto no tiene foto
 │   ├── context/
-│   │   ├── AuthContext.tsx + auth-context.ts   # usuario, token, login/logout (contexto separado por fast-refresh)
+│   │   ├── AuthContext.tsx + auth-context.ts   # usuario, token, login/logout (contexto separado por fast-refresh); al montar refresca el usuario con GET /seguridad/auth/me (rol viejo en localStorage) y cierra sesión si da 401
 │   │   └── CartContext.tsx + cart-context.ts   # carrito, itemCount, refresh()
 │   ├── hooks/                         # globales
 │   │   ├── useAuth.ts, useCart.ts
@@ -183,7 +191,8 @@ mirroria-frontend/
 │   │   ├── ProtectedRoute.tsx         # exige sesión
 │   │   ├── GuestRoute.tsx             # con sesión, fuera de /login y /register
 │   │   ├── AdminRoute.tsx             # sesión + ADMIN exacto
-│   │   └── StaffRoute.tsx             # sesión + allowedRoles (default REPORTES_ROLES)
+│   │   ├── StaffRoute.tsx             # sesión + allowedRoles (default REPORTES_ROLES)
+│   │   └── lazy-pages.ts              # React.lazy de admin, probador y Wayra (ver §2)
 │   └── features/                      # ver detalle abajo
 ├── Dockerfile, nginx.conf, nginx.prod.conf
 ├── components.json                    # config shadcn (preset Nova, Base UI)
@@ -200,8 +209,10 @@ backend), `pages/{LoginPage,RegisterPage}.tsx`.
 ### `features/catalog/` ↔ backend `catalogo`
 - `api/catalogApi.ts`: CRUD de productos, variantes, categorías, temporadas, colecciones,
   tallas y colores (tienda + admin). `types/catalog.types.ts`.
-- `hooks/`: `useProductos` (filtro por categoría/búsqueda en el cliente), `useProducto`,
-  `useCategorias`, `useVariantesConProducto` (catálogo aplanado por variante, lo usan `cart` e
+- `hooks/`: `useProductos` (filtro por categoría/búsqueda en el cliente), `useProducto`
+  (devuelve `noEncontrado` ante 404/400: producto inexistente, inactivo o id inválido →
+  `ProductDetailPage` muestra `NotFoundPage` con texto de prenda, no un error genérico),
+  `useCategorias`, `useVariantesConProducto` (catálogo aplanado por variante con `coleccionId`, lo usan `cart` e
   inventario admin).
 - `components/`: `hero-section/` (full-bleed, `.data.ts` + test), `feature-highlights/`,
   `category-showcase/` (foto real de una prenda por categoría; `columnas.ts` + test),
@@ -217,10 +228,33 @@ backend), `pages/{LoginPage,RegisterPage}.tsx`.
 lookup), `pages/BranchesPage.tsx`.
 
 ### `features/inventory/` ↔ backend `inventario`
-`api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `api/purchaseOrdersApi.ts` (órdenes de compra: get, create y recibir mercadería), `hooks/useDisponibilidad.ts`
+`api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `api/purchaseOrdersApi.ts` (órdenes de compra: get, create, recibir y `cancelarOrden` → `PATCH /:id/cancelar`), `hooks/useDisponibilidad.ts`
 (stock en la ficha: desde 2026-11-03 muestra lo **libre**, `cantidadDisponible - cantidadReservada`,
-igual que lo que el backend deja comprar), `types/` (`inventory.types.ts`, `purchase-orders.types.ts`),
-`components/ordenes-compra/` (`ordenes-compra-tab.tsx`, `ordenes-compra-table.tsx`, `crear-orden-compra-dialog.tsx`, `recibir-orden-dialog.tsx`, `estado-orden-badge.tsx`). Integrado en `InventarioAdminPage.tsx` mediante pestaña "Órdenes a Proveedores".
+igual que lo que el backend deja comprar), `types/` (`inventory.types.ts`, `purchase-orders.types.ts`;
+sin `usuarioId` en el DTO de alta — el backend usa el JWT — y sin `EN_TRANSITO`, que el backend nunca asigna).
+- `hooks/useVariantesPorProveedor.ts`: cruza variante → `coleccionId` → `colecciones.proveedorId`
+  en cliente (sin endpoint nuevo); da `delProveedor` y `proveedorDe(varianteId)`.
+- `hooks/useCrearOrdenForm.ts`: estado + submit del alta; arranca desde `initialProveedorId` /
+  `initialSucursalId` / `initialVarianteId` (si solo hay variante, deduce el proveedor); al cambiar
+  de proveedor descarta prendas ajenas; muestra el `message` del backend (`ApiError`).
+- `lib/resumen-ordenes.ts` (+ test): por proveedor, órdenes abiertas y unidades en tránsito.
+- `components/ordenes-compra/`: `ordenes-compra-tab.tsx` (KPIs Total/Abiertas/Recibidas/Canceladas,
+  tabla, diálogos; acepta `reloadKey`), `ordenes-compra-table.tsx` + `orden-compra-row.tsx` (fecha
+  esperada parseada como fecha local; acciones "Recibir mercadería" y "Cancelar" en órdenes abiertas),
+  `crear-orden-compra-dialog.tsx` (props `initial*`), `orden-cabecera-fields.tsx` (fecha `min` = hoy),
+  `orden-items-selector.tsx` + `orden-items-list.tsx` (solo prendas del proveedor elegido),
+  `recibir-orden-dialog.tsx`, `cancelar-orden-dialog.tsx` (confirmación), `pedir-proveedor-dialog.tsx`
+  ("Pedir al proveedor" desde stock), `estado-orden-badge.tsx`.
+- Integración: en `InventarioAdminPage` la pestaña "Órdenes a Proveedores" y la columna "Pedir"
+  de `stock-table` (`stock-row.tsx`: botón de ícono camión con `aria-label`/`title` "Pedir al proveedor",
+  `outline` con ≤ 5 u. libres y `ghost` si no) son **solo ADMIN** (el
+  backend da 403 al encargado). Crear/recibir/cancelar refrescan stock y tránsito. Layout
+  (QA visual 2026-11-04 a 1280 px): el panel "Ajuste manual" va debajo de la tabla y solo a la derecha
+  desde `2xl` (`2xl:grid-cols-[minmax(0,1fr)_360px]`) — lado a lado no entraba y lo empujaba fuera de
+  pantalla; las columnas de `stock-table` no llevan anchos fijos en %. En el estado vacío de órdenes, el
+  botón "Nueva orden de compra" es `outline` (un solo primario por vista: el de la cabecera). En
+  `ProveedoresAdminPage` (`components/proveedores-columns.tsx`): columna "Órdenes abiertas" y botón
+  "Nueva orden" con el proveedor preelegido.
 
 ### `features/cart/` ↔ backend `ventas` (carrito)
 `api/cartApi.ts` (get, addItem, removeItem por `usuarioId`), `hooks/useCartLineItems.ts`
@@ -316,7 +350,7 @@ sesión ni layout de la tienda (representa otra app). El token del QR es la úni
 `hooks/useValidarCupon.ts` (checkout: aplica/remueve y calcula descuento), `types/`.
 
 ### `features/providers/` ↔ backend `proveedores`
-Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAdminPage.tsx`.
+Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAdminPage.tsx` (columnas en `admin/components/proveedores-columns.tsx`, con órdenes abiertas/tránsito y "Nueva orden").
 
 ### `features/fitting/` ↔ backend `probador` (RF13, probador virtual web)
 - `api/probadorApi.ts`: `POST /probador/token` → API key efímera (10 min). `DECART_API_KEY`
@@ -336,8 +370,8 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
 
 ### `features/reports/` ↔ backend `ia` (CU24, reportes por lenguaje natural)
 - `api/reportsApi.ts`: `preguntar` (`POST /ia/reportes`, 503 sin clave de IA), `consultar`
-  (`POST /ia/reportes/consulta`, ficha armada a mano, funciona sin IA), `historial`
-  (`GET /ia/interacciones`, hoy sin uso en la UI).
+  (`POST /ia/reportes/consulta`, ficha armada a mano, funciona sin IA). El endpoint
+  `GET /ia/interacciones` existe en el backend pero la web no lo consume (se quitó `historial`).
 - `hooks/`: `useReportesIniciales` (tarjetas de `reportes-iniciales.data.ts` en paralelo, cada
   una con su propio estado), `useReportesChat` (conversación + pestañas de resultados),
   `useDictado` (Web Speech API).
@@ -353,11 +387,13 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
 - `components/`: `simple-resource-manager/` (tabla + diálogo de alta genérico) y sus wrappers
   `categorias-`, `temporadas-`, `tallas-`, `colores-`, `colecciones-`, `ciudades-`,
   `sucursales-panel/`; `productos-panel/` (tabla, crear, editar, agregar variante, campos);
-  `stock-table/`, `ajustar-stock-form/`; `ventas-table/` (badges en `.data.ts` con las claves
+  `stock-table/` (`stock-row.tsx`, `stock-sucursal-header.tsx`), `proveedores-columns.tsx`, `ajustar-stock-form/`; `ventas-table/` (badges en `.data.ts` con las claves
   reales de `EstadoVenta`: PENDIENTE "Pendiente de pago", PAGADA, ENTREGADA, CANCELADA,
   DEVUELTA_PARCIAL, DEVUELTA_TOTAL — antes PAGADO/COMPLETADO/CANCELADO no coincidían); `reservas-table/` (columna Código,
   badges por estado en `.data.ts`); `estado-acciones/`; `cobros-table/`; `cupones-table/`,
   `crear-cupon-dialog/`; `usuarios-table/`, `usuario-rol-editor/` (rol + sucursal).
+  `UsuariosAdminPage` muestra en un `Alert` el `ApiError.message` del backend al activar/desactivar
+  (ej. 409 "Es el último administrador activo"); el diálogo de rol ya mostraba el suyo.
 - `api/usuariosAdminApi.ts` (rol y estado de usuarios).
 - **Mostrador de reservas (`ReservasAdminPage`):** buscador por código (`coincideCodigo`),
   selector de sucursal solo para ADMIN (encargada/cajera ven la suya, lo fuerza el backend).
@@ -371,7 +407,8 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
 
 ### `features/errors/`
 `pages/NotFoundPage.tsx`: comodín `*` (sin él la SPA quedaba en blanco, porque Nginx sirve
-`index.html` para cualquier ruta).
+`index.html` para cualquier ruta). Acepta `titulo`/`detalle` opcionales para reusarla en un recurso
+inexistente (ficha de prenda).
 
 ---
 
@@ -408,10 +445,10 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   pantalla. Hoy la caja usa `/admin/reservas` y `/admin/cobros`.
 - **"Mis pedidos" web:** no existe; el 409 de "2 compras sin pagar" del checkout la menciona sin
   link.
-- **`reportsApi.historial` sin uso** en la UI.
-- **Legado del vestidor AR:** `public/prendas/*.png`, el campo `arOverlayImageUrl` (formularios
-  de producto del admin y tipos) y la `location ^~ /prendas/` de Nginx eran del AR del móvil, que
-  también migró a Decart el 2026-09-29. Verificar si alguien los sigue usando antes de borrarlos.
+- **Esquema del AR viejo (decisión pendiente del usuario):** `productos.ar_overlay_image_url` e
+  `imagenes[].esArAsset` siguen en la BD, el backend y los tipos del front
+  (`catalog.types.ts`, `catalogApi.ts`), pero ya ningún formulario los edita; los productos ya
+  sembrados pueden conservar una URL `/prendas/*.png` que hoy da 404 (nadie la lee).
 - **Login/registro:** falta botón para mostrar la contraseña (el móvil lo tiene).
 - **`/probador/token`** es público y sin rate-limiting (gasta crédito de Decart).
 
@@ -462,6 +499,11 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
 - **2026-11-03 — Merge de `pago-qr`:** cobro por QR dinámico con polling y banco simulado Wayra
   (`features/wayra`, `/wayra/pagar/:token`). Se quitó el QR fijo (`PAGOS_QR_URL`); el cobro
   manual quedó solo para efectivo.
+- **2026-11-04 — Limpieza y rendimiento:** borrados `public/prendas/` (13 PNG, 3.2 MB, recortes
+  del AR viejo), su `location ^~ /prendas/` de Nginx, el campo "Imagen para Vestidor AR" de los
+  formularios de producto, `ui/collapsible.tsx` (ya sin importadores) y `reportsApi.historial`.
+  Hero a `.webp` (244 → 93 kB). Carga diferida de admin/probador/Wayra y gzip + caché inmutable
+  de `/assets/` en Nginx (ver §0 y §2).
 
 ---
 

@@ -22,4 +22,7 @@ export const purchaseOrdersApi = {
       method: "PATCH",
       body: JSON.stringify(dto),
     }),
+
+  cancelarOrden: (id: string) =>
+    apiFetch<OrdenCompra>(`/inventario/ordenes-compra/${id}/cancelar`, { method: "PATCH" }),
 }

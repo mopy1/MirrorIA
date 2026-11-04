@@ -1,32 +1,33 @@
-# React + TypeScript + Vite
+# mirroria-frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Tienda web de **MirrorIA** (e-commerce multi-sucursal de moda femenina) y panel
+de administración `/admin/*`. React 19 + Vite + Tailwind v4 + shadcn/ui,
+organizado por features (`src/features/<modulo>/`).
 
-Currently, two official plugins are available:
+## Correr en desarrollo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev          # http://localhost:5174 (el backend tiene que estar en :3000)
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`VITE_API_URL` apunta al backend (`http://localhost:3000/api/v1` en dev).
+
+## Verificar
+
+```bash
+npx tsc -b --noEmit  # tipos
+npm test             # vitest
+npm run lint         # oxlint
+npm run build        # tsc + vite build -> dist/
+```
+
+## Docker
+
+Desde la raíz del monorepo: `docker compose up -d --build`. El contenedor
+`mirroria_frontend` sirve `dist/` con Nginx en `:80` y hace proxy de `/api/`
+al backend. `nginx.conf` es la config de desarrollo (HTTP plano);
+`nginx.prod.conf` es la de la VM (dominio + Let's Encrypt), elegida por
+`docker-compose.prod.yml`.
+
+Arquitectura, rutas y convenciones: [`AGENTS.md`](./AGENTS.md).

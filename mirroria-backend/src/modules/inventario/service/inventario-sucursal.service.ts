@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
+import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { StockInsuficienteException } from '../../../core/exception/stock-insuficiente.exception.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
@@ -236,15 +237,23 @@ export class InventarioSucursalService {
     sucursalId: string,
     delta: number,
   ): Promise<void> {
-    // Atómico por la misma razón que ajustarStock.
+    // Atómico y condicionado, igual que ajustarStock: sin clamp a 0, que
+    // escondía excesos y se comía el tránsito de otras órdenes de la misma
+    // variante/sucursal. Si quedaría negativo, se rechaza (409).
     await this.asegurarFila(manager, varianteId, sucursalId);
-    await manager
+    const { affected } = await manager
       .createQueryBuilder()
       .update(InventarioSucursal)
-      .set({ cantidadEnTransito: () => 'GREATEST(0, cantidad_en_transito + :delta)' })
+      .set({ cantidadEnTransito: () => 'cantidad_en_transito + :delta' })
       .where('variante_id = :varianteId AND sucursal_id = :sucursalId')
+      .andWhere('cantidad_en_transito + :delta >= 0')
       .setParameters({ varianteId, sucursalId, delta })
       .execute();
+    if (affected !== 1) {
+      throw new OperacionInvalidaException(
+        `El stock en tránsito de la variante ${varianteId} quedaría negativo`,
+      );
+    }
   }
 
   private toResponse(fila: InventarioSucursal): InventarioSucursalResponseDto {

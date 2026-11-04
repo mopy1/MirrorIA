@@ -3,6 +3,8 @@ import { BaseEntity } from '../../../core/database/base.entity.js';
 
 export enum EstadoOrdenCompra {
   PENDIENTE = 'PENDIENTE',
+  /** Reservado: hoy ningún flujo lo asigna (no hay aviso de despacho del
+   * proveedor). Se deja para no romper datos/IA; el front no lo muestra. */
   EN_TRANSITO = 'EN_TRANSITO',
   RECIBIDA_PARCIAL = 'RECIBIDA_PARCIAL',
   RECIBIDA = 'RECIBIDA',

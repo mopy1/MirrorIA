@@ -12,6 +12,7 @@ describe('OrdenesCompraController', () => {
     findAll: ReturnType<typeof vi.fn>;
     findOneResponse: ReturnType<typeof vi.fn>;
     recibir: ReturnType<typeof vi.fn>;
+    cancelar: ReturnType<typeof vi.fn>;
   };
 
   const mockUser: JwtPayload = {
@@ -27,6 +28,7 @@ describe('OrdenesCompraController', () => {
       findAll: vi.fn(),
       findOneResponse: vi.fn(),
       recibir: vi.fn(),
+      cancelar: vi.fn(),
     };
     controller = new OrdenesCompraController(
       service as unknown as OrdenesCompraService,
@@ -34,56 +36,32 @@ describe('OrdenesCompraController', () => {
   });
 
   describe('create', () => {
-    it('debe usar el sub del JWT cuando usuarioId no viene en el DTO', async () => {
+    it('siempre pasa el sub del JWT como autor de la orden', async () => {
       const dto: CreateOrdenCompraDto = {
         proveedorId: 'prov-1',
         sucursalDestinoId: 'suc-1',
         items: [{ varianteId: 'var-1', cantidadPedida: 10 }],
       };
-
-      const mockResponse = {
-        id: 'oc-1',
-        proveedorId: 'prov-1',
-        sucursalDestinoId: 'suc-1',
-        usuarioId: mockUser.sub,
-        estado: EstadoOrdenCompra.PENDIENTE,
-        items: [{ varianteId: 'var-1', cantidadPedida: 10, cantidadRecibida: 0 }],
-        fechaPedido: new Date(),
-        fechaEsperada: null,
-        fechaRecepcion: null,
-      };
-
-      service.create.mockResolvedValue(mockResponse);
+      service.create.mockResolvedValue({ id: 'oc-1', usuarioId: mockUser.sub });
 
       const result = await controller.create(dto, mockUser);
 
-      expect(service.create).toHaveBeenCalledWith({
-        proveedorId: 'prov-1',
-        sucursalDestinoId: 'suc-1',
-        usuarioId: mockUser.sub,
-        items: [{ varianteId: 'var-1', cantidadPedida: 10 }],
-      });
-      expect(result).toEqual(mockResponse);
+      expect(service.create).toHaveBeenCalledWith(dto, mockUser.sub);
+      expect(result).toEqual({ id: 'oc-1', usuarioId: mockUser.sub });
     });
 
-    it('debe respetar usuarioId si viene explícitamente en el DTO', async () => {
-      const dto: CreateOrdenCompraDto = {
+    it('ignora un usuarioId colado en el body (no se puede suplantar)', async () => {
+      const dto = {
         proveedorId: 'prov-1',
         sucursalDestinoId: 'suc-1',
         usuarioId: 'otro-usuario-uuid',
         items: [{ varianteId: 'var-1', cantidadPedida: 5 }],
-      };
-
+      } as CreateOrdenCompraDto;
       service.create.mockResolvedValue({ id: 'oc-2' });
 
       await controller.create(dto, mockUser);
 
-      expect(service.create).toHaveBeenCalledWith({
-        proveedorId: 'prov-1',
-        sucursalDestinoId: 'suc-1',
-        usuarioId: 'otro-usuario-uuid',
-        items: [{ varianteId: 'var-1', cantidadPedida: 5 }],
-      });
+      expect(service.create.mock.calls[0][1]).toBe(mockUser.sub);
     });
   });
 
@@ -117,10 +95,18 @@ describe('OrdenesCompraController', () => {
       const mockResult = { id: 'oc-1', estado: EstadoOrdenCompra.RECIBIDA };
       service.recibir.mockResolvedValue(mockResult);
 
-      const result = await controller.recibir('oc-1', dto);
+      const result = await controller.recibir('oc-1', dto, mockUser);
 
-      expect(service.recibir).toHaveBeenCalledWith('oc-1', dto);
+      expect(service.recibir).toHaveBeenCalledWith('oc-1', dto, mockUser.sub);
       expect(result).toEqual(mockResult);
+    });
+  });
+  describe('cancelar', () => {
+    it('delega la cancelación al servicio', async () => {
+      service.cancelar.mockResolvedValue({ id: 'oc-1', estado: EstadoOrdenCompra.CANCELADA });
+      const result = await controller.cancelar('oc-1');
+      expect(service.cancelar).toHaveBeenCalledWith('oc-1');
+      expect(result.estado).toBe(EstadoOrdenCompra.CANCELADA);
     });
   });
 });

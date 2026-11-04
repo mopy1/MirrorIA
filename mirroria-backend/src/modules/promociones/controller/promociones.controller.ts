@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import { LimitePorIp } from '../../../core/security/limite-por-ip.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { CreateCuponDto } from '../dto/create-cupon.dto.js';
@@ -58,7 +59,9 @@ export class PromocionesController {
     return this.promocionesService.toggleActivo(id);
   }
 
+  // Público: tope para que no se puedan adivinar códigos a fuerza bruta (429).
   @Post('validar')
+  @UseGuards(LimitePorIp(30, 5 * 60_000))
   @ApiOperation({ summary: 'Validar un cupón y calcular descuento (Público)' })
   validar(@Body() dto: ValidarCuponDto): Promise<ValidarCuponResponseDto> {
     return this.promocionesService.validar(dto.codigo, dto.subtotalCents);

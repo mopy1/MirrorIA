@@ -27,7 +27,7 @@ export function HeroSection() {
       {/* Contenedor de la foto: full-width, carga local instantánea */}
       <div className="absolute inset-0 h-full w-full">
         <img
-          src="/images/hero-model.jpg"
+          src="/images/hero-model.webp"
           alt="Clienta probándose una prenda frente al vestidor virtual"
           className="h-full w-full object-cover object-[45%_18%] lg:object-[48%_38%]"
         />

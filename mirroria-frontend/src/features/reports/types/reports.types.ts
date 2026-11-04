@@ -36,11 +36,3 @@ export interface Reporte {
   comparacion: Comparacion | null
   narrativa: string | null
 }
-
-export interface Interaccion {
-  id: string
-  tipo: string
-  inputText: string | null
-  outputText: string | null
-  createdAt: string
-}

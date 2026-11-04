@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api"
-import type { Ficha, Interaccion, Reporte } from "../types/reports.types"
+import type { Ficha, Reporte } from "../types/reports.types"
 
 export const reportsApi = {
   /** CU24: pregunta en lenguaje natural. Devuelve 503 si no hay IA_API_KEY. */
@@ -15,6 +15,4 @@ export const reportsApi = {
       method: "POST",
       body: JSON.stringify(ficha),
     }),
-
-  historial: () => apiFetch<Interaccion[]>("/ia/interacciones"),
 }

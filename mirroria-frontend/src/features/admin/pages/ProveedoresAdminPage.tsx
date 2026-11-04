@@ -1,20 +1,23 @@
-import { EnvelopeSimple, Phone, Truck } from "@phosphor-icons/react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useMemo, useState } from "react"
+import { Truck } from "@phosphor-icons/react"
 import { Badge } from "@/components/ui/badge"
+import { proveedoresColumns } from "@/features/admin/components/proveedores-columns"
 import { SimpleResourceManager } from "@/features/admin/components/simple-resource-manager"
+import { branchesApi } from "@/features/branches/api/branchesApi"
+import { purchaseOrdersApi } from "@/features/inventory/api/purchaseOrdersApi"
+import { CrearOrdenCompraDialog } from "@/features/inventory/components/ordenes-compra"
+import { resumenPorProveedor } from "@/features/inventory/lib/resumen-ordenes"
 import { providersApi } from "@/features/providers/api/providersApi"
 import { useCreateResource } from "@/hooks/useCreateResource"
 import { useResourceList } from "@/hooks/useResourceList"
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
 export function ProveedoresAdminPage() {
   const list = useResourceList(providersApi.getProveedores)
   const { submit, isLoading, error } = useCreateResource(providersApi.createProveedor)
+  const ordenes = useResourceList(purchaseOrdersApi.getOrdenes)
+  const sucursales = useResourceList(branchesApi.getSucursales)
+  const resumen = useMemo(() => resumenPorProveedor(ordenes.items), [ordenes.items])
+  const [proveedorParaOrden, setProveedorParaOrden] = useState<string | null>(null)
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 xl:p-10 space-y-6 max-w-7xl 2xl:max-w-[1536px] w-full mx-auto">
@@ -39,62 +42,7 @@ export function ProveedoresAdminPage() {
         error={list.error}
         isCreating={isLoading}
         createError={error}
-        columns={[
-          {
-            key: "razonSocial",
-            label: "Proveedor y Razón Social",
-            render: (p) => (
-              <div className="flex items-center gap-3">
-                <Avatar size="default">
-                  <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs">
-                    {getInitials(p.razonSocial)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="font-medium text-sm text-foreground truncate">{p.razonSocial}</p>
-                  {p.contactoNombre && (
-                    <p className="text-xs text-muted-foreground truncate">{p.contactoNombre}</p>
-                  )}
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: "nit",
-            label: "NIT",
-            render: (p) => (
-              <Badge variant="outline" className="font-mono text-xs font-normal">
-                {p.nit ?? "Sin NIT"}
-              </Badge>
-            ),
-          },
-          {
-            key: "contactoEmail",
-            label: "Email de contacto",
-            render: (p) =>
-              p.contactoEmail ? (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-                  <EnvelopeSimple className="size-3.5 shrink-0" />
-                  <span className="truncate">{p.contactoEmail}</span>
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
-              ),
-          },
-          {
-            key: "contactoTelefono",
-            label: "Teléfono",
-            render: (p) =>
-              p.contactoTelefono ? (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Phone className="size-3.5 shrink-0" />
-                  <span>{p.contactoTelefono}</span>
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
-              ),
-          },
-        ]}
+        columns={proveedoresColumns({ resumen, onNuevaOrden: (p) => setProveedorParaOrden(p.id) })}
         fields={[
           { name: "razonSocial", label: "Razón social", required: true },
           { name: "nit", label: "NIT" },
@@ -113,6 +61,15 @@ export function ProveedoresAdminPage() {
           if (result) list.reload()
           return Boolean(result)
         }}
+      />
+
+      <CrearOrdenCompraDialog
+        open={Boolean(proveedorParaOrden)}
+        onOpenChange={(open) => !open && setProveedorParaOrden(null)}
+        proveedores={list.items}
+        sucursales={sucursales.items}
+        initialProveedorId={proveedorParaOrden ?? undefined}
+        onSuccess={ordenes.reload}
       />
     </div>
   )

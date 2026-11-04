@@ -5,6 +5,7 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
+import { LimitePorIp } from '../../../core/security/limite-por-ip.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
@@ -33,7 +34,7 @@ export class IaController {
   @Post('reportes')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(20, 10 * 60_000))
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
   @ApiOperation({ summary: 'Reporte dinamico a partir de una pregunta en lenguaje natural (CU24)' })
   reportes(@Body() dto: PromptDto, @CurrentUser() user: JwtPayload): Promise<ReporteResponseDto> {
@@ -62,7 +63,7 @@ export class IaController {
   @Post('reportes/consulta')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(20, 10 * 60_000))
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
   @ApiOperation({ summary: 'Ejecutar una ficha de consulta ya armada (sin IA)' })
   @ApiBody({ type: FichaConsultaDto })

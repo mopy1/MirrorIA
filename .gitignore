@@ -52,13 +52,18 @@ data/
 cloudflared*.log
 
 
-# --- Python (scripts/prendas) ---
+# --- Python (scripts/qa) ---
 __pycache__/
 **/__pycache__/
 *.pyc
-scripts/prendas/.trabajo/
 
 # --- Pruebas del probador en navegador (npm run e2e:probador) ---
 # Capturas, fotos descargadas y el .y4m de la camara simulada (13 MB).
 mirroria-frontend/scripts/.trabajo/
 scripts/.trabajo/
+
+# --- Artefactos locales (no versionar) ---
+.playwright-mcp/
+*.tsbuildinfo
+*.y4m
+*.dump

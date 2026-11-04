@@ -24,7 +24,8 @@ export function UsuariosAdminPage() {
 
   const usuarios = useResourceList(usuariosAdminApi.getUsuarios)
   const sucursales = useResourceList(branchesApi.getSucursales)
-  const { submit: toggleEstado, isLoading: isToggling } = useCreateResource(
+  // error = ApiError.message del backend (ej. 409 "Es el último administrador activo").
+  const { submit: toggleEstado, isLoading: isToggling, error: toggleError } = useCreateResource(
     (args: { id: string; isActive: boolean }) =>
       usuariosAdminApi.updateEstado(args.id, args.isActive)
   )
@@ -88,10 +89,10 @@ export function UsuariosAdminPage() {
         </Select>
       </div>
 
-      {usuarios.error && (
+      {(usuarios.error || toggleError) && (
         <Alert variant="destructive">
           <WarningCircle className="size-4" />
-          <AlertDescription>{usuarios.error}</AlertDescription>
+          <AlertDescription>{usuarios.error ?? toggleError}</AlertDescription>
         </Alert>
       )}
 

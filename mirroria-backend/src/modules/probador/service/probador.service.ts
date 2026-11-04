@@ -1,6 +1,7 @@
 import { createDecartClient } from '@decartai/sdk';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { LimitadorPorIp } from '../../../core/security/limite-por-ip.js';
 import { LimiteTokensProbadorException } from '../exception/limite-tokens-probador.exception.js';
 import { ProbadorNoConfiguradoException } from '../exception/probador-no-configurado.exception.js';
 import type { TokenProbadorResponseDto } from '../dto/token-probador-response.dto.js';
@@ -19,14 +20,15 @@ const VENTANA_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class ProbadorService {
-  private readonly pedidosPorIp = new Map<string, { desde: number; n: number }>();
+  private readonly limitador = new LimitadorPorIp(MAX_TOKENS_POR_IP, VENTANA_MS);
 
   constructor(private readonly config: ConfigService) {}
 
   async crearToken(ip: string): Promise<TokenProbadorResponseDto> {
     const apiKey = this.config.get<string>('DECART_API_KEY');
     if (!apiKey) throw new ProbadorNoConfiguradoException();
-    this.contarPedido(ip);
+    // Se cuenta recién con la clave configurada (como antes): sin Decart no hay creditos que cuidar.
+    if (!this.limitador.permitir(ip)) throw new LimiteTokensProbadorException();
 
     const client = createDecartClient({ apiKey });
     const token = await client.tokens.create({
@@ -34,17 +36,5 @@ export class ProbadorService {
       allowedModels: [MODELO_VTON],
     });
     return { apiKey: token.apiKey, expiresAt: token.expiresAt };
-  }
-
-  private contarPedido(ip: string): void {
-    const ahora = Date.now();
-    // Barre ventanas vencidas para que el Map no crezca sin limite.
-    for (const [clave, v] of this.pedidosPorIp) {
-      if (ahora - v.desde >= VENTANA_MS) this.pedidosPorIp.delete(clave);
-    }
-    const actual = this.pedidosPorIp.get(ip) ?? { desde: ahora, n: 0 };
-    if (actual.n >= MAX_TOKENS_POR_IP) throw new LimiteTokensProbadorException();
-    actual.n++;
-    this.pedidosPorIp.set(ip, actual);
   }
 }

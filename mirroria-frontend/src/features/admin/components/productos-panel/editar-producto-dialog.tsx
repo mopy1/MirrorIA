@@ -34,7 +34,6 @@ function getInitialForm(producto: Producto | null): ProductoFormData {
       descripcion: "",
       precio: "",
       imagenUrl: "",
-      arOverlayImageUrl: "",
     }
   }
   return {
@@ -45,7 +44,6 @@ function getInitialForm(producto: Producto | null): ProductoFormData {
     descripcion: producto.descripcion ?? "",
     precio: producto.precioCents ? (producto.precioCents / 100).toString() : "",
     imagenUrl: producto.imagenes?.[0]?.url ?? "",
-    arOverlayImageUrl: producto.arOverlayImageUrl ?? "",
   }
 }
 
@@ -79,7 +77,6 @@ export function EditarProductoDialog({
         slug: form.slug,
         descripcion: form.descripcion || undefined,
         precioCents,
-        arOverlayImageUrl: form.arOverlayImageUrl.trim() || undefined,
         imagenes,
       })
       onUpdated()

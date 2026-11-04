@@ -7,6 +7,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { QueryFailedError } from 'typeorm';
+
+// Errores de Postgres que son culpa del pedido, no del servidor. El mensaje es
+// fijo a propósito: el `detail` de Postgres trae nombres de tabla/constraint.
+const ERRORES_POSTGRES: Record<string, { status: HttpStatus; message: string }> = {
+  '23505': { status: HttpStatus.CONFLICT, message: 'Ya existe un registro con esos datos' },
+  '22P02': { status: HttpStatus.BAD_REQUEST, message: 'Identificador inválido' },
+};
 
 /**
  * Formato de error único para toda la API, mismo shape que erp-backend/case-backend
@@ -21,15 +29,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
+    const pg =
+      exception instanceof QueryFailedError
+        ? ERRORES_POSTGRES[(exception.driverError as { code?: string } | undefined)?.code ?? '']
+        : undefined;
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : (pg?.status ?? HttpStatus.INTERNAL_SERVER_ERROR);
 
     const message =
       exception instanceof HttpException
         ? this.extractMessage(exception)
-        : 'Error interno del servidor';
+        : (pg?.message ?? 'Error interno del servidor');
 
     if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(exception);

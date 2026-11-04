@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FichaConsultaDto } from '../../dto/ficha-consulta.dto.js';
+import { IaSinRespuestaException } from '../../exception/ia-sin-respuesta.exception.js';
 import type { ComparacionDto } from '../../dto/reporte-response.dto.js';
 import type { FilaReporte } from '../motor-consulta.service.js';
 import { construirInstruccion } from './esquema-ficha.js';
 import type { ProveedorIa } from './proveedor-ia.interface.js';
 
 const URL = 'https://api.deepseek.com/chat/completions';
+// Sin tope, un DeepSeek colgado dejaba el pedido abierto indefinidamente.
+const TIMEOUT_MS = 20_000;
 
 /**
  * Habla con DeepSeek por HTTP directo (API compatible con OpenAI, mismo
@@ -109,14 +112,24 @@ export class DeepSeekProveedor implements ProveedorIa {
     messages: Array<{ role: 'system' | 'user'; content: string }>,
     opciones: { temperature: number; response_format?: { type: 'json_object' } },
   ): Promise<string | null> {
-    const res = await fetch(URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey ?? ''}`,
-      },
-      body: JSON.stringify({ model: this.modelo, messages, ...opciones }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey ?? ''}`,
+        },
+        body: JSON.stringify({ model: this.modelo, messages, ...opciones }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        this.logger.error(`DeepSeek no respondio en ${TIMEOUT_MS / 1000} s`);
+        throw new IaSinRespuestaException(TIMEOUT_MS / 1000);
+      }
+      throw err;
+    }
 
     if (!res.ok) {
       this.logger.error(`DeepSeek respondio ${res.status}: ${await res.text()}`);

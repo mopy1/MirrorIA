@@ -13,6 +13,10 @@ import { RolUsuario, Usuario } from '../entities/usuario.entity.js';
 
 const SALT_ROUNDS = 10;
 
+// "Ana@Mail.com " y "ana@mail.com" son la misma cuenta (las usuarias ya
+// guardadas están todas en minúscula).
+const normalizarEmail = (email: string) => email.trim().toLowerCase();
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -22,9 +26,8 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
-    const existente = await this.usuarioRepository.findOne({
-      where: { email: dto.email },
-    });
+    const email = normalizarEmail(dto.email);
+    const existente = await this.usuarioRepository.findOne({ where: { email } });
     if (existente) {
       throw new RecursoDuplicadoException('Ya existe un usuario con ese email');
     }
@@ -32,7 +35,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     const usuario = await this.usuarioRepository.save(
       this.usuarioRepository.create({
-        email: dto.email,
+        email,
         passwordHash,
         fullName: dto.fullName,
         role: RolUsuario.CUSTOMER,
@@ -46,7 +49,7 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
     const usuario = await this.usuarioRepository.findOne({
-      where: { email: dto.email },
+      where: { email: normalizarEmail(dto.email) },
     });
     if (!usuario || !usuario.isActive) {
       throw new CredencialesInvalidasException();

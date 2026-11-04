@@ -104,17 +104,28 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
         'La misma prenda (talla y color) aparece dos veces en la reserva',
       );
     }
-    const cupo = await this.cupo(clienteId, false);
-    if (!cupo.puedeReservar) {
-      throw new ForbiddenActionException(cupo.motivo ?? 'No podés reservar en este momento');
-    }
-
     await this.sucursalesService.assertExists(dto.sucursalId);
     for (const item of dto.items) {
-      await this.productosService.findVarianteById(item.varianteId);
+      const variante = await this.productosService.findVarianteById(item.varianteId);
+      // Mismo criterio que carrito/ventas: no se reserva lo que ya no se vende.
+      if (!variante.activo || !variante.producto?.activo) {
+        throw new OperacionInvalidaException(
+          `"${variante.producto?.titulo ?? 'Una prenda'}" ya no está disponible para reservar`,
+        );
+      }
     }
 
     return this.dataSource.transaction(async (manager) => {
+      // El cupo se revisa DENTRO de la tx con la fila de la clienta bloqueada:
+      // dos POST simultáneos se serializan acá y el segundo ve la primera
+      // reserva (antes ambos contaban 1 activa y pasaban el tope). SQL crudo
+      // para no importar la entidad Usuario de otro módulo.
+      await manager.query('SELECT id FROM usuarios WHERE id = $1 FOR UPDATE', [clienteId]);
+      const cupo = await this.cupo(clienteId, false, manager);
+      if (!cupo.puedeReservar) {
+        throw new ForbiddenActionException(cupo.motivo ?? 'No podés reservar en este momento');
+      }
+
       for (const item of dto.items) {
         try {
           await this.inventarioSucursalService.ajustarReserva({
@@ -166,15 +177,20 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
    * `diasDeBloqueo` desde la última). La falta se fecha por la hora que ella
    * misma eligió, no por cuándo la marcó el sistema.
    */
-  async cupo(clienteId: string, barrer = true): Promise<CupoReservaResponseDto> {
+  async cupo(
+    clienteId: string,
+    barrer = true,
+    manager?: EntityManager,
+  ): Promise<CupoReservaResponseDto> {
     if (barrer) await this.expirarVencidas();
     const ahora = Date.now();
     const R = REGLAS_RESERVA;
+    const repo = manager ? manager.getRepository(Reserva) : this.reservaRepository;
 
-    const reservasActivas = await this.reservaRepository.count({
+    const reservasActivas = await repo.count({
       where: { clienteId, estado: In(ESTADOS_ACTIVOS) },
     });
-    const faltas = await this.reservaRepository.find({
+    const faltas = await repo.find({
       where: {
         clienteId,
         estado: In(ESTADOS_FALTA),
@@ -315,41 +331,49 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
   // Transición manual por staff (ADMIN/ENCARGADO_SUCURSAL): confirmar,
   // marcar en tienda, cancelar por la tienda, marcar expirada o no-show.
   async cambiarEstado(id: string, nuevoEstado: EstadoReserva): Promise<ReservaResponseDto> {
-    const reserva = await this.findOne(id);
-    return this.dataSource.transaction((manager) =>
-      this.transicionar(reserva, nuevoEstado, manager),
+    return this.dataSource.transaction(async (manager) =>
+      this.transicionar(await this.bloquear(id, manager), nuevoEstado, manager),
     );
+  }
+
+  // Relee la reserva con bloqueo dentro de la tx (como expirarVencidas): dos
+  // cambios simultáneos se serializan y el segundo ve el estado ya cambiado,
+  // así el stock reservado no se libera dos veces.
+  private async bloquear(id: string, manager: EntityManager): Promise<Reserva> {
+    const reserva = await manager
+      .getRepository(Reserva)
+      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+    if (!reserva) {
+      throw new RecursoNoEncontradoException('Reserva', id);
+    }
+    return reserva;
   }
 
   // RF: "Consultar y cancelar reservas" — acción del propio cliente, no de
   // staff. Mismo motor de transición, pero exige que la reserva sea suya.
   async cancelar(id: string, clienteId: string): Promise<ReservaResponseDto> {
-    const reserva = await this.findOne(id);
-    if (reserva.clienteId !== clienteId) {
-      throw new ForbiddenActionException('No podés cancelar la reserva de otro cliente');
-    }
-    // Ya en la tienda la cierra el staff (con la venta o con "No compró"): si
-    // la clienta la cancelara desde el celular mientras se prueba, la venta
-    // del cajero con esa reserva fallaría.
-    if (reserva.estado === EstadoReserva.EN_TIENDA) {
-      throw new OperacionInvalidaException(
-        'Ya estás en la tienda con esta reserva: pedile al personal que la cierre',
-      );
-    }
-    return this.dataSource.transaction((manager) =>
-      this.transicionar(reserva, EstadoReserva.CANCELADA, manager),
-    );
+    return this.dataSource.transaction(async (manager) => {
+      const reserva = await this.bloquear(id, manager);
+      if (reserva.clienteId !== clienteId) {
+        throw new ForbiddenActionException('No podés cancelar la reserva de otro cliente');
+      }
+      // Ya en la tienda la cierra el staff (con la venta o con "No compró"): si
+      // la clienta la cancelara desde el celular mientras se prueba, la venta
+      // del cajero con esa reserva fallaría.
+      if (reserva.estado === EstadoReserva.EN_TIENDA) {
+        throw new OperacionInvalidaException(
+          'Ya estás en la tienda con esta reserva: pedile al personal que la cierre',
+        );
+      }
+      return this.transicionar(reserva, EstadoReserva.CANCELADA, manager);
+    });
   }
 
   // Llamado por VentasService cuando una venta presencial referencia una
   // reserva: la cierra y libera el stock reservado (el stock físico ya lo
   // descontó la venta por su cuenta, vía ajustarStock).
   async completarPorVenta(id: string, sucursalId: string, manager: EntityManager): Promise<void> {
-    const reservaRepo = manager.getRepository(Reserva);
-    const reserva = await reservaRepo.findOne({ where: { id } });
-    if (!reserva) {
-      throw new RecursoNoEncontradoException('Reserva', id);
-    }
+    const reserva = await this.bloquear(id, manager);
     // Sin esto se podía cobrar en una sucursal la reserva de otra: el stock se
     // descontaba en una y la reserva se liberaba en la otra.
     if (reserva.sucursalId !== sucursalId) {

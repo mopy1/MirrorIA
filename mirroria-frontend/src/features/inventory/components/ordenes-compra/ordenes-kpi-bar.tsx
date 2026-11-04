@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, Package, Truck } from "@phosphor-icons/react"
+import { CheckCircle, Clock, Package, XCircle } from "@phosphor-icons/react"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OrdenCompra } from "../../types/purchase-orders.types"
 
@@ -8,17 +8,16 @@ interface Props {
 
 export function OrdenesKpiBar({ ordenes }: Props) {
   const total = ordenes.length
-  const pendientes = ordenes.filter((o) => o.estado === "PENDIENTE").length
-  const enTransito = ordenes.filter((o) => o.estado === "EN_TRANSITO").length
-  const recibidas = ordenes.filter(
-    (o) => o.estado === "RECIBIDA" || o.estado === "RECIBIDA_PARCIAL"
-  ).length
+  // Abiertas = todavía esperan mercadería (sus unidades pendientes están en tránsito).
+  const abiertas = ordenes.filter((o) => o.estado === "PENDIENTE" || o.estado === "RECIBIDA_PARCIAL").length
+  const recibidas = ordenes.filter((o) => o.estado === "RECIBIDA").length
+  const canceladas = ordenes.filter((o) => o.estado === "CANCELADA").length
 
   const kpis = [
     { label: "Total órdenes", valor: total, icon: Package },
-    { label: "Pendientes", valor: pendientes, icon: Clock },
-    { label: "En tránsito", valor: enTransito, icon: Truck },
+    { label: "Abiertas", valor: abiertas, icon: Clock },
     { label: "Recibidas", valor: recibidas, icon: CheckCircle },
+    { label: "Canceladas", valor: canceladas, icon: XCircle },
   ]
 
   return (

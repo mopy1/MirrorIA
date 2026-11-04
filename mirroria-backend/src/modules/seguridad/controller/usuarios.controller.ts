@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import type { UsuarioAdminResponseDto } from '../dto/usuario-admin-response.dto.js';
@@ -27,15 +29,17 @@ export class UsuariosController {
   updateRol(
     @Param('id') id: string,
     @Body() dto: UpdateUsuarioRolDto,
+    @CurrentUser() user: JwtPayload,
   ): Promise<UsuarioAdminResponseDto> {
-    return this.usuariosService.updateRol(id, dto);
+    return this.usuariosService.updateRol(id, dto, user.sub);
   }
 
   @Patch(':id/estado')
   updateEstado(
     @Param('id') id: string,
     @Body() dto: UpdateUsuarioEstadoDto,
+    @CurrentUser() user: JwtPayload,
   ): Promise<UsuarioAdminResponseDto> {
-    return this.usuariosService.updateEstado(id, dto);
+    return this.usuariosService.updateEstado(id, dto, user.sub);
   }
 }

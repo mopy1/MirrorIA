@@ -7,6 +7,7 @@ import { AuthController } from './controller/auth.controller.js';
 import { UsuariosController } from './controller/usuarios.controller.js';
 import { RefreshToken } from './entities/refresh-token.entity.js';
 import { Usuario } from './entities/usuario.entity.js';
+import { leerJwtSecret } from './security/jwt-secret.js';
 import { JwtStrategy } from './security/jwt.strategy.js';
 import { AuthService } from './service/auth.service.js';
 import { UsuariosService } from './service/usuarios.service.js';
@@ -20,7 +21,7 @@ import { UsuariosService } from './service/usuarios.service.js';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'dev_secret_change_me'),
+        secret: leerJwtSecret(config),
         signOptions: { expiresIn: '1h' },
       }),
     }),

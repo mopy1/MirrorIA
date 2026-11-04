@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, Package, Truck, XCircle } from "@phosphor-icons/react"
+import { CheckCircle, Clock, Package, XCircle } from "@phosphor-icons/react"
 import { Badge } from "@/components/ui/badge"
 import type { EstadoOrdenCompra } from "../../types/purchase-orders.types"
 
@@ -15,11 +15,6 @@ const ESTADOS_CONFIG: Record<
     className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     icon: Clock,
   },
-  EN_TRANSITO: {
-    label: "En tránsito",
-    className: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-    icon: Truck,
-  },
   RECIBIDA_PARCIAL: {
     label: "Parcial",
     className: "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
@@ -32,7 +27,7 @@ const ESTADOS_CONFIG: Record<
   },
   CANCELADA: {
     label: "Cancelada",
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
+    className: "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400",
     icon: XCircle,
   },
 }

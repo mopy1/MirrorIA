@@ -9,19 +9,25 @@ import { cn } from "cn"
  * como `App.tsx` no tenía comodín, React no montaba NADA. La página quedaba
  * completamente en blanco —sin cabecera ni pie, 0 px de alto—, que es peor que
  * un 404: parece que el sitio se cayó. */
-export function NotFoundPage() {
+interface NotFoundPageProps {
+  /** Para reusarla con un recurso concreto (ej. la ficha de una prenda inexistente). */
+  titulo?: string
+  detalle?: string
+}
+
+export function NotFoundPage({
+  titulo = "Esta página no existe.",
+  detalle = "Puede que la dirección esté mal escrita o que el enlace que seguiste ya no apunte a ningún lado. El catálogo y las sucursales siguen donde estaban.",
+}: NotFoundPageProps) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center px-4 py-24 text-center sm:px-6">
       <CoatHanger weight="light" className="size-12 text-primary" />
 
       <p className="mt-6 text-xs font-semibold tracking-widest text-primary uppercase">Error 404</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-        Esta página no existe.
+        {titulo}
       </h1>
-      <p className="mt-3 max-w-[46ch] text-sm text-muted-foreground">
-        Puede que la dirección esté mal escrita o que el enlace que seguiste ya no apunte a ningún
-        lado. El catálogo y las sucursales siguen donde estaban.
-      </p>
+      <p className="mt-3 max-w-[46ch] text-sm text-muted-foreground">{detalle}</p>
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link to="/" className={cn(buttonVariants())}>
