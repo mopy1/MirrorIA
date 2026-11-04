@@ -11,10 +11,12 @@ en este repo:
 
 ```
 /mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/
-├── Examen1-Ecommerce-Si2-s2-26.pdf   # enunciado original del profesor
-└── Database/
-    ├── Diseño_BD.md                  # esquema relacional + decisiones + tradeoffs documentados
-    └── dbdiagram.dbml                # DBML 1:1 con Diseño_BD.md, listo para dbdiagram.io
+├── Referencias/Examen1-Ecommerce-Si2-s2-26.pdf   # enunciado original del profesor
+├── Documentacion/                # dossier PUDS/UML (perfil, requisitos, análisis, diseño)
+└── App/                          # notas vivas de la app (al día con el código)
+    ├── Database.md               # esquema relacional + DBML completo + estado de la BD local
+    ├── Endpoints.md · Reglas_de_Negocio.md · Backend.md · Frontend.md
+    └── Troubleshooting.md · Despliegue_Azure.md · Mobile.md (congelada)
 ```
 
 > [!IMPORTANT]
@@ -134,9 +136,13 @@ docker compose up -d --build
   manuales pendientes de confirmar, más una pantalla de reportes por IA (CU24) para staff con
   ficha interpretada, tabla, comparación y dictado por voz vía Web Speech API — esto último no
   se probó todavía en un navegador real. Stack visual 100% compuesto con shadcn/ui.
-- 🚧 Frontend: falta una pantalla de punto de caja (POS) para el rol `CAJERO` (el endpoint del
-  backend ya existe y está protegido por rol, pero no hay UI todavía) — no forma parte del
-  alcance de `pagos`, es venta presencial (RF17-18).
+- ⛔ **Sin POS a propósito (decisión del usuario, 2026-11-03):** la tienda física tiene su propio
+  sistema de caja; la web solo verifica si la clienta pagó en persona (`/admin/cobros`) y resuelve
+  reservas en el mostrador (`/admin/reservas`). `POST /ventas/presenciales` existe pero no tiene UI.
+- 🔐 **Seguridad (2026-11-04):** `JWT_SECRET` obligatorio (≥ 32 caracteres, sin fallback: el
+  backend no arranca sin él), usuario inactivo → 401, límite por IP en login, validar cupón, IA y
+  probador (`core/security/limite-por-ip.ts`, 429), no se puede quitar el último ADMIN, filtro
+  global 23505 → 409 / 22P02 → 400. Detalle en `mirroria-backend/AGENTS.md`.
 - 🧊 `mirroria-mobile/` **congelada/obsoleta (2026-11-04):** la app se rehará desde cero. La
   carpeta queda como referencia, sin mantenimiento: el backend y la web se optimizan como si no
   existiera (ya no compila contra los contratos actuales, p. ej. sin campos AR).
@@ -182,7 +188,7 @@ docker compose up -d --build
   el `tsbuildinfo` del backend dejaron de versionarse. Nginx con gzip + caché inmutable de
   `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
   Las columnas AR quedaron para una segunda pasada (ver abajo). Mobile sin tocar.
-- 🧹 **Limpieza profunda (2026-11-04, rama `feat/ordenes-compra-proveedores`):** fuera los campos
+- 🧹 **Limpieza profunda (2026-11-04, ya en `main`):** fuera los campos
   del vestidor viejo en backend y web (`productos.modelo_ar_url`, `productos.ar_overlay_image_url`
   e `imagenes[].esArAsset`; local los quita `synchronize`, Azure necesita el SQL manual del vault
   `App/Despliegue_Azure.md`). `usuarioId` ya no sale en `GET /inventario/movimientos` ni en las
@@ -203,9 +209,11 @@ docker compose up -d --build
 - **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios).
 - **Móvil**: congelado, se rehará desde cero (aviso en vault `App/Mobile.md`). Al rehacerlo,
   partir de los contratos actuales del vault `App/Endpoints.md`, no de `mirroria-mobile/`.
-- **GitHub** (`mopy1/MirrorIA`): push a `main` habilitado de nuevo (2026-11-03). La rama
-  `arreglos-vestidor-ar` es del AR viejo y quedó obsoleta (choca con el módulo pose-detector que
-  `main` ya borró) — no mergearla.
+- **GitHub** (`mopy1/MirrorIA`): **una sola rama, `main`** (2026-11-04: se borraron las ramas
+  viejas y `feat/ordenes-compra-proveedores` ya mergeada). Push a `main` habilitado. Si otra IA
+  crea una rama para una feature, se mergea a `main` al probarla y se borra.
+- **Próximo despliegue a Azure:** checklist pendiente (JWT_SECRET nuevo, NODE_ENV=production,
+  DECART_API_KEY nueva, SQL opcional del AR) en el vault `App/Despliegue_Azure.md`.
 - **Vault de la app** (`U/2-2026/SI2/Parcial1/App/`): `Backend.md`, `Frontend.md`, `Database.md`,
   `Endpoints.md`, `Reglas_de_Negocio.md`, `Troubleshooting.md`, `Despliegue_Azure.md`, `Mobile.md`
   — actualizados al 2026-11-04 (`Mobile.md` solo con el aviso de congelada).

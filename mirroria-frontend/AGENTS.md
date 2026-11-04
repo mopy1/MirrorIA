@@ -442,19 +442,22 @@ inexistente (ficha de prenda).
 
 ---
 
-## 🗺️ 5. Pendientes e inconsistencias conocidas (2026-11-03)
+## 🗺️ 5. Pendientes e inconsistencias conocidas (2026-11-04)
 
-- **POS / punto de caja (RF17-18):** `POST /ventas/presenciales` existe en el backend, no hay
-  pantalla. Hoy la caja usa `/admin/reservas` y `/admin/cobros`.
+- **Sin POS a propósito (decisión del usuario):** la tienda física tiene su propio sistema de
+  caja; `POST /ventas/presenciales` existe en el backend sin pantalla. La web solo verifica pagos
+  en persona (`/admin/cobros`) y resuelve reservas (`/admin/reservas`). No construir un POS.
 - **"Mis pedidos" web:** no existe; el 409 de "2 compras sin pagar" del checkout la menciona sin
   link.
 - **Login/registro:** falta botón para mostrar la contraseña.
 - **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens
-  cada 10 min por IP.
+  cada 10 min por IP (helper `core/security/limite-por-ip.ts`, mismo que login/cupón/IA).
+- **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend
+  se optimizan como si no existiera (sus contratos pueden romperse).
 
 ---
 
-## 📜 6. Historial condensado (2026-09-12 → 2026-11-03)
+## 📜 6. Historial condensado (2026-09-12 → 2026-11-04)
 
 Solo lo que explica por qué el código es como es; el detalle de cada sesión quedó en git.
 

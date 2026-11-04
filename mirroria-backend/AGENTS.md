@@ -3,7 +3,11 @@
 Fuente de verdad técnica exclusiva de `mirroria-backend`. El `AGENTS.md` de la raíz del
 repo (`../AGENTS.md`) solo enlaza para acá y hacia `mirroria-frontend/AGENTS.md`. El diseño
 de base de datos completo (23 tablas, DBML) vive en el vault, no acá:
-`/mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/Database/Diseño_BD.md`.
+`/mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/App/Database.md`.
+
+> La app móvil (`../mirroria-mobile/`) está congelada y se rehará desde cero (2026-11-04): este
+> backend se optimiza para la web como si el móvil no existiera; sus contratos pueden romperse.
+> El único probador es Decart (`modules/probador`).
 
 ## Stack
 
@@ -61,7 +65,7 @@ src/
 │       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }; Postgres 23505→409, 22P02→400
 │
 └── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
-    │                             # TableGroups de Diseño_BD.md en el vault)
+    │                             # TableGroups de Database.md en el vault)
     ├── seguridad/                # ✅ auth (registro/login/perfil) + gestión de usuarios/roles/estado (RF02); security/jwt.strategy.ts
     ├── proveedores/               # ✅ proveedores (crear, listar, ver — solo ADMIN)
     ├── catalogo/                  # ✅ categorias, temporadas, colecciones, tallas, colores, productos, variantes_producto
@@ -167,7 +171,7 @@ salvo que un módulo necesite queries muy custom (ahí sí, un `repository/` con
 Al levantar el proyecto por primera vez con `@PrimaryGeneratedColumn('uuid')` (el default
 "obvio" de TypeORM para PK uuid), TypeORM creó solo la extensión `uuid-ossp` y usó
 `uuid_generate_v4()` como default de columna — funciona, pero **no coincide** con el diseño
-documentado en el vault (`Diseño_BD.md`/`dbdiagram.dbml`), que especifica `pgcrypto` +
+documentado en el vault (`App/Database.md`, con su DBML), que especifica `pgcrypto` +
 `gen_random_uuid()` explícitamente en todas las tablas. Se cambió `BaseEntity` para usar
 `@PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })` en vez del generador
 automático, y se agregó `db/init/001-extensions.sql` en la raíz del monorepo (mount de
@@ -258,7 +262,7 @@ las opciones de `@Column`**, no alcanza con inferirlo del tipo de TypeScript. Ej
 Construidos los tres juntos en una sola sesión (decisión del usuario: priorizar esta cadena
 completa antes que `reservas`/`pagos`/`promociones`/`ia`).
 
-- **`sucursales`**: dueño de `ciudades` y `sucursales` (Diseño_BD.md sección B). `Sucursal.ciudad`
+- **`sucursales`**: dueño de `ciudades` y `sucursales` (Database.md sección B). `Sucursal.ciudad`
   es relación real (`@ManyToOne`, mismo módulo). Exporta `SucursalesService` con
   `assertExists(id)`/`findOne(id)` para que `inventario`/`ventas` validen `sucursalId` sin
   importar la entidad — mismo patrón que `ProveedoresService`.
@@ -303,7 +307,7 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
   - Exporta `InventarioSucursalService` para que `ventas` descuente stock al vender.
 - **`ventas`**: dueño de `carritos`, `ventas` y `venta_items`.
   - `Carrito.usuarioId` tiene índice **unique** (decisión propia, no está así en
-    `Diseño_BD.md`): un solo carrito activo por usuario, se muta el mismo row en cada
+    `Database.md`): un solo carrito activo por usuario, se muta el mismo row en cada
     add-to-cart en vez de crear filas nuevas — evita necesitar un campo `activo` o manejar
     duplicados.
   - `VentasService.registrarVenta(...)` (privado, compartido por los dos flujos de compra)
@@ -720,7 +724,7 @@ el detalle real de la implementación.
 
 Nota histórica (ya resuelta): al planificar `pagos` se dejó dicho acá seguir la convención de
 carpetas de arriba, extender `BaseEntity`, y revisar primero la sección correspondiente de
-`Diseño_BD.md` en el vault — los campos exactos, los jsonb embebidos (`carritos.items`,
+`Database.md` en el vault — los campos exactos, los jsonb embebidos (`carritos.items`,
 `ordenes_compra.items`) y las columnas que reemplazan tablas que se fusionaron
 (`ventas.cupon_id`, `pagos.monto_reembolsado_cents`,
 `movimientos_inventario.venta_item_id`/`motivo`). Se siguió tal cual; ver la sección de estado
