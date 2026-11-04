@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom"
-import { Separator } from "@/components/ui/separator"
 import { FOOTER_COLUMNS } from "./site-footer.data"
 import { BrandLogo } from "@/components/brand-logo"
 
@@ -42,8 +41,6 @@ export function SiteFooter() {
             </div>
           ))}
         </div>
-
-        <Separator className="my-10" />
 
         <p className="text-xs text-muted-foreground">
           {new Date().getFullYear()} MirrorIA. Todos los derechos reservados.

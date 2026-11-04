@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import type { ColeccionResponseDto } from '../dto/catalogo-response.dto.js';
 import { CreateColeccionDto } from '../dto/create-coleccion.dto.js';
+import { UpdateColeccionDto } from '../dto/update-coleccion.dto.js';
 import { ColeccionesService } from '../service/colecciones.service.js';
 
 @ApiTags('catalogo/colecciones')
@@ -25,5 +26,16 @@ export class ColeccionesController {
   @Get()
   findAll(): Promise<ColeccionResponseDto[]> {
     return this.coleccionesService.findAll();
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateColeccionDto,
+  ): Promise<ColeccionResponseDto> {
+    return this.coleccionesService.update(id, dto);
   }
 }

@@ -25,6 +25,14 @@ export interface Coleccion {
   activo: boolean
 }
 
+export interface UpdateColeccionDto {
+  nombre?: string
+  descripcion?: string
+  temporadaId?: string
+  proveedorId?: string
+  activo?: boolean
+}
+
 export interface Talla {
   id: string
   nombre: string

@@ -5,6 +5,7 @@ import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no
 import { ProveedoresService } from '../../proveedores/service/proveedores.service.js';
 import type { ColeccionResponseDto } from '../dto/catalogo-response.dto.js';
 import type { CreateColeccionDto } from '../dto/create-coleccion.dto.js';
+import type { UpdateColeccionDto } from '../dto/update-coleccion.dto.js';
 import { Coleccion } from '../entities/coleccion.entity.js';
 import { Temporada } from '../entities/temporada.entity.js';
 
@@ -51,6 +52,42 @@ export class ColeccionesService {
       order: { nombre: 'ASC' },
     });
     return colecciones.map((c) => this.toResponse(c));
+  }
+
+  async update(id: string, dto: UpdateColeccionDto): Promise<ColeccionResponseDto> {
+    const coleccion = await this.coleccionRepository.findOne({
+      where: { id },
+      relations: { temporada: true },
+    });
+    if (!coleccion) {
+      throw new RecursoNoEncontradoException('Colección', id);
+    }
+
+    if (dto.nombre !== undefined) {
+      coleccion.nombre = dto.nombre;
+    }
+    if (dto.descripcion !== undefined) {
+      coleccion.descripcion = dto.descripcion;
+    }
+    if (dto.activo !== undefined) {
+      coleccion.activo = dto.activo;
+    }
+    if (dto.temporadaId !== undefined) {
+      const temporada = await this.temporadaRepository.findOne({
+        where: { id: dto.temporadaId },
+      });
+      if (!temporada) {
+        throw new RecursoNoEncontradoException('Temporada', dto.temporadaId);
+      }
+      coleccion.temporada = temporada;
+    }
+    if (dto.proveedorId !== undefined) {
+      await this.proveedoresService.findOne(dto.proveedorId);
+      coleccion.proveedorId = dto.proveedorId;
+    }
+
+    const guardada = await this.coleccionRepository.save(coleccion);
+    return this.toResponse(guardada);
   }
 
   private toResponse(coleccion: Coleccion): ColeccionResponseDto {

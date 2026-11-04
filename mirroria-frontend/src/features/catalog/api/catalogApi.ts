@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api"
-import type { Categoria, Coleccion, Color, ImagenProducto, Producto, Talla, Temporada, Variante } from "../types/catalog.types"
+import type { Categoria, Coleccion, Color, ImagenProducto, Producto, Talla, Temporada, UpdateColeccionDto, Variante } from "../types/catalog.types"
 
 export interface CreateCategoriaDto {
   nombre: string
@@ -69,6 +69,8 @@ export const catalogApi = {
   getColecciones: () => apiFetch<Coleccion[]>("/catalogo/colecciones"),
   createColeccion: (dto: CreateColeccionDto) =>
     apiFetch<Coleccion>("/catalogo/colecciones", { method: "POST", body: JSON.stringify(dto) }),
+  updateColeccion: (id: string, dto: UpdateColeccionDto) =>
+    apiFetch<Coleccion>(`/catalogo/colecciones/${id}`, { method: "PATCH", body: JSON.stringify(dto) }),
 
   getTallas: () => apiFetch<Talla[]>("/catalogo/tallas"),
   createTalla: (dto: CreateTallaDto) =>
