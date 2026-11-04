@@ -259,6 +259,10 @@ completa antes que `reservas`/`pagos`/`promociones`/`ia`).
     de `ordenes_compra`).
   - `ajustarTransito(...)` mueve solo `cantidadEnTransito`, sin movimiento (el movimiento real
     se escribe recién al recibir, vía `ajustarStock` con `RECEPCION_PROVEEDOR`).
+  - `OrdenesCompraController` (`/inventario/ordenes-compra`): endpoints protegidos con `@Roles('ADMIN', 'ENCARGADO')`.
+    - `POST /inventario/ordenes-compra`: crea orden en `PENDIENTE`, asigna `usuarioId` del JWT si el body lo omite e incrementa `cantidadEnTransito`.
+    - `GET /inventario/ordenes-compra` y `GET /:id`: consulta listado y detalle de órdenes con sus items.
+    - `PATCH /inventario/ordenes-compra/:id/recibir`: procesa recepción parcial/total, descuenta tránsito y aumenta stock disponible con `MovimientoInventario` (`RECEPCION_PROVEEDOR`).
   - `OrdenesCompraService.create()` valida proveedor/sucursal/variantes, crea la orden en
     `PENDIENTE` y sube `cantidadEnTransito` de cada item.
   - `OrdenesCompraService.recibir(id, dto)` acepta recepción **parcial**: por cada item

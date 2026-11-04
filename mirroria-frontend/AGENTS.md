@@ -217,9 +217,10 @@ backend), `pages/{LoginPage,RegisterPage}.tsx`.
 lookup), `pages/BranchesPage.tsx`.
 
 ### `features/inventory/` ↔ backend `inventario`
-`api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `hooks/useDisponibilidad.ts`
+`api/inventoryApi.ts` (disponibilidad por sucursal, ajustes), `api/purchaseOrdersApi.ts` (órdenes de compra: get, create y recibir mercadería), `hooks/useDisponibilidad.ts`
 (stock en la ficha: desde 2026-11-03 muestra lo **libre**, `cantidadDisponible - cantidadReservada`,
-igual que lo que el backend deja comprar), `types/`.
+igual que lo que el backend deja comprar), `types/` (`inventory.types.ts`, `purchase-orders.types.ts`),
+`components/ordenes-compra/` (`ordenes-compra-tab.tsx`, `ordenes-compra-table.tsx`, `crear-orden-compra-dialog.tsx`, `recibir-orden-dialog.tsx`, `estado-orden-badge.tsx`). Integrado en `InventarioAdminPage.tsx` mediante pestaña "Órdenes a Proveedores".
 
 ### `features/cart/` ↔ backend `ventas` (carrito)
 `api/cartApi.ts` (get, addItem, removeItem por `usuarioId`), `hooks/useCartLineItems.ts`

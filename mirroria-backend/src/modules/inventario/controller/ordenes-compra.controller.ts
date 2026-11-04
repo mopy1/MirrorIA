@@ -10,7 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { CreateOrdenCompraDto } from '../dto/create-orden-compra.dto.js';
@@ -30,8 +32,14 @@ export class OrdenesCompraController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateOrdenCompraDto): Promise<OrdenCompraResponseDto> {
-    return this.ordenesCompraService.create(dto);
+  create(
+    @Body() dto: CreateOrdenCompraDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<OrdenCompraResponseDto> {
+    return this.ordenesCompraService.create({
+      ...dto,
+      usuarioId: dto.usuarioId || user.sub,
+    });
   }
 
   @Get()
