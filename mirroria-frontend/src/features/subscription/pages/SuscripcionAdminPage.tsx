@@ -1,5 +1,6 @@
-import { ArrowClockwise, ArrowsLeftRight, Info, WarningCircle } from "@phosphor-icons/react"
+import { ArrowClockwise, ArrowsLeftRight, CheckCircle, Info, WarningCircle } from "@phosphor-icons/react"
 import { useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { HistorialSuscripcion } from "@/components/common/HistorialSuscripcion"
 import { UsoPlanMeters } from "@/components/common/UsoPlanMeters"
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
@@ -13,6 +14,8 @@ import { useMiSuscripcion } from "../hooks/useMiSuscripcion"
 
 /** `/admin/suscripcion` (solo ADMIN): plan, estado, vigencia, uso vs límites e historial. */
 export function SuscripcionAdminPage() {
+  const [searchParams] = useSearchParams()
+  const pagoExitoso = searchParams.get("pago") === "exito" || searchParams.get("exito") === "true"
   const { data, setData, isLoading, error, reload } = useMiSuscripcion()
   const [dialogo, setDialogo] = useState(false)
 
@@ -22,6 +25,15 @@ export function SuscripcionAdminPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Plan y suscripción</h1>
         <p className="mt-1 text-sm text-muted-foreground">Lo que incluye tu plan, cuánto estás usando y hasta cuándo está vigente.</p>
       </div>
+
+      {pagoExitoso && (
+        <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+          <CheckCircle weight="fill" className="text-emerald-600 dark:text-emerald-400" />
+          <AlertDescription>
+            ¡Tu pago fue acreditado con éxito! Tu suscripción fue renovada y tu tienda continúa activa.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isLoading && <Skeleton className="h-56 rounded-xl" />}
       {error && !isLoading && (

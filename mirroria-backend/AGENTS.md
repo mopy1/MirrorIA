@@ -13,8 +13,8 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real**), TypeORM 1.x + PostgreSQL 16 (`s
 sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request), `class-validator`, `bcrypt`, Swagger
 (`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
 QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
-*what-if*). **101 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
-Tests: **351 unitarios** en 41 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
+*what-if*). **105 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
+Tests: **385 unitarios** en 45 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
 > **ESM puro** (`"type": "module"`, `module/moduleResolution: nodenext`): todo import **relativo** dentro de `src/`
@@ -102,12 +102,12 @@ modules/saas/
 ├── marca/marca-reglas.ts                    # catálogos cerrados (modos, radios, fuentes, destinos, niveles, secciones), 6 PALETAS + mirroria (paleta interna de Tiendaria),
 │                                            # REGEX_URL_IMAGEN, marcaInicial, MARCA_TIENDA_DEMO, marcaEfectiva(guardada, nivel), fueraDelPlan, restablecerSeccion
 ├── marca/marca-color.ts                     # contraste WCAG, textoSobre (#FFFFFF/#000000), validarPrincipal (≥ 4.5:1)
-├── entities/ plan · inquilino · suscripcion · marca-tienda (inquilino_marca) · evento-plataforma
+├── entities/ plan · inquilino · suscripcion · cobro-suscripcion (Fase 2) · marca-tienda (inquilino_marca) · evento-plataforma
 ├── controller/
 │   ├── planes.controller.ts                 # GET /saas/planes
 │   ├── tiendas.controller.ts                # directorio, disponibilidad del slug, tienda por slug, POST alta (5/h por IP)
 │   ├── estadisticas.controller.ts           # cifras de la landing (caché 5 min)
-│   ├── mi-suscripcion.controller.ts         # ADMIN: ver suscripción y uso, cambiar plan (solo en TRIAL)
+│   ├── mi-suscripcion.controller.ts         # ADMIN: ver suscripción y uso, cambiar plan (en TRIAL), iniciar cobro pasarela, polling estado, simular pago
 │   ├── mi-marca.controller.ts               # ADMIN: ver/guardar/restablecer la marca
 │   ├── plataforma.controller.ts             # DUENO_PLATAFORMA: resumen, inquilinos, estado, plan, extender, planes CRUD
 │   └── plataforma-tiendas.controller.ts     # DUENO_PLATAFORMA: dashboard, métricas por tienda, actividad, restablecer marca
@@ -116,6 +116,7 @@ modules/saas/
     ├── aprovisionamiento.service.ts         # alta en UNA transacción: inquilino + TRIAL 14 d + ADMIN + 1.ª sucursal + proveedor propio
     │                                        # + catálogo base + marca inicial (paleta) + evento ALTA → devuelve JWT
     ├── suscripciones.service.ts             # TRIAL, cambiarPlan, extender, barrida horaria de vencidas, hook Fase 2 activarPorPago
+    ├── cobros-suscripcion.service.ts        # Fase 2: cobro SaaS con pasarelas enchufables, polling, acreditación webhooks/aviso Wayra
     ├── uso-plan.service.ts                  # conteos por SQL crudo GROUP BY tenant_id
     ├── inquilinos.service.ts + inquilinos.helpers.ts   # panel: listar/detalle/estado/plan/extender/restablecerMarca/resumen
     ├── tiendas-publicas.service.ts          # directorio, tienda por slug (marca efectiva), disponibilidad del slug
@@ -247,28 +248,40 @@ clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **
 | 99 | POST | `/saas/tiendas` | Público · IP 5/h | 201 | 🧭 ⏸ |
 | 100 | GET | `/saas/tiendas/:slug` | Público | 200 | 🧭 ⏸ |
 | 101 | GET | `/saas/tiendas/disponibilidad` | Público | 200 | 🧭 ⏸ |
+| 102 | GET | `/pagos/pasarelas` | Público / Tenant opcional | 200 | 🧭 |
+| 103 | POST | `/saas/mi-suscripcion/cobro` | ADMIN | 201 | 🏬 ⏸ |
+| 104 | GET | `/saas/mi-suscripcion/cobro/:cobroId/estado` | ADMIN | 200 | 🏬 ⏸ |
+| 105 | POST | `/saas/mi-suscripcion/cobro/:cobroId/simular-pago` | ADMIN | 200 | 🏬 ⏸ |
 
-## 7. Detalle de `modules/pagos/` (el módulo con más piezas)
+## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 
 ```text
 modules/pagos/
-├── pagos.module.ts               # importa VentasModule; PASARELA → PasarelaStripe
+├── pagos.module.ts               # exporta RegistroPasarelasService, PasarelaStripe, WayraPasarela, ManualPasarela, PaypalPasarela, QrBancarioPasarela, CobroQrService
 ├── controller/
-│   ├── pagos.controller.ts       # /pagos: sesion (tarjeta), webhook, manual (efectivo), confirmar,
+│   ├── pagos.controller.ts       # /pagos: pasarelas (catálogo), sesion (tarjeta), webhook, manual (efectivo), confirmar,
 │   │                             # pendientes, expirar-vencidas, ventas/:id/qr, qr/:pagoId, qr/aviso,
 │   │                             # ventas/:id/cancelar ("volver al carrito", dueña, 204)
 │   └── wayra.controller.ts       # /wayra/cobros/:token y /:token/pagar (públicos, banco simulado)
-├── dto/                          # iniciar-pago (solo EFECTIVO), instrucciones, pago, cobro-qr-response, wayra
+├── dto/                          # pasarela-response (catálogo), iniciar-pago, instrucciones, pago, cobro-qr-response, wayra
 ├── entities/pago.entity.ts       # ProveedorPago STRIPE|MANUAL|WAYRA · MetodoPago TARJETA|QR|EFECTIVO ·
 │                                 # EstadoPago PENDIENTE|APROBADO|RECHAZADO|REEMBOLSADO
 ├── exception/                    # venta-no-pagable, cobro-qr-no-pagable, cobro-sobre-venta-muerta (409),
 │                                 # firma-webhook-invalida (400), pasarela-no-configurada (503)
 └── service/
-    ├── pagos.service.ts          # tarjeta (Stripe) + efectivo (confirmación de cajero)
+    ├── pagos.service.ts          # tarjeta (Stripe) + efectivo (confirmación de cajero), soporte nombre de tienda
     ├── expiracion.service.ts     # barrida cada 5 min de ventas PENDIENTE vencidas + cancelarVenta()
-    ├── pasarela/                 # interfaz Pasarela + PasarelaStripe (real) + PasarelaSimulada (solo tests)
+    ├── pasarela/                 # Arquitectura de Pasarelas Enchufables (Strategy + Service Locator)
+    │   ├── pasarela.interface.ts # IPasarelaProveedor + PasarelaMetadata + IniciarCobroParams/Resultado + legados
+    │   ├── registro-pasarelas.service.ts # Registro central singleton con listar, obtener, asegurarDisponible
+    │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, tarjeta internacional, sesión alojada)
+    │   ├── wayra.pasarela.ts     # WayraPasarela (DISPONIBLE, QR interoperable nacional)
+    │   ├── manual.pasarela.ts    # ManualPasarela (DISPONIBLE, efectivo en sucursal, solo checkout)
+    │   ├── paypal.pasarela.ts    # PaypalPasarela (EN_DESARROLLO, stub HTTP 503)
+    │   ├── qr-bancario.pasarela.ts # QrBancarioPasarela (EN_DESARROLLO, stub HTTP 503)
+    │   └── simulada.pasarela.ts  # Solo para tests unitarios
     ├── qr/
-    │   ├── cobro-qr.service.ts   # lado COMERCIO: genera el QR, estado para la clienta, procesa el aviso
+    │   ├── cobro-qr.service.ts   # lado COMERCIO: genera QR con nombre de tienda, estado, aviso con fallback a suscripciones
     │   ├── firma-aviso.ts        # HMAC-SHA256 del aviso + secreto (WAYRA_SECRETO_AVISOS o derivado de JWT_SECRET)
     │   └── aviso-pago-qr.ts      # tipo del aviso { id, tipo: 'cobro_qr.pagado', token, transaccion, montoCents, pagadoEn }
     └── wayra/

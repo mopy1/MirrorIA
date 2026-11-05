@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
@@ -9,8 +9,9 @@ import { OperacionInvalidaException } from '../../../../core/exception/operacion
 import { RecursoNoEncontradoException } from '../../../../core/exception/recurso-no-encontrado.exception.js';
 import { assertOwnUser } from '../../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../../core/security/jwt-payload.interface.js';
-import { conTenant, soloTenant, tenantActual } from '../../../../core/tenancy/tenant-context.js';
+import { contextoTenant, conTenant, soloTenant, tenantActual } from '../../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../../ventas/service/ventas.service.js';
+import { CobrosSuscripcionService } from '../../../saas/service/cobros-suscripcion.service.js';
 import type {
   CobroQrResponseDto,
   EstadoCobroQr,
@@ -62,6 +63,9 @@ export class CobroQrService {
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
     private readonly expiracionService: ExpiracionService,
+    @Optional()
+    @Inject(forwardRef(() => CobrosSuscripcionService))
+    private readonly cobrosSuscripcionService?: CobrosSuscripcionService,
   ) {}
 
   /** La clienta eligio pagar con QR: se genera (o se reutiliza) el de su compra. */
@@ -107,11 +111,13 @@ export class CobroQrService {
       errorCorrectionLevel: 'M',
     });
 
+    const ctx = contextoTenant();
+    const comercio = ctx?.nombre && ctx.nombre !== 'Tienda de prueba' ? ctx.nombre : COMERCIO_QR;
     return {
       pagoId: pago.id,
       ventaId,
       montoCents: pago.montoCents,
-      comercio: COMERCIO_QR,
+      comercio,
       referencia: referenciaDeVenta(ventaId),
       qrImagen,
       qrContenido,
@@ -143,9 +149,18 @@ export class CobroQrService {
 
   /** Lo que ve el banco al escanear: no exige sesion, el token ES la llave. */
   async consultarPorToken(token: string): Promise<CobroQrPublico> {
-    // Sin barrida de vencidas aca: es una ruta publica y cada visita disparaba
-    // dos consultas pesadas. La barrida corre sola cada 5 minutos.
-    const pago = await this.buscarPorToken(token);
+    const pago = await this.pagoRepository.findOne({
+      where: { referenciaExterna: token, proveedorPago: ProveedorPago.WAYRA }, // sin-tenant: el token del QR es la llave; el tenant sale del pago
+    });
+    if (!pago) {
+      if (this.cobrosSuscripcionService) {
+        const sub = await this.cobrosSuscripcionService.consultarPorToken(token);
+        if (sub) {
+          return sub;
+        }
+      }
+      throw new RecursoNoEncontradoException('Cobro QR');
+    }
     // Ruta pública del banco: el tenant sale de la fila del pago, no del request.
     const venta = await conTenant({ tenantId: pago.tenantId }, () =>
       this.ventasService.findOne(pago.ventaId),
@@ -186,6 +201,12 @@ export class CobroQrService {
       where: { referenciaExterna: aviso.token, proveedorPago: ProveedorPago.WAYRA }, // sin-tenant: aviso del banco, el tenant sale del pago
     });
     if (!pago) {
+      if (this.cobrosSuscripcionService) {
+        const suscripcionAcreditada = await this.cobrosSuscripcionService.acreditarPorAviso(aviso);
+        if (suscripcionAcreditada) {
+          return { procesado: true };
+        }
+      }
       this.logger.warn(`Aviso ${aviso.id} para un QR desconocido`);
       return { procesado: false };
     }

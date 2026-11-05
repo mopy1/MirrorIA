@@ -2,14 +2,38 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { FirmaWebhookInvalidaException } from '../../exception/firma-webhook-invalida.exception.js';
-import type { EventoPago, Pasarela, SesionPago } from './pasarela.interface.js';
+import { PasarelaNoConfiguradaException } from '../../exception/pasarela-no-configurada.exception.js';
+import type {
+  EventoNotificacionVerificado,
+  EventoPago,
+  IniciarCobroParams,
+  IniciarCobroResultado,
+  IPasarelaProveedor,
+  Pasarela,
+  PasarelaId,
+  PasarelaMetadata,
+  SesionPago,
+} from './pasarela.interface.js';
 
 @Injectable()
-export class PasarelaStripe implements Pasarela {
+export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
   private readonly logger = new Logger(PasarelaStripe.name);
   private readonly cliente: Stripe | null;
   private readonly secretoWebhook: string | undefined;
   private readonly moneda: string;
+
+  readonly id: PasarelaId = 'STRIPE';
+  readonly metadata: PasarelaMetadata = {
+    id: 'STRIPE',
+    nombre: 'Stripe (Tarjeta de crédito / débito)',
+    descripcion: 'Pago seguro internacional con tarjeta de crédito o débito mediante Stripe Checkout.',
+    tipo: 'TARJETA',
+    estado: 'DISPONIBLE',
+    soportaCheckout: true,
+    soportaSuscripcion: true,
+    icono: 'credit-card',
+    monedas: ['USD', 'BOB'],
+  };
 
   constructor(private readonly config: ConfigService) {
     const clave = config.get<string>('STRIPE_SECRET_KEY');
@@ -22,6 +46,50 @@ export class PasarelaStripe implements Pasarela {
 
   estaConfigurada(): boolean {
     return this.cliente !== null && Boolean(this.secretoWebhook);
+  }
+
+  async iniciarCobro(params: IniciarCobroParams): Promise<IniciarCobroResultado> {
+    if (!this.cliente) {
+      throw new PasarelaNoConfiguradaException('Stripe no está configurado en este servidor.');
+    }
+    const moneda = (params.moneda ?? this.moneda).toLowerCase();
+    const sesion = await this.cliente.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: moneda,
+            product_data: { name: params.descripcion },
+            unit_amount: params.montoCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: params.urlExito,
+      cancel_url: params.urlCancelacion,
+      client_reference_id: params.referencia,
+      expires_at: this.expiracionAcotada(params.expiraEn),
+      metadata: params.metadata,
+    });
+    return {
+      modo: 'REDIRECT',
+      url: sesion.url ?? params.urlCancelacion,
+      token: sesion.id,
+      expiraEn: params.expiraEn,
+    };
+  }
+
+  async verificarNotificacion(
+    cuerpoCrudo: Buffer,
+    cabeceras: Record<string, string>,
+  ): Promise<EventoNotificacionVerificado> {
+    const firma = cabeceras['stripe-signature'] ?? cabeceras['Stripe-Signature'] ?? '';
+    const evento = this.verificarEvento(cuerpoCrudo, firma);
+    return {
+      id: evento.id,
+      tipo: evento.tipo === 'pagado' ? 'PAGO_APROBADO' : 'OTRO',
+      referenciaExterna: evento.sesionId ?? '',
+    };
   }
 
   async crearSesion(params: {
@@ -46,8 +114,6 @@ export class PasarelaStripe implements Pasarela {
       success_url: params.urlExito,
       cancel_url: params.urlCancelacion,
       client_reference_id: params.referencia,
-      // Sin esto la sesion vive 24 h y se podia pagar una venta ya vencida.
-      // Stripe exige entre 30 min y 24 h desde ahora: se acota a ese rango.
       expires_at: this.expiracionAcotada(params.expiraEn),
     });
     return { id: sesion.id, url: sesion.url ?? params.urlCancelacion };
@@ -67,9 +133,6 @@ export class PasarelaStripe implements Pasarela {
     }
     try {
       const sesion = await this.cliente.checkout.sessions.retrieve(sesionId);
-      // `open` es el unico estado en el que la clienta todavia puede pagar; una
-      // sesion `expired` o `complete` ya no sirve para mandarla de vuelta
-      // (valores verificados contra los tipos del SDK: Session.Status).
       if (sesion.status === 'complete') {
         return 'completa';
       }
@@ -78,21 +141,17 @@ export class PasarelaStripe implements Pasarela {
       }
       return { id: sesion.id, url: sesion.url };
     } catch (error) {
-      // Que la pasarela no reconozca la sesion no puede dejar a la clienta sin
-      // poder pagar: se anota y quien llama crea una nueva.
       this.logger.warn(`No se pudo recuperar la sesion ${sesionId}: ${String(error)}`);
       return null;
     }
   }
 
   async cerrarSesion(sesionId: string): Promise<boolean> {
-    // Sin cliente no se pudo haber abierto ninguna sesion cobrable.
     if (!this.cliente) return true;
     try {
       const sesion = await this.cliente.checkout.sessions.retrieve(sesionId);
       if (sesion.status === 'expired') return true;
-      if (sesion.status !== 'open') return false; // complete: pudo cobrarse
-      // Si la clienta paga justo antes, Stripe rechaza el expire y cae al catch.
+      if (sesion.status !== 'open') return false;
       await this.cliente.checkout.sessions.expire(sesionId);
       return true;
     } catch (error) {
@@ -107,7 +166,6 @@ export class PasarelaStripe implements Pasarela {
     }
     let evento: Stripe.Event;
     try {
-      // Contra el cuerpo CRUDO: si se parsea antes, la firma no valida nunca.
       evento = this.cliente.webhooks.constructEvent(cuerpoCrudo, firma, this.secretoWebhook);
     } catch (error) {
       this.logger.warn(`Webhook con firma invalida: ${String(error)}`);
@@ -118,15 +176,6 @@ export class PasarelaStripe implements Pasarela {
       return { id: evento.id, tipo: 'otro', sesionId: null };
     }
     const sesion = evento.data.object as Stripe.Checkout.Session;
-    // `checkout.session.completed` NO significa cobrado: con los metodos de
-    // notificacion diferida (boleto, transferencias, debitos) el evento llega
-    // con la sesion todavia sin pagar y el cobro se confirma despues con
-    // `checkout.session.async_payment_succeeded`. Como la sesion se crea sin
-    // acotar `payment_method_types`, basta habilitar uno de esos metodos en el
-    // panel de Stripe para que el sistema diera por cobrada una venta sin que
-    // entrara un centavo. `payment_status` es el campo que lo distingue
-    // ('paid' | 'unpaid' | 'no_payment_required', ver
-    // node_modules/stripe/esm/resources/Checkout/Sessions.d.ts).
     if (sesion.payment_status !== 'paid') {
       this.logger.warn(
         `Sesion ${sesion.id} completada pero sin pagar (payment_status=${sesion.payment_status}): no se cobra`,

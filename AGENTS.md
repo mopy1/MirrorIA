@@ -26,7 +26,7 @@ Documentación en el vault de Obsidian (`/mnt/c/Users/lmc/Documents/Obsidian`):
 U/2-2026/SI2/
 ├── Parcial2/                     # 2.º parcial (vigente)
 │   ├── Enunciado.md · Plan_Parcial2.md (estado por fase)
-│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md   # specs implementadas
+│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md · Fase2_Spec_Pasarelas.md   # specs implementadas
 │   └── Documentacion/            # capítulos del PDF (00_Indice.md, 01_*, 02_*, betaICONIX.md)
 └── Parcial1/
     ├── App/                      # notas VIVAS de la app: Endpoints, Database (DBML), Backend, Frontend,
@@ -129,11 +129,11 @@ docker compose up -d postgres-db                     # solo la BD
 cd mirroria-backend && npm run start:dev             # API en :3000
 cd mirroria-frontend && npm run dev                  # web en :5174
 curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos
-docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 101 rutas
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 105 rutas
 
-# Tests (conteos en f91938c)
-cd mirroria-backend && npx vitest run                # 351 unit (41 archivos) · npm run test:e2e → 56 (usa la BD local)
-cd mirroria-frontend && npx vitest run               # 112 (20 archivos)
+# Tests
+cd mirroria-backend && npx vitest run                # 385 unit (45 archivos) · npm run test:e2e → 62 (usa la BD local)
+cd mirroria-frontend && npx vitest run               # 127 (23 archivos)
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
 python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
@@ -156,6 +156,7 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
   plataforma con dashboard y bitácora, tiendas demo (101 rutas, 28 tablas).
 - **2026-11-05 — Renombre:** la plataforma pasa a llamarse MirrorIA y la tienda demo `mirroria` → Tiendaria (`tiendaria`);
   BD: `scripts/sql/renombre-tiendaria.sql` (idempotente).
+- **2026-11-05 — Fase 2:** Pasarelas enchufables (`RegistroPasarelasService`, adaptadores Stripe y Wayra QR unificados para checkout y suscripciones, stubs 503 para PayPal y QR Bancario, cobros de suscripción B2B en `/admin/suscripcion/activar`, tabla `cobros_suscripcion`, 105 rutas, 29 tablas, 385 tests back, 127 tests front).
 
 ## 9. Dónde está cada cosa
 

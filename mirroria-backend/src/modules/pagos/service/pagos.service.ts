@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -10,8 +10,9 @@ import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { conTenant, soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
+import { contextoTenant, conTenant, soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
+import { CobrosSuscripcionService } from '../../saas/service/cobros-suscripcion.service.js';
 import type { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import type { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
 import type { PagoResponseDto } from '../dto/pago-response.dto.js';
@@ -34,6 +35,9 @@ export class PagosService {
     private readonly config: ConfigService,
     private readonly expiracionService: ExpiracionService,
     @Inject(PASARELA) private readonly pasarela: Pasarela,
+    @Optional()
+    @Inject(forwardRef(() => CobrosSuscripcionService))
+    private readonly cobrosSuscripcionService?: CobrosSuscripcionService,
   ) {}
 
   /**
@@ -237,6 +241,15 @@ export class PagosService {
       where: { referenciaExterna: evento.sesionId }, // sin-tenant: webhook, el tenant sale del pago
     });
     if (!pago) {
+      if (this.cobrosSuscripcionService) {
+        const suscripcionAcreditada = await this.cobrosSuscripcionService.acreditarPorReferencia(
+          evento.sesionId,
+          evento.id,
+        );
+        if (suscripcionAcreditada) {
+          return { procesado: true };
+        }
+      }
       this.logger.warn(`Evento ${evento.id} para una sesion desconocida`);
       return { procesado: false };
     }
@@ -441,8 +454,9 @@ export class PagosService {
    */
   private descripcionParaLaPasarela(venta: { id: string; numeroComprobante: string | null }): string {
     const referencia = venta.numeroComprobante ?? `#${venta.id.slice(0, 8).toUpperCase()}`;
-    // Pendiente (Fase 2): nombre de la tienda del contexto en vez del de la demo.
-    return `Tiendaria — Compra ${referencia}`;
+    const ctx = contextoTenant();
+    const tienda = ctx?.nombre && ctx.nombre !== 'Tienda de prueba' ? ctx.nombre : 'Tiendaria';
+    return `${tienda} — Compra ${referencia}`;
   }
 
   /**

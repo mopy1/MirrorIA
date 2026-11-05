@@ -11,8 +11,8 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-05, commit `f91938c`** (Fase 1b cerrada). Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts` y `src/features/*`. Tests: **112** en 20 archivos
+> **Actualizado: 2026-11-05 (Fase 2 Pasarelas Enchufables)**. Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts` y `src/features/*`. Tests: **127** en 23 archivos
 > (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
 
 ---
@@ -249,11 +249,13 @@ mirroria-frontend/
   `campo-texto`, `paso-cuenta`, `resumen-registro`).
 - `pages/`: `LandingPage`, `PlanesPage`, `RegistroTiendaPage`, `EntrarPage`, `TiendaNoDisponiblePage`.
 
-### `features/subscription/` ↔ `GET/PATCH /saas/mi-suscripcion` (panel del dueño de la tienda)
-`api/suscripcionApi.ts`, `types/suscripcion.types.ts` (`MiSuscripcionDto`), `hooks/useMiSuscripcion.ts` (también
-lo usa `AdminLayout` solo para ADMIN), `hooks/useCambiarPlan.ts`, `components/` (`plan-actual-card`,
-`cambiar-plan-dialog` — muestra el 409 tal cual —, `pagar-suscripcion-cta` deshabilitado "Próximamente"),
-`pages/SuscripcionAdminPage.tsx`.
+### `features/subscription/` ↔ `GET/PATCH /saas/mi-suscripcion` + cobros SaaS (Fase 2)
+`api/suscripcionApi.ts` (`getMiSuscripcion`, `cambiarPlan`, `getPlanes`, `iniciarCobro`, `estadoCobro`, `simularPago`),
+`types/suscripcion.types.ts` (`MiSuscripcionDto`, `IniciarCobroSuscripcionDto`, `CobroSuscripcionResponseDto`, `EstadoCobroSuscripcionResponseDto`),
+hooks: `useMiSuscripcion.ts`, `useCambiarPlan.ts`, `useCobroSuscripcion.ts`, `useEstadoCobroSuscripcion.ts` (polling 2.5s y simulación dev).
+Componentes: `plan-actual-card`, `cambiar-plan-dialog`, `pagar-suscripcion-cta`, `pasarelas-suscripcion.tsx` (orquestador dinámico),
+`pasarela-item.tsx` (fila con badge semántico), `cobro-qr-dialog.tsx` (modal Base UI), `cobro-qr-contenido.tsx` (QR + Bs. + polling + simular pago dev).
+Páginas: `SuscripcionAdminPage.tsx` (alerta de éxito ante `?pago=exito`), `ActivarPlanPage.tsx` (flujo Wayra QR y Stripe Tarjeta).
 
 ### `features/platform/` ↔ `/saas/plataforma/*` + ciudades (DUENO_PLATAFORMA)
 `api/plataformaApi.ts`, `types/plataforma.types.ts`, `lib/plan-form.ts` (+test), hooks (`useResumenPlataforma`,
@@ -403,10 +405,13 @@ ahora también devuelve `variantes` (sin segundo fetch del catálogo).
     `sessionStorage` y redirige a Stripe; si falla (503 sin claves) navega a `/pago/:id` con
     `state.motivo`.
   - `QR` → `/pago/:id?metodo=QR`. `EFECTIVO` → `/pago/:id?metodo=EFECTIVO`.
-- `components/{order-summary,cupon-input}/`, `pages/CheckoutPage.tsx` (resumen, cupón,
-  `BranchPicker`, selector Tarjeta/QR/Efectivo).
+- `components/{order-summary,cupon-input}/`, `components/selector-metodo-pago.tsx` (consumo dinámico de `usePasarelas('checkout')`), `pages/CheckoutPage.tsx` (< 100 líneas, resumen, cupón, `BranchPicker`, selector modular).
 
-### `features/payments/` ↔ backend `pagos`
+### `features/payments/` ↔ backend `pagos` (Fase 2 Pasarelas Enchufables)
+- `api/pasarelasApi.ts`: `getPasarelas(contexto?: 'checkout' | 'suscripcion')` (`GET /pagos/pasarelas`).
+- `lib/icono-pasarela.ts` (+test: mapeo a `CreditCard`, `QrCode`, `PaypalLogo`, `Money`), `lib/pasarelas.config.ts` (+test: `CONFIG_PASARELAS_FRONTEND` modular para activar/desactivar pasarelas al instante).
+- `hooks/usePasarelas.ts`: carga catálogo filtrado según contexto y configuración modular.
+- `types/pasarelas.types.ts`: `PasarelaMetadata`, `PasarelaId`, `TipoPasarela`, `EstadoPasarela`, `IconoPasarela`.
 - `api/paymentsApi.ts`: `iniciarManual(ventaId, "EFECTIVO")`, `iniciarTarjeta`, `iniciarQr`
   (`POST /pagos/ventas/:id/qr`, crea o reutiliza el QR), `estadoQr` (`GET /pagos/qr/:pagoId`),
   `pendientes`, `confirmar`, `cancelar` (`POST /pagos/ventas/:id/cancelar`, 204: "volver al

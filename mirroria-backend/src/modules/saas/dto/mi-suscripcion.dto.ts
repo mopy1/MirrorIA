@@ -13,5 +13,5 @@ export class MiSuscripcionDto {
   /** estado === 'TRIAL' */
   puedeCambiarPlan!: boolean;
   /** Fase 2 lo pone en true */
-  pagoDisponible!: false;
+  pagoDisponible!: boolean;
 }

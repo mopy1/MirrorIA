@@ -1,30 +1,64 @@
-import { Badge } from "@/components/ui/badge"
-import { PASARELAS, type PasarelaSuscripcion } from "./pasarelas-suscripcion.data"
+import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react"
+import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { usePasarelas } from "@/features/payments/hooks/usePasarelas"
+import type { PasarelaId } from "@/features/payments/types/pasarelas.types"
+import { PasarelaItem } from "./pasarela-item"
 
-/** Lista de pasarelas (cascarón de la Fase 2: la Fase 2 solo cambia `disponible` y el onClick). */
-export function PasarelasSuscripcion({ pasarelas = PASARELAS }: { pasarelas?: PasarelaSuscripcion[] }) {
+interface PasarelasSuscripcionProps {
+  onSeleccionar: (pasarelaId: PasarelaId) => void
+  disabled?: boolean
+}
+
+export function PasarelasSuscripcion({ onSeleccionar, disabled }: PasarelasSuscripcionProps) {
+  const { pasarelas, isLoading, error, reload } = usePasarelas("suscripcion")
+
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-medium">Elegí cómo pagar</h2>
-      <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border/60 bg-card">
-        {pasarelas.map((p) => (
-          <li key={p.codigo}>
-            <button type="button" disabled={!p.disponible} className="flex w-full items-center gap-4 p-4 text-left transition-colors enabled:hover:bg-muted/50 disabled:cursor-not-allowed">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <p.icono className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">{p.nombre}</span>
-                <span className="block text-sm text-muted-foreground">{p.detalle}</span>
-              </span>
-              {!p.disponible && (
-                <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">Próximamente</Badge>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p className="text-sm text-muted-foreground">Mientras tanto, tu prueba sigue activa.</p>
+
+      {isLoading && (
+        <div className="space-y-2">
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      )}
+
+      {error && !isLoading && (
+        <Alert variant="destructive">
+          <WarningCircle weight="fill" />
+          <AlertDescription>{error}</AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={reload} className="gap-1.5">
+              <ArrowClockwise /> Reintentar
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
+
+      {!isLoading && !error && pasarelas.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+          No hay pasarelas de pago disponibles en este momento.
+        </div>
+      )}
+
+      {!isLoading && !error && pasarelas.length > 0 && (
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border/60 bg-card">
+          {pasarelas.map((p) => (
+            <PasarelaItem
+              key={p.id}
+              pasarela={p}
+              disabled={disabled}
+              onClick={() => onSeleccionar(p.id)}
+            />
+          ))}
+        </ul>
+      )}
+      <p className="text-sm text-muted-foreground">
+        El pago reactiva o extiende tu membresía SaaS por 1 mes calendario.
+      </p>
     </section>
   )
 }

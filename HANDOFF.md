@@ -26,15 +26,15 @@
 | 0 — Arquitectura e ICONIX base | integrada a las Fases 1 y 1b (capítulos `Parcial2/Documentacion/01_*` y `02_*`) |
 | 1 — SaaS multi-tenant | ✅ cerrada, commit `d6d05f6` |
 | 1b — Identidad de la plataforma (entonces "Tiendaria"): marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
-| **2 — Pasarelas enchufables** | ⏭️ **la siguiente**. Interfaz común + registro de proveedores. Funcionan Wayra (QR simulado) y Stripe; **PayPal y un QR bancario real se agregan como alternativas VACÍAS** ("no configurada", no aparecen en el checkout) por decisión del usuario. También el cobro de la suscripción SaaS (hook ya existente: `SuscripcionesService.activarPorPago`, y la pantalla `/admin/suscripcion/activar` con pasarelas "Próximamente"). |
-| 3 — Offline/PWA, idempotencia y conflictos | pendiente |
+| 2 — Pasarelas enchufables | ✅ cerrada (`RegistroPasarelasService` + adaptadores Stripe/Wayra funcionales para checkout y suscripción SaaS en `/admin/suscripcion/activar`; PayPal y QR bancario como stubs 503 "Próximamente"; nueva tabla `cobros_suscripcion`). |
+| **3 — Offline/PWA, idempotencia y conflictos** | ⏭️ **la siguiente**. PWA + Service Worker (IndexedDB), outbox, cabecera `Idempotency-Key` + tabla `idempotencia`, conflicto `stock = 1` resuelto por servidor con compensación, diseño móvil SQLite. |
 | 4 — Reportes dinámicos (+ Excel) | pendiente |
 | 5 — BI: dashboards por rol | pendiente |
 | 6 — Machine Learning (servicio Python aparte) | pendiente |
-| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 y 02 ya escritos; índice en `Parcial2/Documentacion/00_Indice.md`) |
+| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01, 02 y 03; índice en `Parcial2/Documentacion/00_Indice.md`) |
 
-Números verificados en `f91938c`: **101 rutas** HTTP, **28 tablas**, **351** tests unitarios backend (41 archivos),
-**112** tests frontend (20 archivos), e2e backend 56/56 (última corrida de la auditoría 1b).
+Números verificados: **105 rutas** HTTP, **29 tablas**, **385** tests unitarios backend (45 archivos),
+**127** tests frontend (23 archivos), e2e backend 62/62 (incluyendo pasarelas y cobros SaaS).
 
 ## 3. Orden de lectura
 
@@ -53,7 +53,7 @@ Números verificados en `f91938c`: **101 rutas** HTTP, **28 tablas**, **351** te
 cd /home/lmc/projects/MirrorIA
 docker compose up -d --build --force-recreate   # mirroria_postgres :5435 · mirroria_backend :3000 · mirroria_frontend :80
 # o en dev: docker compose up -d postgres-db ; (cd mirroria-backend && npm run start:dev) ; (cd mirroria-frontend && npm run dev)  → web :5174
-docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 101
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 105
 curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos                  # toda ruta de negocio necesita la tienda
 ```
 
@@ -70,9 +70,9 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 351 unit
-cd mirroria-backend && npm run test:e2e        # 56 e2e, necesita Postgres (escribe en la BD local)
-cd mirroria-frontend && npx vitest run         # 112
+cd mirroria-backend && npx vitest run          # 385 unit (45 archivos)
+cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
+cd mirroria-frontend && npx vitest run         # 127 (23 archivos)
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
 python3 scripts/qa/qa_reglas.py      # 21  · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
 ```
@@ -132,7 +132,6 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - P3 de la auditoría 1b: texto muted "Elegí tienda y horario…" de Tiendaria con contraste 4.35:1; el título de pestaña del
   admin dice "MirrorIA" (no el nombre de la tienda); en el paso 2 del alta la vista previa no es sticky.
 - Del QA de la Fase 1: el login de `/t/tiendaria` repite el nombre ("Tiendaria / Tiendaria") en el panel de foto.
-- El QR de cobro (Wayra) dice `comercio: "Tiendaria"` en todas las tiendas (`COMERCIO_QR` fijo en `cobro-qr.service.ts`), igual que la glosa de Stripe (`Tiendaria — Compra …` en `pagos.service.ts`): usar el nombre de la tienda en la Fase 2.
 - Las tiendas demo `casa-andina` y `nomada` están en TRIAL hasta **2026-11-19**: extender desde `/plataforma` si la defensa es después.
 - Login/registro sin botón para mostrar la contraseña; dictado por voz de reportes nunca probado en un navegador real.
 - Refresh token: la tabla existe, el flujo no (JWT de 1 h).

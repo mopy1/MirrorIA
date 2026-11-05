@@ -1,3 +1,65 @@
+export type PasarelaId = 'STRIPE' | 'WAYRA' | 'PAYPAL' | 'QR_BANCARIO' | 'MANUAL';
+export type TipoPasarela = 'TARJETA' | 'QR' | 'BILLETERA' | 'EFECTIVO';
+export type EstadoPasarela = 'DISPONIBLE' | 'EN_DESARROLLO' | 'NO_CONFIGURADA';
+export type IconoPasarela = 'credit-card' | 'qr-code' | 'paypal-logo' | 'money';
+
+export interface PasarelaMetadata {
+  id: PasarelaId;
+  nombre: string;
+  descripcion: string;
+  tipo: TipoPasarela;
+  estado: EstadoPasarela;
+  soportaCheckout: boolean;
+  soportaSuscripcion: boolean;
+  icono: IconoPasarela;
+  monedas: ('BOB' | 'USD')[];
+}
+
+export interface IniciarCobroParams {
+  montoCents: number;
+  moneda: 'BOB' | 'USD';
+  descripcion: string;
+  referencia: string; // ej. ventaId o cobroSuscripcionId
+  contexto: 'checkout' | 'suscripcion';
+  nombreComercio: string; // Nombre real de la tienda
+  urlExito: string;
+  urlCancelacion: string;
+  expiraEn?: Date;
+  metadata?: Record<string, string>;
+}
+
+export interface IniciarCobroResultado {
+  modo: 'REDIRECT' | 'QR' | 'INSTRUCCIONES';
+  url?: string;            // Para Stripe / PayPal
+  qrBase64?: string;       // Imagen del QR para Wayra / QR Bancario
+  qrTexto?: string;        // Payload del QR para apps bancarias
+  token?: string;          // Token de sesión o transacción
+  instrucciones?: string;  // Glosa para efectivo en sucursal
+  expiraEn?: Date;
+}
+
+export interface EventoNotificacionVerificado {
+  id: string; // event_id para idempotencia
+  tipo: 'PAGO_APROBADO' | 'PAGO_FALLIDO' | 'OTRO';
+  referenciaExterna: string; // sesionId o token
+  montoCents?: number;
+}
+
+export interface IPasarelaProveedor {
+  readonly id: PasarelaId;
+  readonly metadata: PasarelaMetadata;
+
+  estaConfigurada(): boolean;
+  iniciarCobro(params: IniciarCobroParams): Promise<IniciarCobroResultado>;
+  verificarNotificacion(
+    cuerpoCrudo: Buffer,
+    cabeceras: Record<string, string>,
+  ): Promise<EventoNotificacionVerificado>;
+}
+
+// -------------------------------------------------------------
+// Interfaces históricas / legadas para compatibilidad con Ventas B2C
+// -------------------------------------------------------------
 export const PASARELA = Symbol('PASARELA');
 
 export interface SesionPago {
@@ -26,24 +88,7 @@ export interface Pasarela {
     /** Cuando deja de aceptar pagos (alineado al vencimiento de la venta). */
     expiraEn?: Date;
   }): Promise<SesionPago>;
-  /**
-   * La sesion ya creada, si todavia se puede pagar con ella. Devuelve null si
-   * caduco, si ya se completo o si la pasarela no la reconoce — en ese caso hay
-   * que crear una nueva. Sirve para que un segundo intento sobre la misma venta
-   * mande a la clienta a la MISMA sesion en vez de abrir otra. 'completa' si ya
-   * se pago (el webhook esta en camino): NO hay que abrir otra.
-   */
   recuperarSesion(sesionId: string): Promise<SesionPago | 'completa' | null>;
-  /**
-   * Cierra una sesion para que ya no se pueda pagar con ella (la clienta
-   * cancelo la compra). true si quedo cerrada o ya lo estaba; false si ya se
-   * completo (pudo haberse cobrado) o no se pudo confirmar: en ese caso NO se
-   * cancela la venta, el webhook o la expiracion deciden.
-   */
   cerrarSesion(sesionId: string): Promise<boolean>;
-  /**
-   * Verifica la firma del webhook contra el cuerpo CRUDO y devuelve el evento.
-   * Si la firma no valida, lanza. Nunca devuelve un evento sin verificar.
-   */
   verificarEvento(cuerpoCrudo: Buffer, firma: string): EventoPago;
 }

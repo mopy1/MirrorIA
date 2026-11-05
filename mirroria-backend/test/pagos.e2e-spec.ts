@@ -558,6 +558,130 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
   });
 });
 
+describe('Fase 2 — Pasarelas Enchufables y Cobros SaaS contra Postgres real', () => {
+  let app: INestApplication<App>;
+  let ds: DataSource;
+  let admin: { id: string; email: string; token: string };
+
+  beforeAll(async () => {
+    const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = mod.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    await app.init();
+    ds = app.get(DataSource);
+    admin = await usuarioConRolGenerico(app, ds, 'ADMIN');
+  });
+
+  afterAll(async () => {
+    await ds.query(`DELETE FROM cobros_suscripcion WHERE inquilino_id = (SELECT id FROM inquilinos WHERE slug = 'tiendaria')`);
+    await ds.query(`DELETE FROM usuarios WHERE id = $1`, [admin.id]);
+    await app.close();
+  });
+
+  it('GET /api/v1/pagos/pasarelas devuelve el catálogo con las 4 pasarelas', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/pagos/pasarelas')
+      .expect(200);
+
+    const ids = (res.body as Array<{ id: string }>).map((p) => p.id);
+    expect(ids).toContain('WAYRA');
+    expect(ids).toContain('STRIPE');
+    expect(ids).toContain('PAYPAL');
+    expect(ids).toContain('QR_BANCARIO');
+  });
+
+  it('GET /api/v1/pagos/pasarelas?contexto=checkout filtra pasarelas que soportan checkout', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/pagos/pasarelas?contexto=checkout')
+      .expect(200);
+
+    for (const p of res.body as Array<{ soportaCheckout: boolean }>) {
+      expect(p.soportaCheckout).toBe(true);
+    }
+  });
+
+  it('GET /api/v1/pagos/pasarelas?contexto=suscripcion filtra pasarelas que soportan suscripción', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/pagos/pasarelas?contexto=suscripcion')
+      .expect(200);
+
+    for (const p of res.body as Array<{ soportaSuscripcion: boolean }>) {
+      expect(p.soportaSuscripcion).toBe(true);
+    }
+  });
+
+  it('POST /api/v1/saas/mi-suscripcion/cobro con PAYPAL responde 503 PasarelaNoConfiguradaException', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/saas/mi-suscripcion/cobro')
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ pasarela: 'PAYPAL' })
+      .expect(503);
+
+    expect((res.body as { message: string }).message).toMatch(/PayPal.*desarrollo/i);
+  });
+
+  it('POST /api/v1/saas/mi-suscripcion/cobro con QR_BANCARIO responde 503 PasarelaNoConfiguradaException', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/saas/mi-suscripcion/cobro')
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ pasarela: 'QR_BANCARIO' })
+      .expect(503);
+
+    expect((res.body as { message: string }).message).toMatch(/QR bancario.*desarrollo/i);
+  });
+
+  it('Flujo completo de cobro SaaS con WAYRA QR y simulación', async () => {
+    const inicio = await request(app.getHttpServer())
+      .post('/api/v1/saas/mi-suscripcion/cobro')
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ pasarela: 'WAYRA' })
+      .expect(201);
+
+    const body = inicio.body as {
+      cobroId: string;
+      modo: string;
+      qrBase64: string;
+      token: string;
+    };
+    expect(body.cobroId).toBeDefined();
+    expect(body.modo).toBe('QR');
+    expect(body.qrBase64).toBeDefined();
+    expect(body.token).toBeDefined();
+
+    const cobroId = body.cobroId;
+
+    const estadoInicial = await request(app.getHttpServer())
+      .get(`/api/v1/saas/mi-suscripcion/cobro/${cobroId}/estado`)
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect((estadoInicial.body as { pagado: boolean; estado: string }).pagado).toBe(false);
+    expect((estadoInicial.body as { pagado: boolean; estado: string }).estado).toBe('PENDIENTE');
+
+    const sim = await request(app.getHttpServer())
+      .post(`/api/v1/saas/mi-suscripcion/cobro/${cobroId}/simular-pago`)
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect((sim.body as { pagado: boolean; estado: string }).pagado).toBe(true);
+    expect((sim.body as { pagado: boolean; estado: string }).estado).toBe('APROBADO');
+
+    const estadoFinal = await request(app.getHttpServer())
+      .get(`/api/v1/saas/mi-suscripcion/cobro/${cobroId}/estado`)
+      .set('X-Tenant', 'tiendaria')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    expect((estadoFinal.body as { pagado: boolean; estado: string }).pagado).toBe(true);
+    expect((estadoFinal.body as { pagado: boolean; estado: string }).estado).toBe('APROBADO');
+  });
+});
+
 /**
  * Borra solo las filas de esta prueba y en orden de dependencia (hijos antes que
  * padres). `inventario_sucursal`, `movimientos_inventario` y `pagos` tienen id

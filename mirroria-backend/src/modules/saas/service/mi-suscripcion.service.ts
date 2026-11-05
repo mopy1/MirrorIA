@@ -30,7 +30,7 @@ export class MiSuscripcionService {
       uso,
       historial: historial.map(suscripcionADto),
       puedeCambiarPlan: actual.estado === EstadoSuscripcion.TRIAL,
-      pagoDisponible: false,
+      pagoDisponible: true,
     };
   }
 

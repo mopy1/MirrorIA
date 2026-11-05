@@ -1,21 +1,14 @@
-import { CreditCard, Money, QrCode } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { BranchPicker } from "@/features/branches/components/branch-picker"
 import { useCartLineItems } from "@/features/cart/hooks/useCartLineItems"
 import type { MetodoPago } from "@/features/payments/types/payments.types"
 import { useValidarCupon } from "@/features/promotions/hooks/useValidarCupon"
 import { CuponInput } from "../components/cupon-input"
 import { OrderSummary } from "../components/order-summary"
+import { SelectorMetodoPago } from "../components/selector-metodo-pago"
 import { useCheckout } from "../hooks/useCheckout"
-
-const METODOS: { value: MetodoPago; label: string; icon: typeof CreditCard }[] = [
-  { value: "TARJETA", label: "Tarjeta", icon: CreditCard },
-  { value: "QR", label: "QR", icon: QrCode },
-  { value: "EFECTIVO", label: "Efectivo", icon: Money },
-]
 
 export function CheckoutPage() {
   const { lineItems, isLoading: cartLoading, error: cartError } = useCartLineItems()
@@ -78,37 +71,12 @@ export function CheckoutPage() {
         <BranchPicker value={sucursalId} onChange={setSucursalId} label="Retirar / entregar en" />
       </div>
 
-      <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-2.5">
-        <Label>Método de pago</Label>
-        <div className="grid grid-cols-3 gap-2">
-          {METODOS.map(({ value, label, icon: Icon }) => (
-            <Button
-              key={value}
-              type="button"
-              variant={metodo === value ? "default" : "outline"}
-              className="h-auto flex-col gap-1.5 py-3"
-              aria-pressed={metodo === value}
-              onClick={() => setMetodo(value)}
-            >
-              <Icon className="size-5" />
-              <span>{label}</span>
-            </Button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {metodo === "TARJETA"
-            ? "Se paga en línea; tus prendas quedan apartadas 30 min hasta que pagues. Si la pasarela no está disponible, te ofrecemos pagar en efectivo."
-            : metodo === "QR"
-              ? "Al confirmar te mostramos un QR para pagar con la app de tu banco."
-              : "Al confirmar vas a ver las instrucciones para completar el pago."}
-        </p>
-      </div>
+      <SelectorMetodoPago metodo={metodo} onChange={setMetodo} />
 
       {hayNoDisponibles && (
         <Alert variant="destructive">
           <AlertDescription>
-            Tu carrito tiene prendas que ya no están disponibles. Quitalas desde el carrito para
-            continuar.
+            Tu carrito tiene prendas que ya no están disponibles. Quitalas desde el carrito para continuar.
           </AlertDescription>
         </Alert>
       )}

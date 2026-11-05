@@ -11,5 +11,30 @@ export interface MiSuscripcionDto {
   uso: UsoPlanDto
   historial: SuscripcionDto[] // más nuevas primero
   puedeCambiarPlan: boolean // estado === 'TRIAL'
-  pagoDisponible: false // Fase 2 lo pone en true
+  pagoDisponible: boolean // true en Fase 2
 }
+
+export interface IniciarCobroSuscripcionDto {
+  pasarela: "WAYRA" | "STRIPE" | "PAYPAL" | "QR_BANCARIO"
+  planCodigo?: string
+}
+
+export interface CobroSuscripcionResponseDto {
+  cobroId: string
+  pasarela: string
+  modo: "REDIRECT" | "QR" | "INSTRUCCIONES"
+  montoCents: number
+  url?: string
+  qrBase64?: string
+  token?: string
+  expiraEn?: string
+  instrucciones?: string
+}
+
+export interface EstadoCobroSuscripcionResponseDto {
+  cobroId: string
+  estado: "PENDIENTE" | "APROBADO" | "RECHAZADO" | "EXPIRADO"
+  pagado: boolean
+  pagadoEn?: string
+}
+

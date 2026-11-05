@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
   type RawBodyRequest,
@@ -27,8 +28,10 @@ import {
 import { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
 import { PagoResponseDto } from '../dto/pago-response.dto.js';
+import { PasarelaResponseDto } from '../dto/pasarela-response.dto.js';
 import { ExpiracionService } from '../service/expiracion.service.js';
 import { PagosService } from '../service/pagos.service.js';
+import { RegistroPasarelasService } from '../service/pasarela/registro-pasarelas.service.js';
 import { CobroQrService } from '../service/qr/cobro-qr.service.js';
 
 @ApiTags('Pagos')
@@ -38,7 +41,21 @@ export class PagosController {
     private readonly pagosService: PagosService,
     private readonly expiracionService: ExpiracionService,
     private readonly cobroQrService: CobroQrService,
+    private readonly registroPasarelas: RegistroPasarelasService,
   ) {}
+
+  @Get('pasarelas')
+  @SinTenant()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Catálogo de pasarelas de pago disponibles (checkout o suscripción)',
+  })
+  listarPasarelas(
+    @Query('contexto') contexto?: 'checkout' | 'suscripcion',
+  ): PasarelaResponseDto[] {
+    return this.registroPasarelas.listar({ contexto });
+  }
 
   @Post('ventas/:ventaId/qr')
   @HttpCode(HttpStatus.CREATED)
