@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { TallaResponseDto } from '../dto/catalogo-response.dto.js';
 import type { CreateTallaDto } from '../dto/create-talla.dto.js';
 import { Talla } from '../entities/talla.entity.js';
@@ -15,7 +16,7 @@ export class TallasService {
 
   async create(dto: CreateTallaDto): Promise<TallaResponseDto> {
     const existente = await this.tallaRepository.findOne({
-      where: { nombre: dto.nombre },
+      where: soloTenant({ nombre: dto.nombre }),
     });
     if (existente) {
       throw new RecursoDuplicadoException(
@@ -33,7 +34,7 @@ export class TallasService {
   }
 
   async findAll(): Promise<TallaResponseDto[]> {
-    const tallas = await this.tallaRepository.find({ order: { orden: 'ASC' } });
+    const tallas = await this.tallaRepository.find({ where: soloTenant({}), order: { orden: 'ASC' } });
     return tallas.map((t) => this.toResponse(t));
   }
 

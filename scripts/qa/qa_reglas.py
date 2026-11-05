@@ -1,8 +1,12 @@
 import json, subprocess, time, urllib.request, uuid, datetime as dt, math
-API="http://localhost:3000/api/v1"
+import os
+API=os.environ.get("API","http://localhost:3000/api/v1")
+# Fase 1 SaaS: toda ruta de negocio necesita la tienda. Los datos demo viven en "mirroria".
+TENANT=os.environ.get("TENANT","mirroria")
+TID="00000000-0000-4000-a000-000000000001"  # id fijo de "mirroria": el SQL directo también se acota a esa tienda
 def req(m, path, body=None, tok=None):
     r=urllib.request.Request(API+path, method=m, data=json.dumps(body).encode() if body is not None else None,
-        headers={"Content-Type":"application/json", **({"Authorization":"Bearer "+tok} if tok else {})})
+        headers={"Content-Type":"application/json", "X-Tenant":TENANT, **({"Authorization":"Bearer "+tok} if tok else {})})
     try:
         with urllib.request.urlopen(r) as resp: return resp.status, json.loads(resp.read() or "null")
     except urllib.error.HTTPError as e: return e.code, json.loads(e.read() or "null")
@@ -20,7 +24,7 @@ def check(name, cond, extra=""):
     print(("PASS " if cond else "FAIL ")+name+("" if cond else f"  -> {extra}")); ok+=cond; fail+= (not cond)
 
 # variantes con stock en una sucursal
-suc0=sql("select sucursal_id from inventario_sucursal where cantidad_disponible>=4 and cantidad_reservada=0 group by sucursal_id order by count(*) desc limit 1")
+suc0=sql(f"select sucursal_id from inventario_sucursal where tenant_id='{TID}' and cantidad_disponible>=4 and cantidad_reservada=0 group by sucursal_id order by count(*) desc limit 1")
 rows=[r.split("|") for r in sql(f"select variante_id, sucursal_id, cantidad_disponible, cantidad_reservada from inventario_sucursal where sucursal_id='{suc0}' and cantidad_disponible>=4 and cantidad_reservada=0 order by cantidad_disponible desc limit 6").splitlines()]
 print("variantes en la sucursal:", len(rows))
 (v1,suc,disp1,_),(v2,_,_,_),(v3,_,_,_),(v4,_,_,_)=rows[0],rows[1],rows[2],rows[3]
@@ -70,7 +74,7 @@ s,b=req("POST","/reservas",{"sucursalId":suc,"fechaHoraPrevista":iso(120),"items
 check("bloqueada no puede reservar -> 403", s==403, (s,b))
 
 # tope de stock reservable: variante con D disponibles admite ceil(D/2) reservadas
-vd,sd,D,R0=sql(f"select variante_id,sucursal_id,cantidad_disponible,cantidad_reservada from inventario_sucursal where cantidad_disponible between 2 and 12 and cantidad_reservada=0 and variante_id not in ('{v1}','{v2}','{v3}','{v4}') order by cantidad_disponible limit 1").split("|")
+vd,sd,D,R0=sql(f"select variante_id,sucursal_id,cantidad_disponible,cantidad_reservada from inventario_sucursal where tenant_id='{TID}' and cantidad_disponible between 2 and 12 and cantidad_reservada=0 and variante_id not in ('{v1}','{v2}','{v3}','{v4}') order by cantidad_disponible limit 1").split("|")
 D=int(D); tope=math.ceil(D*0.5); oks=0; last=None
 for i in range(tope+1):
     t,_=user(); s,b=req("POST","/reservas",{"sucursalId":sd,"fechaHoraPrevista":iso(120),"items":[{"varianteId":vd,"cantidad":1}]},t)

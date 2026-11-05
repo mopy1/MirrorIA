@@ -3,9 +3,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ProductGrid } from "../components/product-grid"
 import { useCategorias } from "../hooks/useCategorias"
 import { useProductos } from "../hooks/useProductos"
+import { useTienda } from "@/hooks/useTienda"
 
 export function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { tienda } = useTienda()
   const categoriaActivaId = searchParams.get("categoria")
   const query = searchParams.get("q")
 
@@ -32,7 +34,7 @@ export function ProductListPage() {
             Resultados para <span className="text-foreground">"{query}"</span>
           </>
         ) : (
-          "Explorá todo el catálogo de MirrorIA."
+          `Explorá todo el catálogo de ${tienda?.nombre ?? "la tienda"}.`
         )}
       </p>
 

@@ -1,3 +1,4 @@
+import { CoatHanger } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "cn"
@@ -46,9 +47,10 @@ export function ProductGrid({
           ))}
         </div>
       ) : productos.length === 0 ? (
-        <p className="mt-16 text-center text-sm text-muted-foreground">
-          No hay productos en esta categoría todavía.
-        </p>
+        <div className="mt-16 flex flex-col items-center gap-3 text-center">
+          <CoatHanger weight="light" className="size-10 text-primary/60" />
+          <p className="text-sm text-muted-foreground">No hay prendas en esta categoría todavía.</p>
+        </div>
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
           {productos.map((producto, index) => (

@@ -1,5 +1,5 @@
 import { Column, Entity, Index } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export interface CarritoItem {
   varianteId: string;
@@ -7,7 +7,7 @@ export interface CarritoItem {
 }
 
 @Entity('carritos')
-export class Carrito extends BaseEntity {
+export class Carrito extends TenantBaseEntity {
   // Cross-módulo (seguridad) como columna simple. Unique a propósito (no
   // documentado así en Diseño_BD.md, decisión propia): un solo carrito
   // activo por usuario, se muta el mismo row en vez de crear filas nuevas en

@@ -1,8 +1,6 @@
 import { motion, useReducedMotion } from "motion/react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ProductImagePlaceholder } from "@/components/common/ProductImagePlaceholder"
-import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import { BranchPicker } from "@/features/branches/components/branch-picker"
 import { formatMoney } from "@/lib/money"
@@ -10,42 +8,17 @@ import { useDisponibilidad } from "@/features/inventory/hooks/useDisponibilidad"
 import { ReservarEnTienda } from "@/features/reservations/components/reservar-en-tienda"
 import type { Producto } from "../../types/catalog.types"
 import { EstadoStock } from "./estado-stock"
+import { ProductImage } from "./product-image"
 import { useAgregarAlCarrito } from "./useAgregarAlCarrito"
+import { useSeleccionVariante } from "./useSeleccionVariante"
 import { VariantSwatchGroup } from "./variant-swatch-group"
-
-// Sin `orden` expuesto por variante (el backend solo lo tiene en /catalogo/tallas, no
-// en VarianteResponseDto) — se ordena por nombre conocido en vez de dejarlo en el
-// orden arbitrario en que se crearon las variantes.
-const ORDEN_TALLAS = ["XS", "S", "M", "L", "XL", "XXL"]
-
-function uniqueOptions(items: { id: string; nombre: string }[]) {
-  const seen = new Set<string>()
-  return items.filter((item) => (seen.has(item.id) ? false : seen.add(item.id)))
-}
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function ProductDetail({ producto }: { producto: Producto }) {
+  const ruta = useRutaTienda()
   const reduce = useReducedMotion()
-  const variantes = producto.variantes ?? []
-  const tallas = uniqueOptions(variantes.map((v) => ({ id: v.tallaId, nombre: v.tallaNombre }))).sort(
-    (a, b) => ORDEN_TALLAS.indexOf(a.nombre) - ORDEN_TALLAS.indexOf(b.nombre)
-  )
-  const colores = uniqueOptions(variantes.map((v) => ({ id: v.colorId, nombre: v.colorNombre })))
-
-  const [tallaId, setTallaId] = useState<string | null>(null)
-  const [colorId, setColorId] = useState<string | null>(null)
+  const { tallas, colores, tallaId, colorId, setTallaId, setColorId, variante } = useSeleccionVariante(producto)
   const [sucursalId, setSucursalId] = useState<string | null>(null)
-  const [imgError, setImgError] = useState(false)
-
-  // Si solo hay una opción, no hay elección real que hacer — se preselecciona
-  // para no exigir un clic innecesario antes de poder comprar.
-  useEffect(() => {
-    if (tallas.length === 1) setTallaId(tallas[0].id)
-  }, [tallas])
-  useEffect(() => {
-    if (colores.length === 1) setColorId(colores[0].id)
-  }, [colores])
-
-  const variante = variantes.find((v) => v.tallaId === tallaId && v.colorId === colorId) ?? null
   const { cantidadDisponible, isLoading: stockLoading } = useDisponibilidad(
     variante?.id,
     sucursalId ?? undefined
@@ -57,21 +30,7 @@ export function ProductDetail({ producto }: { producto: Producto }) {
 
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
-      <div className="overflow-hidden rounded-2xl bg-muted lg:sticky lg:top-24">
-        {producto.imagenes?.[0]?.url && !imgError ? (
-          <AspectRatio ratio={3 / 4}>
-            <img
-              src={producto.imagenes[0].url}
-              alt={producto.titulo}
-              referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
-              className="h-full w-full object-cover"
-            />
-          </AspectRatio>
-        ) : (
-          <ProductImagePlaceholder ratio={3 / 4} iconClassName="size-16" />
-        )}
-      </div>
+      <ProductImage producto={producto} />
 
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 16 }}
@@ -114,7 +73,7 @@ export function ProductDetail({ producto }: { producto: Producto }) {
           {/* El probador web (Decart VTON) usa la foto real del producto:
               cualquier producto con al menos una foto se puede probar. */}
           {(producto.imagenes?.length ?? 0) > 0 && (
-            <Link to={`/probador/${producto.id}`}>
+            <Link to={ruta(`/probador/${producto.id}`)}>
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
                 Probármela
               </Button>

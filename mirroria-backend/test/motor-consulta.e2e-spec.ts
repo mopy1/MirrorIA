@@ -8,6 +8,11 @@ import { FichaConsultaDto } from './../src/modules/ia/dto/ficha-consulta.dto.js'
 import { MotorConsultaService } from './../src/modules/ia/service/motor-consulta.service.js';
 import { IaService } from './../src/modules/ia/service/ia.service.js';
 import { CombinacionInvalidaException } from './../src/modules/ia/exception/combinacion-invalida.exception.js';
+import { usarTenantE2E } from './setup-tenant.e2e.js';
+
+/** Tienda propia de este archivo (Fase 1 SaaS): sus números no se mezclan con los datos demo de mirroria. */
+const TENANT_E2E = '00000000-0000-4000-a000-0000000000e2';
+usarTenantE2E(TENANT_E2E);
 
 // uuid fijos: hacen la siembra determinista y las aserciones legibles.
 const ID = {
@@ -501,41 +506,41 @@ async function limpiar(ds: DataSource): Promise<void> {
 async function sembrar(ds: DataSource): Promise<void> {
   const q = (sql: string, p: unknown[] = []) => ds.query(sql, p);
 
-  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz', 'Bolivia')`, [ID.ciudad]);
-  await q(`INSERT INTO sucursales (id, nombre, direccion, ciudad_id, activo)
-           VALUES ($1, 'Sucursal Norte', 'Av 1', $3, true), ($2, 'Sucursal Sur', 'Av 2', $3, true)`,
+  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz (e2e motor-consulta)', 'Bolivia')`, [ID.ciudad]);
+  await q(`INSERT INTO sucursales (tenant_id, id, nombre, direccion, ciudad_id, activo)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Sucursal Norte', 'Av 1', $3, true), ('00000000-0000-4000-a000-0000000000e2', $2, 'Sucursal Sur', 'Av 2', $3, true)`,
     [ID.suc1, ID.suc2, ID.ciudad]);
-  await q(`INSERT INTO proveedores (id, razon_social, activo) VALUES ($1, 'Textiles SA', true)`, [ID.prov]);
-  await q(`INSERT INTO temporadas (id, nombre, fecha_inicio, fecha_fin)
-           VALUES ($1, 'Verano 2026', '2026-01-01', '2026-12-31')`, [ID.temp]);
-  await q(`INSERT INTO colecciones (id, nombre, temporada_id, proveedor_id)
-           VALUES ($1, 'Coleccion A', $2, $3)`, [ID.colec, ID.temp, ID.prov]);
-  await q(`INSERT INTO categorias (id, nombre, slug, activo)
-           VALUES ($1, 'Vestidos', 'vestidos', true), ($2, 'Blusas', 'blusas', true)`,
+  await q(`INSERT INTO proveedores (tenant_id, id, razon_social, activo) VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Textiles SA', true)`, [ID.prov]);
+  await q(`INSERT INTO temporadas (tenant_id, id, nombre, fecha_inicio, fecha_fin)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Verano 2026', '2026-01-01', '2026-12-31')`, [ID.temp]);
+  await q(`INSERT INTO colecciones (tenant_id, id, nombre, temporada_id, proveedor_id)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Coleccion A', $2, $3)`, [ID.colec, ID.temp, ID.prov]);
+  await q(`INSERT INTO categorias (tenant_id, id, nombre, slug, activo)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Vestidos', 'vestidos', true), ('00000000-0000-4000-a000-0000000000e2', $2, 'Blusas', 'blusas', true)`,
     [ID.cat1, ID.cat2]);
-  await q(`INSERT INTO tallas (id, nombre, orden) VALUES ($1, 'M', 2)`, [ID.talla]);
-  await q(`INSERT INTO colores (id, nombre, hex_code) VALUES ($1, 'Negro', '#000000')`, [ID.color]);
-  await q(`INSERT INTO productos (id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
-           VALUES ($1, 'Vestido Largo', 'vestido-largo', 10000, $3, $5, true, '[]'::jsonb),
-                  ($2, 'Blusa Seda', 'blusa-seda', 5000, $4, $5, true, '[]'::jsonb)`,
+  await q(`INSERT INTO tallas (tenant_id, id, nombre, orden) VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'M', 2)`, [ID.talla]);
+  await q(`INSERT INTO colores (tenant_id, id, nombre, hex_code) VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Negro', '#000000')`, [ID.color]);
+  await q(`INSERT INTO productos (tenant_id, id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'Vestido Largo', 'vestido-largo', 10000, $3, $5, true, '[]'::jsonb),
+                  ('00000000-0000-4000-a000-0000000000e2', $2, 'Blusa Seda', 'blusa-seda', 5000, $4, $5, true, '[]'::jsonb)`,
     [ID.prod1, ID.prod2, ID.cat1, ID.cat2, ID.colec]);
-  await q(`INSERT INTO variantes_producto (id, sku, producto_id, talla_id, color_id, activo)
-           VALUES ($1, 'SKU-1', $3, $5, $6, true), ($2, 'SKU-2', $4, $5, $6, true)`,
+  await q(`INSERT INTO variantes_producto (tenant_id, id, sku, producto_id, talla_id, color_id, activo)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'SKU-1', $3, $5, $6, true), ('00000000-0000-4000-a000-0000000000e2', $2, 'SKU-2', $4, $5, $6, true)`,
     [ID.var1, ID.var2, ID.prod1, ID.prod2, ID.talla, ID.color]);
 
   // Stock: suc1 tiene 7 disponibles y 2 reservadas; suc2 tiene 3 disponibles.
   await q(`INSERT INTO inventario_sucursal
-             (id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
-           VALUES (gen_random_uuid(), $1, $3, 7, 2, 1), (gen_random_uuid(), $2, $4, 3, 0, 0)`,
+             (tenant_id, id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $3, 7, 2, 1), ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $2, $4, 3, 0, 0)`,
     [ID.var1, ID.var2, ID.suc1, ID.suc2]);
 
-  await q(`INSERT INTO usuarios (id, email, password_hash, full_name, role, is_active)
-           VALUES ($1, 'c1@test.com', 'x', 'Ana Perez', 'CUSTOMER', true),
-                  ($2, 'c2@test.com', 'x', 'Luz Rojas', 'CUSTOMER', true)`,
+  await q(`INSERT INTO usuarios (tenant_id, id, email, password_hash, full_name, role, is_active)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'c1@test.com', 'x', 'Ana Perez', 'CUSTOMER', true),
+                  ('00000000-0000-4000-a000-0000000000e2', $2, 'c2@test.com', 'x', 'Luz Rojas', 'CUSTOMER', true)`,
     [ID.cliente1, ID.cliente2]);
 
-  await q(`INSERT INTO cupones (id, codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_actuales, activo)
-           VALUES ($1, 'AGOSTO10', 'PORCENTAJE', 10, '2026-08-01', '2026-08-31', 99, true)`,
+  await q(`INSERT INTO cupones (tenant_id, id, codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_actuales, activo)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, 'AGOSTO10', 'PORCENTAJE', 10, '2026-08-01', '2026-08-31', 99, true)`,
     [ID.cupon]);
 
   // Ventas. OJO: "createdAt" va entre comillas, es camelCase en la base.
@@ -551,15 +556,15 @@ async function sembrar(ds: DataSource): Promise<void> {
   // instante que el viejo filtro `hasta <= '2026-08-31'` dejaba pasar — por eso
   // el defecto de `hasta` era invisible. Si alguien vuelve a poner `<=`, esta
   // venta desaparece de agosto y las pruebas de ingresos rompen.
-  await q(`INSERT INTO ventas (id, cliente_id, sucursal_id, canal, estado,
+  await q(`INSERT INTO ventas (tenant_id, id, cliente_id, sucursal_id, canal, estado,
                                subtotal_cents, descuento_cents, total_cents, cupon_id, "createdAt")
-           VALUES ($1,  $5,   $7, 'WEB',        'PAGADA',    11000, 1000, 10000, $9,   '2026-08-10'),
-                  ($2,  $6,   $8, 'PRESENCIAL', 'PAGADA',    30000,    0, 30000, NULL, '2026-08-20'),
-                  ($3,  NULL, $7, 'WEB',        'PENDIENTE', 99999,    0, 99999, NULL, '2026-08-25'),
-                  ($4,  $5,   $7, 'WEB',        'PAGADA',    20000,    0, 20000, NULL, '2026-07-15'),
-                  ($10, NULL, $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-12'),
-                  ($11, $5,   $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-14'),
-                  ($12, $6,   $7, 'WEB',        'PAGADA',    10000,    0, 10000, NULL, '2026-08-31 16:45:00')`,
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1,  $5,   $7, 'WEB',        'PAGADA',    11000, 1000, 10000, $9,   '2026-08-10'),
+                  ('00000000-0000-4000-a000-0000000000e2', $2,  $6,   $8, 'PRESENCIAL', 'PAGADA',    30000,    0, 30000, NULL, '2026-08-20'),
+                  ('00000000-0000-4000-a000-0000000000e2', $3,  NULL, $7, 'WEB',        'PENDIENTE', 99999,    0, 99999, NULL, '2026-08-25'),
+                  ('00000000-0000-4000-a000-0000000000e2', $4,  $5,   $7, 'WEB',        'PAGADA',    20000,    0, 20000, NULL, '2026-07-15'),
+                  ('00000000-0000-4000-a000-0000000000e2', $10, NULL, $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-12'),
+                  ('00000000-0000-4000-a000-0000000000e2', $11, $5,   $7, 'WEB',        'PAGADA',     5000,    0,  5000, NULL, '2026-08-14'),
+                  ('00000000-0000-4000-a000-0000000000e2', $12, $6,   $7, 'WEB',        'PAGADA',    10000,    0, 10000, NULL, '2026-08-31 16:45:00')`,
     [
       ID.venta1, ID.venta2, ID.venta3, ID.venta4, ID.cliente1, ID.cliente2, ID.suc1, ID.suc2, ID.cupon,
       ID.venta5, ID.venta6, ID.venta7,
@@ -585,14 +590,14 @@ async function sembrar(ds: DataSource): Promise<void> {
   //
   // venta3 (PENDIENTE) lleva 40 unidades y un subtotal de linea (99999) que no coincide
   // con 40 x 2500: deuda conocida, ninguna asercion la toca porque no es PAGADA.
-  await q(`INSERT INTO venta_items (id, venta_id, variante_id, cantidad, precio_unit_cents, subtotal_cents)
-           VALUES (gen_random_uuid(), $1, $4, 2, 3000,  6000),
-                  (gen_random_uuid(), $1, $5, 1, 5000,  5000),
-                  (gen_random_uuid(), $2, $5, 5, 6000, 30000),
-                  (gen_random_uuid(), $3, $4, 40, 2500, 99999),
-                  (gen_random_uuid(), $6, $5, 1, 5000,  5000),
-                  (gen_random_uuid(), $7, $4, 1, 5000,  5000),
-                  (gen_random_uuid(), $8, $4, 2, 5000, 10000)`,
+  await q(`INSERT INTO venta_items (tenant_id, id, venta_id, variante_id, cantidad, precio_unit_cents, subtotal_cents)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $4, 2, 3000,  6000),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $5, 1, 5000,  5000),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $2, $5, 5, 6000, 30000),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $3, $4, 40, 2500, 99999),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $6, $5, 1, 5000,  5000),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $7, $4, 1, 5000,  5000),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $8, $4, 2, 5000, 10000)`,
     [ID.venta1, ID.venta2, ID.venta3, ID.var1, ID.var2, ID.venta5, ID.venta6, ID.venta7]);
 
   // Kardex. `movimientos_inventario` tiene columna `fecha` PROPIA, distinta del
@@ -606,26 +611,26 @@ async function sembrar(ds: DataSource): Promise<void> {
   // AGOSTO (createdAt). mov4 ademas cae el ultimo dia del rango a las 18:30, asi
   // que tambien fija el arreglo de `hasta` sobre una segunda columna de fecha.
   await q(`INSERT INTO movimientos_inventario
-             (id, variante_id, sucursal_id, tipo_movimiento, cantidad, motivo, fecha, "createdAt")
-           VALUES (gen_random_uuid(), $1, $3, 'VENTA',               2, 'mov1', '2026-08-10',          '2026-07-01'),
-                  (gen_random_uuid(), $2, $3, 'RECEPCION_PROVEEDOR', 6, 'mov2', '2026-08-05',          '2026-09-15'),
-                  (gen_random_uuid(), $1, $4, 'AJUSTE',              3, 'mov3', '2026-07-20',          '2026-08-20'),
-                  (gen_random_uuid(), $1, $3, 'VENTA',               1, 'mov4', '2026-08-31 18:30:00', '2026-08-31 18:30:00')`,
+             (tenant_id, id, variante_id, sucursal_id, tipo_movimiento, cantidad, motivo, fecha, "createdAt")
+           VALUES ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $3, 'VENTA',               2, 'mov1', '2026-08-10',          '2026-07-01'),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $2, $3, 'RECEPCION_PROVEEDOR', 6, 'mov2', '2026-08-05',          '2026-09-15'),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $4, 'AJUSTE',              3, 'mov3', '2026-07-20',          '2026-08-20'),
+                  ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $3, 'VENTA',               1, 'mov4', '2026-08-31 18:30:00', '2026-08-31 18:30:00')`,
     [ID.var1, ID.var2, ID.suc1, ID.suc2]);
 
-  await q(`INSERT INTO reservas (id, cliente_id, sucursal_id, estado, fecha_hora_prevista, "createdAt")
-           VALUES ($1, $3, $4, 'CANCELADA', '2026-09-05', '2026-08-02'),
-                  ($2, $3, $4, 'CONFIRMADA', '2026-08-03', '2026-07-20')`,
+  await q(`INSERT INTO reservas (tenant_id, id, cliente_id, sucursal_id, estado, fecha_hora_prevista, "createdAt")
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, $3, $4, 'CANCELADA', '2026-09-05', '2026-08-02'),
+                  ('00000000-0000-4000-a000-0000000000e2', $2, $3, $4, 'CONFIRMADA', '2026-08-03', '2026-07-20')`,
     [ID.reserva1, ID.reserva2, ID.cliente1, ID.suc1]);
-  await q(`INSERT INTO reserva_items (id, reserva_id, variante_id, cantidad)
-           VALUES (gen_random_uuid(), $1, $3, 3), (gen_random_uuid(), $2, $3, 4)`,
+  await q(`INSERT INTO reserva_items (tenant_id, id, reserva_id, variante_id, cantidad)
+           VALUES ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $1, $3, 3), ('00000000-0000-4000-a000-0000000000e2', gen_random_uuid(), $2, $3, 4)`,
     [ID.reserva1, ID.reserva2, ID.var1]);
 
   // Items va parametrizado (todo SQL parametrizado, sin excepcion aunque el
   // valor sea un uuid fijo): $5 lleva el jsonb ya serializado.
-  await q(`INSERT INTO ordenes_compra (id, proveedor_id, sucursal_destino_id, usuario_id,
+  await q(`INSERT INTO ordenes_compra (tenant_id, id, proveedor_id, sucursal_destino_id, usuario_id,
                                        estado, items, fecha_pedido)
-           VALUES ($1, $2, $3, $4, 'RECIBIDA_PARCIAL', $5::jsonb, '2026-08-05')`,
+           VALUES ('00000000-0000-4000-a000-0000000000e2', $1, $2, $3, $4, 'RECIBIDA_PARCIAL', $5::jsonb, '2026-08-05')`,
     [
       ID.orden1, ID.prov, ID.suc1, ID.cliente1,
       JSON.stringify([{ varianteId: ID.var1, cantidadPedida: 10, cantidadRecibida: 6 }]),

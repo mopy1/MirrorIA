@@ -29,3 +29,25 @@ export const UsuariosAdminPage = diferida(() => import("@/features/admin/pages/U
 export const VentasAdminPage = diferida(() => import("@/features/admin/pages/VentasAdminPage"), "VentasAdminPage")
 export const ProbadorPage = diferida(() => import("@/features/fitting/pages/ProbadorPage"), "ProbadorPage")
 export const WayraPagoPage = diferida(() => import("@/features/wayra/pages/WayraPagoPage"), "WayraPagoPage")
+
+// Fase 1 SaaS: panel del dueño de la tienda y de la plataforma (la landing va estática).
+export const SuscripcionAdminPage = diferida(
+  () => import("@/features/subscription/pages/SuscripcionAdminPage"),
+  "SuscripcionAdminPage",
+)
+export const PlataformaInquilinosPage = diferida(
+  () => import("@/features/platform/pages/PlataformaInquilinosPage"),
+  "PlataformaInquilinosPage",
+)
+export const PlataformaInquilinoDetallePage = diferida(
+  () => import("@/features/platform/pages/PlataformaInquilinoDetallePage"),
+  "PlataformaInquilinoDetallePage",
+)
+export const PlataformaPlanesPage = diferida(
+  () => import("@/features/platform/pages/PlataformaPlanesPage"),
+  "PlataformaPlanesPage",
+)
+export const PlataformaCiudadesPage = diferida(
+  () => import("@/features/platform/pages/PlataformaCiudadesPage"),
+  "PlataformaCiudadesPage",
+)

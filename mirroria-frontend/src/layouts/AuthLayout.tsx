@@ -2,6 +2,8 @@ import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { unsplashUrl } from "@/lib/unsplash"
 import { BrandLogo } from "@/components/brand-logo"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
+import { useTienda } from "@/hooks/useTienda"
 
 export function AuthLayout({
   title,
@@ -12,6 +14,11 @@ export function AuthLayout({
   description: string
   children: ReactNode
 }) {
+  // Dentro de /t/:slug muestra el nombre de la tienda y vuelve a su inicio.
+  const { tienda } = useTienda()
+  const ruta = useRutaTienda()
+  const subtitulo = tienda ? tienda.nombre : undefined
+
   return (
     // lg:h-dvh (alto FIJO, no min-height) le da a la fila del grid un tamaño
     // definido — necesario para que la imagen (lg:h-full + absolute inset-0)
@@ -28,8 +35,8 @@ export function AuthLayout({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
         <div className="absolute inset-0 flex flex-col justify-between p-10">
-          <Link to="/" className="inline-block transition-opacity hover:opacity-90">
-            <BrandLogo variant="light" size="lg" />
+          <Link to={ruta("/")} className="inline-block transition-opacity hover:opacity-90">
+            <BrandLogo variant="light" size="lg" subtitle={subtitulo} />
           </Link>
           <p className="max-w-sm text-3xl leading-tight font-medium text-white">
             Reservá, probátela, decidí. Nunca a ciegas.
@@ -38,11 +45,15 @@ export function AuthLayout({
       </div>
 
       <div className="flex flex-col justify-center gap-8 overflow-y-auto px-6 py-12 sm:px-12 lg:h-full lg:px-16">
-        <Link to="/" className="inline-block lg:hidden transition-opacity hover:opacity-90">
-          <BrandLogo size="lg" />
+        <Link to={ruta("/")} className="inline-block lg:hidden transition-opacity hover:opacity-90">
+          <BrandLogo size="lg" subtitle={subtitulo} />
         </Link>
 
         <div className="mx-auto w-full max-w-sm">
+          {/* Ruta de retorno visible (regla 1 del protocolo): el logo solo no se lee como "volver". */}
+          <Link to={ruta("/")} className="mb-6 inline-flex text-sm text-muted-foreground transition-colors hover:text-foreground">
+            ← Volver a {tienda ? tienda.nombre : "MirrorIA"}
+          </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{description}</p>
           <div className="mt-8">{children}</div>

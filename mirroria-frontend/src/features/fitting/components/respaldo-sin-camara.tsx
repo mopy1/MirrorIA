@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "cn"
 import type { EstadoCamara } from "../hooks/useCamara"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 const MOTIVO: Record<string, string> = {
   denegada: "No nos diste permiso para usar la cámara, o se lo revocaste. Podés habilitarla desde el candado de la barra de direcciones y volver a intentar.",
@@ -20,6 +21,7 @@ export function RespaldoSinCamara({
   idProducto: string | null
   onReintentar: () => void
 }) {
+  const ruta = useRutaTienda()
   return (
     <div className="rounded-2xl bg-secondary p-8 text-center">
       <div className="relative mx-auto aspect-[3/4] w-full max-w-xs">
@@ -44,7 +46,7 @@ export function RespaldoSinCamara({
           Reintentar
         </button>
         {idProducto && (
-          <Link to={`/tienda/producto/${idProducto}`} className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link to={ruta(`/tienda/producto/${idProducto}`)} className={cn(buttonVariants({ variant: "outline" }))}>
             Reservala en sucursal
           </Link>
         )}

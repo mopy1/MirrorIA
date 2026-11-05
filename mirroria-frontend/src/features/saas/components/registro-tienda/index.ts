@@ -1,0 +1,6 @@
+export * from "./stepper"
+export * from "./paso-plan"
+export * from "./paso-tienda"
+export * from "./paso-cuenta"
+export * from "./resumen-registro"
+export * from "./asistente-registro"

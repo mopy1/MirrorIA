@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import type { DataSource, Repository } from 'typeorm';
 import { EstadoOrdenCompra, OrdenCompra } from '../entities/orden-compra.entity.js';
 import { OrdenesCompraService } from './ordenes-compra.service.js';
@@ -172,7 +173,7 @@ describe('OrdenesCompraService', () => {
       }, 'usr-2');
 
       expect(managerRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 'oc-1' },
+        where: { id: 'oc-1', tenantId: TENANT_PRUEBA },
         lock: { mode: 'pessimistic_write' },
       });
       expect(inventarioSucursalService.ajustarStock).toHaveBeenCalledWith(
@@ -241,7 +242,7 @@ describe('OrdenesCompraService', () => {
       const result = await service.cancelar('oc-1');
 
       expect(managerRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 'oc-1' },
+        where: { id: 'oc-1', tenantId: TENANT_PRUEBA },
         lock: { mode: 'pessimistic_write' },
       });
       expect(inventarioSucursalService.ajustarTransito).toHaveBeenCalledTimes(1);

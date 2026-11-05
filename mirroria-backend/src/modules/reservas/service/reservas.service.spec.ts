@@ -1,5 +1,6 @@
 import type { DataSource, Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import type { ProductosService } from '../../catalogo/service/productos.service.js';
@@ -69,7 +70,10 @@ describe('ReservasService — concurrencia y disponibilidad', () => {
   it('el cupo se revisa dentro de la tx con la fila de la clienta bloqueada (FOR UPDATE)', async () => {
     reservaRepo.count.mockResolvedValue(2); // la otra petición simultánea ya commiteó
     await expect(service.create(dto(), 'c1')).rejects.toBeInstanceOf(ForbiddenActionException);
-    expect(manager.query).toHaveBeenCalledWith(expect.stringMatching(/FROM usuarios .*FOR UPDATE/), ['c1']);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringMatching(/FROM usuarios .*tenant_id = \$2 FOR UPDATE/),
+      ['c1', TENANT_PRUEBA],
+    );
     expect(inventario.ajustarReserva).not.toHaveBeenCalled();
   });
 

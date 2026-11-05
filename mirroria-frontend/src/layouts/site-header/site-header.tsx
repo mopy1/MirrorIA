@@ -14,16 +14,18 @@ import { useCart } from "@/hooks/useCart"
 import { CategoriesMenu } from "./categories-menu"
 import { HeaderAuth } from "./header-auth"
 import { NAV_ITEMS } from "./site-header.data"
-import { BrandLogo } from "@/components/brand-logo"
+import { TiendaLogo } from "@/components/tienda-logo"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function SiteHeader() {
   const { itemCount } = useCart()
+  const ruta = useRutaTienda()
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
-        <Link to="/" className="shrink-0 flex items-center transition-opacity hover:opacity-90">
-          <BrandLogo />
+        <Link to={ruta("/")} className="flex min-w-0 shrink-0 items-center transition-opacity hover:opacity-90">
+          <TiendaLogo />
         </Link>
 
         <nav className="hidden shrink-0 items-center gap-1 lg:flex">
@@ -31,7 +33,7 @@ export function SiteHeader() {
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
-              to={item.href}
+              to={ruta(item.href)}
               className="rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {item.label}
@@ -42,7 +44,7 @@ export function SiteHeader() {
         <SearchInput className="hidden max-w-xs flex-1 md:block" />
 
         <div className="ml-auto flex items-center gap-2">
-          <Link to="/carrito" className="relative hidden sm:inline-flex">
+          <Link to={ruta("/carrito")} className="relative hidden sm:inline-flex">
             <Button variant="ghost" size="icon" aria-label="Carrito">
               <ShoppingBag />
             </Button>
@@ -66,8 +68,8 @@ export function SiteHeader() {
 
             <SheetContent side="right" className="w-72">
               <SheetHeader>
-                <SheetTitle className="sr-only">Menú MirrorIA</SheetTitle>
-                <BrandLogo />
+                <SheetTitle className="sr-only">Menú de la tienda</SheetTitle>
+                <TiendaLogo />
               </SheetHeader>
               <div className="flex flex-col gap-4 px-4">
                 <SearchInput />
@@ -76,14 +78,14 @@ export function SiteHeader() {
                   {NAV_ITEMS.map((item) => (
                     <Link
                       key={item.href}
-                      to={item.href}
+                      to={ruta(item.href)}
                       className="rounded-lg px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-muted"
                     >
                       {item.label}
                     </Link>
                   ))}
                   <Link
-                    to="/carrito"
+                    to={ruta("/carrito")}
                     className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-muted"
                   >
                     Carrito

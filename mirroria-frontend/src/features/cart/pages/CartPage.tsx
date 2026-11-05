@@ -10,8 +10,10 @@ import { CartItem } from "../components/cart-item"
 import { CartSummary } from "../components/cart-summary"
 import { CompraPendiente } from "../components/compra-pendiente"
 import { useCartLineItems } from "../hooks/useCartLineItems"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function CartPage() {
+  const ruta = useRutaTienda()
   const { lineItems, variantes, isLoading, error, removeItem, updateItem } = useCartLineItems()
   const misVentas = useResourceList(checkoutApi.getMisVentas)
   const pendientes = misVentas.items.filter((v) => v.estado === "PENDIENTE")
@@ -52,7 +54,7 @@ export function CartPage() {
           <p className="text-sm text-muted-foreground">
             {pendientes.length > 0 ? "Tu carrito está vacío." : "Todavía no agregaste nada."}
           </p>
-          <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }))}>
             Ir a la tienda
           </Link>
         </div>

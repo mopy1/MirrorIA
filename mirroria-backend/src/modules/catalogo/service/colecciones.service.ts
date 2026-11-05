@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { ProveedoresService } from '../../proveedores/service/proveedores.service.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { ColeccionResponseDto } from '../dto/catalogo-response.dto.js';
 import type { CreateColeccionDto } from '../dto/create-coleccion.dto.js';
 import type { UpdateColeccionDto } from '../dto/update-coleccion.dto.js';
@@ -24,7 +25,7 @@ export class ColeccionesService {
 
   async create(dto: CreateColeccionDto): Promise<ColeccionResponseDto> {
     const temporada = await this.temporadaRepository.findOne({
-      where: { id: dto.temporadaId },
+      where: soloTenant({ id: dto.temporadaId }),
     });
     if (!temporada) {
       throw new RecursoNoEncontradoException('Temporada', dto.temporadaId);
@@ -47,7 +48,7 @@ export class ColeccionesService {
 
   async findAll(): Promise<ColeccionResponseDto[]> {
     const colecciones = await this.coleccionRepository.find({
-      where: { activo: true },
+      where: soloTenant({ activo: true }),
       relations: { temporada: true },
       order: { nombre: 'ASC' },
     });
@@ -56,7 +57,7 @@ export class ColeccionesService {
 
   async update(id: string, dto: UpdateColeccionDto): Promise<ColeccionResponseDto> {
     const coleccion = await this.coleccionRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
       relations: { temporada: true },
     });
     if (!coleccion) {
@@ -74,7 +75,7 @@ export class ColeccionesService {
     }
     if (dto.temporadaId !== undefined) {
       const temporada = await this.temporadaRepository.findOne({
-        where: { id: dto.temporadaId },
+        where: soloTenant({ id: dto.temporadaId }),
       });
       if (!temporada) {
         throw new RecursoNoEncontradoException('Temporada', dto.temporadaId);

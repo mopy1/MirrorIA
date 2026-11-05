@@ -9,6 +9,7 @@ import { paymentsApi } from "@/features/payments/api/paymentsApi"
 import { VolverAlCarrito } from "@/features/payments/components/volver-al-carrito"
 import { ApiError } from "@/lib/api"
 import { formatMoney } from "@/lib/money"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 interface CompraPendienteProps {
   venta: Venta
@@ -19,6 +20,7 @@ interface CompraPendienteProps {
 /** Compra PENDIENTE de la clienta: el checkout vació el carrito, así que sin
  * este aviso las prendas parecían perdidas. Retomar el pago o deshacerla. */
 export function CompraPendiente({ venta, variantes, onCancelada }: CompraPendienteProps) {
+  const ruta = useRutaTienda()
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -32,7 +34,7 @@ export function CompraPendiente({ venta, variantes, onCancelada }: CompraPendien
       window.location.href = url
     } catch (err) {
       // Sin tarjeta disponible (503) queda el pago en la sucursal.
-      navigate(`/pago/${venta.id}`, {
+      navigate(ruta(`/pago/${venta.id}`), {
         state: {
           motivo: err instanceof ApiError ? err.message : "No se pudo iniciar el pago con tarjeta",
         },

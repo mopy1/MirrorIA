@@ -1,5 +1,5 @@
-import { Plus, WarningCircle } from "@phosphor-icons/react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CircleNotch, Plus } from "@phosphor-icons/react"
+import { ErrorConPlan } from "@/components/common/ErrorConPlan"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -58,12 +58,7 @@ export function ResourceCreateDialog({
             ))}
           </FieldGroup>
 
-          {createError && (
-            <Alert variant="destructive" className="py-2 text-xs">
-              <WarningCircle className="size-4" />
-              <AlertDescription>{createError}</AlertDescription>
-            </Alert>
-          )}
+          <ErrorConPlan mensaje={createError} />
 
           <DialogFooter className="pt-3">
             <Button
@@ -74,7 +69,7 @@ export function ResourceCreateDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isCreating} className="gap-1.5">
-              <Plus className="size-3.5" />
+              {isCreating ? <CircleNotch className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               {isCreating ? "Guardando..." : "Guardar registro"}
             </Button>
           </DialogFooter>

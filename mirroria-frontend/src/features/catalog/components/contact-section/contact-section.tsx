@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useSucursales } from "@/features/branches/hooks/useSucursales"
 import { estadoDeLista } from "@/lib/estado-de-lista"
 import { cn } from "cn"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /** Contacto real: no hay email/redes del equipo cargados en ningún lado del
  * sistema, así que "contactanos" es, honestamente, llamar o visitar una
@@ -13,6 +14,7 @@ import { cn } from "cn"
  * formulario o canal inventado. `id="contacto"` es el ancla que usa el
  * footer (`site-footer.data.ts`). */
 export function ContactSection() {
+  const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const { sucursales, isLoading } = useSucursales()
   const estado = estadoDeLista({ isLoading, cantidad: sucursales.length })
@@ -23,7 +25,7 @@ export function ContactSection() {
         <h2 className="max-w-[24ch] text-3xl font-semibold tracking-tight sm:text-4xl">
           ¿Tenés dudas? Llamanos o visitanos.
         </h2>
-        <Link to="/sucursales" className={cn(buttonVariants({ variant: "outline" }), "shrink-0")}>
+        <Link to={ruta("/sucursales")} className={cn(buttonVariants({ variant: "outline" }), "shrink-0")}>
           Ver todas las sucursales
         </Link>
       </div>

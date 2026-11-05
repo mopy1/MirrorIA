@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { cartApi } from "@/features/cart/api/cartApi"
 import type { Carrito } from "@/features/cart/types/cart.types"
-import { useAuth } from "@/hooks/useAuth"
+import { useSesionEnTienda } from "@/hooks/useSesionEnTienda"
 import { CartContext, type CartContextValue } from "./cart-context"
 
 /**
@@ -10,9 +10,12 @@ import { CartContext, type CartContextValue } from "./cart-context"
  * autenticado. Este contexto existe (en vez de vivir solo en CartPage)
  * porque el ícono del navbar necesita reaccionar en vivo cuando se agrega un
  * producto desde la ficha de detalle, igual motivo que AuthContext.
+ *
+ * Vive dentro de `/t/:slug` (TiendaRoot) y solo usa la sesión si es de ESTA
+ * tienda: con sesión de otra tienda se navega como invitada, sin carrito.
  */
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const user = useSesionEnTienda()
   const [carrito, setCarrito] = useState<Carrito | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 

@@ -6,6 +6,7 @@ import { ForbiddenActionException } from '../../../core/exception/forbidden-acti
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { StockInsuficienteException } from '../../../core/exception/stock-insuficiente.exception.js';
+import { conTenant, soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
 import { InventarioSucursalService } from '../../inventario/service/inventario-sucursal.service.js';
@@ -120,7 +121,10 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
       // dos POST simultáneos se serializan acá y el segundo ve la primera
       // reserva (antes ambos contaban 1 activa y pasaban el tope). SQL crudo
       // para no importar la entidad Usuario de otro módulo.
-      await manager.query('SELECT id FROM usuarios WHERE id = $1 FOR UPDATE', [clienteId]);
+      await manager.query('SELECT id FROM usuarios WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+        clienteId,
+        tenantActual(),
+      ]);
       const cupo = await this.cupo(clienteId, false, manager);
       if (!cupo.puedeReservar) {
         throw new ForbiddenActionException(cupo.motivo ?? 'No podés reservar en este momento');
@@ -188,14 +192,14 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     const repo = manager ? manager.getRepository(Reserva) : this.reservaRepository;
 
     const reservasActivas = await repo.count({
-      where: { clienteId, estado: In(ESTADOS_ACTIVOS) },
+      where: soloTenant({ clienteId, estado: In(ESTADOS_ACTIVOS) }),
     });
     const faltas = await repo.find({
-      where: {
+      where: soloTenant({
         clienteId,
         estado: In(ESTADOS_FALTA),
         fechaHoraPrevista: MoreThanOrEqual(new Date(ahora - R.ventanaFaltasDias * MS_DIA)),
-      },
+      }),
       order: { fechaHoraPrevista: 'DESC' },
     });
 
@@ -239,18 +243,21 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
    * EXPIRADA (nunca se llegó a confirmar). Las dos cuentan como falta y las dos
    * liberan el stock reservado. EN_TIENDA recién se cierra (CANCELADA, sin
    * falta) si pasaron `horasMaximasEnTienda` sin que se cobrara la venta.
+   *
+   * Recorre TODAS las tiendas (corre sin request): lee id + tenant_id y cierra
+   * cada una dentro de conTenant con el tenant de su propia fila.
    */
   async expirarVencidas(): Promise<number> {
     const limite = new Date(Date.now() - REGLAS_RESERVA.toleranciaMinutos * MS_MINUTO);
     const vencidas = await this.reservaRepository.find({
-      where: {
+      where: { // sin-tenant: barrida global de todas las tiendas
         estado: In([EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA]),
         fechaHoraPrevista: LessThan(limite),
       },
       take: 200,
     });
     const enTiendaOlvidadas = await this.reservaRepository.find({
-      where: {
+      where: { // sin-tenant: barrida global de todas las tiendas
         estado: EstadoReserva.EN_TIENDA,
         fechaHoraPrevista: LessThan(
           new Date(Date.now() - REGLAS_RESERVA.horasMaximasEnTienda * 60 * MS_MINUTO),
@@ -267,15 +274,15 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
             ? EstadoReserva.CANCELADA
             : EstadoReserva.EXPIRADA;
       try {
-        await this.dataSource.transaction(async (manager) => {
-          // Se relee con bloqueo: otra barrida o el staff pudo moverla recién.
-          const actual = await manager
-            .getRepository(Reserva)
-            .findOne({ where: { id: reserva.id }, lock: { mode: 'pessimistic_write' } });
-          if (!actual || actual.estado !== reserva.estado) return;
-          await this.transicionar(actual, destino, manager);
-          cerradas++;
-        });
+        await conTenant({ tenantId: reserva.tenantId }, () =>
+          this.dataSource.transaction(async (manager) => {
+            // Se relee con bloqueo: otra barrida o el staff pudo moverla recién.
+            const actual = await this.bloquear(reserva.id, manager);
+            if (actual.estado !== reserva.estado) return;
+            await this.transicionar(actual, destino, manager);
+            cerradas++;
+          }),
+        );
       } catch (err) {
         this.logger.warn(`No se pudo vencer la reserva ${reserva.id}: ${String(err)}`);
       }
@@ -306,18 +313,18 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
   }): Promise<ReservaResponseDto[]> {
     await this.expirarVencidas();
     const reservas = await this.reservaRepository.find({
-      where: {
+      where: soloTenant({
         ...(filtro.clienteId ? { clienteId: filtro.clienteId } : {}),
         ...(filtro.sucursalId ? { sucursalId: filtro.sucursalId } : {}),
         ...(filtro.estado ? { estado: filtro.estado as EstadoReserva } : {}),
-      },
+      }),
       order: { fechaHoraPrevista: 'DESC' },
     });
     return Promise.all(reservas.map((r) => this.cargarYMapear(r)));
   }
 
   async findOne(id: string): Promise<Reserva> {
-    const reserva = await this.reservaRepository.findOne({ where: { id } });
+    const reserva = await this.reservaRepository.findOne({ where: soloTenant({ id }) });
     if (!reserva) {
       throw new RecursoNoEncontradoException('Reserva', id);
     }
@@ -342,7 +349,7 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
   private async bloquear(id: string, manager: EntityManager): Promise<Reserva> {
     const reserva = await manager
       .getRepository(Reserva)
-      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+      .findOne({ where: soloTenant({ id }), lock: { mode: 'pessimistic_write' } });
     if (!reserva) {
       throw new RecursoNoEncontradoException('Reserva', id);
     }
@@ -405,7 +412,7 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
 
     if (ESTADOS_QUE_LIBERAN_STOCK.includes(nuevoEstado)) {
       const itemRepo = manager.getRepository(ReservaItem);
-      const items = await itemRepo.find({ where: { reserva: { id: reserva.id } } });
+      const items = await itemRepo.find({ where: soloTenant({ reserva: { id: reserva.id } }) });
       for (const item of items) {
         await this.inventarioSucursalService.ajustarReserva({
           varianteId: item.varianteId,
@@ -422,13 +429,13 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     const guardada = await reservaRepo.save(reserva);
     const items = await manager
       .getRepository(ReservaItem)
-      .find({ where: { reserva: { id: guardada.id } } });
+      .find({ where: soloTenant({ reserva: { id: guardada.id } }) });
     return this.toResponse(guardada, items);
   }
 
   private async cargarYMapear(reserva: Reserva): Promise<ReservaResponseDto> {
     const items = await this.reservaItemRepository.find({
-      where: { reserva: { id: reserva.id } },
+      where: soloTenant({ reserva: { id: reserva.id } }),
     });
     return this.toResponse(reserva, items);
   }

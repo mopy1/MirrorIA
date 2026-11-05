@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { MovimientoInventarioResponseDto } from '../dto/inventario-response.dto.js';
 import { MovimientoInventario } from '../entities/movimiento-inventario.entity.js';
 
@@ -16,10 +17,10 @@ export class MovimientosInventarioService {
     sucursalId?: string;
   }): Promise<MovimientoInventarioResponseDto[]> {
     const movimientos = await this.movimientoRepository.find({
-      where: {
+      where: soloTenant({
         ...(filtro.varianteId ? { varianteId: filtro.varianteId } : {}),
         ...(filtro.sucursalId ? { sucursalId: filtro.sucursalId } : {}),
-      },
+      }),
       relations: { ordenCompra: true },
       order: { fecha: 'DESC' },
     });

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { WarningCircle } from "@phosphor-icons/react"
+import { CircleNotch, WarningCircle } from "@phosphor-icons/react"
 import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 import { z } from "zod"
@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 import { useRegister } from "../../hooks/useRegister"
 
 const registerSchema = z.object({
@@ -19,6 +20,7 @@ type RegisterValues = z.infer<typeof registerSchema>
 
 export function RegisterForm() {
   const { submit, isLoading, error } = useRegister()
+  const ruta = useRutaTienda()
   const {
     register,
     handleSubmit,
@@ -71,13 +73,14 @@ export function RegisterForm() {
         </Field>
       </FieldGroup>
 
-      <Button type="submit" size="lg" disabled={isLoading}>
+      <Button type="submit" size="lg" disabled={isLoading} className="gap-2">
+        {isLoading && <CircleNotch className="size-4 animate-spin" />}
         {isLoading ? "Creando cuenta..." : "Crear cuenta"}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tenés cuenta?{" "}
-        <Link to="/login" className="font-medium text-foreground underline underline-offset-4">
+        <Link to={ruta("/login")} className="font-medium text-foreground underline underline-offset-4">
           Iniciá sesión
         </Link>
       </p>

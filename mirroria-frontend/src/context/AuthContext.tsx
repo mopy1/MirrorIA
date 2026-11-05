@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { authApi } from "@/features/auth/api/authApi"
 import type { UsuarioResponse } from "@/features/auth/types/auth.types"
-import { ApiError } from "@/lib/api"
+import { ApiError, TOKEN_KEY, USER_KEY } from "@/lib/api"
 import { AuthContext, type AuthContextValue } from "./auth-context"
 
 function readStoredUser(): UsuarioResponse | null {
-  const raw = localStorage.getItem("mirroria_user")
+  const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
     return JSON.parse(raw) as UsuarioResponse
@@ -21,17 +21,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // cargar la app se refresca con /me. Un 401 ahí (cuenta desactivada o token
   // vencido) cierra la sesión; un error de red deja la guardada.
   useEffect(() => {
-    if (!localStorage.getItem("mirroria_token")) return
+    if (!localStorage.getItem(TOKEN_KEY)) return
     authApi
       .getMe()
       .then((fresco) => {
-        localStorage.setItem("mirroria_user", JSON.stringify(fresco))
+        localStorage.setItem(USER_KEY, JSON.stringify(fresco))
         setUser(fresco)
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
-          localStorage.removeItem("mirroria_token")
-          localStorage.removeItem("mirroria_user")
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_KEY)
           setUser(null)
         }
       })
@@ -42,13 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isAuthenticated: user !== null,
       login: (auth) => {
-        localStorage.setItem("mirroria_token", auth.accessToken)
-        localStorage.setItem("mirroria_user", JSON.stringify(auth.usuario))
+        localStorage.setItem(TOKEN_KEY, auth.accessToken)
+        localStorage.setItem(USER_KEY, JSON.stringify(auth.usuario))
         setUser(auth.usuario)
       },
       logout: () => {
-        localStorage.removeItem("mirroria_token")
-        localStorage.removeItem("mirroria_user")
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(USER_KEY)
         setUser(null)
       },
     }),

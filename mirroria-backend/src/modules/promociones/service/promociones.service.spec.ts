@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import type { Repository } from 'typeorm';
 import { PromocionesService } from './promociones.service.js';
 import { Cupon, TipoDescuentoCupon } from '../entities/cupon.entity.js';
@@ -198,7 +199,10 @@ describe('PromocionesService', () => {
       expect((qb.set.mock.calls[0][0] as { usosActuales: () => string }).usosActuales()).toBe(
         'GREATEST(0, usos_actuales - 1)',
       );
-      expect(qb.where).toHaveBeenCalledWith('id = :id', { id: 'c1' });
+      expect(qb.where).toHaveBeenCalledWith('id = :id AND tenant_id = :tenantId', {
+        id: 'c1',
+        tenantId: TENANT_PRUEBA,
+      });
     });
 
     it('un cupon inexistente no rompe: cancelar una venta no puede fallar por esto', async () => {

@@ -9,5 +9,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    // Contexto de tienda de prueba (Fase 1 SaaS) en cada test unitario.
+    setupFiles: ['./vitest.setup.ts'],
   },
 });

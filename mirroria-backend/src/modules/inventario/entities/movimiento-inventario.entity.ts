@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 import { OrdenCompra } from './orden-compra.entity.js';
 
 export enum TipoMovimientoInventario {
@@ -12,7 +12,7 @@ export enum TipoMovimientoInventario {
 }
 
 @Entity('movimientos_inventario')
-export class MovimientoInventario extends BaseEntity {
+export class MovimientoInventario extends TenantBaseEntity {
   // Cross-módulo (catalogo, sucursales) como columnas simples.
   @Column({ name: 'variante_id', type: 'uuid' })
   varianteId!: string;

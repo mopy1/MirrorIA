@@ -4,6 +4,7 @@ import { cn } from "cn"
 import { buttonVariants } from "@/components/ui/button"
 import { formatMoney } from "@/lib/money"
 import type { CobroQr } from "../types/payments.types"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 const fechaHora = new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" })
 
@@ -15,6 +16,7 @@ interface QrPagadoProps {
 
 /** Lo que aparece en la tienda en el instante en que el banco avisa el pago. */
 export function QrPagado({ cobro, transaccion, pagadoEn }: QrPagadoProps) {
+  const ruta = useRutaTienda()
   const filas: [string, string][] = [
     ["Comercio", cobro.comercio],
     ["Referencia", cobro.referencia],
@@ -45,7 +47,7 @@ export function QrPagado({ cobro, transaccion, pagadoEn }: QrPagadoProps) {
         ))}
       </dl>
 
-      <Link to="/tienda" className={cn(buttonVariants(), "mt-8 w-full")}>
+      <Link to={ruta("/tienda")} className={cn(buttonVariants(), "mt-8 w-full")}>
         Seguir comprando
       </Link>
     </div>

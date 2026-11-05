@@ -1,5 +1,5 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 import { Categoria } from './categoria.entity.js';
 import { Coleccion } from './coleccion.entity.js';
 
@@ -10,7 +10,8 @@ export interface ImagenProducto {
 }
 
 @Entity('productos')
-export class Producto extends BaseEntity {
+@Index(['tenantId', 'slug'], { unique: true })
+export class Producto extends TenantBaseEntity {
   @ManyToOne(() => Categoria, { nullable: false })
   @JoinColumn({ name: 'categoria_id' })
   categoria!: Categoria;
@@ -24,7 +25,6 @@ export class Producto extends BaseEntity {
   @Column({ length: 255 })
   titulo!: string;
 
-  @Index({ unique: true })
   @Column({ length: 280 })
   slug!: string;
 

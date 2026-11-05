@@ -4,14 +4,16 @@ import { ProductImagePlaceholder } from "@/components/common/ProductImagePlaceho
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { formatMoney } from "@/lib/money"
 import type { Producto } from "../../types/catalog.types"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function ProductCard({ producto }: { producto: Producto }) {
+  const ruta = useRutaTienda()
   const [hasError, setHasError] = useState(false)
   const imageUrl = producto.imagenes?.[0]?.url
 
   return (
     <Link
-      to={`/tienda/producto/${producto.id}`}
+      to={ruta(`/tienda/producto/${producto.id}`)}
       className="group block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="overflow-hidden rounded-2xl bg-muted">

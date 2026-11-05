@@ -1,17 +1,19 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from "@/hooks/useAuth"
+import { useSesionEnTienda } from "@/hooks/useSesionEnTienda"
 import { useCreateResource } from "@/hooks/useCreateResource"
 import { reservationsApi } from "../../api/reservationsApi"
 import { useCupoReserva } from "../../hooks/useCupoReserva"
 import { estaEnVentana, ventanaReserva } from "../../lib/ventanaReserva"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /**
  * Lógica de `ReservarEnTienda`: cupo de la clienta, ventana válida de
  * horario y el POST. Siempre reserva 1 unidad (el backend rechaza más).
  */
 export function useReservarEnTienda(varianteId: string | null, sucursalId: string | null) {
-  const { isAuthenticated } = useAuth()
+  const ruta = useRutaTienda()
+  const isAuthenticated = useSesionEnTienda() !== null
   const navigate = useNavigate()
   const { cupo, reload: recargarCupo } = useCupoReserva(isAuthenticated)
   const [fechaHora, setFechaHora] = useState("")
@@ -26,7 +28,7 @@ export function useReservarEnTienda(varianteId: string | null, sucursalId: strin
 
   async function reservar() {
     if (!isAuthenticated) {
-      navigate("/login")
+      navigate(ruta("/login"))
       return
     }
     if (!varianteId || !sucursalId || !fechaHora || bloqueada) return

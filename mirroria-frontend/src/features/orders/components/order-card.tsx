@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money"
 import { cn } from "cn"
 import type { Pedido } from "../types/orders.types"
 import { OrderStatusBadge } from "./order-status-badge"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 interface OrderCardProps {
   pedido: Pedido
@@ -14,6 +15,7 @@ interface OrderCardProps {
 }
 
 export function OrderCard({ pedido, variantes }: OrderCardProps) {
+  const ruta = useRutaTienda()
   const fecha = new Date(pedido.createdAt).toLocaleDateString("es-BO", {
     year: "numeric",
     month: "short",
@@ -80,7 +82,7 @@ export function OrderCard({ pedido, variantes }: OrderCardProps) {
 
           {pedido.estado === "PENDIENTE" && (
             <Link
-              to={`/pago/${pedido.id}`}
+              to={ruta(`/pago/${pedido.id}`)}
               className={cn(buttonVariants({ size: "sm" }), "gap-1.5 self-start sm:self-auto")}
             >
               <CreditCard className="size-4" />

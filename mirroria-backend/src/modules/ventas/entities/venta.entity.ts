@@ -1,5 +1,5 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum CanalVenta {
   WEB = 'WEB',
@@ -17,7 +17,7 @@ export enum EstadoVenta {
 }
 
 @Entity('ventas')
-export class Venta extends BaseEntity {
+export class Venta extends TenantBaseEntity {
   // Todas las FK de esta entidad son cross-módulo -> columnas simples, mismo
   // criterio que el resto del proyecto. cliente_id/cajero_id nullable porque
   // una venta presencial puede no identificar al cliente, y una venta

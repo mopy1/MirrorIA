@@ -4,6 +4,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { StockInsuficienteException } from '../../../core/exception/stock-insuficiente.exception.js';
+import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
 import type { InventarioSucursalResponseDto } from '../dto/inventario-response.dto.js';
@@ -66,10 +67,10 @@ export class InventarioSucursalService {
     sucursalId?: string;
   }): Promise<InventarioSucursalResponseDto[]> {
     const filas = await this.inventarioRepository.find({
-      where: {
+      where: soloTenant({
         ...(filtro.varianteId ? { varianteId: filtro.varianteId } : {}),
         ...(filtro.sucursalId ? { sucursalId: filtro.sucursalId } : {}),
-      },
+      }),
     });
     return filas.map((f) => this.toResponse(f));
   }
@@ -92,7 +93,7 @@ export class InventarioSucursalService {
 
     const manager = params.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
-    const donde = { varianteId: params.varianteId, sucursalId: params.sucursalId };
+    const donde = soloTenant({ varianteId: params.varianteId, sucursalId: params.sucursalId });
     await this.asegurarFila(manager, params.varianteId, params.sucursalId);
 
     // UPDATE atómico condicionado, no "leer, sumar y guardar": con checkouts
@@ -107,7 +108,7 @@ export class InventarioSucursalService {
       .createQueryBuilder()
       .update(InventarioSucursal)
       .set({ cantidadDisponible: () => 'cantidad_disponible + :delta' })
-      .where('variante_id = :varianteId AND sucursal_id = :sucursalId');
+      .where('variante_id = :varianteId AND sucursal_id = :sucursalId AND tenant_id = :tenantId');
     if (params.cantidad < 0) {
       qb.andWhere(`${libre} + :delta >= 0`);
     }
@@ -115,7 +116,7 @@ export class InventarioSucursalService {
       .setParameters({ ...donde, delta: params.cantidad })
       .execute();
     if (affected !== 1) {
-      const actual = await invRepo.findOneOrFail({ where: donde });
+      const actual = await invRepo.findOneOrFail({ where: donde }); // donde ya es soloTenant(...)
       throw new StockInsuficienteException(
         params.varianteId,
         params.sucursalId,
@@ -125,7 +126,7 @@ export class InventarioSucursalService {
         -params.cantidad,
       );
     }
-    const fila = await invRepo.findOneOrFail({ where: donde });
+    const fila = await invRepo.findOneOrFail({ where: donde }); // donde ya es soloTenant(...)
 
     const movRepo = manager.getRepository(MovimientoInventario);
     await movRepo.save(
@@ -154,7 +155,14 @@ export class InventarioSucursalService {
       .createQueryBuilder()
       .insert()
       .into(InventarioSucursal)
-      .values({ varianteId, sucursalId, cantidadDisponible: 0, cantidadReservada: 0, cantidadEnTransito: 0 })
+      .values({
+        tenantId: tenantActual(),
+        varianteId,
+        sucursalId,
+        cantidadDisponible: 0,
+        cantidadReservada: 0,
+        cantidadEnTransito: 0,
+      })
       .orIgnore()
       .execute();
   }
@@ -180,7 +188,7 @@ export class InventarioSucursalService {
     // Dentro de una transacción se bloquea la fila: sin esto dos reservas
     // simultáneas leían el mismo `cantidadReservada` y apartaban la misma unidad.
     let fila = await invRepo.findOne({
-      where: { varianteId: params.varianteId, sucursalId: params.sucursalId },
+      where: soloTenant({ varianteId: params.varianteId, sucursalId: params.sucursalId }),
       ...(params.manager ? { lock: { mode: 'pessimistic_write' as const } } : {}),
     });
     if (!fila) {
@@ -245,9 +253,9 @@ export class InventarioSucursalService {
       .createQueryBuilder()
       .update(InventarioSucursal)
       .set({ cantidadEnTransito: () => 'cantidad_en_transito + :delta' })
-      .where('variante_id = :varianteId AND sucursal_id = :sucursalId')
+      .where('variante_id = :varianteId AND sucursal_id = :sucursalId AND tenant_id = :tenantId')
       .andWhere('cantidad_en_transito + :delta >= 0')
-      .setParameters({ varianteId, sucursalId, delta })
+      .setParameters({ varianteId, sucursalId, delta, tenantId: tenantActual() })
       .execute();
     if (affected !== 1) {
       throw new OperacionInvalidaException(

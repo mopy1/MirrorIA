@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
-import { MotorConsultaService } from './motor-consulta.service.js';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
+import { CATALOGO_METRICAS } from './catalogo-metricas.js';
+import { aliasRaiz, MotorConsultaService } from './motor-consulta.service.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
 
@@ -50,7 +52,7 @@ describe('MotorConsultaService', () => {
     await service.ejecutar(
       ficha({ metrica: 'cantidad_reservas', agruparPor: 'ninguno', filtros: { estado: 'cancelada' } }),
     );
-    expect(sqlDeLaLlamada()).toContain('r.estado = $1');
+    expect(sqlDeLaLlamada()).toContain('r.estado = $2');
     expect(paramsDeLaLlamada()).toContain('CANCELADA');
     expect(paramsDeLaLlamada()).not.toContain('cancelada');
   });
@@ -77,7 +79,7 @@ describe('MotorConsultaService', () => {
     );
     // `v."createdAt" <= '2026-08-31'` compara contra la medianoche del 31 y borra
     // el ultimo dia entero del periodo. Ver el comentario del motor.
-    expect(sqlDeLaLlamada()).toContain(`v."createdAt" < ($1::date + INTERVAL '1 day')`);
+    expect(sqlDeLaLlamada()).toContain(`v."createdAt" < ($2::date + INTERVAL '1 day')`);
     expect(sqlDeLaLlamada()).not.toContain('v."createdAt" <= $');
     expect(paramsDeLaLlamada()).toContain('2026-08-31');
   });
@@ -159,7 +161,7 @@ describe('MotorConsultaService', () => {
       );
       const sql = sqlDeLaLlamada();
       expect(sql).toContain('EXISTS (SELECT 1 FROM venta_items fvi');
-      expect(sql).toContain('fp.categoria_id = $1');
+      expect(sql).toContain('fp.categoria_id = $2');
       // Un JOIN a venta_items en el FROM multiplicaria la venta por sus lineas.
       expect(sql).not.toContain('JOIN venta_items vi');
       expect(paramsDeLaLlamada()).toContain(CAT);
@@ -347,6 +349,24 @@ describe('MotorConsultaService', () => {
       await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'cliente' }));
       expect(sqlDeLaLlamada()).toContain('JOIN usuarios u ON u.id = v.cliente_id');
       expect(sqlDeLaLlamada()).toContain('u.full_name');
+    });
+  });
+
+  describe('aislamiento por tienda (Fase 1 SaaS)', () => {
+    it('toda metrica del catalogo tiene alias en su tabla raiz', () => {
+      for (const [nombre, def] of Object.entries(CATALOGO_METRICAS)) {
+        expect(aliasRaiz(def.from), nombre).toMatch(/^[a-z_]+$/);
+      }
+    });
+
+    it('el SQL filtra la tabla raiz por tenant_id = $1 con el tenant del contexto', async () => {
+      for (const metrica of Object.keys(CATALOGO_METRICAS)) {
+        query.mockClear();
+        await service.ejecutar(ficha({ metrica: metrica as FichaConsultaDto['metrica'], agruparPor: 'ninguno' }));
+        const alias = aliasRaiz(CATALOGO_METRICAS[metrica as keyof typeof CATALOGO_METRICAS].from);
+        expect(sqlDeLaLlamada(), metrica).toContain(`${alias}.tenant_id = $1`);
+        expect(paramsDeLaLlamada()[0]).toBe(TENANT_PRUEBA);
+      }
     });
   });
 });

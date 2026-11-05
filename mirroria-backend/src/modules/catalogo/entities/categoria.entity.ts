@@ -1,8 +1,9 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 @Entity('categorias')
-export class Categoria extends BaseEntity {
+@Index(['tenantId', 'slug'], { unique: true })
+export class Categoria extends TenantBaseEntity {
   @ManyToOne(() => Categoria, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'padre_id' })
   padre!: Categoria | null;
@@ -10,7 +11,6 @@ export class Categoria extends BaseEntity {
   @Column({ length: 100 })
   nombre!: string;
 
-  @Index({ unique: true })
   @Column({ length: 120 })
   slug!: string;
 

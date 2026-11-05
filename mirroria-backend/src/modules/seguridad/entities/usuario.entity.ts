@@ -6,11 +6,25 @@ export enum RolUsuario {
   ADMIN = 'ADMIN',
   ENCARGADO_SUCURSAL = 'ENCARGADO_SUCURSAL',
   CAJERO = 'CAJERO',
+  /** Dueño del SaaS: tenant_id NULL, solo opera /saas/plataforma/* y ciudades. */
+  DUENO_PLATAFORMA = 'DUENO_PLATAFORMA',
 }
 
+/** Roles que cuentan para el límite de staff del plan. */
+export const ROLES_STAFF = [RolUsuario.ADMIN, RolUsuario.ENCARGADO_SUCURSAL, RolUsuario.CAJERO];
+
 @Entity('usuarios')
+// Email único POR TIENDA (la misma persona puede ser clienta de dos tiendas) y
+// único entre las cuentas de plataforma (tenant_id NULL no choca en un UNIQUE).
+@Index(['tenantId', 'email'], { unique: true })
+@Index(['email'], { unique: true, where: '"tenant_id" IS NULL' })
 export class Usuario extends BaseEntity {
-  @Index({ unique: true })
+  // No extiende TenantBaseEntity: es la única tabla con tenant nullable
+  // (NULL solo para DUENO_PLATAFORMA). FK lógica a inquilinos.id.
+  @Index()
+  @Column({ name: 'tenant_id', type: 'uuid', nullable: true })
+  tenantId!: string | null;
+
   @Column({ length: 150 })
   email!: string;
 

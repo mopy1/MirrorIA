@@ -1,5 +1,5 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum TipoInteraccion {
   REPORTE_VOZ = 'REPORTE_VOZ',
@@ -12,7 +12,7 @@ export enum TipoInteraccion {
  * pregunta no entendida tambien es dato.
  */
 @Entity('interacciones_ia')
-export class InteraccionIa extends BaseEntity {
+export class InteraccionIa extends TenantBaseEntity {
   @Column({ name: 'usuario_id', type: 'uuid' })
   usuarioId!: string;
 

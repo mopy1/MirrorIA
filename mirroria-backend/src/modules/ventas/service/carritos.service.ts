@@ -4,6 +4,7 @@ import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { REGLAS_COMPRA } from '../reglas-compra.js';
 import type { AddItemCarritoDto } from '../dto/add-item-carrito.dto.js';
@@ -46,12 +47,17 @@ export class CarritosService {
     // sin carrito chocaban contra el unique de usuario_id y uno daba 500.
     const buscar = () =>
       repo.findOne({
-        where: { usuarioId },
+        where: soloTenant({ usuarioId }),
         ...(manager ? { lock: { mode: 'pessimistic_write' as const } } : {}),
       });
     const carrito = await buscar();
     if (carrito) return carrito;
-    await repo.createQueryBuilder().insert().values({ usuarioId, items: [] }).orIgnore().execute();
+    await repo
+      .createQueryBuilder()
+      .insert()
+      .values({ tenantId: tenantActual(), usuarioId, items: [] })
+      .orIgnore()
+      .execute();
     return (await buscar())!;
   }
 
@@ -126,7 +132,7 @@ export class CarritosService {
   /** Usado por VentasService al completar el checkout. */
   async vaciar(usuarioId: string, manager?: EntityManager): Promise<void> {
     const repo = manager ? manager.getRepository(Carrito) : this.carritoRepository;
-    await repo.delete({ usuarioId });
+    await repo.delete(soloTenant({ usuarioId }));
   }
 
   /**
@@ -154,7 +160,7 @@ export class CarritosService {
 
     const repo = manager.getRepository(Carrito);
     const carrito =
-      (await repo.findOne({ where: { usuarioId }, lock: { mode: 'pessimistic_write' } })) ??
+      (await repo.findOne({ where: soloTenant({ usuarioId }), lock: { mode: 'pessimistic_write' } })) ??
       repo.create({ usuarioId, items: [] });
     carrito.items = sumarAlCarrito(carrito.items, vigentes);
     await repo.save(carrito);

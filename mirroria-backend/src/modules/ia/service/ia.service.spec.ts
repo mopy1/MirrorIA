@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import { plainToInstance } from 'class-transformer';
 import type { Repository } from 'typeorm';
 import { IaService } from './ia.service.js';
@@ -332,13 +333,14 @@ describe('historial', () => {
     expect(repo.find).toHaveBeenCalledWith(
       expect.objectContaining({ order: { createdAt: 'DESC' }, take: 50 }),
     );
-    expect(repo.find.mock.calls[0][0].where).toBeUndefined();
+    // Todas las de SU tienda, nada más (Fase 1 SaaS).
+    expect(repo.find.mock.calls[0][0].where).toEqual({ tenantId: TENANT_PRUEBA });
   });
 
   it('un ENCARGADO_SUCURSAL solo ve las suyas', async () => {
     repo.find = vi.fn().mockResolvedValue([]);
     await service.historial({ sub: 'u2', email: 'b@b.com', role: 'ENCARGADO_SUCURSAL', sucursalId: 's1' });
-    expect(repo.find.mock.calls[0][0].where).toEqual({ usuarioId: 'u2' });
+    expect(repo.find.mock.calls[0][0].where).toEqual({ usuarioId: 'u2', tenantId: TENANT_PRUEBA });
   });
 
   it('no devuelve la entidad cruda sino un DTO', async () => {

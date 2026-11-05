@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { CreateCuponDto } from '../dto/create-cupon.dto.js';
 import { CuponResponseDto } from '../dto/cupon-response.dto.js';
 import { ValidarCuponResponseDto } from '../dto/validar-cupon-response.dto.js';
@@ -20,7 +21,7 @@ export class PromocionesService {
     const codigoNormalizado = dto.codigo.trim().toUpperCase();
 
     const existente = await this.cuponRepository.findOne({
-      where: { codigo: codigoNormalizado },
+      where: soloTenant({ codigo: codigoNormalizado }),
     });
     if (existente) {
       throw new RecursoDuplicadoException(
@@ -65,13 +66,14 @@ export class PromocionesService {
 
   async findAll(): Promise<CuponResponseDto[]> {
     const cupones = await this.cuponRepository.find({
+      where: soloTenant({}),
       order: { createdAt: 'DESC' },
     });
     return cupones.map((c) => this.toResponseDto(c));
   }
 
   async findOne(id: string): Promise<CuponResponseDto> {
-    const cupon = await this.cuponRepository.findOne({ where: { id } });
+    const cupon = await this.cuponRepository.findOne({ where: soloTenant({ id }) });
     if (!cupon) {
       throw new RecursoNoEncontradoException('Cupón', id);
     }
@@ -80,12 +82,12 @@ export class PromocionesService {
 
   async findByCodigo(codigo: string): Promise<Cupon | null> {
     return this.cuponRepository.findOne({
-      where: { codigo: codigo.trim().toUpperCase() },
+      where: soloTenant({ codigo: codigo.trim().toUpperCase() }),
     });
   }
 
   async toggleActivo(id: string): Promise<CuponResponseDto> {
-    const cupon = await this.cuponRepository.findOne({ where: { id } });
+    const cupon = await this.cuponRepository.findOne({ where: soloTenant({ id }) });
     if (!cupon) {
       throw new RecursoNoEncontradoException('Cupón', id);
     }
@@ -178,7 +180,7 @@ export class PromocionesService {
     const codigoNormalizado = codigo.trim().toUpperCase();
 
     const cupon = await repo.findOne({
-      where: { codigo: codigoNormalizado },
+      where: soloTenant({ codigo: codigoNormalizado }),
     });
 
     if (!cupon) {
@@ -217,7 +219,7 @@ export class PromocionesService {
       .createQueryBuilder()
       .update(Cupon)
       .set({ usosActuales: () => 'usos_actuales + 1' })
-      .where('id = :id', { id: cupon.id })
+      .where('id = :id AND tenant_id = :tenantId', { id: cupon.id, tenantId: tenantActual() })
       .andWhere('(usos_maximos IS NULL OR usos_actuales < usos_maximos)')
       .execute();
     if (affected !== 1) {
@@ -246,7 +248,7 @@ export class PromocionesService {
       .createQueryBuilder()
       .update(Cupon)
       .set({ usosActuales: () => 'GREATEST(0, usos_actuales - 1)' })
-      .where('id = :id', { id: cuponId })
+      .where('id = :id AND tenant_id = :tenantId', { id: cuponId, tenantId: tenantActual() })
       .execute();
   }
 

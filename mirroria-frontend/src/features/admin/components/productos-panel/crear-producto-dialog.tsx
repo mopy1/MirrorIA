@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
-import { Plus, WarningCircle } from "@phosphor-icons/react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CircleNotch, Plus } from "@phosphor-icons/react"
+import { ErrorConPlan } from "@/components/common/ErrorConPlan"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -83,19 +83,14 @@ export function CrearProductoDialog({
             colecciones={colecciones}
           />
 
-          {error && (
-            <Alert variant="destructive" className="py-2 text-xs">
-              <WarningCircle className="size-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <ErrorConPlan mensaje={error} />
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading} className="gap-1.5">
-              <Plus className="size-3.5" />
+              {isLoading ? <CircleNotch className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               {isLoading ? "Creando..." : "Crear prenda"}
             </Button>
           </DialogFooter>

@@ -114,6 +114,12 @@ describe('Pagos contra Postgres real (el stock y el cupon, no dobles)', () => {
     await sembrar(ds);
   });
 
+  // Cancelar una venta devuelve sus prendas al carrito (2026-11-03): sin esto cada
+  // caso arrancaba con el carrito que dejó el anterior y chocaba con el tope de 3.
+  beforeEach(async () => {
+    await ds.query(`DELETE FROM carritos WHERE usuario_id = $1`, [ID.cliente]);
+  });
+
   afterAll(async () => {
     await limpiar(ds);
     await app.close();
@@ -411,7 +417,7 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
   });
 
   it('un webhook con firma invalida es 400 y la venta sigue PENDIENTE', async () => {
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', 'firma-que-no-es')
       .send({ id: 'evt_x', sesionId: 'ses_x' })
@@ -438,13 +444,13 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
   it('el mismo aviso dos veces: el segundo NO vuelve a procesar', async () => {
     const cuerpo = { id: 'evt_1', sesionId };
 
-    const primera = await request(app.getHttpServer())
+    const primera = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send(cuerpo)
       .expect(200);
 
-    const segunda = await request(app.getHttpServer())
+    const segunda = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send(cuerpo)
@@ -472,7 +478,7 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
     // pasarela recibe 200 (si no, reintentaria para siempre) y el pago queda
     // guardado marcado para reembolso en vez de perderse.
     await ventas.cancelarPorPagoNoCompletado(ventaId, 'prueba');
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send({ id: 'evt_2', sesionId: sesionId })
@@ -513,8 +519,8 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
     // que el JWT de clienteA valide contra la tabla usuarios).
     await ds.query(
       `INSERT INTO ventas
-         (id, cliente_id, sucursal_id, canal, estado, subtotal_cents, descuento_cents, total_cents)
-       VALUES ($1, $2, $3, 'WEB', 'PAGADA', 1000, 0, 1000)`,
+         (tenant_id, id, cliente_id, sucursal_id, canal, estado, subtotal_cents, descuento_cents, total_cents)
+       VALUES ('00000000-0000-4000-a000-000000000001', $1, $2, $3, 'WEB', 'PAGADA', 1000, 0, 1000)`,
       [VID.venta, clienteA.id, VID.suc],
     );
   });
@@ -528,7 +534,7 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
   });
 
   it('la clienta dueña de la venta puede leerla', async () => {
-    const res = await request(app.getHttpServer())
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${clienteA.token}`)
       .expect(200);
@@ -538,14 +544,14 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
   // La que importa: sin este chequeo, agregar CUSTOMER a los roles del
   // endpoint abriria el acceso de cualquier clienta a cualquier venta.
   it('otra clienta NO puede leer una venta ajena', async () => {
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${clienteB.token}`)
       .expect(403);
   });
 
   it('un ADMIN puede leer cualquier venta', async () => {
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${admin.token}`)
       .expect(200);
@@ -586,40 +592,40 @@ async function limpiar(ds: DataSource): Promise<void> {
 async function sembrar(ds: DataSource): Promise<void> {
   const q = (sql: string, p: unknown[] = []) => ds.query(sql, p);
 
-  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz', 'Bolivia')`, [ID.ciudad]);
-  await q(`INSERT INTO sucursales (id, nombre, direccion, ciudad_id, activo)
-           VALUES ($1, 'Sucursal Pagos', 'Av 1', $2, true)`, [ID.suc, ID.ciudad]);
-  await q(`INSERT INTO proveedores (id, razon_social, activo) VALUES ($1, 'Textiles SA', true)`, [ID.prov]);
-  await q(`INSERT INTO temporadas (id, nombre, fecha_inicio, fecha_fin)
-           VALUES ($1, 'Verano 2026', '2026-01-01', '2026-12-31')`, [ID.temp]);
-  await q(`INSERT INTO colecciones (id, nombre, temporada_id, proveedor_id)
-           VALUES ($1, 'Coleccion Pagos', $2, $3)`, [ID.colec, ID.temp, ID.prov]);
-  await q(`INSERT INTO categorias (id, nombre, slug, activo)
-           VALUES ($1, 'Pagos Cat', 'pagos-cat', true)`, [ID.cat]);
+  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz (e2e pagos)', 'Bolivia')`, [ID.ciudad]);
+  await q(`INSERT INTO sucursales (tenant_id, id, nombre, direccion, ciudad_id, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Sucursal Pagos', 'Av 1', $2, true)`, [ID.suc, ID.ciudad]);
+  await q(`INSERT INTO proveedores (tenant_id, id, razon_social, activo) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Textiles SA', true)`, [ID.prov]);
+  await q(`INSERT INTO temporadas (tenant_id, id, nombre, fecha_inicio, fecha_fin)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Verano 2026', '2026-01-01', '2026-12-31')`, [ID.temp]);
+  await q(`INSERT INTO colecciones (tenant_id, id, nombre, temporada_id, proveedor_id)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Coleccion Pagos', $2, $3)`, [ID.colec, ID.temp, ID.prov]);
+  await q(`INSERT INTO categorias (tenant_id, id, nombre, slug, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Pagos Cat', 'pagos-cat', true)`, [ID.cat]);
   // Nombres distintos a los de motor-consulta.e2e-spec.ts: tallas.nombre y
   // colores.nombre son UNIQUE globales, y vitest corre los archivos .e2e-spec
   // en paralelo — con 'M'/'Negro' los dos INSERT chocan entre si.
-  await q(`INSERT INTO tallas (id, nombre, orden) VALUES ($1, 'M-PAGOS', 2)`, [ID.talla]);
-  await q(`INSERT INTO colores (id, nombre, hex_code) VALUES ($1, 'Negro Pagos', '#000000')`, [ID.color]);
-  await q(`INSERT INTO productos (id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
-           VALUES ($1, 'Vestido Pagos', 'vestido-pagos', 5000, $2, $3, true, '[]'::jsonb)`,
+  await q(`INSERT INTO tallas (tenant_id, id, nombre, orden) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'M-PAGOS', 2)`, [ID.talla]);
+  await q(`INSERT INTO colores (tenant_id, id, nombre, hex_code) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Negro Pagos', '#000000')`, [ID.color]);
+  await q(`INSERT INTO productos (tenant_id, id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Vestido Pagos', 'vestido-pagos', 5000, $2, $3, true, '[]'::jsonb)`,
     [ID.prod, ID.cat, ID.colec]);
-  await q(`INSERT INTO variantes_producto (id, sku, producto_id, talla_id, color_id, activo)
-           VALUES ($1, 'SKU-PAGOS-1', $2, $3, $4, true)`, [ID.var, ID.prod, ID.talla, ID.color]);
+  await q(`INSERT INTO variantes_producto (tenant_id, id, sku, producto_id, talla_id, color_id, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'SKU-PAGOS-1', $2, $3, $4, true)`, [ID.var, ID.prod, ID.talla, ID.color]);
 
   // Inventario: 10 unidades disponibles, nada reservado ni en transito.
   await q(`INSERT INTO inventario_sucursal
-             (id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
-           VALUES (gen_random_uuid(), $1, $2, 10, 0, 0)`, [ID.var, ID.suc]);
+             (tenant_id, id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
+           VALUES ('00000000-0000-4000-a000-000000000001', gen_random_uuid(), $1, $2, 10, 0, 0)`, [ID.var, ID.suc]);
 
-  await q(`INSERT INTO usuarios (id, email, password_hash, full_name, role, sucursal_id, is_active)
-           VALUES ($1, 'clienta-pagos@test.com', 'x', 'Clienta Pagos', 'CUSTOMER', NULL, true),
-                  ($2, 'cajero-pagos@test.com', 'x', 'Cajero Pagos', 'CAJERO', $3, true)`,
+  await q(`INSERT INTO usuarios (tenant_id, id, email, password_hash, full_name, role, sucursal_id, is_active)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'clienta-pagos@test.com', 'x', 'Clienta Pagos', 'CUSTOMER', NULL, true),
+                  ('00000000-0000-4000-a000-000000000001', $2, 'cajero-pagos@test.com', 'x', 'Cajero Pagos', 'CAJERO', $3, true)`,
     [ID.cliente, ID.cajero, ID.suc]);
 
   // Cupon ya con 5 usos previos, vigente durante toda la corrida de pruebas.
-  await q(`INSERT INTO cupones (id, codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_actuales, activo)
-           VALUES ($1, 'PRUEBA10', 'PORCENTAJE', 10, '2020-01-01', '2030-12-31', 5, true)`, [ID.cupon]);
+  await q(`INSERT INTO cupones (tenant_id, id, codigo, tipo_descuento, valor, fecha_inicio, fecha_fin, usos_actuales, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'PRUEBA10', 'PORCENTAJE', 10, '2020-01-01', '2030-12-31', 5, true)`, [ID.cupon]);
 }
 
 /**
@@ -652,33 +658,33 @@ async function limpiarWebhook(ds: DataSource): Promise<void> {
 async function sembrarWebhook(ds: DataSource): Promise<void> {
   const q = (sql: string, p: unknown[] = []) => ds.query(sql, p);
 
-  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz', 'Bolivia')`, [WID.ciudad]);
-  await q(`INSERT INTO sucursales (id, nombre, direccion, ciudad_id, activo)
-           VALUES ($1, 'Sucursal Webhook', 'Av 2', $2, true)`, [WID.suc, WID.ciudad]);
-  await q(`INSERT INTO proveedores (id, razon_social, activo) VALUES ($1, 'Textiles Webhook SA', true)`, [WID.prov]);
-  await q(`INSERT INTO temporadas (id, nombre, fecha_inicio, fecha_fin)
-           VALUES ($1, 'Verano Webhook 2026', '2026-01-01', '2026-12-31')`, [WID.temp]);
-  await q(`INSERT INTO colecciones (id, nombre, temporada_id, proveedor_id)
-           VALUES ($1, 'Coleccion Webhook', $2, $3)`, [WID.colec, WID.temp, WID.prov]);
-  await q(`INSERT INTO categorias (id, nombre, slug, activo)
-           VALUES ($1, 'Webhook Cat', 'webhook-cat', true)`, [WID.cat]);
+  await q(`INSERT INTO ciudades (id, nombre, pais) VALUES ($1, 'Santa Cruz (e2e pagos)', 'Bolivia')`, [WID.ciudad]);
+  await q(`INSERT INTO sucursales (tenant_id, id, nombre, direccion, ciudad_id, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Sucursal Webhook', 'Av 2', $2, true)`, [WID.suc, WID.ciudad]);
+  await q(`INSERT INTO proveedores (tenant_id, id, razon_social, activo) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Textiles Webhook SA', true)`, [WID.prov]);
+  await q(`INSERT INTO temporadas (tenant_id, id, nombre, fecha_inicio, fecha_fin)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Verano Webhook 2026', '2026-01-01', '2026-12-31')`, [WID.temp]);
+  await q(`INSERT INTO colecciones (tenant_id, id, nombre, temporada_id, proveedor_id)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Coleccion Webhook', $2, $3)`, [WID.colec, WID.temp, WID.prov]);
+  await q(`INSERT INTO categorias (tenant_id, id, nombre, slug, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Webhook Cat', 'webhook-cat', true)`, [WID.cat]);
   // Nombres distintos a los de los otros .e2e-spec: tallas.nombre y
   // colores.nombre son UNIQUE globales y vitest corre los archivos en paralelo.
-  await q(`INSERT INTO tallas (id, nombre, orden) VALUES ($1, 'M-WEBHOOK', 2)`, [WID.talla]);
-  await q(`INSERT INTO colores (id, nombre, hex_code) VALUES ($1, 'Negro Webhook', '#000000')`, [WID.color]);
-  await q(`INSERT INTO productos (id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
-           VALUES ($1, 'Vestido Webhook', 'vestido-webhook', 5000, $2, $3, true, '[]'::jsonb)`,
+  await q(`INSERT INTO tallas (tenant_id, id, nombre, orden) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'M-WEBHOOK', 2)`, [WID.talla]);
+  await q(`INSERT INTO colores (tenant_id, id, nombre, hex_code) VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Negro Webhook', '#000000')`, [WID.color]);
+  await q(`INSERT INTO productos (tenant_id, id, titulo, slug, precio_cents, categoria_id, coleccion_id, activo, imagenes)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'Vestido Webhook', 'vestido-webhook', 5000, $2, $3, true, '[]'::jsonb)`,
     [WID.prod, WID.cat, WID.colec]);
-  await q(`INSERT INTO variantes_producto (id, sku, producto_id, talla_id, color_id, activo)
-           VALUES ($1, 'SKU-WEBHOOK-1', $2, $3, $4, true)`, [WID.var, WID.prod, WID.talla, WID.color]);
+  await q(`INSERT INTO variantes_producto (tenant_id, id, sku, producto_id, talla_id, color_id, activo)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'SKU-WEBHOOK-1', $2, $3, $4, true)`, [WID.var, WID.prod, WID.talla, WID.color]);
 
   // Inventario: 10 unidades disponibles, nada reservado ni en transito.
   await q(`INSERT INTO inventario_sucursal
-             (id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
-           VALUES (gen_random_uuid(), $1, $2, 10, 0, 0)`, [WID.var, WID.suc]);
+             (tenant_id, id, variante_id, sucursal_id, cantidad_disponible, cantidad_reservada, cantidad_en_transito)
+           VALUES ('00000000-0000-4000-a000-000000000001', gen_random_uuid(), $1, $2, 10, 0, 0)`, [WID.var, WID.suc]);
 
-  await q(`INSERT INTO usuarios (id, email, password_hash, full_name, role, sucursal_id, is_active)
-           VALUES ($1, 'clienta-webhook@test.com', 'x', 'Clienta Webhook', 'CUSTOMER', NULL, true)`,
+  await q(`INSERT INTO usuarios (tenant_id, id, email, password_hash, full_name, role, sucursal_id, is_active)
+           VALUES ('00000000-0000-4000-a000-000000000001', $1, 'clienta-webhook@test.com', 'x', 'Clienta Webhook', 'CUSTOMER', NULL, true)`,
     [WID.cliente]);
 }
 
@@ -692,7 +698,7 @@ async function registrarCliente(
   ds: DataSource,
 ): Promise<{ id: string; email: string; token: string }> {
   const email = `ventas-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
-  const res = await request(app.getHttpServer())
+  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
     .post('/api/v1/seguridad/auth/register')
     .send({ email, password: 'Password123', fullName: 'Clienta Ventas E2E' })
     .expect(201);
@@ -713,7 +719,7 @@ async function usuarioConRolGenerico(
 ): Promise<{ id: string; email: string; token: string }> {
   const { id, email } = await registrarCliente(app, ds);
   await ds.query('UPDATE usuarios SET role = $2 WHERE id = $1', [id, role]);
-  const login = await request(app.getHttpServer())
+  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
     .post('/api/v1/seguridad/auth/login')
     .send({ email, password: 'Password123' })
     .expect(200);

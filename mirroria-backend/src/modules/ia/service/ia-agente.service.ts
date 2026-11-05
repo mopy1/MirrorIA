@@ -1,3 +1,4 @@
+import { tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -75,8 +76,9 @@ export class IaAgenteService {
       return { resumen: `Simulacion DuckDB: ${filas.length} escenarios proyectados.`, filas, datosParaIa: filas, sim: true, metrica: 'simular_what_if' };
     }
     if (name === 'consultar_proveedores_stock') {
-      const sql = `SELECT COALESCE(p.nombre, 'Sin Proveedor') as prov, oc.estado, oc.items FROM ordenes_compra oc LEFT JOIN proveedores p ON p.id = oc.proveedor_id LIMIT 10`;
-      const raw = (await this.dataSource.query(sql)) as Array<{ prov: string; estado: string; items: Array<{ cantidadPedida: number; cantidadRecibida: number }> }>;
+      // Solo la tienda del contexto. `razon_social`: proveedores no tiene columna `nombre`.
+      const sql = `SELECT COALESCE(p.razon_social, 'Sin Proveedor') as prov, oc.estado, oc.items FROM ordenes_compra oc LEFT JOIN proveedores p ON p.id = oc.proveedor_id WHERE oc.tenant_id = $1 LIMIT 10`;
+      const raw = (await this.dataSource.query(sql, [tenantActual()])) as Array<{ prov: string; estado: string; items: Array<{ cantidadPedida: number; cantidadRecibida: number }> }>;
       const filas = raw.map((r, i) => {
         const pendiente = (r.items || []).reduce((acc, it) => acc + (it.cantidadPedida - (it.cantidadRecibida || 0)), 0);
         return { etiqueta: `${r.prov} (${r.estado}) #${i + 1}`, valor: pendiente, detalles: { estado: r.estado } };

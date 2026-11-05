@@ -1,3 +1,4 @@
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { plainToInstance } from 'class-transformer';
@@ -98,7 +99,7 @@ export class IaService {
 
   async historial(user: JwtPayload): Promise<InteraccionResponseDto[]> {
     const filas = await this.interacciones.find({
-      where: user.role === 'ADMIN' ? undefined : { usuarioId: user.sub },
+      where: user.role === 'ADMIN' ? soloTenant({}) : soloTenant({ usuarioId: user.sub }),
       order: { createdAt: 'DESC' },
       take: 50,
     });

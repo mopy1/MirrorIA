@@ -5,6 +5,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { InventarioSucursalService } from '../../inventario/service/inventario-sucursal.service.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
@@ -89,7 +90,7 @@ export class VentasService {
     // ventas (tope 2). Ahora el segundo espera y encuentra el carrito vacío.
     return this.dataSource.transaction(async (manager) => {
       const carrito = await manager.getRepository(Carrito).findOne({
-        where: { usuarioId },
+        where: soloTenant({ usuarioId }),
         lock: { mode: 'pessimistic_write' },
       });
       if (!carrito || carrito.items.length === 0) {
@@ -105,7 +106,7 @@ export class VentasService {
         );
       }
       const pendientes = await manager.getRepository(Venta).count({
-        where: { clienteId: usuarioId, estado: EstadoVenta.PENDIENTE },
+        where: soloTenant({ clienteId: usuarioId, estado: EstadoVenta.PENDIENTE }),
       });
       if (pendientes >= maxComprasPendientes()) {
         throw new OperacionInvalidaException(
@@ -133,18 +134,18 @@ export class VentasService {
   }
 
   async findAll(filtro: { sucursalId?: string; clienteId?: string }): Promise<VentaResponseDto[]> {
-    const where: { sucursalId?: string; clienteId?: string } = {};
+    const where: { sucursalId?: string; clienteId?: string } = {}; // se envuelve en soloTenant abajo
     if (filtro.sucursalId) where.sucursalId = filtro.sucursalId;
     if (filtro.clienteId) where.clienteId = filtro.clienteId;
     const ventas = await this.ventaRepository.find({
-      where,
+      where: soloTenant(where),
       order: { createdAt: 'DESC' },
     });
     return Promise.all(ventas.map((venta) => this.cargarYMapear(venta)));
   }
 
   async findOne(id: string): Promise<VentaResponseDto> {
-    const venta = await this.ventaRepository.findOne({ where: { id } });
+    const venta = await this.ventaRepository.findOne({ where: soloTenant({ id }) });
     if (!venta) {
       throw new RecursoNoEncontradoException('Venta', id);
     }
@@ -167,11 +168,11 @@ export class VentasService {
     // save pisaba CANCELADA con PAGADA. Si la cancelación tiene la fila
     // bloqueada, este UPDATE espera y luego no encuentra PENDIENTE.
     const { affected } = await repo.update(
-      { id: ventaId, estado: EstadoVenta.PENDIENTE },
+      soloTenant({ id: ventaId, estado: EstadoVenta.PENDIENTE }),
       { estado: EstadoVenta.PAGADA, numeroComprobante: comprobanteDe(ventaId) },
     );
     if (affected === 1) return;
-    const venta = await repo.findOne({ where: { id: ventaId } });
+    const venta = await repo.findOne({ where: soloTenant({ id: ventaId }) });
     if (!venta) {
       throw new RecursoNoEncontradoException('Venta', ventaId);
     }
@@ -190,10 +191,13 @@ export class VentasService {
    * El orden ascendente importa: con mas pendientes que el tope, sin `order` las
    * mas viejas — las que mas tiempo llevan reteniendo stock — podian quedar
    * afuera para siempre.
+   *
+   * GLOBAL a propósito (todas las tiendas): cada fila trae su tenantId y la
+   * barrida cancela cada una dentro de conTenant.
    */
   async findPendientesMasViejasPrimero(limite: number): Promise<Venta[]> {
     return this.ventaRepository.find({
-      where: { estado: EstadoVenta.PENDIENTE },
+      where: { estado: EstadoVenta.PENDIENTE }, // sin-tenant: barrida global de todas las tiendas
       order: { createdAt: 'ASC' },
       take: limite,
     });
@@ -221,7 +225,7 @@ export class VentasService {
       // clientas operando a la vez. Con el bloqueo, la segunda espera a que la
       // primera cierre y encuentra la venta ya CANCELADA.
       const venta = await ventaRepo.findOne({
-        where: { id: ventaId },
+        where: soloTenant({ id: ventaId }),
         lock: { mode: 'pessimistic_write' },
       });
       if (!venta) {
@@ -234,7 +238,7 @@ export class VentasService {
       }
 
       const items = await manager.getRepository(VentaItem).find({
-        where: { venta: { id: ventaId } },
+        where: soloTenant({ venta: { id: ventaId } }),
       });
 
       for (const item of items) {
@@ -383,7 +387,9 @@ export class VentasService {
   }
 
   private async cargarYMapear(venta: Venta): Promise<VentaResponseDto> {
-    const items = await this.ventaItemRepository.find({ where: { venta: { id: venta.id } } });
+    const items = await this.ventaItemRepository.find({
+      where: soloTenant({ venta: { id: venta.id } }),
+    });
     return this.toResponse(venta, items);
   }
 

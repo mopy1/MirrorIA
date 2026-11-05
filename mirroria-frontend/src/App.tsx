@@ -1,177 +1,83 @@
-import { Suspense, type ComponentType, type ReactNode } from "react"
+import { Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { PageFallback } from "@/components/common/PageFallback"
 import { LoginPage } from "@/features/auth/pages/LoginPage"
+import { PlataformaLoginPage } from "@/features/auth/pages/PlataformaLoginPage"
 import { RegisterPage } from "@/features/auth/pages/RegisterPage"
-import { BranchesPage } from "@/features/branches/pages/BranchesPage"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
-import { HomePage } from "@/features/catalog/pages/HomePage"
-import { ProductDetailPage } from "@/features/catalog/pages/ProductDetailPage"
-import { ProductListPage } from "@/features/catalog/pages/ProductListPage"
-import { CartPage } from "@/features/cart/pages/CartPage"
-import { CheckoutPage } from "@/features/checkout/pages/CheckoutPage"
-import { PagoPage } from "@/features/payments/pages/PagoPage"
-import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
-import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
-import type { UsuarioRole } from "@/features/auth/types/auth.types"
+import { EntrarPage } from "@/features/saas/pages/EntrarPage"
+import { LandingPage } from "@/features/saas/pages/LandingPage"
+import { PlanesPage } from "@/features/saas/pages/PlanesPage"
+import { RegistroTiendaPage } from "@/features/saas/pages/RegistroTiendaPage"
 import { AdminLayout } from "@/layouts/AdminLayout"
-import { StorefrontLayout } from "@/layouts/StorefrontLayout"
+import { PlataformaLayout } from "@/layouts/PlataformaLayout"
+import { SaasLayout } from "@/layouts/SaasLayout"
+import { TiendaLayout, TiendaRoot } from "@/layouts/TiendaLayout"
 import { AdminRoute } from "@/routes/AdminRoute"
 import { GuestRoute } from "@/routes/GuestRoute"
+import { LegacyRedirect } from "@/routes/LegacyRedirect"
 import {
-  CatalogoAdminPage,
-  CobrosAdminPage,
-  CuponesAdminPage,
-  InventarioAdminPage,
-  ProbadorPage,
-  ProveedoresAdminPage,
-  ReportesAdminPage,
-  ReservasAdminPage,
-  SucursalesAdminPage,
-  UsuariosAdminPage,
-  VentasAdminPage,
-  WayraPagoPage,
+  PlataformaCiudadesPage, PlataformaInquilinoDetallePage, PlataformaInquilinosPage, PlataformaPlanesPage, WayraPagoPage,
 } from "@/routes/lazy-pages"
+import { PlataformaRoute } from "@/routes/PlataformaRoute"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
+import { ADMIN_ROUTES, HomePage, LEGACY_PATHS, ROLES_STAFF, STAFF_ROUTES, TIENDA_ROUTES } from "@/routes/rutas-app"
 import { StaffRoute } from "@/routes/StaffRoute"
 
-// Composición repetida por las rutas /admin/* de recursos ADMIN-only — evita
-// repetir AdminRoute+AdminLayout en cada una.
-function AdminPage({ children }: { children: ReactNode }) {
-  return (
-    <AdminRoute>
-      <AdminLayout>{children}</AdminLayout>
-    </AdminRoute>
-  )
-}
-
-// Rutas de la tienda: mismo StorefrontLayout siempre, algunas piden sesión
-// (`protected`). Data-driven (Regla 1.B.3) porque son puro path+componente
-// repetido — la única variación real es esa bandera.
-const STOREFRONT_ROUTES: { path: string; Component: ComponentType; protected?: boolean }[] = [
-  { path: "/", Component: HomePage },
-  { path: "/tienda", Component: ProductListPage },
-  { path: "/tienda/producto/:id", Component: ProductDetailPage },
-  { path: "/sucursales", Component: BranchesPage },
-  { path: "/carrito", Component: CartPage, protected: true },
-  { path: "/checkout", Component: CheckoutPage, protected: true },
-  // Las 3 rutas de pago renderizan la misma página — PagoPage decide qué
-  // mostrar mirando el pathname actual.
-  { path: "/pago/:ventaId", Component: PagoPage, protected: true },
-  { path: "/pago/exito", Component: PagoPage, protected: true },
-  { path: "/pago/cancelado", Component: PagoPage, protected: true },
-  { path: "/mis-pedidos", Component: MyOrdersPage, protected: true },
-  { path: "/reservas", Component: MyReservationsPage, protected: true },
-  // Publicas a proposito: probarse una prenda no necesita cuenta.
-  { path: "/probador", Component: ProbadorPage },
-  { path: "/probador/:productoId", Component: ProbadorPage },
-  // Comodin al final: cualquier direccion que no case con nada. Sin esto la
-  // SPA no montaba ningun componente y la pagina salia EN BLANCO (nginx sirve
-  // index.html para todo). React Router lo ordena por especificidad, asi que
-  // no le roba ninguna ruta real a las de arriba.
-  { path: "*", Component: NotFoundPage },
-]
-
-// Recursos de negocio/estructurales: exigen ADMIN exacto (mismos roles que
-// ya protege el backend en estos controllers — catálogo, proveedores,
-// sucursales, cupones y usuarios son decisiones de negocio, no operación
-// de una sucursal puntual).
-const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
-  { path: "/admin/catalogo", Component: CatalogoAdminPage },
-  { path: "/admin/proveedores", Component: ProveedoresAdminPage },
-  { path: "/admin/sucursales", Component: SucursalesAdminPage },
-  { path: "/admin/cupones", Component: CuponesAdminPage },
-  { path: "/admin/usuarios", Component: UsuariosAdminPage },
-]
-
-// Operación de sucursal: cada ruta habilita los roles que el backend YA
-// exige en su controller correspondiente (ver los `@Roles(...)` reales de
-// cada módulo, no una suposición del frontend) — inventario/ventas son
-// ADMIN + ENCARGADO_SUCURSAL, reservas suma también CAJERO (busca la
-// reserva en el mostrador), cobros es ADMIN + CAJERO. Sin `allowedRoles`,
-// `StaffRoute` cae en su default (reportes: ADMIN + ENCARGADO_SUCURSAL).
-const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRoles?: UsuarioRole[] }[] = [
-  { path: "/admin/inventario", Component: InventarioAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
-  { path: "/admin/ventas", Component: VentasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
-  {
-    path: "/admin/reservas",
-    Component: ReservasAdminPage,
-    allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"],
-  },
-  { path: "/admin/cobros", Component: CobrosAdminPage, allowedRoles: ["ADMIN", "CAJERO"] },
-  { path: "/admin/reportes", Component: ReportesAdminPage },
-]
-
+/**
+ * Mapa de rutas (spec Fase 1 §7.1): `/` landing SaaS · `/t/:slug/*` tienda ·
+ * `/admin/*` panel de la tienda del JWT · `/plataforma/*` DUENO_PLATAFORMA ·
+ * rutas viejas → `/t/<slug>/...`. Las tablas de rutas viven en `routes/rutas-app.ts`.
+ */
 function App() {
   return (
     <BrowserRouter>
-      {/* Admin, probador y Wayra son diferidos (routes/lazy-pages.ts). */}
       <Suspense fallback={<PageFallback />}>
         <Routes>
-          {STOREFRONT_ROUTES.map(({ path, Component, protected: needsAuth }) => (
-            <Route
-              key={path}
-              path={path}
-              element={
-                <StorefrontLayout>
-                  {needsAuth ? (
-                    <ProtectedRoute>
-                      <Component />
-                    </ProtectedRoute>
-                  ) : (
-                    <Component />
-                  )}
-                </StorefrontLayout>
-              }
-            />
+          <Route element={<SaasLayout />}>
+            <Route index element={<LandingPage />} />
+            <Route path="planes" element={<PlanesPage />} />
+            <Route path="registro-tienda" element={<GuestRoute><RegistroTiendaPage /></GuestRoute>} />
+            <Route path="entrar" element={<EntrarPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+
+          <Route path="/t/:slug" element={<TiendaRoot />}>
+            <Route element={<TiendaLayout />}>
+              <Route index element={<HomePage />} />
+              {TIENDA_ROUTES.map(({ path, Component, protected: needsAuth }) => (
+                <Route key={path} path={path} element={needsAuth ? <ProtectedRoute><Component /></ProtectedRoute> : <Component />} />
+              ))}
+            </Route>
+            <Route path="login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+            <Route path="registro" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+          </Route>
+
+          {LEGACY_PATHS.map((path) => (
+            <Route key={path} path={path} element={<LegacyRedirect />} />
           ))}
 
-          {/* La app del banco (Wayra) que abre el QR de cobro: pública y sin el
-              layout de la tienda, porque representa OTRA app. */}
+          {/* La app del banco (Wayra): pública, global y sin layout de tienda (es OTRA app). */}
           <Route path="/wayra/pagar/:token" element={<WayraPagoPage />} />
 
-          <Route
-            path="/login"
-            element={
-              <GuestRoute>
-                <LoginPage />
-              </GuestRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <GuestRoute>
-                <RegisterPage />
-              </GuestRoute>
-            }
-          />
+          <Route path="/admin" element={<StaffRoute allowedRoles={ROLES_STAFF}><AdminLayout /></StaffRoute>}>
+            <Route index element={<Navigate to="/admin/catalogo" replace />} />
+            {ADMIN_ROUTES.map(({ path, Component }) => (
+              <Route key={path} path={path} element={<AdminRoute><Component /></AdminRoute>} />
+            ))}
+            {STAFF_ROUTES.map(({ path, Component, allowedRoles }) => (
+              <Route key={path} path={path} element={<StaffRoute allowedRoles={allowedRoles}><Component /></StaffRoute>} />
+            ))}
+          </Route>
 
-          <Route path="/admin" element={<Navigate to="/admin/catalogo" replace />} />
-          {ADMIN_ROUTES.map(({ path, Component }) => (
-            <Route
-              key={path}
-              path={path}
-              element={
-                <AdminPage>
-                  <Component />
-                </AdminPage>
-              }
-            />
-          ))}
-          {STAFF_ROUTES.map(({ path, Component, allowedRoles }) => (
-            <Route
-              key={path}
-              path={path}
-              element={
-                <StaffRoute allowedRoles={allowedRoles}>
-                  <AdminLayout>
-                    <Component />
-                  </AdminLayout>
-                </StaffRoute>
-              }
-            />
-          ))}
+          <Route path="/plataforma/login" element={<GuestRoute><PlataformaLoginPage /></GuestRoute>} />
+          <Route path="/plataforma" element={<PlataformaRoute><PlataformaLayout /></PlataformaRoute>}>
+            <Route index element={<Navigate to="/plataforma/inquilinos" replace />} />
+            <Route path="inquilinos" element={<PlataformaInquilinosPage />} />
+            <Route path="inquilinos/:id" element={<PlataformaInquilinoDetallePage />} />
+            <Route path="planes" element={<PlataformaPlanesPage />} />
+            <Route path="ciudades" element={<PlataformaCiudadesPage />} />
+          </Route>
         </Routes>
       </Suspense>
     </BrowserRouter>

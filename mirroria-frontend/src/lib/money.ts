@@ -21,3 +21,10 @@ export function formatMoney(cents: number): string {
 export function formatMoneyEntero(cents: number): string {
   return formatterEntero.format(cents / 100)
 }
+
+const formatterUsd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+/** Precio en dólares (planes: PayPal no cobra en BOB). También en centavos. */
+export function formatUsd(cents: number): string {
+  return formatterUsd.format(cents / 100)
+}

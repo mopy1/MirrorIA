@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { CreateSucursalDto } from '../dto/create-sucursal.dto.js';
 import type { SucursalResponseDto } from '../dto/sucursales-response.dto.js';
 import { Sucursal } from '../entities/sucursal.entity.js';
@@ -16,6 +19,10 @@ export class SucursalesService {
   ) {}
 
   async create(dto: CreateSucursalDto): Promise<SucursalResponseDto> {
+    assertDentroDelPlan(
+      'sucursales',
+      await this.sucursalRepository.count({ where: soloTenant({ activo: true }) }),
+    );
     const ciudad = await this.ciudadesService.findOne(dto.ciudadId);
 
     const sucursal = await this.sucursalRepository.save(
@@ -30,9 +37,24 @@ export class SucursalesService {
     return this.toResponse(sucursal);
   }
 
+  /** Primera sucursal de una tienda nueva (aprovisionamiento, dentro de su transacción y conTenant). */
+  async crearInicial(dto: CreateSucursalDto, manager: EntityManager): Promise<Sucursal> {
+    const ciudad = await this.ciudadesService.findOne(dto.ciudadId);
+    const repo = manager.getRepository(Sucursal);
+    return repo.save(
+      repo.create({
+        ciudad,
+        nombre: dto.nombre,
+        direccion: dto.direccion,
+        telefono: dto.telefono ?? null,
+        activo: true,
+      }),
+    );
+  }
+
   async findAll(): Promise<SucursalResponseDto[]> {
     const sucursales = await this.sucursalRepository.find({
-      where: { activo: true },
+      where: soloTenant({ activo: true }),
       relations: { ciudad: true },
       order: { nombre: 'ASC' },
     });
@@ -41,7 +63,7 @@ export class SucursalesService {
 
   async findOne(id: string): Promise<Sucursal> {
     const sucursal = await this.sucursalRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
       relations: { ciudad: true },
     });
     if (!sucursal) {
@@ -56,8 +78,8 @@ export class SucursalesService {
 
   /**
    * Usado por otros módulos (inventario, ventas) solo para validar que un
-   * sucursalId exista antes de operar — mismo criterio que
-   * ProveedoresService.findOne consumido desde catalogo.
+   * sucursalId exista EN LA TIENDA del contexto antes de operar (una sucursal
+   * de otra tienda da 404) — mismo criterio que ProveedoresService.findOne.
    */
   async assertExists(id: string): Promise<void> {
     await this.findOne(id);

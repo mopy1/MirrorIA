@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { buildTypeOrmOptions } from './core/config/typeorm.config.js';
 import { CoreSecurityModule } from './core/security/core-security.module.js';
+import { TenantMiddleware } from './core/tenancy/tenant.middleware.js';
 import { CatalogoModule } from './modules/catalogo/catalogo.module.js';
 import { IaModule } from './modules/ia/ia.module.js';
 import { InventarioModule } from './modules/inventario/inventario.module.js';
@@ -12,6 +13,7 @@ import { PagosModule } from './modules/pagos/pagos.module.js';
 import { PromocionesModule } from './modules/promociones/promociones.module.js';
 import { ProbadorModule } from './modules/probador/probador.module.js';
 import { ProveedoresModule } from './modules/proveedores/proveedores.module.js';
+import { SaasModule } from './modules/saas/saas.module.js';
 import { ReservasModule } from './modules/reservas/reservas.module.js';
 import { SeguridadModule } from './modules/seguridad/seguridad.module.js';
 import { SucursalesModule } from './modules/sucursales/sucursales.module.js';
@@ -29,9 +31,7 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
     // módulo que use @UseGuards(JwtAuthGuard). Ver ese archivo para el porqué.
     CoreSecurityModule,
 
-    // Módulos de negocio (uno por dominio, ver Diseño_BD.md en el vault para el
-    // detalle de tablas de cada uno). Solo `seguridad` está implementado hoy;
-    // el resto son placeholders — ver AGENTS.md, sección Roadmap.
+    // Módulos de negocio (uno por dominio, ver Database.md en el vault).
     SeguridadModule,
     SucursalesModule,
     ProveedoresModule,
@@ -43,8 +43,16 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
     PromocionesModule,
     IaModule,
     ProbadorModule,
+    // SaaS multi-tenant (Fase 1): registra el TenantInterceptor global.
+    SaasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // Contexto de tienda por request (AsyncLocalStorage). Acá y no en main.ts
+  // para que los e2e que montan AppModule también lo tengan.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantMiddleware).forRoutes('{*path}');
+  }
+}

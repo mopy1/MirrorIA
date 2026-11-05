@@ -2,6 +2,7 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { conTenant, soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
 import { EstadoPago, MetodoPago, Pago } from '../entities/pago.entity.js';
 
@@ -87,7 +88,10 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       if (minutosTranscurridos < limiteMin) continue;
 
       try {
-        await this.cancelarVenta(venta.id, `pago vencido tras ${limiteMin} minutos`);
+        // Barrida global: cada venta se cancela con el tenant de su propia fila.
+        await conTenant({ tenantId: venta.tenantId }, () =>
+          this.cancelarVenta(venta.id, `pago vencido tras ${limiteMin} minutos`),
+        );
         canceladas++;
       } catch (error) {
         // Una venta en un estado raro no puede impedir que las demas liberen su
@@ -112,7 +116,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
   async cancelarVenta(ventaId: string, motivo: string): Promise<void> {
     await this.ventasService.cancelarPorPagoNoCompletado(ventaId, motivo);
     await this.pagoRepository.update(
-      { ventaId, estado: EstadoPago.PENDIENTE },
+      soloTenant({ ventaId, estado: EstadoPago.PENDIENTE }),
       { estado: EstadoPago.RECHAZADO },
     );
   }
@@ -129,7 +133,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
   /** Los pagos PENDIENTE de esas ventas, agrupados por venta y del mas viejo al mas nuevo. */
   private async pagosPendientesDe(ventaIds: string[]): Promise<Map<string, Pago[]>> {
     const pagos = await this.pagoRepository.find({
-      where: { ventaId: In(ventaIds), estado: EstadoPago.PENDIENTE },
+      where: { ventaId: In(ventaIds), estado: EstadoPago.PENDIENTE }, // sin-tenant: ids de la barrida global
       order: { createdAt: 'ASC' },
     });
     const porVenta = new Map<string, Pago[]>();

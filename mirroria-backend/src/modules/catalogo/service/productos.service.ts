@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type {
   ProductoResponseDto,
   VarianteResponseDto,
@@ -35,8 +37,9 @@ export class ProductosService {
   ) {}
 
   async create(dto: CreateProductoDto): Promise<ProductoResponseDto> {
+    assertDentroDelPlan('productos', await this.contarActivos());
     const existente = await this.productoRepository.findOne({
-      where: { slug: dto.slug },
+      where: soloTenant({ slug: dto.slug }),
     });
     if (existente) {
       throw new RecursoDuplicadoException(
@@ -45,14 +48,14 @@ export class ProductosService {
     }
 
     const categoria = await this.categoriaRepository.findOne({
-      where: { id: dto.categoriaId },
+      where: soloTenant({ id: dto.categoriaId }),
     });
     if (!categoria) {
       throw new RecursoNoEncontradoException('Categoría', dto.categoriaId);
     }
 
     const coleccion = await this.coleccionRepository.findOne({
-      where: { id: dto.coleccionId },
+      where: soloTenant({ id: dto.coleccionId }),
     });
     if (!coleccion) {
       throw new RecursoNoEncontradoException('Colección', dto.coleccionId);
@@ -79,7 +82,7 @@ export class ProductosService {
 
   async findAll(): Promise<ProductoResponseDto[]> {
     const productos = await this.productoRepository.find({
-      where: { activo: true },
+      where: soloTenant({ activo: true }),
       relations: { categoria: true, coleccion: true },
       order: { createdAt: 'DESC' },
     });
@@ -88,7 +91,7 @@ export class ProductosService {
 
   async findOne(id: string, verInactivo = false): Promise<ProductoResponseDto> {
     const producto = await this.productoRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
       relations: { categoria: true, coleccion: true },
     });
     if (!producto || (!producto.activo && !verInactivo)) {
@@ -96,7 +99,7 @@ export class ProductosService {
     }
 
     const variantes = await this.varianteRepository.find({
-      where: { producto: { id } },
+      where: soloTenant({ producto: { id } }),
       relations: { talla: true, color: true },
       order: { sku: 'ASC' },
     });
@@ -108,7 +111,7 @@ export class ProductosService {
     dto: UpdateProductoDto,
   ): Promise<ProductoResponseDto> {
     const producto = await this.productoRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
       relations: { categoria: true, coleccion: true },
     });
     if (!producto) {
@@ -117,7 +120,7 @@ export class ProductosService {
 
     if (dto.slug && dto.slug !== producto.slug) {
       const existente = await this.productoRepository.findOne({
-        where: { slug: dto.slug },
+        where: soloTenant({ slug: dto.slug }),
       });
       if (existente && existente.id !== id) {
         throw new RecursoDuplicadoException(
@@ -129,7 +132,7 @@ export class ProductosService {
 
     if (dto.categoriaId) {
       const categoria = await this.categoriaRepository.findOne({
-        where: { id: dto.categoriaId },
+        where: soloTenant({ id: dto.categoriaId }),
       });
       if (!categoria) {
         throw new RecursoNoEncontradoException('Categoría', dto.categoriaId);
@@ -139,7 +142,7 @@ export class ProductosService {
 
     if (dto.coleccionId) {
       const coleccion = await this.coleccionRepository.findOne({
-        where: { id: dto.coleccionId },
+        where: soloTenant({ id: dto.coleccionId }),
       });
       if (!coleccion) {
         throw new RecursoNoEncontradoException('Colección', dto.coleccionId);
@@ -157,6 +160,10 @@ export class ProductosService {
         orden: img.orden ?? index,
       }));
     }
+    // Reactivar una prenda vuelve a ocupar un lugar del plan.
+    if (dto.activo === true && !producto.activo) {
+      assertDentroDelPlan('productos', await this.contarActivos());
+    }
     if (dto.activo !== undefined) producto.activo = dto.activo;
 
     await this.productoRepository.save(producto);
@@ -168,14 +175,14 @@ export class ProductosService {
     dto: CreateVarianteDto,
   ): Promise<VarianteResponseDto> {
     const producto = await this.productoRepository.findOne({
-      where: { id: productoId },
+      where: soloTenant({ id: productoId }),
     });
     if (!producto) {
       throw new RecursoNoEncontradoException('Producto', productoId);
     }
 
     const existente = await this.varianteRepository.findOne({
-      where: { sku: dto.sku },
+      where: soloTenant({ sku: dto.sku }),
     });
     if (existente) {
       throw new RecursoDuplicadoException(
@@ -184,14 +191,14 @@ export class ProductosService {
     }
 
     const talla = await this.tallaRepository.findOne({
-      where: { id: dto.tallaId },
+      where: soloTenant({ id: dto.tallaId }),
     });
     if (!talla) {
       throw new RecursoNoEncontradoException('Talla', dto.tallaId);
     }
 
     const color = await this.colorRepository.findOne({
-      where: { id: dto.colorId },
+      where: soloTenant({ id: dto.colorId }),
     });
     if (!color) {
       throw new RecursoNoEncontradoException('Color', dto.colorId);
@@ -217,13 +224,17 @@ export class ProductosService {
    */
   async findVarianteById(id: string): Promise<VarianteProducto> {
     const variante = await this.varianteRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
       relations: { producto: true },
     });
     if (!variante) {
       throw new RecursoNoEncontradoException('Variante de producto', id);
     }
     return variante;
+  }
+
+  private contarActivos(): Promise<number> {
+    return this.productoRepository.count({ where: soloTenant({ activo: true }) });
   }
 
   private toResponse(

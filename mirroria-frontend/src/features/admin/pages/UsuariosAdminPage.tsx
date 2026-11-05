@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
-import { MagnifyingGlass, Users, WarningCircle } from "@phosphor-icons/react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { MagnifyingGlass, Users } from "@phosphor-icons/react"
+import { ErrorConPlan } from "@/components/common/ErrorConPlan"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
@@ -89,12 +89,7 @@ export function UsuariosAdminPage() {
         </Select>
       </div>
 
-      {(usuarios.error || toggleError) && (
-        <Alert variant="destructive">
-          <WarningCircle className="size-4" />
-          <AlertDescription>{usuarios.error ?? toggleError}</AlertDescription>
-        </Alert>
-      )}
+      <ErrorConPlan mensaje={usuarios.error ?? toggleError} className="py-3 text-sm" />
 
       {usuarios.isLoading ? (
         <Skeleton className="h-72 w-full rounded-xl" />

@@ -12,6 +12,7 @@ import {
   type RawBodyRequest,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SinTenant } from '../../../core/tenancy/sin-tenant.decorator.js';
 import type { Request } from 'express';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
@@ -68,7 +69,9 @@ export class PagosController {
     return this.cobroQrService.estadoParaLaClienta(pagoId, user);
   }
 
+  // Sin tienda en el request: el tenant sale de la fila del pago (token).
   @Post('qr/aviso')
+  @SinTenant()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -127,7 +130,9 @@ export class PagosController {
     return this.pagosService.cancelarPorClienta(ventaId, user);
   }
 
+  // Stripe no manda tienda: el tenant sale de la fila del pago (id de sesión).
   @Post('webhook')
+  @SinTenant()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Webhook de la pasarela (público, verificado por firma)',

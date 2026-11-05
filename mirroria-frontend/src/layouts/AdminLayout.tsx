@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react"
+import { Suspense, useState, type ReactNode } from "react"
+import { PageFallback } from "@/components/common/PageFallback"
 import { ArrowSquareOut, List } from "@phosphor-icons/react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, Outlet, useLocation } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -8,6 +9,8 @@ import { ROLES_CONFIG } from "@/features/admin/components/usuario-rol-editor/usu
 import { useAuth } from "@/hooks/useAuth"
 import { AdminSidebarContent } from "./admin-sidebar-content"
 import { BrandLogo } from "@/components/brand-logo"
+import { useMiSuscripcion } from "@/features/subscription/hooks/useMiSuscripcion"
+import { AdminAvisos } from "./admin-avisos"
 
 const ADMIN_TITLES: Record<string, string> = {
   "/admin/catalogo": "Catálogo",
@@ -17,12 +20,18 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/sucursales": "Sucursales",
   "/admin/proveedores": "Proveedores",
   "/admin/usuarios": "Usuarios & Roles",
+  "/admin/suscripcion": "Plan y suscripción",
 }
 
-export function AdminLayout({ children }: { children: ReactNode }) {
+/** Layout de `/admin/*` (ruta padre con <Outlet/>: no se remonta al navegar). */
+export function AdminLayout({ children }: { children?: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname } = useLocation()
   const { user } = useAuth()
+  const esAdmin = user?.role === "ADMIN"
+  // Solo el ADMIN puede leer su suscripción (los demás roles reciben 403).
+  const { data: miSuscripcion } = useMiSuscripcion(esAdmin)
+  const tiendaHref = user?.tenant ? `/t/${user.tenant.slug}` : "/"
 
   const currentTitle = Object.entries(ADMIN_TITLES).find(([path]) => pathname.startsWith(path))?.[1] ?? "Administración"
   const rolLabel = user?.role ? (ROLES_CONFIG[user.role]?.label ?? user.role) : "Admin"
@@ -41,7 +50,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           >
             <List className="size-5" />
           </Button>
-          <Link to="/" className="inline-flex items-center transition-opacity hover:opacity-90">
+          <Link to={tiendaHref} className="inline-flex items-center transition-opacity hover:opacity-90">
             <BrandLogo size="sm" />
           </Link>
           <Badge variant="outline" className="text-[10px] font-medium border-primary/30 bg-primary/10 text-primary">
@@ -53,13 +62,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* Mobile Navigation Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" showCloseButton={false} className="w-72 p-0 flex flex-col h-full bg-card border-r border-border">
-          <AdminSidebarContent onNavigate={() => setMobileOpen(false)} />
+          <AdminSidebarContent onNavigate={() => setMobileOpen(false)} suscripcion={miSuscripcion?.suscripcion ?? null} />
         </SheetContent>
       </Sheet>
 
       {/* Desktop Sticky Sidebar (w-64 en laptops, w-72 en pantallas grandes) */}
       <aside className="hidden shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 xl:w-72 lg:self-start lg:overflow-y-auto">
-        <AdminSidebarContent />
+        <AdminSidebarContent suscripcion={miSuscripcion?.suscripcion ?? null} />
       </aside>
 
       {/* Main Content Viewport */}
@@ -67,14 +76,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         {/* Desktop Topbar Header */}
         <header className="hidden lg:flex sticky top-0 z-30 h-16 shrink-0 items-center justify-between border-b border-border/60 bg-card/85 px-8 backdrop-blur-md">
           <div className="flex items-center gap-2.5 text-sm">
-            <span className="text-muted-foreground">{rolLabel}</span>
+            <span className="text-muted-foreground">{user?.tenant?.nombre ?? rolLabel}</span>
             <span className="text-muted-foreground/50">/</span>
             <span className="font-medium text-foreground">{currentTitle}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <Link
-              to="/"
+              to={tiendaHref}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
             >
               <ArrowSquareOut className="size-3.5" />
@@ -84,8 +93,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Page Content */}
+        <AdminAvisos suscripcion={miSuscripcion?.suscripcion ?? null} esAdmin={esAdmin} />
         <div className="flex-1">
-          {children}
+          {/* Suspense acá: al abrir una página diferida el sidebar no desaparece. */}
+          <Suspense fallback={<PageFallback />}>{children ?? <Outlet />}</Suspense>
         </div>
       </main>
     </div>

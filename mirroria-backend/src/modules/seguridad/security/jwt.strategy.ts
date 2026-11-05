@@ -25,6 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     // Revalida contra BD en cada request (no solo confía en el token) para que
     // desactivar un usuario (is_active = false) lo deslogue de inmediato.
+    // sin-tenant: el sub viene firmado; el tenant se toma de la BD, no del token.
     const usuario = await this.usuarioRepository.findOne({
       where: { id: payload.sub },
     });
@@ -37,6 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: usuario.email,
       role: usuario.role,
       sucursalId: usuario.sucursalId,
+      tenantId: usuario.tenantId,
     };
   }
 }

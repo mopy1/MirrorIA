@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
+import { tenantOpcional } from '../../../core/tenancy/tenant-context.js';
 import { ExpiracionService } from './expiracion.service.js';
 import { EstadoPago, MetodoPago, Pago } from '../entities/pago.entity.js';
 import type { Venta } from '../../ventas/entities/venta.entity.js';
@@ -46,7 +48,7 @@ describe('ExpiracionService', () => {
   }
 
   function ventaDeHace(minutos: number): Venta {
-    return { id: `v-${minutos}`, createdAt: hace(minutos) } as Venta;
+    return { id: `v-${minutos}`, createdAt: hace(minutos), tenantId: TENANT_PRUEBA } as Venta;
   }
 
   function pagoDeHace(minutos: number, metodo: MetodoPago): Pago {
@@ -65,7 +67,7 @@ describe('ExpiracionService', () => {
    */
   function sembrarConPago(...pagos: Pago[]): void {
     ventas.findPendientesMasViejasPrimero.mockResolvedValue(
-      pagos.map((p) => ({ id: p.ventaId, createdAt: p.createdAt }) as Venta),
+      pagos.map((p) => ({ id: p.ventaId, createdAt: p.createdAt, tenantId: TENANT_PRUEBA }) as Venta),
     );
     pagoRepo.find.mockResolvedValue(pagos);
   }
@@ -103,6 +105,23 @@ describe('ExpiracionService', () => {
     expect(await service.expirarVencidas()).toBe(1);
   });
 
+  it('la barrida es GLOBAL: cancela cada venta con el tenant de su propia fila', async () => {
+    const OTRA = '22222222-2222-4222-a222-222222222222';
+    ventas.findPendientesMasViejasPrimero.mockResolvedValue([
+      { id: 'v-a', createdAt: hace(60), tenantId: OTRA } as Venta,
+    ]);
+    let visto: string | null = null;
+    ventas.cancelarPorPagoNoCompletado.mockImplementation(async () => {
+      visto = tenantOpcional();
+    });
+    expect(await service.expirarVencidas()).toBe(1);
+    expect(visto).toBe(OTRA);
+    expect(pagoRepo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ ventaId: 'v-a', tenantId: OTRA }),
+      { estado: EstadoPago.RECHAZADO },
+    );
+  });
+
   it('el pago vencido queda RECHAZADO, no se borra', async () => {
     sembrarConPago(pagoDeHace(45, MetodoPago.TARJETA));
     await service.expirarVencidas();
@@ -131,7 +150,7 @@ describe('ExpiracionService', () => {
       // No hay ninguna fila de pago que marcar: el update condicionado por
       // venta no toca nada (0 filas), pero tampoco falla.
       expect(pagoRepo.update).toHaveBeenCalledWith(
-        { ventaId: 'v-45', estado: EstadoPago.PENDIENTE },
+        { ventaId: 'v-45', estado: EstadoPago.PENDIENTE, tenantId: TENANT_PRUEBA },
         { estado: EstadoPago.RECHAZADO },
       );
     });
@@ -162,7 +181,7 @@ describe('ExpiracionService', () => {
     const tarjetaVieja = { ...pagoDeHace(45, MetodoPago.TARJETA), ventaId: 'v-1' } as Pago;
     const qrReciente = { ...pagoDeHace(1, MetodoPago.QR), ventaId: 'v-1' } as Pago;
     ventas.findPendientesMasViejasPrimero.mockResolvedValue([
-      { id: 'v-1', createdAt: hace(60) } as Venta,
+      { id: 'v-1', createdAt: hace(60), tenantId: TENANT_PRUEBA } as Venta,
     ]);
     pagoRepo.find.mockResolvedValue([tarjetaVieja, qrReciente]);
 

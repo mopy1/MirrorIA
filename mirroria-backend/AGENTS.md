@@ -15,7 +15,7 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real** — no CommonJS), TypeORM 1.x + P
 Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`, Swagger
 (`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual), oxlint.
 Integraciones: `stripe` (tarjeta), `qrcode` (PNG del QR de cobro), `@decartai/sdk` (probador),
-DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 72 (`docker logs mirroria_backend | grep
+DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 93 desde la Fase 1 SaaS (`docker logs mirroria_backend | grep
 Mapped`); contrato de cada una en el vault, `U/2-2026/SI2/Parcial1/App/Endpoints.md`.
 
 > [!IMPORTANT]
@@ -41,10 +41,18 @@ src/
 │   │   ├── typeorm.config.ts    # factory de TypeOrmModuleOptions (lee ConfigService)
 │   │   └── cors.config.ts       # orígenes permitidos vía env CORS_ORIGINS
 │   ├── database/
-│   │   └── base.entity.ts       # BaseEntity abstracta: id uuid (gen_random_uuid), createdAt, updatedAt
+│   │   ├── base.entity.ts       # BaseEntity abstracta: id uuid (gen_random_uuid), createdAt, updatedAt
+│   │   └── tenant-base.entity.ts # TenantBaseEntity: BaseEntity + tenant_id uuid NOT NULL indexado (20 tablas de negocio)
+│   ├── tenancy/                 # 🏢 SaaS multi-tenant (Fase 1): contexto de tienda por request — ver sección propia
+│   │   ├── tenant-context.ts    # AsyncLocalStorage: contextoTenant/tenantActual (falla cerrado)/tenantOpcional/conTenant/soloTenant
+│   │   ├── tenant.middleware.ts # abre el contexto con la cabecera X-Tenant cruda (AppModule.configure, forRoutes('{*path}'))
+│   │   ├── tenant.subscriber.ts # @EventSubscriber: completa tenant_id al insertar; insert sin tenant / update cruzado → Error
+│   │   ├── sin-tenant.decorator.ts / permitir-tienda-no-disponible.decorator.ts
+│   │   ├── limites-plan.ts      # assertDentroDelPlan('sucursales'|'productos'|'usuariosStaff', uso) → 409
+│   │   └── tenant.constants.ts  # HEADER_TENANT, MIRRORIA_TENANT_ID, REGEX_SLUG, SLUGS_RESERVADOS
 │   ├── security/
 │   │   ├── core-security.module.ts  # @Global(): registra PassportModule una sola vez
-│   │   ├── jwt-payload.interface.ts # { sub, email, role, sucursalId }
+│   │   ├── jwt-payload.interface.ts # { sub, email, role, sucursalId, tenantId }
 │   │   ├── jwt-auth.guard.ts    # @UseGuards(JwtAuthGuard) — genérico, reutilizable por cualquier módulo
 │   │   ├── roles.decorator.ts   # @Roles('ADMIN', ...)
 │   │   ├── roles.guard.ts       # exige @UseGuards(JwtAuthGuard, RolesGuard) en ese orden
@@ -62,6 +70,8 @@ src/
 │       ├── stock-insuficiente.exception.ts     # 409
 │       ├── forbidden-action.exception.ts       # 403 (ownership / alcance, distinto del 403 por rol)
 │       ├── demasiados-pedidos.exception.ts     # 429 (LimitePorIp)
+│       ├── tenant-requerido (400) · tienda-no-encontrada (404) · tienda-no-disponible (403)
+│       │   · sesion-de-otra-tienda (403) · limite-plan-excedido (409)   # Fase 1 SaaS
 │       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }; Postgres 23505→409, 22P02→400
 │
 └── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
@@ -76,7 +86,8 @@ src/
     ├── promociones/               # ✅ cupones (porcentuales y monto fijo, validación y consumo en ventas)
     ├── pagos/                     # ✅ pagos (RF19): tarjeta Stripe + QR dinámico Wayra + efectivo (ver árbol abajo)
     ├── ia/                        # ✅ interacciones_ia, reportes dinámicos con DeepSeek (CU24)
-    └── probador/                  # ✅ token efímero de Decart para el probador (RF13, sin tabla propia)
+    ├── probador/                  # ✅ token efímero de Decart para el probador (RF13, sin tabla propia)
+    └── saas/                      # 🏢 Fase 1: planes, inquilinos, suscripciones, alta de tienda, plataforma, TenantInterceptor (ver sección)
 
 test/                             # e2e (vitest.config.e2e.ts, requieren Postgres): app, bootstrap
                                   # (vigila rawBody:true en main.ts), pagos, ia, motor-consulta
@@ -154,16 +165,25 @@ salvo que un módulo necesite queries muy custom (ahí sí, un `repository/` con
    shape único de error a toda la API: `{ status, message, timestamp }`.
 5. **`id` siempre `uuid` con default `gen_random_uuid()`**, nunca `uuid_generate_v4()`
    (extensión `uuid-ossp`, la que usa TypeORM por defecto con `@PrimaryGeneratedColumn('uuid')`
-   — por eso `BaseEntity` usa `@PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })`
-   en su lugar). Ver nota siguiente.
+   si no se configura nada). Desde 2026-11-05: `BaseEntity` usa `@PrimaryGeneratedColumn('uuid')`
+   **+ `uuidExtension: 'pgcrypto'`** en `typeorm.config.ts` → TypeORM genera `DEFAULT gen_random_uuid()`.
+   Ver nota siguiente.
 6. **Todo `Entity` extiende `core/database/base.entity.ts`** (da `id`, `createdAt`,
    `updatedAt`). Simplificación consciente frente al diseño del vault: `refresh_tokens` ahí
    documenta solo `created_at`, acá también recibe `updatedAt` por venir gratis de la base
    compartida — columna sin uso real, no rompe nada.
-7. **Roles válidos de `usuarios.role`:** `CUSTOMER | ADMIN | ENCARGADO_SUCURSAL | CAJERO`
+7. **Roles válidos de `usuarios.role`:** `CUSTOMER | ADMIN | ENCARGADO_SUCURSAL | CAJERO | DUENO_PLATAFORMA`
+   (este último solo lo crea el seed y no se puede asignar por `PATCH /seguridad/usuarios/:id/rol`)
    (enum `RolUsuario` en `modules/seguridad/entities/usuario.entity.ts`). Endpoint restringido
    por rol: `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles('ADMIN')` sobre el método.
-8. **Catálogo exclusivamente de moda femenina** (decisión del usuario, no del enunciado): no
+8. **🏢 Toda consulta lleva `soloTenant()` (Fase 1 SaaS).** Toda lectura/update/delete sobre una
+   entidad con tenant: `where: soloTenant({...})`; QueryBuilder y SQL crudo: `AND <alias>.tenant_id =
+   :tenantId` con `tenantActual()`; inserts por QB pasan `tenantId` explícito. Las únicas lecturas sin
+   tenant llevan el comentario `// sin-tenant: <motivo>` en la MISMA línea (barridas, webhooks, JwtStrategy,
+   login de plataforma) o son tablas globales (`ciudades`, `saas`). Auditoría: §3.5 de la spec
+   (`grep -rn "where:" --include='*.service.ts' src/modules | grep -v soloTenant | grep -v sin-tenant`).
+   Un id de otra tienda da 404. Entidad nueva de negocio → extiende `TenantBaseEntity`.
+9. **Catálogo exclusivamente de moda femenina** (decisión del usuario, no del enunciado): no
    agregar campo/tabla de género a `productos` ni a ninguna entidad de `catalogo/`.
 
 ## 🔧 Decisión real (2026-09-12): `gen_random_uuid()` vs `uuid_generate_v4()`
@@ -178,6 +198,14 @@ automático, y se agregó `db/init/001-extensions.sql` en la raíz del monorepo 
 `docker-entrypoint-initdb.d`) para que `pgcrypto` quede creado automáticamente la primera vez
 que se levanta el volumen de Postgres. Verificado end-to-end: `CREATE TABLE "usuarios" (...
 DEFAULT gen_random_uuid() ...)` en el log de arranque.
+
+**Corrección (Auditoría QA Fase 1, 2026-11-05):** con TypeORM 1.x ese `@PrimaryColumn` + default
+provocaba DDL en **cada** arranque con `synchronize` (en las 26 tablas: `DROP/SET DEFAULT` del `id`
+y `DROP/ADD` de todas las FK que lo referencian), porque TypeORM lee de la BD una columna uuid con
+default `gen_random_uuid()` como `isGenerated=true` y la entidad decía `isGenerated=false`. Se volvió a
+`@PrimaryGeneratedColumn('uuid')` pero con `uuidExtension: 'pgcrypto'` (el driver usa entonces
+`gen_random_uuid()`): mismo default en la BD, cero DDL al arrancar (solo el `CREATE EXTENSION IF NOT
+EXISTS "pgcrypto"`, que es no-op). Comprobar con `docker logs mirroria_backend | grep 'query: ALTER'`.
 
 ## 🔧 Gotcha real (2026-09-12): columnas nullable de tipo string necesitan `type` explícito
 
@@ -746,6 +774,54 @@ carpetas de arriba, extender `BaseEntity`, y revisar primero la sección corresp
 (`ventas.cupon_id`, `pagos.monto_reembolsado_cents`,
 `movimientos_inventario.venta_item_id`/`motivo`). Se siguió tal cual; ver la sección de estado
 de `pagos` de arriba para el resultado real.
+
+## 🏢 Fase 1 SaaS multi-tenant (2026-11-04)
+
+Spec cerrada (fuente de verdad, con "Desviaciones del Backend"):
+vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant_id`.
+
+- **Contrato del request (`TenantInterceptor`, global vía `APP_INTERCEPTOR` en `SaasModule`, corre
+  después de los guards):** con JWT la tienda es `user.tenantId` (releído de la BD por `JwtStrategy`);
+  `X-Tenant` distinto → 403; cuenta de plataforma con `X-Tenant` → 403. Sin JWT, `X-Tenant: <slug>` se
+  resuelve (404 si no existe). Tienda no disponible → 403 salvo `@PermitirTiendaNoDisponible()`. Ni JWT
+  ni cabecera → 400 salvo `@SinTenant()`. Los GET públicos no corren guard: necesitan la cabecera.
+- **Rutas 🧭 (`@SinTenant`):** `/health`, `/saas/*`, ciudades (globales), login (X-Tenant opcional:
+  sin él solo entra `DUENO_PLATAFORMA`), `/me`, `/pagos/webhook`, `/pagos/qr/aviso`, `/wayra/*`,
+  `/probador/token`. Login, `/me` y `/saas/mi-suscripcion` andan con la tienda no disponible.
+- **Sin request** (`conTenant`): `ExpiracionService` y `ReservasService.expirarVencidas` leen TODAS las
+  tiendas y cierran cada fila con el tenant de su fila; webhook Stripe / aviso QR / Wayra buscan el pago
+  por `referencia_externa` (sin tenant) y siguen dentro de `conTenant(pago.tenantId)`.
+- **`modules/saas/`** (tablas globales `planes`, `inquilinos`, `suscripciones`; importa Seguridad,
+  Sucursales, Catalogo y Proveedores; nadie lo importa):
+  - `controller/` planes (`GET /saas/planes`), tiendas (directorio, `disponibilidad`, `:slug`, `POST` alta
+    5/h por IP), mi-suscripcion (ADMIN), plataforma (`@Roles('DUENO_PLATAFORMA')`: resumen, inquilinos,
+    estado, plan, extender, planes CRUD).
+  - `service/` `ResolverTenantService` (slug/id → info + disponible + límites, caché Map 60 s,
+    `invalidar`), `AprovisionamientoService` (alta en UNA transacción dentro de `conTenant` de la tienda
+    nueva: inquilino + TRIAL + `UsuariosService.crearAdminInicial` + `SucursalesService.crearInicial` +
+    `ProveedoresService.crearPropio` + `CatalogoBaseService.sembrarBase`; devuelve `AuthService.emitirToken`),
+    `SuscripcionesService` (TRIAL, cambio de plan, extender, barrida 1 h, **hook Fase 2
+    `activarPorPago`** sin controller), `UsoPlanService` (conteos por SQL crudo `GROUP BY tenant_id`),
+    `InquilinosService`, `MiSuscripcionService`, `SaasSeedService` (planes, tienda `mirroria` id fijo
+    `00000000-0000-4000-a000-000000000001`, suscripción Cadena hasta 2027-12-31, cuenta de plataforma desde
+    `PLATAFORMA_EMAIL`/`PLATAFORMA_PASSWORD`).
+- **Límites:** `assertDentroDelPlan` en `SucursalesService.create`, `ProductosService.create/update`
+  (reactivar) y `UsuariosService.updateRol/updateEstado` (staff). "Último ADMIN" se cuenta por tienda.
+- **Datos:** backfill `../scripts/sql/fase1-multitenant-backfill.sql` ANTES del primer arranque (synchronize
+  no agrega un NOT NULL a tablas con filas). ⚠️ No reiniciar un backend VIEJO contra una BD ya migrada:
+  su synchronize borraría `tenant_id`.
+- **Tests:** `vitest.setup.ts` deja un tenant de prueba en cada unit test (`entrarEnTenantDePrueba`);
+  `test/setup-tenant.e2e.ts` hace lo mismo con `mirroria` en los e2e (motor-consulta usa una tienda propia
+  con `usarTenantE2E`). Specs nuevos: tenant-context, tenant.subscriber, limites-plan, tenant.interceptor
+  (6 combinaciones), aprovisionamiento, suscripciones, y motor-consulta (toda métrica filtra
+  `<alias>.tenant_id = $1`). Aislamiento contra la API real: `../scripts/qa/qa_aislamiento.py` (84 chequeos).
+- **Gotcha TypeORM 1.x:** `subscribers: [TenantSubscriber]` se ignora en silencio si la clase no tiene
+  `@EventSubscriber()` (la registra por metadata).
+- **Verificado (2026-11-04):** tsc, oxlint, 318 unit, e2e 55/56 (la falla pide `IA_API_KEY` vacía,
+  preexistente), aislamiento 84/84, QA reglas 21/21 y mostrador 14/14; 93 rutas mapeadas.
+- **Auditoría QA (2026-11-05):** `test/ia.e2e-spec.ts` fuerza `process.env.IA_API_KEY = ''` (gana sobre
+  el `.env` en `ConfigModule`) → e2e 56/56 sin depender del `.env` local. El 409 de límite usa singular
+  con límite 1 ("hasta 1 sucursal"). Sin DDL en arranques repetidos (ver la corrección de `gen_random_uuid`).
 
 ## ⚡ Desarrollo local
 

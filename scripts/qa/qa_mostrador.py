@@ -3,8 +3,8 @@ ok=0; fail=0
 def check(name, cond, extra=""):
     global ok, fail
     print(("PASS " if cond else "FAIL ")+name+("" if cond else f"  -> {extra}")); ok+=cond; fail+=(not cond)
-sucs=sql("select id from sucursales order by nombre").splitlines(); A,B=sucs[0],sucs[1]
-sql("update inventario_sucursal set cantidad_disponible=cantidad_disponible+20")
+sucs=sql(f"select id from sucursales where tenant_id='{TID}' order by nombre").splitlines(); A,B=sucs[0],sucs[1]
+sql(f"update inventario_sucursal set cantidad_disponible=cantidad_disponible+20 where tenant_id='{TID}'")
 def var_en(suc, excl=()):
     q=f"select variante_id from inventario_sucursal where sucursal_id='{suc}' and cantidad_disponible-cantidad_reservada>=6 order by cantidad_disponible desc"
     return [v for v in sql(q).splitlines() if v not in excl]

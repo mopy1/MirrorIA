@@ -3,15 +3,17 @@ import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { useSucursales } from "@/features/branches/hooks/useSucursales"
 import { unsplashUrl } from "@/lib/unsplash"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function BranchesStrip() {
+  const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const { sucursales } = useSucursales()
   const ciudades = [...new Set(sucursales.map((s) => s.ciudadNombre))]
 
   return (
     <section id="sucursales" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-      <Link to="/sucursales" className="block">
+      <Link to={ruta("/sucursales")} className="block">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

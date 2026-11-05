@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { SolicitudInvalidaException } from '../../../core/exception/solicitud-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { ProveedoresService } from '../../proveedores/service/proveedores.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
@@ -80,13 +81,14 @@ export class OrdenesCompraService {
 
   async findAll(): Promise<OrdenCompraResponseDto[]> {
     const ordenes = await this.ordenRepository.find({
+      where: soloTenant({}),
       order: { fechaPedido: 'DESC' },
     });
     return ordenes.map((o) => this.toResponse(o));
   }
 
   async findOne(id: string): Promise<OrdenCompra> {
-    const orden = await this.ordenRepository.findOne({ where: { id } });
+    const orden = await this.ordenRepository.findOne({ where: soloTenant({ id }) });
     if (!orden) {
       throw new RecursoNoEncontradoException('Orden de compra', id);
     }
@@ -102,7 +104,7 @@ export class OrdenesCompraService {
   private async bloquearAbierta(manager: EntityManager, id: string): Promise<OrdenCompra> {
     const orden = await manager
       .getRepository(OrdenCompra)
-      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+      .findOne({ where: soloTenant({ id }), lock: { mode: 'pessimistic_write' } });
     if (!orden) {
       throw new RecursoNoEncontradoException('Orden de compra', id);
     }

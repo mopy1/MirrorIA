@@ -1,5 +1,5 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum ProveedorPago {
   STRIPE = 'STRIPE',
@@ -30,7 +30,7 @@ export enum EstadoPago {
  * en vez de cobrar dos veces. Para un cobro manual se genera `manual:<uuid>`.
  */
 @Entity('pagos')
-export class Pago extends BaseEntity {
+export class Pago extends TenantBaseEntity {
   @Column({ name: 'venta_id', type: 'uuid' })
   ventaId!: string;
 

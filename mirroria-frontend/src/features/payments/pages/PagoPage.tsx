@@ -7,8 +7,8 @@ export function PagoPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
 
-  if (location.pathname === "/pago/exito" || location.pathname === "/pago/cancelado") {
-    return <RegresoPasarela cancelado={location.pathname === "/pago/cancelado"} />
+  if (location.pathname.endsWith("/pago/exito") || location.pathname.endsWith("/pago/cancelado")) {
+    return <RegresoPasarela cancelado={location.pathname.endsWith("/pago/cancelado")} />
   }
 
   if (searchParams.get("metodo") === "QR") {

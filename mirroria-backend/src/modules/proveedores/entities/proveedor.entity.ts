@@ -1,8 +1,8 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 @Entity('proveedores')
-export class Proveedor extends BaseEntity {
+export class Proveedor extends TenantBaseEntity {
   @Column({ name: 'razon_social', length: 150 })
   razonSocial!: string;
 

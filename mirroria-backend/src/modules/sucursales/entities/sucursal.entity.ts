@@ -1,9 +1,9 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 import { Ciudad } from './ciudad.entity.js';
 
 @Entity('sucursales')
-export class Sucursal extends BaseEntity {
+export class Sucursal extends TenantBaseEntity {
   // Relación real (@ManyToOne): Ciudad vive en el mismo módulo — mismo criterio
   // que Coleccion.temporada en catalogo.
   @ManyToOne(() => Ciudad, { nullable: false })

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { FichaConsultaDto } from '../dto/ficha-consulta.dto.js';
 import { CombinacionInvalidaException } from '../exception/combinacion-invalida.exception.js';
 import { CATALOGO_METRICAS, TIPOS_MOVIMIENTO, type NombreFiltro } from './catalogo-metricas.js';
@@ -17,6 +18,11 @@ const FILTROS_ENUM_MAYUSCULA = new Set(['estado', 'canal', 'tipoMovimiento']);
 /** Mismo valor que el default de `FichaConsultaDto.limite`, pero aplicado aca: el
  * del DTO no corre cuando la ficha trae `limite: null` explicito. */
 const LIMITE_POR_DEFECTO = 20;
+
+/** Alias de la tabla raíz de una métrica: `'ventas v'` → `'v'`. */
+export function aliasRaiz(from: string): string {
+  return from.trim().split(/\s+/)[1];
+}
 
 export interface FilaReporte {
   clave: string;
@@ -40,8 +46,11 @@ export class MotorConsultaService {
       );
     }
 
-    const params: unknown[] = [];
-    const condiciones: string[] = [];
+    // 0. Aislamiento por tienda, SIEMPRE primero: filtrar la tabla raíz alcanza
+    // porque todos los JOIN del catálogo siguen FKs dentro de la misma tienda
+    // (los únicos a tablas globales son a `ciudades`).
+    const params: unknown[] = [tenantActual()];
+    const condiciones: string[] = [`${aliasRaiz(def.from)}.tenant_id = $1`];
     const filtros = ficha.filtros ?? {};
 
     // 1. Filtros declarados en el catalogo.
@@ -137,7 +146,7 @@ export class MotorConsultaService {
     // venta cuenta el total entero una vez por linea. Ver DimensionSpec.seleccionAlterna.
     const seleccion = dim.seleccionAlterna ?? def.seleccion;
 
-    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+    const where = `WHERE ${condiciones.join(' AND ')}`;
     const agrupa = ficha.agruparPor === 'ninguno' ? '' : `GROUP BY ${dim.grupo}, ${dim.etiqueta}`;
 
     // El tope no puede depender del default de la clase: `@IsOptional()` deja pasar

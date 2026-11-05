@@ -3,8 +3,10 @@ import { motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
 import { unsplashUrl } from "@/lib/unsplash"
 import { FEATURE_HIGHLIGHTS } from "./feature-highlights.data"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function FeatureHighlights() {
+  const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const [primary, ...rest] = FEATURE_HIGHLIGHTS
 
@@ -44,7 +46,7 @@ export function FeatureHighlights() {
               foco visible que el resto del sitio. */}
           {primary.href && (
             <Link
-              to={primary.href}
+              to={ruta(primary.href)}
               className="absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               aria-label={primary.title}
             />

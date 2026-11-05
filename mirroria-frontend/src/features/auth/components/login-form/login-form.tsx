@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { WarningCircle } from "@phosphor-icons/react"
+import { CircleNotch, WarningCircle } from "@phosphor-icons/react"
 import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 import { z } from "zod"
@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 import { useLogin } from "../../hooks/useLogin"
 
 const loginSchema = z.object({
@@ -16,8 +17,10 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
-export function LoginForm() {
-  const { submit, isLoading, error } = useLogin()
+/** `modo="plataforma"`: cuenta de la plataforma (sin tienda ni registro). */
+export function LoginForm({ modo = "tienda" }: { modo?: "tienda" | "plataforma" }) {
+  const { submit, isLoading, error } = useLogin(modo === "plataforma")
+  const ruta = useRutaTienda()
   const {
     register,
     handleSubmit,
@@ -59,16 +62,19 @@ export function LoginForm() {
         </Field>
       </FieldGroup>
 
-      <Button type="submit" size="lg" disabled={isLoading}>
+      <Button type="submit" size="lg" disabled={isLoading} className="gap-2">
+        {isLoading && <CircleNotch className="size-4 animate-spin" />}
         {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
       </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        ¿No tenés cuenta?{" "}
-        <Link to="/register" className="font-medium text-foreground underline underline-offset-4">
-          Registrate
-        </Link>
-      </p>
+      {modo === "tienda" && (
+        <p className="text-center text-sm text-muted-foreground">
+          ¿No tenés cuenta?{" "}
+          <Link to={ruta("/registro")} className="font-medium text-foreground underline underline-offset-4">
+            Registrate
+          </Link>
+        </p>
+      )}
     </form>
   )
 }

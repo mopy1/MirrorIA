@@ -1,9 +1,9 @@
 import { Column, Entity, Unique } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 @Entity('inventario_sucursal')
 @Unique(['varianteId', 'sucursalId'])
-export class InventarioSucursal extends BaseEntity {
+export class InventarioSucursal extends TenantBaseEntity {
   // FKs a variantes_producto.id y sucursales.id como columnas simples (no
   // @ManyToOne): inventario no debe depender de las entidades de catalogo ni
   // sucursales directamente — mismo criterio que Coleccion.proveedorId.

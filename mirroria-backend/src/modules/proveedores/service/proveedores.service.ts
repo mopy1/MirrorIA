@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { CreateProveedorDto } from '../dto/create-proveedor.dto.js';
 import type { ProveedorResponseDto } from '../dto/proveedor-response.dto.js';
 import { Proveedor } from '../entities/proveedor.entity.js';
@@ -29,7 +31,7 @@ export class ProveedoresService {
 
   async findAll(): Promise<ProveedorResponseDto[]> {
     const proveedores = await this.proveedorRepository.find({
-      where: { activo: true },
+      where: soloTenant({ activo: true }),
       order: { razonSocial: 'ASC' },
     });
     return proveedores.map((p) => this.toResponse(p));
@@ -37,12 +39,27 @@ export class ProveedoresService {
 
   async findOne(id: string): Promise<ProveedorResponseDto> {
     const proveedor = await this.proveedorRepository.findOne({
-      where: { id },
+      where: soloTenant({ id }),
     });
     if (!proveedor) {
       throw new RecursoNoEncontradoException('Proveedor', id);
     }
     return this.toResponse(proveedor);
+  }
+
+  /** Proveedor "Producción propia" de una tienda nueva (aprovisionamiento, en su transacción y conTenant). */
+  async crearPropio(manager: EntityManager): Promise<Proveedor> {
+    const repo = manager.getRepository(Proveedor);
+    return repo.save(
+      repo.create({
+        razonSocial: 'Producción propia',
+        nit: null,
+        contactoNombre: null,
+        contactoEmail: null,
+        contactoTelefono: null,
+        activo: true,
+      }),
+    );
   }
 
   private toResponse(proveedor: Proveedor): ProveedorResponseDto {

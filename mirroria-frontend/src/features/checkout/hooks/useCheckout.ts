@@ -1,14 +1,16 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from "@/hooks/useAuth"
+import { useSesionEnTienda } from "@/hooks/useSesionEnTienda"
 import { useCart } from "@/hooks/useCart"
 import { ApiError } from "@/lib/api"
 import { paymentsApi } from "@/features/payments/api/paymentsApi"
 import type { MetodoPago } from "@/features/payments/types/payments.types"
 import { checkoutApi } from "../api/checkoutApi"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function useCheckout() {
-  const { user } = useAuth()
+  const ruta = useRutaTienda()
+  const user = useSesionEnTienda()
   const { refresh } = useCart()
   const navigate = useNavigate()
   const [sucursalId, setSucursalId] = useState<string | null>(null)
@@ -40,7 +42,7 @@ export function useCheckout() {
           // esta pantalla — no queda carrito que comprar. Se la manda al pago de
           // la venta ya creada, que es el único camino que sigue abierto: pagar
           // en efectivo no necesita carrito.
-          navigate(`/pago/${venta.id}`, {
+          navigate(ruta(`/pago/${venta.id}`), {
             state: {
               motivo:
                 err instanceof ApiError
@@ -52,7 +54,7 @@ export function useCheckout() {
         }
       }
 
-      navigate(`/pago/${venta.id}?metodo=${metodo}`)
+      navigate(ruta(`/pago/${venta.id}?metodo=${metodo}`))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo completar la compra")
     } finally {

@@ -1,6 +1,7 @@
 import type { ConfigService } from '@nestjs/config';
 import type { DataSource, Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../../vitest.setup.js';
 import type { JwtPayload } from '../../../../core/security/jwt-payload.interface.js';
 import type { VentasService } from '../../../ventas/service/ventas.service.js';
 import {
@@ -88,6 +89,7 @@ describe('CobroQrService', () => {
   function pendiente(extra: Partial<Pago> = {}): Pago {
     return {
       id: 'p1',
+      tenantId: TENANT_PRUEBA,
       ventaId: VENTA_ID,
       proveedorPago: ProveedorPago.WAYRA,
       metodo: MetodoPago.QR,
@@ -162,7 +164,7 @@ describe('CobroQrService', () => {
       pagoRepo.findOne.mockResolvedValue(pendiente({ montoCents: 100 }));
       const res = await service.iniciar(VENTA_ID, DUENO);
       expect(pagoRepo.update).toHaveBeenCalledWith(
-        { id: 'p1', estado: EstadoPago.PENDIENTE },
+        { id: 'p1', estado: EstadoPago.PENDIENTE, tenantId: TENANT_PRUEBA },
         { estado: EstadoPago.RECHAZADO },
       );
       expect(res.montoCents).toBe(24500);
@@ -210,7 +212,7 @@ describe('CobroQrService', () => {
       });
       // Aprobado con un UPDATE condicionado a PENDIENTE (ver concurrencia).
       expect(pagoRepoTx.update).toHaveBeenCalledWith(
-        { id: 'p1', estado: EstadoPago.PENDIENTE },
+        { id: 'p1', estado: EstadoPago.PENDIENTE, tenantId: TENANT_PRUEBA },
         {
           estado: EstadoPago.APROBADO,
           eventId: `wayra:WY261026000123@${Date.parse('2026-10-26T15:00:00Z')}`,

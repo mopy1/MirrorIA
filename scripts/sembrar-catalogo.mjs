@@ -17,6 +17,8 @@ import {
 } from './catalogo-demo.mjs'
 
 const API = arg('--api') ?? 'https://mirroria.duckdns.org/api/v1'
+// Fase 1 SaaS: toda ruta de negocio va a una tienda (cabecera X-Tenant). El catálogo demo es de "mirroria".
+const TIENDA = arg('--tienda') ?? 'mirroria'
 const EMAIL = process.env.MIRRORIA_EMAIL
 const PASSWORD = process.env.MIRRORIA_PASSWORD
 const SOLO_LEER = process.argv.includes('--solo-leer')
@@ -33,6 +35,7 @@ async function pedir(metodo, ruta, cuerpo) {
     method: metodo,
     headers: {
       'Content-Type': 'application/json',
+      'X-Tenant': TIENDA,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
@@ -97,6 +100,9 @@ async function main() {
   if (SOLO_LEER) return
 
   // --- 1. Ciudades y sucursales ------------------------------------------
+  // Las ciudades son globales (Fase 1): las 9 capitales las siembra el backend y
+  // solo la cuenta de plataforma puede crear otra; con un ADMIN una ciudad
+  // faltante falla con 403.
   process.stdout.write('\nCiudades    ')
   const ciudadesYa = await get('/sucursales/ciudades')
   const ciudades = {}

@@ -2,6 +2,7 @@ import { Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ipDelPedido } from '../../../core/security/limite-por-ip.js';
+import { SinTenant } from '../../../core/tenancy/sin-tenant.decorator.js';
 import type { TokenProbadorResponseDto } from '../dto/token-probador-response.dto.js';
 import { ProbadorService } from '../service/probador.service.js';
 
@@ -9,6 +10,7 @@ import { ProbadorService } from '../service/probador.service.js';
 // probarse una prenda no necesita cuenta (mismo criterio ya documentado en
 // mirroria-frontend/AGENTS.md para esa ruta).
 @ApiTags('probador')
+@SinTenant()
 @Controller('probador')
 export class ProbadorController {
   constructor(private readonly probadorService: ProbadorService) {}

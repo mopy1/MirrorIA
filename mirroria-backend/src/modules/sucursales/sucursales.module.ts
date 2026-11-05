@@ -14,6 +14,6 @@ import { SucursalesService } from './service/sucursales.service.js';
   // Exportado para que inventario/ventas puedan validar sucursalId sin
   // importar la entidad Sucursal directamente — mismo criterio que
   // ProveedoresService en proveedores/.
-  exports: [SucursalesService],
+  exports: [SucursalesService, CiudadesService],
 })
 export class SucursalesModule {}

@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from "@/hooks/useAuth"
+import { useSesionEnTienda } from "@/hooks/useSesionEnTienda"
 import { useCart } from "@/hooks/useCart"
 import { ApiError } from "@/lib/api"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /**
  * "Agregar al carrito" de la ficha. Muestra el mensaje real del backend si
@@ -10,7 +11,8 @@ import { ApiError } from "@/lib/api"
  * color") en vez de tragarse el error y avisar un éxito falso.
  */
 export function useAgregarAlCarrito() {
-  const { isAuthenticated } = useAuth()
+  const ruta = useRutaTienda()
+  const isAuthenticated = useSesionEnTienda() !== null
   const { addItem, isLoading } = useCart()
   const navigate = useNavigate()
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -18,7 +20,7 @@ export function useAgregarAlCarrito() {
 
   async function agregar(varianteId: string | undefined) {
     if (!isAuthenticated) {
-      navigate("/login")
+      navigate(ruta("/login"))
       return
     }
     if (!varianteId) return

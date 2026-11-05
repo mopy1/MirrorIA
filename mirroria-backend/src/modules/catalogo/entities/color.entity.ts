@@ -1,9 +1,9 @@
 import { Column, Entity, Index } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 @Entity('colores')
-export class Color extends BaseEntity {
-  @Index({ unique: true })
+@Index(['tenantId', 'nombre'], { unique: true })
+export class Color extends TenantBaseEntity {
   @Column({ length: 50 })
   nombre!: string;
 

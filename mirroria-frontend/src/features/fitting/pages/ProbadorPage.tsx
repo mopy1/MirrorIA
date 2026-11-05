@@ -7,8 +7,10 @@ import { PanelGuiado } from "../components/panel-guiado"
 import { RespaldoSinCamara } from "../components/respaldo-sin-camara"
 import { TiraDePrendas } from "../components/tira-de-prendas"
 import { useProbador } from "../hooks/useProbador"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function ProbadorPage() {
+  const ruta = useRutaTienda()
   const { productoId } = useParams()
   const {
     estado, reintentar, stream, remoto, setVideo,
@@ -63,7 +65,7 @@ export function ProbadorPage() {
           </button>
         )}
         {prenda && (
-          <Link to={`/tienda/producto/${prenda.id}`} className={cn(buttonVariants())}>
+          <Link to={ruta(`/tienda/producto/${prenda.id}`)} className={cn(buttonVariants())}>
             Reservar en sucursal
           </Link>
         )}

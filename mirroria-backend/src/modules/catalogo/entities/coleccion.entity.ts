@@ -1,9 +1,9 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 import { Temporada } from './temporada.entity.js';
 
 @Entity('colecciones')
-export class Coleccion extends BaseEntity {
+export class Coleccion extends TenantBaseEntity {
   @ManyToOne(() => Temporada, { nullable: false })
   @JoinColumn({ name: 'temporada_id' })
   temporada!: Temporada;

@@ -1,14 +1,15 @@
-import { CreateDateColumn, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import { CreateDateColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 /**
  * Toda entidad de negocio principal debe extender de esta clase.
- * id como uuid con default `gen_random_uuid()` (pgcrypto) directo en Postgres —
- * a propósito NO se usa @PrimaryGeneratedColumn('uuid'), porque TypeORM lo
- * resuelve con la extensión uuid-ossp (uuid_generate_v4()), distinta a la que
- * documenta Diseño_BD.md/dbdiagram.dbml en el vault (pgcrypto).
+ * id como uuid con default `gen_random_uuid()` (pgcrypto) directo en Postgres:
+ * `@PrimaryGeneratedColumn('uuid')` + `uuidExtension: 'pgcrypto'` en typeorm.config.ts.
+ * No usar `@PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })`: TypeORM 1.x
+ * lee esa columna como "generada" y la de la entidad como "no generada", y en cada
+ * arranque con synchronize emitía DROP/SET DEFAULT + DROP/ADD de las FK en todas las tablas.
  */
 export abstract class BaseEntity {
-  @PrimaryColumn('uuid', { default: () => 'gen_random_uuid()' })
+  @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @CreateDateColumn({ type: 'timestamp' })

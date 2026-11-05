@@ -7,10 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatMoney } from "@/lib/money"
 import { useCobroQr } from "../hooks/useCobroQr"
 import { QrPagado } from "./qr-pagado"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /** Pagar con QR: un código por compra, con su monto. La pantalla cambia sola
  * cuando el banco avisa que se pagó — nadie tiene que confirmarlo a mano. */
 export function PagoQr() {
+  const ruta = useRutaTienda()
   const { ventaId } = useParams<{ ventaId: string }>()
   const { cobro, estado, transaccion, pagadoEn, error, isLoading } = useCobroQr(ventaId)
 
@@ -28,7 +30,7 @@ export function PagoQr() {
         <Alert variant="destructive">
           <AlertDescription>{error ?? "No pudimos generar el QR de pago."}</AlertDescription>
         </Alert>
-        <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }), "mt-6 w-full")}>
+        <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }), "mt-6 w-full")}>
           Volver a la tienda
         </Link>
       </div>
@@ -97,7 +99,7 @@ export function PagoQr() {
         Esta pantalla se actualiza sola apenas el banco confirma el pago.
       </p>
 
-      <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }), "mt-8")}>
+      <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }), "mt-8")}>
         Volver a la tienda
       </Link>
     </div>

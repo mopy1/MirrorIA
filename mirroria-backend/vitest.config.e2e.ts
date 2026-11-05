@@ -7,6 +7,8 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // Contexto de la tienda demo para los servicios llamados directo (Fase 1 SaaS).
+    setupFiles: ['./test/setup-tenant.e2e.ts'],
     // Un archivo de punta a punta a la vez. Los .e2e-spec comparten UNA sola
     // base de datos real, y la barrida de vencimientos (`expirarVencidas`) es
     // global por definicion: recorre TODAS las ventas PENDIENTE de la base, no

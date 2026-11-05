@@ -1,5 +1,5 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum EstadoReserva {
   PENDIENTE = 'PENDIENTE',
@@ -12,7 +12,7 @@ export enum EstadoReserva {
 }
 
 @Entity('reservas')
-export class Reserva extends BaseEntity {
+export class Reserva extends TenantBaseEntity {
   // Cross-módulo (seguridad, sucursales) como columnas simples — mismo
   // criterio que en el resto del proyecto.
   @Column({ name: 'cliente_id', type: 'uuid' })

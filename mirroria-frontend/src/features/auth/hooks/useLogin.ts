@@ -2,10 +2,12 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { ApiError } from "@/lib/api"
+import { destinoTrasLogin } from "@/lib/destino-sesion"
 import { authApi } from "../api/authApi"
 import type { LoginRequest } from "../types/auth.types"
 
-export function useLogin() {
+/** `plataforma`: login sin tienda (busca la cuenta de DUENO_PLATAFORMA). */
+export function useLogin(plataforma = false) {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
@@ -15,9 +17,9 @@ export function useLogin() {
     setIsLoading(true)
     setError(null)
     try {
-      const auth = await authApi.login(data)
+      const auth = await authApi.login(data, plataforma)
       login(auth)
-      navigate("/")
+      navigate(destinoTrasLogin(auth.usuario))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión")
     } finally {

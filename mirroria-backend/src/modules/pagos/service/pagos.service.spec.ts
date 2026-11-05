@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import type { DataSource } from 'typeorm';
 import type { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -109,7 +110,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar un cobro tambien dispara la liberacion', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
     expect(expiracion.expirarVencidas).toHaveBeenCalled();
@@ -152,7 +153,7 @@ describe('PagosService — cobro manual', () => {
 
   it('un cajero no confirma el cobro de una venta de otra sucursal (403)', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
     });
     ventas.findOne.mockResolvedValue({ id: 'v1', sucursalId: 'OTRA', estado: 'PENDIENTE' });
     await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow(ForbiddenActionException);
@@ -161,7 +162,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar aprueba el pago y cobra la venta', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
     // El segundo argumento es el EntityManager de la transaccion (ver
@@ -180,7 +181,7 @@ describe('PagosService — cobro manual', () => {
     // pago queda aprobado aunque la venta no se pueda cobrar — y nada mas lo
     // notaria.
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
     expect(pagoRepoTx.save).toHaveBeenCalledTimes(1);
@@ -189,7 +190,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar deja registro de QUIEN confirmo', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
     const guardado = pagoRepoTx.save.mock.calls[0][0] as { referenciaExterna: string };
@@ -198,7 +199,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar dos veces el mismo pago no cobra dos veces', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.QR,
     });
     await service.confirmarManual('p1', CAJERO);
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
@@ -206,7 +207,7 @@ describe('PagosService — cobro manual', () => {
 
   it('un pago de tarjeta NO se puede confirmar a mano: lo decide el webhook', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
     });
     await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow();
     expect(ventas.marcarPagada).not.toHaveBeenCalled();
@@ -214,7 +215,7 @@ describe('PagosService — cobro manual', () => {
 
   it('un QR de Wayra NO se puede confirmar a mano: lo acredita el aviso del banco', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
       proveedorPago: ProveedorPago.WAYRA,
     });
     await expect(service.confirmarManual('p1', CAJERO)).rejects.toThrow(VentaNoPagableException);
@@ -223,7 +224,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar efectivo sobre una venta ya PAGADA por otro medio es 409 y no aprueba nada', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
       proveedorPago: ProveedorPago.MANUAL,
     });
     estadoVentaBloqueada = 'PAGADA';
@@ -235,7 +236,7 @@ describe('PagosService — cobro manual', () => {
 
   it('confirmar efectivo rechaza los demas intentos pendientes de la venta', async () => {
     pagoRepo.findOne.mockResolvedValue({
-      id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
+      id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.EFECTIVO,
       proveedorPago: ProveedorPago.MANUAL,
     });
     await service.confirmarManual('p1', CAJERO);
@@ -252,7 +253,7 @@ describe('PagosService — cobro manual', () => {
     // misma asimetria que el webhook ya tenia resuelta, pero del otro lado.
     beforeEach(() => {
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.QR,
       });
       ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
     });
@@ -432,6 +433,7 @@ describe('PagosService — cobro manual', () => {
             ventaId: 'v1',
             estado: EstadoPago.PENDIENTE,
             proveedorPago: ProveedorPago.STRIPE,
+            tenantId: TENANT_PRUEBA,
           },
         });
       });
@@ -536,7 +538,7 @@ describe('PagosService — cobro manual', () => {
     it('un evento valido aprueba el pago y cobra la venta', async () => {
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
       });
       const res = await service.procesarEvento(CUERPO, 'buena');
       expect(res.procesado).toBe(true);
@@ -548,7 +550,7 @@ describe('PagosService — cobro manual', () => {
       // es lo unico que distingue una escritura atomica de dos sueltas.
       // UPDATE condicionado a PENDIENTE (no save del objeto leido antes).
       expect(pagoRepoTx.update).toHaveBeenCalledWith(
-        { id: 'p1', estado: EstadoPago.PENDIENTE },
+        { id: 'p1', estado: EstadoPago.PENDIENTE, tenantId: TENANT_PRUEBA },
         { estado: EstadoPago.APROBADO, eventId: 'evt_1' },
       );
       expect(pagoRepo.save).not.toHaveBeenCalled();
@@ -557,7 +559,7 @@ describe('PagosService — cobro manual', () => {
     it('al aprobar la tarjeta, los demas intentos pendientes quedan RECHAZADO (no doble cobro)', async () => {
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
       });
       await service.procesarEvento(CUERPO, 'buena');
       expect(pagoRepoTx.update).toHaveBeenCalledWith(
@@ -569,7 +571,7 @@ describe('PagosService — cobro manual', () => {
     it('si otro cobro gano mientras tanto (pago ya no PENDIENTE), se marca para reembolso', async () => {
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
       });
       pagoRepoTx.update.mockResolvedValueOnce({ affected: 0 });
       pagoRepoTx.findOne.mockResolvedValue({ id: 'p1', estado: EstadoPago.RECHAZADO });
@@ -577,7 +579,7 @@ describe('PagosService — cobro manual', () => {
       expect(res.procesado).toBe(false);
       expect(ventas.marcarPagada).not.toHaveBeenCalled();
       expect(pagoRepo.update).toHaveBeenCalledWith(
-        { id: 'p1' },
+        { id: 'p1', tenantId: TENANT_PRUEBA },
         { motivoReembolso: expect.stringContaining('reembolso') },
       );
     });
@@ -586,7 +588,7 @@ describe('PagosService — cobro manual', () => {
       // Stripe reintenta. Es la promesa explicita del documento entregado.
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne
-        .mockResolvedValueOnce({ id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA })
+        .mockResolvedValueOnce({ id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA })
         .mockResolvedValueOnce({ id: 'p1', ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.TARJETA });
 
       await service.procesarEvento(CUERPO, 'buena');
@@ -603,7 +605,7 @@ describe('PagosService — cobro manual', () => {
       // silencio: plata cobrada, cero constancia.
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_9', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.RECHAZADO, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.RECHAZADO, metodo: MetodoPago.TARJETA,
       });
 
       const res = await service.procesarEvento(CUERPO, 'buena');
@@ -620,7 +622,7 @@ describe('PagosService — cobro manual', () => {
     it('ese caso tampoco le devuelve un error a la pasarela', async () => {
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_9', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.REEMBOLSADO, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.REEMBOLSADO, metodo: MetodoPago.TARJETA,
       });
       await expect(service.procesarEvento(CUERPO, 'buena')).resolves.toBeDefined();
     });
@@ -631,7 +633,7 @@ describe('PagosService — cobro manual', () => {
       // marca de reembolso.
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.APROBADO, metodo: MetodoPago.TARJETA,
       });
 
       const res = await service.procesarEvento(CUERPO, 'buena');
@@ -665,7 +667,7 @@ describe('PagosService — cobro manual', () => {
       // esa constancia, hay que dejarla a la vista.
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
       });
       ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
 
@@ -673,7 +675,7 @@ describe('PagosService — cobro manual', () => {
 
       expect(res.procesado).toBe(false);
       expect(pagoRepo.update).toHaveBeenCalledWith(
-        { id: 'p1' },
+        { id: 'p1', tenantId: TENANT_PRUEBA },
         { motivoReembolso: expect.stringContaining('reembolso') },
       );
     });
@@ -683,7 +685,7 @@ describe('PagosService — cobro manual', () => {
       // ningun reintento va a arreglar.
       pasarela.verificarEvento.mockReturnValue({ id: 'evt_1', tipo: 'pagado', sesionId: 'ses_1' });
       pagoRepo.findOne.mockResolvedValue({
-        id: 'p1', ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
+        id: 'p1', tenantId: TENANT_PRUEBA, ventaId: 'v1', estado: EstadoPago.PENDIENTE, metodo: MetodoPago.TARJETA,
       });
       ventas.marcarPagada.mockRejectedValue(new Error('la venta esta CANCELADA'));
 

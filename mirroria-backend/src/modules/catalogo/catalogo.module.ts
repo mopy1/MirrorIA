@@ -14,6 +14,7 @@ import { Producto } from './entities/producto.entity.js';
 import { Talla } from './entities/talla.entity.js';
 import { Temporada } from './entities/temporada.entity.js';
 import { VarianteProducto } from './entities/variante-producto.entity.js';
+import { CatalogoBaseService } from './service/catalogo-base.service.js';
 import { CategoriasService } from './service/categorias.service.js';
 import { ColeccionesService } from './service/colecciones.service.js';
 import { ColoresService } from './service/colores.service.js';
@@ -52,10 +53,11 @@ import { TemporadasService } from './service/temporadas.service.js';
     TallasService,
     ColoresService,
     ProductosService,
+    CatalogoBaseService,
   ],
   // ProductosService exportado para que inventario/ventas puedan validar
   // varianteId (y leer su precioCents) sin importar la entidad
   // VarianteProducto directamente — mismo criterio que ProveedoresService.
-  exports: [ProductosService],
+  exports: [ProductosService, CatalogoBaseService],
 })
 export class CatalogoModule {}

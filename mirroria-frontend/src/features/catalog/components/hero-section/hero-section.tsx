@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "cn"
 import { HERO_CONTENT } from "./hero-section.data"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /**
  * Hero editorial adaptativo:
@@ -19,6 +20,7 @@ import { HERO_CONTENT } from "./hero-section.data"
  *   colisione o tape el rostro de la modelo.
  */
 export function HeroSection() {
+  const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const { headline, subtext, primaryCta, secondaryCta } = HERO_CONTENT
 
@@ -54,11 +56,11 @@ export function HeroSection() {
             {subtext}
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8">
-            <Link to={primaryCta.href} className={cn(buttonVariants({ size: "lg" }))}>
+            <Link to={ruta(primaryCta.href)} className={cn(buttonVariants({ size: "lg" }))}>
               {primaryCta.label}
             </Link>
             <Link
-              to={secondaryCta.href}
+              to={ruta(secondaryCta.href)}
               className={cn(
                 buttonVariants({ size: "lg", variant: "outline" }),
                 "border-white/40 bg-transparent text-white hover:bg-white/10"

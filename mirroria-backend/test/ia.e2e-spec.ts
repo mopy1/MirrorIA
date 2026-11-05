@@ -7,10 +7,14 @@ import { AppModule } from './../src/app.module.js';
 
 const RUTA = '/api/v1/ia/reportes/consulta';
 
+// La rama "sin IA_API_KEY" tiene que ser determinista aunque el .env local traiga
+// la clave: process.env gana sobre el .env en ConfigModule, y '' cuenta como "sin clave".
+process.env.IA_API_KEY = '';
+
 /** Registra un usuario nuevo y devuelve su token y su email. El registro publico siempre da CUSTOMER. */
 async function registrarCustomer(app: INestApplication<App>): Promise<{ email: string; token: string }> {
   const email = `ia-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
-  const res = await request(app.getHttpServer())
+  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
     .post('/api/v1/seguridad/auth/register')
     .send({ email, password: 'Password123', fullName: 'E2E IA' })
     .expect(201);
@@ -46,7 +50,7 @@ async function usuarioConRol(
   await ds.query('UPDATE usuarios SET role = $2, sucursal_id = $3 WHERE email = $1', [
     email, role, sucursalId,
   ]);
-  const login = await request(app.getHttpServer())
+  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
     .post('/api/v1/seguridad/auth/login')
     .send({ email, password: 'Password123' })
     .expect(200);
@@ -78,7 +82,7 @@ describe('IA - reportes (e2e)', () => {
   });
 
   it('sin token devuelve 401', async () => {
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
       .expect(401);
@@ -86,7 +90,7 @@ describe('IA - reportes (e2e)', () => {
 
   it('un CUSTOMER devuelve 403', async () => {
     const token = await tokenDeCustomer(app);
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -98,7 +102,7 @@ describe('IA - reportes (e2e)', () => {
     // corren ANTES que los Pipes de parametro, asi que RolesGuard corta primero.
     // Para ejercer el 400 del PIPE_FICHA hace falta un rol que pase el guard.
     const token = await tokenDeAdmin(app);
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno', sqlCrudo: 'DROP TABLE ventas' })
@@ -107,7 +111,7 @@ describe('IA - reportes (e2e)', () => {
 
   it('un ADMIN consulta y recibe 200 con filas', async () => {
     const token = await tokenDeAdmin(app);
-    const res = await request(app.getHttpServer())
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -120,7 +124,7 @@ describe('IA - reportes (e2e)', () => {
     // lo tiene que dar SinSucursalAsignadaException dentro del servicio. Dejar el filtro
     // vacio abriria TODAS las sucursales, que es lo contrario de lo que se busca.
     const { token } = await usuarioConRol(app, 'ENCARGADO_SUCURSAL');
-    const res = await request(app.getHttpServer())
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -135,9 +139,9 @@ describe('IA - reportes (e2e)', () => {
     const HISTORIAL = '/api/v1/ia/interacciones';
 
     it('sin token es 401 y con un CUSTOMER es 403', async () => {
-      await request(app.getHttpServer()).get(HISTORIAL).expect(401);
+      await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria').get(HISTORIAL).expect(401);
       const token = await tokenDeCustomer(app);
-      await request(app.getHttpServer())
+      await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
@@ -154,13 +158,13 @@ describe('IA - reportes (e2e)', () => {
       // contra el repositorio real, no contra uno simulado.
       const marca = `hist-${Date.now()}`;
       await ds.query(
-        `INSERT INTO interacciones_ia (usuario_id, tipo, input_text, output_text)
-         VALUES ($1, 'REPORTE_VOZ', $3, 'respuesta del admin'),
-                ($2, 'REPORTE_VOZ', $4, 'respuesta del encargado')`,
+        `INSERT INTO interacciones_ia (tenant_id, usuario_id, tipo, input_text, output_text)
+         VALUES ('00000000-0000-4000-a000-000000000001', $1, 'REPORTE_VOZ', $3, 'respuesta del admin'),
+                ('00000000-0000-4000-a000-000000000001', $2, 'REPORTE_VOZ', $4, 'respuesta del encargado')`,
         [admin.id, encargado.id, `${marca}-admin`, `${marca}-encargado`],
       );
 
-      const delEncargado = await request(app.getHttpServer())
+      const delEncargado = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${encargado.token}`)
         .expect(200);
@@ -170,7 +174,7 @@ describe('IA - reportes (e2e)', () => {
       expect(textosEncargado).toContain(`${marca}-encargado`);
       expect(textosEncargado).not.toContain(`${marca}-admin`);
 
-      const delAdmin = await request(app.getHttpServer())
+      const delAdmin = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${admin.token}`)
         .expect(200);
@@ -192,20 +196,20 @@ describe('IA - reportes (e2e)', () => {
   });
 
   it('sin IA_API_KEY, /reportes da 503 pero /reportes/consulta sigue en 200', async () => {
-    // Este entorno de pruebas no trae IA_API_KEY (ver .env.example): la rama es
-    // determinista justo por eso. Confirma que el modulo real conecta
+    // Arriba se fuerza IA_API_KEY='' para este archivo: la rama es
+    // determinista aunque el .env local tenga la clave. Confirma que el modulo real conecta
     // DeepSeekProveedor con IaService por inyeccion y que el filtro global
     // traduce IaNoConfiguradaException al 503 correcto — y, la propiedad que
     // mas importa conservar, que el camino manual sigue vivo sin clave.
     const token = await tokenDeAdmin(app);
 
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post('/api/v1/ia/reportes')
       .set('Authorization', `Bearer ${token}`)
       .send({ prompt: 'cuanto vendi este mes por sucursal' })
       .expect(503);
 
-    await request(app.getHttpServer())
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })

@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Navigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
+import { destinoTrasLogin } from "@/lib/destino-sesion"
 
 /** Roles de reportes (CU24): ADMIN + ENCARGADO_SUCURSAL, acotado a su propia sucursal del lado del servidor. */
 export const REPORTES_ROLES: UsuarioRole[] = ["ADMIN", "ENCARGADO_SUCURSAL"]
@@ -21,10 +22,11 @@ export function StaffRoute({
   children: ReactNode
   allowedRoles?: UsuarioRole[]
 }) {
-  const { isAuthenticated, user } = useAuth()
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!user?.role || !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/entrar" replace />
+  // Sin tienda (plataforma) o rol no habilitado: a su destino de siempre.
+  if (!user.tenant || !allowedRoles.includes(user.role)) {
+    return <Navigate to={destinoTrasLogin(user)} replace />
   }
   return children
 }

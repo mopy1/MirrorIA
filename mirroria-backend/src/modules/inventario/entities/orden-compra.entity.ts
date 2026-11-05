@@ -1,5 +1,5 @@
 import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum EstadoOrdenCompra {
   PENDIENTE = 'PENDIENTE',
@@ -18,7 +18,7 @@ export interface OrdenCompraItem {
 }
 
 @Entity('ordenes_compra')
-export class OrdenCompra extends BaseEntity {
+export class OrdenCompra extends TenantBaseEntity {
   // FKs cross-módulo (proveedores, sucursales, seguridad) como columnas
   // simples — mismo criterio que en el resto del proyecto.
   @Column({ name: 'proveedor_id', type: 'uuid' })

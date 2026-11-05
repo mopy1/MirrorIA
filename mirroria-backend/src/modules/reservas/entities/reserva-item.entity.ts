@@ -1,9 +1,9 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 import { Reserva } from './reserva.entity.js';
 
 @Entity('reserva_items')
-export class ReservaItem extends BaseEntity {
+export class ReservaItem extends TenantBaseEntity {
   // Reserva vive en el mismo módulo -> relación real.
   @ManyToOne(() => Reserva, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'reserva_id' })

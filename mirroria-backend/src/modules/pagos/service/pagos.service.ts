@@ -10,6 +10,7 @@ import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
+import { conTenant, soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
 import type { IniciarPagoDto } from '../dto/iniciar-pago.dto.js';
 import type { InstruccionesResponseDto } from '../dto/instrucciones-response.dto.js';
@@ -62,7 +63,7 @@ export class PagosService {
       await this.bloquearVentaPendiente(manager, ventaId);
       const repo = manager.getRepository(Pago);
       const existente = await repo.findOne({
-        where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL },
+        where: soloTenant({ ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.MANUAL }),
       });
 
       // Si la clienta cambio de metodo (de QR a efectivo, por ejemplo), se
@@ -131,7 +132,7 @@ export class PagosService {
       // NUEVA en la pasarela, y con dos sesiones abiertas y las dos pagadas
       // quedaban dos cobros reales y dos filas aprobadas sobre una sola venta.
       const existente = await repo.findOne({
-        where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
+        where: soloTenant({ ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE }),
       });
       if (existente?.referenciaExterna) {
         const abierta = await this.pasarela.recuperarSesion(existente.referenciaExterna);
@@ -206,7 +207,7 @@ export class PagosService {
       );
     }
     const tarjeta = await this.pagoRepository.findOne({
-      where: { ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE },
+      where: soloTenant({ ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE }),
     });
     if (tarjeta?.referenciaExterna && !(await this.pasarela.cerrarSesion(tarjeta.referenciaExterna))) {
       throw new OperacionInvalidaException(
@@ -231,13 +232,19 @@ export class PagosService {
       return { procesado: false };
     }
 
+    // Stripe no manda tienda: el tenant sale de la fila del pago (id de sesión, único global).
     const pago = await this.pagoRepository.findOne({
-      where: { referenciaExterna: evento.sesionId },
+      where: { referenciaExterna: evento.sesionId }, // sin-tenant: webhook, el tenant sale del pago
     });
     if (!pago) {
       this.logger.warn(`Evento ${evento.id} para una sesion desconocida`);
       return { procesado: false };
     }
+    return conTenant({ tenantId: pago.tenantId }, () => this.acreditarEvento(pago, evento.id));
+  }
+
+  /** Resto del webhook, ya dentro del contexto de la tienda del pago. */
+  private async acreditarEvento(pago: Pago, eventoId: string): Promise<{ procesado: boolean }> {
     // Reintento de la pasarela sobre un pago ya aprobado: no se cobra de nuevo
     // y no hay nada que anotar. Stripe reintenta de rutina.
     if (pago.estado === EstadoPago.APROBADO) {
@@ -251,7 +258,7 @@ export class PagosService {
     // y sin rastro. Mismo rescate que el de la venta cancelada, abajo.
     if (pago.estado !== EstadoPago.PENDIENTE) {
       this.logger.error(
-        `Pago ${pago.id} de la venta ${pago.ventaId} recibio el aviso de cobro ${evento.id} estando ya ${pago.estado}: entro dinero sobre un cobro muerto`,
+        `Pago ${pago.id} de la venta ${pago.ventaId} recibio el aviso de cobro ${eventoId} estando ya ${pago.estado}: entro dinero sobre un cobro muerto`,
       );
       pago.motivoReembolso = `Cobro acreditado por la pasarela sobre un pago ya ${pago.estado}: requiere reembolso`;
       await this.pagoRepository.save(pago);
@@ -269,13 +276,13 @@ export class PagosService {
         // aprobarlo pisaba esa marca (doble cobro sin rastro). Se guarda el id
         // del evento real: el indice unique impide que otro pago lo reclame.
         const { affected } = await repo.update(
-          { id: pago.id, estado: EstadoPago.PENDIENTE },
-          { estado: EstadoPago.APROBADO, eventId: evento.id },
+          soloTenant({ id: pago.id, estado: EstadoPago.PENDIENTE }),
+          { estado: EstadoPago.APROBADO, eventId: eventoId },
         );
         if (affected !== 1) {
           // El mismo evento entregado dos veces a la vez: el otro ya lo aprobo.
-          const actual = await repo.findOne({ where: { id: pago.id } });
-          if (actual?.estado === EstadoPago.APROBADO && actual.eventId === evento.id) {
+          const actual = await repo.findOne({ where: soloTenant({ id: pago.id }) });
+          if (actual?.estado === EstadoPago.APROBADO && actual.eventId === eventoId) {
             return false;
           }
           throw new OperacionInvalidaException('el pago ya no estaba pendiente');
@@ -296,7 +303,7 @@ export class PagosService {
         `Pago ${pago.id} cobrado sobre la venta ${pago.ventaId}, que ya no es pagable: ${String(error)}`,
       );
       await this.pagoRepository.update(
-        { id: pago.id },
+        soloTenant({ id: pago.id }),
         { motivoReembolso: 'Venta cancelada o ya pagada antes de acreditarse el cobro: requiere reembolso' },
       );
       // 200 a proposito: la pasarela no tiene que reintentar algo que ya no va a
@@ -311,7 +318,7 @@ export class PagosService {
    */
   async confirmarManual(pagoId: string, user: JwtPayload): Promise<PagoResponseDto> {
     await this.expiracionService.expirarVencidas();
-    const pago = await this.pagoRepository.findOne({ where: { id: pagoId } });
+    const pago = await this.pagoRepository.findOne({ where: soloTenant({ id: pagoId }) });
     if (!pago) {
       throw new RecursoNoEncontradoException('Pago', pagoId);
     }
@@ -386,8 +393,8 @@ export class PagosService {
    */
   private async estadoVentaBloqueada(manager: EntityManager, ventaId: string): Promise<string | null> {
     const filas: { estado: string }[] = await manager.query(
-      'SELECT estado FROM ventas WHERE id = $1 FOR UPDATE',
-      [ventaId],
+      'SELECT estado FROM ventas WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [ventaId, tenantActual()],
     );
     return filas[0]?.estado ?? null;
   }
@@ -402,7 +409,7 @@ export class PagosService {
   /** Los demas intentos PENDIENTE de la venta quedan RECHAZADO (mismo criterio que el QR). */
   private async rechazarOtrosPendientes(repo: Repository<Pago>, pago: Pago): Promise<void> {
     await repo.update(
-      { ventaId: pago.ventaId, estado: EstadoPago.PENDIENTE, id: Not(pago.id) },
+      soloTenant({ ventaId: pago.ventaId, estado: EstadoPago.PENDIENTE, id: Not(pago.id) }),
       { estado: EstadoPago.RECHAZADO },
     );
   }
@@ -411,11 +418,14 @@ export class PagosService {
   async pendientes(sucursalId?: string): Promise<PagoResponseDto[]> {
     const qb = this.pagoRepository
       .createQueryBuilder('p')
-      .where('p.estado = :estado', { estado: EstadoPago.PENDIENTE })
+      .where('p.estado = :estado AND p.tenant_id = :tenantId', {
+        estado: EstadoPago.PENDIENTE,
+        tenantId: tenantActual(),
+      })
       .andWhere('p.proveedorPago = :prov', { prov: ProveedorPago.MANUAL });
     // Sin relacion ORM hacia ventas (regla 1): subconsulta por uuid.
     if (sucursalId) {
-      qb.andWhere('p.ventaId IN (SELECT v.id FROM ventas v WHERE v.sucursal_id = :sucursalId)', {
+      qb.andWhere('p.ventaId IN (SELECT v.id FROM ventas v WHERE v.sucursal_id = :sucursalId AND v.tenant_id = :tenantId)', {
         sucursalId,
       });
     }

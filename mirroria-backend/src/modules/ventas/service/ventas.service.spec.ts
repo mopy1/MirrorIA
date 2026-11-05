@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { TENANT_PRUEBA } from '../../../../vitest.setup.js';
 import { DataSource } from 'typeorm';
 import { VentasService } from './ventas.service.js';
 import { CarritosService, sumarAlCarrito } from './carritos.service.js';
@@ -63,7 +64,7 @@ describe('VentasService — cobro y cancelacion', () => {
   it('marcarPagada lleva una venta PENDIENTE a PAGADA con un UPDATE condicionado a PENDIENTE', async () => {
     await service.marcarPagada('v1');
     expect(ventaRepo.update).toHaveBeenCalledWith(
-      { id: 'v1', estado: EstadoVenta.PENDIENTE },
+      { id: 'v1', estado: EstadoVenta.PENDIENTE, tenantId: TENANT_PRUEBA },
       expect.objectContaining({ estado: EstadoVenta.PAGADA }),
     );
     expect(ventaRepo.save).not.toHaveBeenCalled();

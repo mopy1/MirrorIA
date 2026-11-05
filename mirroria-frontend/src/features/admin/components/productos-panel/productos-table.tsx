@@ -12,12 +12,15 @@ import {
 } from "@/components/ui/table"
 import type { Categoria, Producto } from "@/features/catalog/types/catalog.types"
 import { formatMoney } from "@/lib/money"
+import { ProductosEmpty } from "./productos-empty"
 
 interface ProductosTableProps {
   productos: Producto[]
   categorias: Categoria[]
   onOpenVariante: (id: string) => void
   onEditar: (producto: Producto) => void
+  hayFiltro: boolean
+  onCrear: () => void
 }
 
 export function ProductosTable({
@@ -25,6 +28,8 @@ export function ProductosTable({
   categorias,
   onOpenVariante,
   onEditar,
+  hayFiltro,
+  onCrear,
 }: ProductosTableProps) {
   const categoriaNombre = (id: string) =>
     categorias.find((c) => c.id === id)?.nombre ?? id
@@ -44,8 +49,8 @@ export function ProductosTable({
           <TableBody>
             {productos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center text-sm text-muted-foreground">
-                  No se encontraron prendas registradas.
+                <TableCell colSpan={4} className="p-0">
+                  <ProductosEmpty hayFiltro={hayFiltro} onCrear={onCrear} />
                 </TableCell>
               </TableRow>
             ) : (

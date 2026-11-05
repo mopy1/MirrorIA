@@ -10,7 +10,7 @@ femenina multi-sucursal).
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-04 (limpieza profunda, rama `feat/ordenes-compra-proveedores`).** Las secciones 2 y 3 describen lo que existe
+> **Actualizado: 2026-11-04 (Fase 1 SaaS multi-tenant: §0 cliente HTTP, §2 rutas, §3 features saas/subscription/platform).** Las secciones 2 y 3 describen lo que existe
 > hoy en `src/`, verificado contra `src/App.tsx` y `src/features/*`. El historial de sesiones
 > anteriores (2026-09-12 a 2026-09-29) está condensado en la sección 6: solo quedan las
 > decisiones y lecciones que siguen vigentes.
@@ -39,10 +39,14 @@ directrices de forma obligatoria.
 - **Alias `@/*` → `src/*`:** en `vite.config.ts`, `tsconfig.app.json` **y** en el
   `tsconfig.json` raíz (este último es necesario para que `shadcn add` no escriba en una
   carpeta literal `./@/`).
-- **Cliente HTTP:** `fetch` nativo envuelto en `lib/api.ts` (`apiFetch()`, `ApiError`): agrega
-  `Authorization: Bearer` desde `localStorage`, une `message[]` del backend en un texto, y ante
-  un `401` (excepto en `/seguridad/auth/*`, donde 401 = credenciales incorrectas) limpia la sesión
-  y manda a `/login`.
+- **Cliente HTTP (multi-tenant, Fase 1):** `fetch` nativo envuelto en `lib/api.ts` (`apiFetch(path,
+  options, modo)`, `ApiError`). `cabecerasTenant(modo)`: manda **`X-Tenant: <slug>`** = tienda navegada
+  (`lib/tienda-activa.ts`, la fija `TenantProvider` en `/t/:slug`) o, si no hay, el `tenant.slug` de la
+  sesión; el `Authorization: Bearer` solo si no hay tienda activa o la sesión es de ESA tienda (sesión
+  ajena = invitada, nunca 403). Modos: `auto` (default), `sesion` (`/auth/me`), `ninguno` (`/saas/*`
+  públicas, ciudades del alta, login de plataforma). Une `message[]` del backend; ante un `401`
+  (salvo `/seguridad/auth/*`) limpia la sesión y va a `destinoTras401`: `/t/<tienda>/login`,
+  `/plataforma/login` o `/entrar`. Un 403 "no está disponible" emite `mirroria:tienda-no-disponible`.
 - **Variables de entorno:** solo `VITE_API_URL` (build-time). Sin definir cae en
   `http://localhost:3000/api/v1`. El `Dockerfile` la fija en `/api/v1` (mismo origen vía Nginx).
 - **Puerto de desarrollo: `5174`** (fijo en `vite.config.ts`) — coincide con `CORS_ORIGINS` de
@@ -108,29 +112,36 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 
 ---
 
-## 🗺️ 2. Rutas (`src/App.tsx`)
+## 🗺️ 2. Rutas (`src/App.tsx` + tablas en `routes/rutas-app.ts`) — Fase 1 SaaS
 
 | Ruta | Página | Guard / Layout |
 |---|---|---|
-| `/` | `catalog/HomePage` | público, `StorefrontLayout` |
-| `/tienda` (`?categoria=`, `?q=`) | `catalog/ProductListPage` | público |
-| `/tienda/producto/:id` | `catalog/ProductDetailPage` | público |
-| `/sucursales` | `branches/BranchesPage` | público |
-| `/probador`, `/probador/:productoId` | `fitting/ProbadorPage` | público |
-| `*` | `errors/NotFoundPage` | público |
-| `/carrito` | `cart/CartPage` | `ProtectedRoute` |
-| `/checkout` | `checkout/CheckoutPage` | `ProtectedRoute` |
-| `/pago/:ventaId` (`?metodo=QR`) | `payments/PagoPage` | `ProtectedRoute` |
-| `/pago/exito`, `/pago/cancelado` | `payments/PagoPage` | `ProtectedRoute` |
-| `/reservas` | `reservations/MyReservationsPage` | `ProtectedRoute` |
-| `/wayra/pagar/:token` | `wayra/WayraPagoPage` | público, **sin** layout de tienda |
-| `/login`, `/register` | `auth/LoginPage`, `auth/RegisterPage` | `GuestRoute` (`AuthLayout` dentro de la página) |
-| `/admin` | → `/admin/catalogo` | redirect |
-| `/admin/catalogo`, `/admin/proveedores`, `/admin/sucursales`, `/admin/cupones`, `/admin/usuarios` | `admin/*AdminPage` | `AdminRoute` (ADMIN exacto) + `AdminLayout` |
-| `/admin/inventario`, `/admin/ventas` | `admin/*AdminPage` | `StaffRoute` ADMIN, ENCARGADO_SUCURSAL |
-| `/admin/reservas` | `admin/ReservasAdminPage` | `StaffRoute` ADMIN, ENCARGADO_SUCURSAL, CAJERO |
-| `/admin/cobros` | `admin/CobrosAdminPage` | `StaffRoute` ADMIN, CAJERO |
-| `/admin/reportes` | `admin/ReportesAdminPage` | `StaffRoute` default (ADMIN, ENCARGADO_SUCURSAL) |
+| `/` | `saas/LandingPage` (hero, cómo funciona, planes, directorio `#tiendas`, CTA) | `SaasLayout` |
+| `/planes` | `saas/PlanesPage` (tarjetas + comparativa) | `SaasLayout` |
+| `/registro-tienda` (`?plan=`) | `saas/RegistroTiendaPage` (asistente 3 pasos → `POST /saas/tiendas` → login → `/admin/catalogo`) | `GuestRoute` + `SaasLayout` |
+| `/entrar` | `saas/EntrarPage` (slug → `/t/:slug/login`) | `SaasLayout` |
+| `*` | `errors/NotFoundPage` (versión SaaS: "Crear mi tienda") | `SaasLayout` |
+| `/t/:slug` (index) | `catalog/HomePage` | `TiendaRoot` (TenantProvider + CartProvider) + `TiendaLayout` |
+| `/t/:slug/tienda`, `/tienda/producto/:id`, `/sucursales`, `/probador[/:productoId]` | las de siempre | público |
+| `/t/:slug/carrito`, `/checkout`, `/pago/:ventaId`, `/pago/exito`, `/pago/cancelado`, `/mis-pedidos`, `/reservas` | las de siempre | `ProtectedRoute` (sesión de ESTA tienda) |
+| `/t/:slug/login`, `/t/:slug/registro` | `auth/LoginPage`, `RegisterPage` | `GuestRoute` por tienda (`AuthLayout` con nombre de tienda) |
+| `/t/:slug/*` | `NotFoundPage` (versión tienda) | `TiendaLayout` |
+| rutas viejas `/tienda/*`, `/sucursales`, `/carrito`, `/checkout`, `/pago/*`, `/mis-pedidos`, `/reservas`, `/probador/*`, `/login`, `/register` | `routes/LegacyRedirect` → `/t/<sesión o mirroria>/…` (+ query; `/register`→`/registro`) | — |
+| `/wayra/pagar/:token` | `wayra/WayraPagoPage` | público, global, sin layout |
+| `/admin` (padre con `<Outlet/>`) | → `/admin/catalogo` | `StaffRoute` (staff + `user.tenant`) + `AdminLayout` |
+| `/admin/catalogo`, `/proveedores`, `/sucursales`, `/cupones`, `/usuarios`, **`/suscripcion`** | `admin/*AdminPage`, `subscription/SuscripcionAdminPage` | `AdminRoute` (ADMIN + tenant) |
+| `/admin/inventario`, `/ventas` (ADMIN, ENCARGADO) · `/reservas` (+CAJERO) · `/cobros` (ADMIN, CAJERO) · `/reportes` | `admin/*AdminPage` | `StaffRoute` |
+| `/plataforma/login` | `auth/PlataformaLoginPage` (`LoginForm modo="plataforma"`) | `GuestRoute` |
+| `/plataforma` → `/plataforma/inquilinos`, `/inquilinos/:id`, `/planes`, `/ciudades` | `platform/*Page` | `PlataformaRoute` (DUENO_PLATAFORMA) + `PlataformaLayout` |
+
+Guardas sin sesión: `ProtectedRoute` → `/t/:slug/login`; `AdminRoute`/`StaffRoute` → `/entrar`;
+`PlataformaRoute` → `/plataforma/login`. Con rol equivocado → `destinoTrasLogin(user)` (`lib/destino-sesion.ts`:
+plataforma → `/plataforma`, ADMIN → `/admin`, CAJERO → `/admin/cobros`, ENCARGADO → `/admin/reportes`, CUSTOMER → `/t/<slug>`).
+
+**Helper de rutas:** `hooks/useRutaTienda.ts` → `ruta("/carrito")` = `/t/<slug>/carrito` (puro en
+`lib/rutas-tienda.ts` `rutaTienda`/`rutaLegacy`, con test). TODOS los links de la tienda pasan por `ruta()`
+(header, footer, hero, cards, pagos, checkout, probador, auth). `hooks/useTienda.ts` (`{ tienda, slug }`, null fuera
+de `/t/:slug`), `hooks/useSesionEnTienda.ts` (usuario solo si su `tenant.slug` es el de la tienda).
 
 **Carga diferida:** las páginas `/admin/*`, `ProbadorPage` y `WayraPagoPage` se importan con
 `React.lazy` desde `routes/lazy-pages.ts` (un `<Suspense>` con `components/common/PageFallback`
@@ -138,6 +149,16 @@ envuelve `<Routes>`); las de la tienda pública siguen estáticas. Bundle inicia
 795 kB (gzip 457 → 241 kB). Una página nueva de admin se agrega ahí, no como import estático.
 
 **Navegación (sin páginas huérfanas):**
+- SaaS: navbar (`layouts/saas-header/`) Planes · Cómo funciona · Tiendas · Entrar/Ir a mi panel (ghost) ·
+  **Crear mi tienda** (único primario); footer (`saas-footer/`) Tienda demo · Acceso plataforma.
+- Tienda: el logo (`components/tienda-logo.tsx`) muestra `tienda.nombre`; footer "Tienda creada con MirrorIA ·
+  Creá la tuya" → `/`; `header-auth` avisa "Tenés sesión en <otra tienda> · Ir a mi panel".
+- Admin: grupo **"Mi tienda"** arriba (`admin-sidebar.data.ts`): "Ver mi tienda" (`/t/<slug>`, todo staff) y
+  "Plan y suscripción" (ADMIN, badge de días en TRIAL); cabecera con nombre de tienda y plan.
+  `layouts/admin-avisos.tsx`: banner verde de bienvenida tras el alta, ámbar con ≤ 3 días de prueba, rojo si
+  la tienda está suspendida/vencida.
+- Plataforma: `layouts/plataforma-sidebar.tsx` Tiendas · Planes · Ciudades · Cerrar sesión; filas con "Gestionar"
+  y detalle con "← Volver a tiendas".
 - Header (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
   `useCategorias`), buscador, carrito con badge. `header-auth.tsx`: sin sesión → login/registro;
   con sesión → "Mis reservas" + link de staff por rol (`ADMIN` → `/admin`, `CAJERO` →
@@ -184,7 +205,10 @@ mirroria-frontend/
 │   │   ├── site-footer/               # site-footer + site-footer.data.ts (+ test)
 │   │   ├── AuthLayout.tsx             # split-screen con foto (login/registro)
 │   │   ├── AdminLayout.tsx            # header + Sheet en móvil + aside en desktop
-│   │   └── admin-sidebar-content.tsx  # nav agrupada filtrada por rol + perfil + "Tienda"/logout
+│   │   ├── admin-sidebar-content.tsx  # arma la nav filtrada por rol y compone las 3 partes:
+│   │   ├── admin-sidebar-header.tsx   #   nombre de la tienda + plan
+│   │   ├── admin-sidebar-nav.tsx      #   grupos de links
+│   │   └── admin-sidebar-footer.tsx   #   perfil + badge de rol + "Tienda"/logout
 │   ├── lib/
 │   │   ├── api.ts                     # API_URL, apiFetch(), ApiError
 │   │   ├── money.ts                   # formatMoney(cents) es-BO / BOB
@@ -203,10 +227,50 @@ mirroria-frontend/
 └── tsconfig.json / tsconfig.app.json / tsconfig.node.json
 ```
 
+### `features/saas/` ↔ backend `saas` (landing pública, Fase 1)
+- `api/saasApi.ts` (todas en modo `ninguno`): `getPlanes`, `getTiendas`, `getDisponibilidad`, `resolverTienda`,
+  `registrarTienda`, `getCiudades`. `types/saas.types.ts` (`DisponibilidadSlugDto`, `RegistrarTiendaDto`,
+  `RegistroTiendaResponse`; reexporta los compartidos de `src/types/plan.types.ts` y `tienda.types.ts`).
+- `lib/planes.ts` (`PLAN_DESTACADO`, `INCLUIDO_EN_TODOS`), `lib/slug.ts` (+test: `REGEX_SLUG`, reservados,
+  `slugDesdeNombre`, `errorDeSlug`).
+- `hooks/`: `usePlanes`, `useTiendasDirectorio`, `useCiudades`, `useDisponibilidadSlug` (debounce 400 ms),
+  `useRegistroTiendaForm` (estado y validación por paso), `useRegistrarTienda` (guarda la bienvenida en
+  `sessionStorage` con `lib/bienvenida.ts`, login y `/admin/catalogo`; antes iba en `state` del router y se
+  perdía porque `GuestRoute` redirige a `/admin` al loguear).
+- `components/`: `landing-hero/`, `como-funciona/`, `planes-grid/` (`plan-card`, `planes-grid` 4 estados,
+  `comparativa-limites`, `seccion-planes`), `tiendas-directorio/` (empty "Sé la primera"), `landing-cta/`,
+  `registro-tienda/` (`asistente-registro`, `stepper`, `paso-plan`, `paso-tienda`, `slug-input`, `ciudad-select`,
+  `campo-texto`, `paso-cuenta`, `resumen-registro`).
+- `pages/`: `LandingPage`, `PlanesPage`, `RegistroTiendaPage`, `EntrarPage`, `TiendaNoDisponiblePage`.
+
+### `features/subscription/` ↔ `GET/PATCH /saas/mi-suscripcion` (panel del dueño de la tienda)
+`api/suscripcionApi.ts`, `types/suscripcion.types.ts` (`MiSuscripcionDto`), `hooks/useMiSuscripcion.ts` (también
+lo usa `AdminLayout` solo para ADMIN), `hooks/useCambiarPlan.ts`, `components/` (`plan-actual-card`,
+`cambiar-plan-dialog` — muestra el 409 tal cual —, `pagar-suscripcion-cta` deshabilitado "Próximamente"),
+`pages/SuscripcionAdminPage.tsx`.
+
+### `features/platform/` ↔ `/saas/plataforma/*` + ciudades (DUENO_PLATAFORMA)
+`api/plataformaApi.ts`, `types/plataforma.types.ts`, `lib/plan-form.ts` (+test), hooks (`useResumenPlataforma`,
+`useInquilinos`, `useInquilino` sobre `hooks/useRecurso.ts`; `useFiltrosInquilinos` con búsqueda debounce;
+`useAccionesInquilino`; `usePlanesPlataforma`; `useCiudadesPlataforma`), components (`resumen-kpis`,
+`trials-por-vencer`, `inquilinos-filtros`, `inquilinos-table` + `inquilino-row`, `inquilino-cabecera`,
+`inquilino-metricas`, `accion-dialog` + `suspender-`/`extender-`/`cambiar-plan-inquilino-dialog`, `planes-table`,
+`plan-form-dialog` + `plan-form-fields`, `ciudades-table`, `ciudad-form-dialog`), 4 páginas. Solo conteos de
+cada tienda, nunca filas de negocio.
+
+### Compartidos de la Fase 1
+`src/types/{tienda,plan}.types.ts`; `components/common/` `EstadoBadge` (badges semánticos de suscripción/tienda),
+`UsoPlanMeters` (barras uso/límite), `HistorialSuscripcion`, `ErrorConPlan` (message del backend + "Ver mi plan"
+si el 409 nombra al plan; usado en alta de sucursal/prenda, edición de prenda, rol y estado de usuarios);
+`lib/limites-plan.ts`, `lib/fechas.ts`, `formatUsd` en `lib/money.ts`; `context/TenantContext.tsx` +
+`tenant-context.ts`. `CartProvider` vive en `TiendaRoot`, no en `main.tsx`. `admin/ciudades-panel` es de solo
+lectura (las ciudades son globales).
+
 ### `features/auth/` ↔ backend `seguridad`
-`api/authApi.ts` (login, register, me), `types/auth.types.ts` (`UsuarioRole`: CUSTOMER,
-ADMIN, ENCARGADO_SUCURSAL, CAJERO), `hooks/{useLogin,useRegister}.ts` (navegan a `/` al
-terminar), `components/{login-form,register-form}/` (RHF + Zod, mismas validaciones que el
+`api/authApi.ts` (login con `X-Tenant` o sin tienda para plataforma, register en la tienda navegada,
+me en modo `sesion`), `types/auth.types.ts` (`UsuarioRole` + `DUENO_PLATAFORMA`; `UsuarioResponse` con
+`sucursalId` y `tenant`), `hooks/{useLogin,useRegister}.ts` (login → `destinoTrasLogin`; registro → `/t/:slug`),
+`pages/PlataformaLoginPage.tsx`, `components/{login-form,register-form}/` (RHF + Zod, mismas validaciones que el
 backend), `pages/{LoginPage,RegisterPage}.tsx`.
 
 ### `features/catalog/` ↔ backend `catalogo`
@@ -218,9 +282,10 @@ backend), `pages/{LoginPage,RegisterPage}.tsx`.
   `useCategorias`, `useVariantesConProducto` (catálogo aplanado por variante con `coleccionId`, lo usan `cart` e
   inventario admin).
 - `components/`: `hero-section/` (full-bleed, `.data.ts` + test), `feature-highlights/`,
-  `category-showcase/` (foto real de una prenda por categoría; `columnas.ts` + test),
+  `category-showcase/` (foto real de una prenda por categoría en `category-card.tsx`; `columnas.ts` + test),
   `branches-strip/`, `contact-section/`, `product-card/`, `product-grid/`,
-  `product-detail/` (variantes talla/color con `variant-swatch-group`, `estado-stock.tsx`,
+  `product-detail/` (variantes talla/color con `useSeleccionVariante.ts` — preselecciona derivando, sin
+  efectos — y `variant-swatch-group`, foto en `product-image.tsx`, `estado-stock.tsx`,
   `useAgregarAlCarrito.ts` que muestra el error real del backend — ej. tope de 3 unidades —,
   link "Probármela" a `/probador/:id` y `ReservarEnTienda`).
 - `pages/`: `HomePage`, `ProductListPage` (`?categoria=`, `?q=`), `ProductDetailPage`.
@@ -309,7 +374,8 @@ ahora también devuelve `variantes` (sin segundo fetch del catálogo).
   `?metodo=QR` → `PagoQr`; resto → `InstruccionesPago` (efectivo).
 - `components/`: `pago-qr.tsx` (QR + monto, pasa a `qr-pagado.tsx` al acreditarse),
   `instrucciones-pago.tsx` (efectivo, muestra `motivo` si viene de un fallo de tarjeta),
-  `regreso-pasarela.tsx` (toma la venta de `?venta=` o, de respaldo, de `sessionStorage`, y
+  `regreso-pasarela.tsx` (+ `estado-regreso.tsx` y `hooks/useVentaDeRegreso.ts`: toma la venta de
+  `?venta=` o, de respaldo, de `sessionStorage`, y
   consulta su estado real;
   si sigue pendiente ofrece "Pagar con QR" / "Pagar en efectivo" / reintentar; en
   `/pago/cancelado` además "Cancelar y volver al carrito"),
@@ -393,7 +459,9 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `CobrosAdminPage`, `CuponesAdminPage`, `UsuariosAdminPage`, `ReportesAdminPage`.
 - `components/`: `simple-resource-manager/` (tabla + diálogo de alta genérico) y sus wrappers
   `categorias-`, `temporadas-`, `tallas-`, `colores-`, `colecciones-`, `ciudades-`,
-  `sucursales-panel/`; `productos-panel/` (tabla, crear, editar, agregar variante, campos);
+  `sucursales-panel/`; `productos-panel/` (toolbar, tabla con empty state accionable "Cargar mi primera prenda",
+  crear, editar, agregar variante, campos); `usuario-rol-editor/` (dialog + `rol-field`, `usuario-resumen`,
+  `sucursal-field`);
   `stock-table/` (`stock-row.tsx`, `stock-sucursal-header.tsx`), `proveedores-columns.tsx`, `ajustar-stock-form/`; `ventas-table/` (badges en `.data.ts` con las claves
   reales de `EstadoVenta`: PENDIENTE "Pendiente de pago", PAGADA, ENTREGADA, CANCELADA,
   DEVUELTA_PARCIAL, DEVUELTA_TOTAL — antes PAGADO/COMPLETADO/CANCELADO no coincidían); `reservas-table/` (columna Código,

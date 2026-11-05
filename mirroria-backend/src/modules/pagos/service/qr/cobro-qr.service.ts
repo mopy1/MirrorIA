@@ -9,6 +9,7 @@ import { OperacionInvalidaException } from '../../../../core/exception/operacion
 import { RecursoNoEncontradoException } from '../../../../core/exception/recurso-no-encontrado.exception.js';
 import { assertOwnUser } from '../../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../../core/security/jwt-payload.interface.js';
+import { conTenant, soloTenant, tenantActual } from '../../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../../ventas/service/ventas.service.js';
 import type {
   CobroQrResponseDto,
@@ -76,17 +77,17 @@ export class CobroQrService {
     // Recargar la pantalla de pago no puede generar otro QR: el que ya esta en
     // la pantalla (o en la foto que alguien le saco) tiene que seguir valiendo.
     const existente = await this.pagoRepository.findOne({
-      where: {
+      where: soloTenant({
         ventaId,
         estado: EstadoPago.PENDIENTE,
         proveedorPago: ProveedorPago.WAYRA,
-      },
+      }),
     });
     // Un QR viejo con otro monto no se reutiliza: el banco cobraria lo que dice
     // el QR y el aviso se rechazaria por no coincidir con la venta.
     if (existente && existente.montoCents !== venta.totalCents) {
       await this.pagoRepository.update(
-        { id: existente.id, estado: EstadoPago.PENDIENTE },
+        soloTenant({ id: existente.id, estado: EstadoPago.PENDIENTE }),
         { estado: EstadoPago.RECHAZADO },
       );
     }
@@ -122,7 +123,7 @@ export class CobroQrService {
     user: JwtPayload,
   ): Promise<EstadoCobroQrResponseDto> {
     const pago = await this.pagoRepository.findOne({
-      where: { id: pagoId, proveedorPago: ProveedorPago.WAYRA },
+      where: soloTenant({ id: pagoId, proveedorPago: ProveedorPago.WAYRA }),
     });
     if (!pago) {
       throw new RecursoNoEncontradoException('Cobro QR', pagoId);
@@ -143,7 +144,10 @@ export class CobroQrService {
     // Sin barrida de vencidas aca: es una ruta publica y cada visita disparaba
     // dos consultas pesadas. La barrida corre sola cada 5 minutos.
     const pago = await this.buscarPorToken(token);
-    const venta = await this.ventasService.findOne(pago.ventaId);
+    // Ruta pública del banco: el tenant sale de la fila del pago, no del request.
+    const venta = await conTenant({ tenantId: pago.tenantId }, () =>
+      this.ventasService.findOne(pago.ventaId),
+    );
     return {
       montoCents: pago.montoCents,
       referencia: referenciaDeVenta(pago.ventaId),
@@ -177,15 +181,17 @@ export class CobroQrService {
     }
 
     const pago = await this.pagoRepository.findOne({
-      where: {
-        referenciaExterna: aviso.token,
-        proveedorPago: ProveedorPago.WAYRA,
-      },
+      where: { referenciaExterna: aviso.token, proveedorPago: ProveedorPago.WAYRA }, // sin-tenant: aviso del banco, el tenant sale del pago
     });
     if (!pago) {
       this.logger.warn(`Aviso ${aviso.id} para un QR desconocido`);
       return { procesado: false };
     }
+    return conTenant({ tenantId: pago.tenantId }, () => this.acreditarAviso(pago, aviso));
+  }
+
+  /** Resto del aviso, ya dentro del contexto de la tienda del pago. */
+  private async acreditarAviso(pago: Pago, aviso: AvisoPagoQr): Promise<{ procesado: boolean }> {
     // El banco reintenta: un aviso repetido sobre un QR ya pagado no hace nada.
     if (pago.estado === EstadoPago.APROBADO) {
       return { procesado: false };
@@ -203,7 +209,7 @@ export class CobroQrService {
       // update y no save: un save con el objeto leido antes pisaria lo que otro
       // proceso escribio mientras tanto.
       await this.pagoRepository.update(
-        { id: pago.id },
+        soloTenant({ id: pago.id }),
         {
           motivoReembolso: `Pago por QR acreditado sobre un cobro ya ${pago.estado}: requiere reembolso`,
         },
@@ -224,14 +230,17 @@ export class CobroQrService {
       const acreditado = await this.dataSource.transaction(async (manager) => {
         // Primero la venta (FOR UPDATE), igual que tarjeta y efectivo: mismo
         // orden de bloqueo en los tres cobros, sin deadlocks entre ellos.
-        await manager.query('SELECT 1 FROM ventas WHERE id = $1 FOR UPDATE', [pago.ventaId]);
+        await manager.query('SELECT 1 FROM ventas WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+          pago.ventaId,
+          tenantActual(),
+        ]);
         const repo = manager.getRepository(Pago);
         // UPDATE condicionado a PENDIENTE, no "leer, chequear y guardar": con
         // dos avisos simultaneos sobre el mismo QR (doble toque, dos celulares)
         // los dos leian PENDIENTE y los dos respondian "procesado". Asi la base
         // deja pasar a uno solo; el otro ve affected = 0.
         const { affected } = await repo.update(
-          { id: pago.id, estado: EstadoPago.PENDIENTE },
+          soloTenant({ id: pago.id, estado: EstadoPago.PENDIENTE }),
           { estado: EstadoPago.APROBADO, eventId },
         );
         if (affected !== 1) {
@@ -241,11 +250,11 @@ export class CobroQrService {
         // Si antes habia elegido efectivo, ese intento ya no se va a cobrar:
         // sin esto quedaba pendiente para siempre en el panel de cobros.
         await repo.update(
-          {
+          soloTenant({
             ventaId: pago.ventaId,
             estado: EstadoPago.PENDIENTE,
             id: Not(pago.id),
-          },
+          }),
           { estado: EstadoPago.RECHAZADO },
         );
         return true;
@@ -268,7 +277,7 @@ export class CobroQrService {
       // sobre una compra cancelada. La transaccion queda en event_id como
       // constancia de que entro dinero.
       await this.pagoRepository.update(
-        { id: pago.id, estado: Not(EstadoPago.APROBADO) },
+        soloTenant({ id: pago.id, estado: Not(EstadoPago.APROBADO) }),
         {
           estado: EstadoPago.RECHAZADO,
           eventId,
@@ -298,7 +307,7 @@ export class CobroQrService {
 
   private async buscarPorToken(token: string): Promise<Pago> {
     const pago = await this.pagoRepository.findOne({
-      where: { referenciaExterna: token, proveedorPago: ProveedorPago.WAYRA },
+      where: { referenciaExterna: token, proveedorPago: ProveedorPago.WAYRA }, // sin-tenant: el token del QR es la llave; el tenant sale del pago
     });
     if (!pago) {
       throw new RecursoNoEncontradoException('Cobro QR');

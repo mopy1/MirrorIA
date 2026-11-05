@@ -10,11 +10,13 @@ import { paymentsApi } from "../api/paymentsApi"
 import type { Instrucciones } from "../types/payments.types"
 import { DetallePagoCard } from "./detalle-pago-card"
 import { VolverAlCarrito } from "./volver-al-carrito"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /** Pantalla de instrucciones de pago en efectivo — la venta ya existe y
  * está `PENDIENTE`, un CAJERO/ADMIN confirma el cobro a mano más tarde.
  * Extraída de `PagoPage.tsx` (Regla 1.B: páginas solo orquestan). */
 export function InstruccionesPago() {
+  const ruta = useRutaTienda()
   const { ventaId } = useParams<{ ventaId: string }>()
   const location = useLocation()
   // Por qué llegó acá, cuando no vino eligiendo: el checkout la manda para
@@ -58,7 +60,7 @@ export function InstruccionesPago() {
             {error ?? "No pudimos generar las instrucciones de pago."}
           </AlertDescription>
         </Alert>
-        <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }), "mt-6 w-full")}>
+        <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }), "mt-6 w-full")}>
           Volver a la tienda
         </Link>
       </div>
@@ -92,7 +94,7 @@ export function InstruccionesPago() {
 
       <div className="mt-8 flex flex-wrap items-start justify-center gap-3">
         {ventaId && <VolverAlCarrito ventaId={ventaId} />}
-        <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }))}>
+        <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }))}>
           Volver a la tienda
         </Link>
       </div>

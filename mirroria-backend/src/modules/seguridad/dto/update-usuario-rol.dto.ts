@@ -1,8 +1,10 @@
-import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsUUID } from 'class-validator';
 import { RolUsuario } from '../entities/usuario.entity.js';
 
 export class UpdateUsuarioRolDto {
-  @IsEnum(RolUsuario)
+  // Sin DUENO_PLATAFORMA: ese rol solo lo crea el seed (si no, un ADMIN de una
+  // tienda podría darse acceso a la plataforma).
+  @IsIn([RolUsuario.CUSTOMER, RolUsuario.ADMIN, RolUsuario.ENCARGADO_SUCURSAL, RolUsuario.CAJERO])
   role!: RolUsuario;
 
   // Obligatorio en la práctica para ENCARGADO_SUCURSAL/CAJERO (ver Usuario.sucursalId),

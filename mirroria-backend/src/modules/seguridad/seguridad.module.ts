@@ -31,6 +31,6 @@ import { UsuariosService } from './service/usuarios.service.js';
   ],
   controllers: [AuthController, UsuariosController],
   providers: [AuthService, JwtStrategy, UsuariosService],
-  exports: [AuthService],
+  exports: [AuthService, UsuariosService],
 })
 export class SeguridadModule {}

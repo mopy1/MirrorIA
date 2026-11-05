@@ -8,9 +8,11 @@ import {
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu"
 import { useCategorias } from "@/features/catalog/hooks/useCategorias"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /** Dropdown de categorías reales (no una lista fija) en la navbar. */
 export function CategoriesMenu() {
+  const ruta = useRutaTienda()
   const { categorias } = useCategorias()
   if (categorias.length === 0) return null
 
@@ -25,7 +27,7 @@ export function CategoriesMenu() {
                 <li key={categoria.id}>
                   <NavigationMenuLink
                     closeOnClick
-                    render={<Link to={`/tienda?categoria=${categoria.id}`}>{categoria.nombre}</Link>}
+                    render={<Link to={ruta(`/tienda?categoria=${categoria.id}`)}>{categoria.nombre}</Link>}
                   />
                 </li>
               ))}

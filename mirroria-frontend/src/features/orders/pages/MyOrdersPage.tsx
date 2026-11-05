@@ -8,8 +8,10 @@ import { useResourceList } from "@/hooks/useResourceList"
 import { cn } from "cn"
 import { ordersApi } from "../api/ordersApi"
 import { OrderCard } from "../components/order-card"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function MyOrdersPage() {
+  const ruta = useRutaTienda()
   const { items: pedidos, isLoading, error } = useResourceList(ordersApi.getMisPedidos)
   const { variantes } = useVariantesConProducto()
 
@@ -38,7 +40,7 @@ export function MyOrdersPage() {
           <p className="text-sm text-muted-foreground">
             Todavía no realizaste ninguna compra.
           </p>
-          <Link to="/tienda" className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }))}>
             Explorar la tienda
           </Link>
         </div>

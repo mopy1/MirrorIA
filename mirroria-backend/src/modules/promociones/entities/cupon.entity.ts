@@ -1,5 +1,5 @@
-import { Column, Entity } from 'typeorm';
-import { BaseEntity } from '../../../core/database/base.entity.js';
+import { Column, Entity, Index } from 'typeorm';
+import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum TipoDescuentoCupon {
   PORCENTAJE = 'PORCENTAJE',
@@ -7,8 +7,9 @@ export enum TipoDescuentoCupon {
 }
 
 @Entity('cupones')
-export class Cupon extends BaseEntity {
-  @Column({ type: 'varchar', length: 50, unique: true })
+@Index(['tenantId', 'codigo'], { unique: true })
+export class Cupon extends TenantBaseEntity {
+  @Column({ type: 'varchar', length: 50 })
   codigo!: string;
 
   @Column({ name: 'tipo_descuento', type: 'varchar', length: 20 })

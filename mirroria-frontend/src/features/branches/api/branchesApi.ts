@@ -1,11 +1,6 @@
 import { apiFetch } from "@/lib/api"
 import type { Ciudad, Sucursal } from "../types/branches.types"
 
-export interface CreateCiudadDto {
-  nombre: string
-  pais: string
-}
-
 export interface CreateSucursalDto {
   ciudadId: string
   nombre: string
@@ -18,7 +13,6 @@ export const branchesApi = {
   createSucursal: (dto: CreateSucursalDto) =>
     apiFetch<Sucursal>("/sucursales", { method: "POST", body: JSON.stringify(dto) }),
 
+  // Ciudades globales (🧭). Crearlas es de la plataforma (features/platform).
   getCiudades: () => apiFetch<Ciudad[]>("/sucursales/ciudades"),
-  createCiudad: (dto: CreateCiudadDto) =>
-    apiFetch<Ciudad>("/sucursales/ciudades", { method: "POST", body: JSON.stringify(dto) }),
 }

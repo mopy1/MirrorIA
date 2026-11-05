@@ -3,9 +3,11 @@ import { useState, type FormEvent } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Input } from "@/components/ui/input"
 import { cn } from "cn"
+import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 /** Búsqueda de producto por título — filtra en `useProductos` (ver AGENTS.md). */
 export function SearchInput({ className }: { className?: string }) {
+  const ruta = useRutaTienda()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [valor, setValor] = useState(searchParams.get("q") ?? "")
@@ -14,7 +16,7 @@ export function SearchInput({ className }: { className?: string }) {
     event.preventDefault()
     const params = new URLSearchParams()
     if (valor.trim()) params.set("q", valor.trim())
-    navigate(`/tienda${params.toString() ? `?${params}` : ""}`)
+    navigate(ruta(`/tienda${params.toString() ? `?${params}` : ""}`))
   }
 
   return (
@@ -24,7 +26,7 @@ export function SearchInput({ className }: { className?: string }) {
         type="search"
         value={valor}
         onChange={(e) => setValor(e.target.value)}
-        placeholder="Buscar productos..."
+        placeholder="Buscar prendas"
         aria-label="Buscar productos"
         className="h-9 rounded-full pl-8"
       />

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
-import { Check, WarningCircle } from "@phosphor-icons/react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Check } from "@phosphor-icons/react"
+import { ErrorConPlan } from "@/components/common/ErrorConPlan"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,17 +25,7 @@ interface EditarProductoDialogProps {
 }
 
 function getInitialForm(producto: Producto | null): ProductoFormData {
-  if (!producto) {
-    return {
-      categoriaId: "",
-      coleccionId: "",
-      titulo: "",
-      slug: "",
-      descripcion: "",
-      precio: "",
-      imagenUrl: "",
-    }
-  }
+  if (!producto) return { categoriaId: "", coleccionId: "", titulo: "", slug: "", descripcion: "", precio: "", imagenUrl: "" }
   return {
     categoriaId: producto.categoriaId ?? "",
     coleccionId: producto.coleccionId ?? "",
@@ -67,9 +57,7 @@ export function EditarProductoDialog({
     setError(null)
     try {
       const precioCents = Math.round(Number(form.precio) * 100)
-      const imagenes = form.imagenUrl.trim()
-        ? [{ url: form.imagenUrl.trim(), orden: 0 }]
-        : []
+      const imagenes = form.imagenUrl.trim() ? [{ url: form.imagenUrl.trim(), orden: 0 }] : []
       await catalogApi.updateProducto(producto.id, {
         categoriaId: form.categoriaId,
         coleccionId: form.coleccionId,
@@ -106,12 +94,7 @@ export function EditarProductoDialog({
             colecciones={colecciones}
           />
 
-          {error && (
-            <Alert variant="destructive" className="py-2 text-xs">
-              <WarningCircle className="size-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <ErrorConPlan mensaje={error} />
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -48,7 +48,8 @@ en este repo:
 │   ├── deploy-azure.sh          # despliegue a la VM de Azure (ver §8)
 │   ├── sembrar-catalogo.mjs     # siembra idempotente del catálogo demo contra una API corriendo
 │   ├── catalogo-demo.mjs        # datos del catálogo demo (productos, colores, sucursales...)
-│   └── qa/                      # QA de reglas de negocio contra la API real (Python)
+│   ├── sql/fase1-multitenant-backfill.sql  # Fase 1 SaaS: tenant_id + datos a la tienda "mirroria" (antes del 1er arranque)
+│   └── qa/                      # QA contra la API real (Python): reglas, mostrador y aislamiento multi-tenant
 │
 ├── mirroria-backend/           # 🪞 NestJS — ver mirroria-backend/AGENTS.md (fuente de verdad)
 │   ├── AGENTS.md                # arquitectura, convenciones, estado real de cada módulo
@@ -96,6 +97,14 @@ Estas reglas están desarrolladas en detalle (con ejemplos y el porqué) en
    punto del dominio de catálogo/productos.
 5. **Errores de API con shape único:** `{ status, message, timestamp }` en cualquier endpoint
    que falle (ver `GlobalExceptionFilter` en el backend).
+6. **🏢 SaaS multi-tenant (Fase 1, 2026-11-04):** BD compartida + `tenant_id` en 21 tablas. Toda
+   ruta de negocio opera sobre UNA tienda: cabecera **`X-Tenant: <slug>`** (sin sesión) o el
+   `tenantId` del JWT (con sesión; si la cabecera es de otra tienda → 403). Todo service filtra con
+   `soloTenant()` (`core/tenancy/`, falla cerrado con 400). La tienda demo con los datos del
+   Parcial 1 es **`mirroria`**; la cuenta `DUENO_PLATAFORMA` (`plataforma@mirroria.com`, clave en
+   `mirroria-backend/.env`) administra planes/tiendas/ciudades en `/saas/plataforma/*`. Detalle:
+   `mirroria-backend/AGENTS.md` (sección Fase 1) y spec en el vault
+   `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`.
 
 ## ⚡ 6. Comandos rápidos
 
@@ -111,6 +120,18 @@ cd mirroria-frontend && npm run dev
 
 # Todo dockerizado a la vez (Postgres + backend + frontend), HTTP plano en localhost:80
 docker compose up -d --build
+
+# Fase 1 SaaS: migrar una BD con datos del Parcial 1 ANTES del primer arranque del backend nuevo
+docker exec mirroria_postgres pg_dump -U mirroria -Fc mirroria_db > ~/backups/mirroria_pre_fase1.dump
+docker exec -i mirroria_postgres psql -U mirroria -d mirroria_db -v ON_ERROR_STOP=1 < scripts/sql/fase1-multitenant-backfill.sql
+
+# Probar la API a mano: toda ruta de negocio necesita la tienda
+curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos
+
+# QA contra la API local (crean datos: restaurar la BD después)
+API=http://localhost:3000/api/v1 python3 scripts/qa/qa_reglas.py        # 21 escenarios (X-Tenant: mirroria)
+API=http://localhost:3000/api/v1 python3 scripts/qa/qa_mostrador.py     # 14
+API=http://localhost:3000/api/v1 python3 scripts/qa/qa_aislamiento.py   # 84: aislamiento entre dos tiendas nuevas
 ```
 
 ## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-04)
@@ -212,7 +233,8 @@ docker compose up -d --build
 - **Despliegue a Azure sin GitHub**: `bash scripts/deploy-azure.sh` (bundle por scp, respaldo de
   imágenes, se frena si la VM tiene cambios sueltos) — vault `App/Despliegue_Azure.md`. Los
   despliegues los corre el usuario: el modo automático bloquea desplegar a producción.
-- **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios).
+- **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios de
+  reglas + 84 de aislamiento multi-tenant en `qa_aislamiento.py`; todos mandan `X-Tenant`).
 - **Móvil**: congelado, se rehará desde cero (aviso en vault `App/Mobile.md`). Al rehacerlo,
   partir de los contratos actuales del vault `App/Endpoints.md`, no de `mirroria-mobile/`.
 - **GitHub** (`mopy1/MirrorIA`): **una sola rama, `main`** (2026-11-04: se borraron las ramas

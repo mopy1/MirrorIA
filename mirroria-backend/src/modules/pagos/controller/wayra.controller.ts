@@ -13,6 +13,7 @@ import {
   ComprobanteWayraResponseDto,
   PagarWayraDto,
 } from '../dto/wayra.dto.js';
+import { SinTenant } from '../../../core/tenancy/sin-tenant.decorator.js';
 import { WayraBancoService } from '../service/wayra/wayra-banco.service.js';
 
 /**
@@ -20,6 +21,8 @@ import { WayraBancoService } from '../service/wayra/wayra-banco.service.js';
  * no tiene cuenta en MirrorIA. El token de la URL es la unica llave.
  */
 @ApiTags('Wayra (banco simulado)')
+// Global ("otra app"): el tenant sale de la fila del pago, no del request.
+@SinTenant()
 @Controller('wayra')
 export class WayraController {
   constructor(private readonly wayra: WayraBancoService) {}

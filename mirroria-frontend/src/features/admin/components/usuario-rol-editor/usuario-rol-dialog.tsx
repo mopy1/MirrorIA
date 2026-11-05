@@ -1,6 +1,5 @@
 import { useState } from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { ErrorConPlan } from "@/components/common/ErrorConPlan"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,26 +9,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { FieldGroup } from "@/components/ui/field"
 import type { Sucursal } from "@/features/branches/types/branches.types"
 import { useCreateResource } from "@/hooks/useCreateResource"
-import { cn } from "cn"
 import type { UsuarioAdmin } from "../../api/usuariosAdminApi"
 import { usuariosAdminApi } from "../../api/usuariosAdminApi"
+import { RolField } from "./rol-field"
 import { SucursalField } from "./sucursal-field"
-import { getInitials, ROLES_CONFIG, ROLES_CON_SUCURSAL } from "./usuario-rol-editor.data"
+import { UsuarioResumen } from "./usuario-resumen"
+import { ROLES_CON_SUCURSAL } from "./usuario-rol-editor.data"
 
 interface UsuarioRolDialogProps {
   open: boolean
@@ -52,11 +40,6 @@ export function UsuarioRolDialog({
     (dto: { role: string; sucursalId?: string }) =>
       usuariosAdminApi.updateRol(usuario.id, dto.role, dto.sucursalId)
   )
-
-  const config = ROLES_CONFIG[usuario.role] ?? {
-    label: usuario.role,
-    badgeClasses: "bg-muted text-muted-foreground border-border",
-  }
 
   const necesitaSucursal = ROLES_CON_SUCURSAL.includes(role)
   const sucursalInvalida = necesitaSucursal && !sucursalId
@@ -86,42 +69,10 @@ export function UsuarioRolDialog({
           <DialogDescription>Asigna permisos y la sucursal operativa para esta cuenta.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
-          <Avatar size="default">
-            <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs">
-              {getInitials(usuario.fullName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm text-foreground truncate">{usuario.fullName}</p>
-            <p className="text-xs text-muted-foreground font-mono truncate">{usuario.email}</p>
-          </div>
-          <Badge variant="outline" className={cn("text-xs shrink-0", config.badgeClasses)}>
-            {config.label}
-          </Badge>
-        </div>
+        <UsuarioResumen usuario={usuario} />
 
         <FieldGroup className="py-1">
-          <Field>
-            <FieldLabel>Rol en el sistema</FieldLabel>
-            <Select value={role} onValueChange={(v) => setRole(v as string)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Seleccionar rol">
-                  {(v: string) => ROLES_CONFIG[v]?.label ?? v}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(ROLES_CONFIG).map(([key, item]) => (
-                  <SelectItem key={key} value={key}>
-                    <div className="flex flex-col py-0.5">
-                      <span className="font-medium text-foreground">{item.label}</span>
-                      <span className="text-xs text-muted-foreground">{item.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <RolField role={role} onRoleChange={setRole} />
 
           {necesitaSucursal && (
             <SucursalField
@@ -132,7 +83,7 @@ export function UsuarioRolDialog({
             />
           )}
 
-          {error && <FieldError>{error}</FieldError>}
+          <ErrorConPlan mensaje={error} />
         </FieldGroup>
 
         <DialogFooter>

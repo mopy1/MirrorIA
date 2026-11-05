@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { TemporadaResponseDto } from '../dto/catalogo-response.dto.js';
 import type { CreateTemporadaDto } from '../dto/create-temporada.dto.js';
 import { Temporada } from '../entities/temporada.entity.js';
@@ -26,7 +27,7 @@ export class TemporadasService {
 
   async findAll(): Promise<TemporadaResponseDto[]> {
     const temporadas = await this.temporadaRepository.find({
-      where: { activo: true },
+      where: soloTenant({ activo: true }),
       order: { fechaInicio: 'DESC' },
     });
     return temporadas.map((t) => this.toResponse(t));
