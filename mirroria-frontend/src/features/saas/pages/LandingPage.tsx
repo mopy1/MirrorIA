@@ -9,7 +9,7 @@ import { PreguntasFrecuentes } from "../components/preguntas-frecuentes"
 import { TiendasDirectorio } from "../components/tiendas-directorio"
 import { useTiendasDirectorio } from "../hooks/useTiendasDirectorio"
 
-/** `/` — landing de Tiendaria (spec Fase 1b §E.3, modo Persuade). Las tiendas alimentan el abanico y el directorio. */
+/** `/` — landing de MirrorIA (spec Fase 1b §E.3, modo Persuade). Las tiendas alimentan el abanico y el directorio. */
 export function LandingPage() {
   const d = useTiendasDirectorio()
   return (

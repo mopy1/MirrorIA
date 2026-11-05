@@ -1,12 +1,12 @@
 import { useEffect } from "react"
 import { Outlet, useLocation } from "react-router-dom"
-import { useTemaTiendaria } from "@/hooks/useTemaTiendaria"
+import { useTemaPlataforma } from "@/hooks/useTemaPlataforma"
 import { SaasFooter } from "./saas-footer"
 import { SaasHeader } from "./saas-header"
 
-/** Superficies de Tiendaria (`/`, `/planes`, `/registro-tienda`, `/entrar`, 404): siempre con su identidad. */
+/** Superficies de MirrorIA (`/`, `/planes`, `/registro-tienda`, `/entrar`, 404): siempre con su identidad. */
 export function SaasLayout() {
-  useTemaTiendaria()
+  useTemaPlataforma()
   const { hash, pathname } = useLocation()
 
   // Los links "/#tiendas", "/#planes" y "/#preguntas" bajan a su sección (el router no lo hace solo).

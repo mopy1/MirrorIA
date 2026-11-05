@@ -11,8 +11,8 @@ export const FUENTES: Record<FuenteMarca, { nombre: string; pila: string }> = {
   playfair: { nombre: "Editorial", pila: "'Playfair Display Variable', Georgia, serif" },
 }
 
-/** Tipografía de títulos de Tiendaria (ninguna tienda puede elegirla). */
-export const FUENTE_TIENDARIA = "'Bricolage Grotesque Variable', 'Geist Variable', sans-serif"
+/** Tipografía de títulos de MirrorIA (ninguna tienda puede elegirla). */
+export const FUENTE_PLATAFORMA = "'Bricolage Grotesque Variable', 'Geist Variable', sans-serif"
 
 export const RADIOS: Record<RadioMarca, { nombre: string; valor: string }> = {
   RECTO: { nombre: "Rectos", valor: "0.25rem" },
@@ -45,7 +45,7 @@ export const esPaleta = (v: string | null | undefined): v is CodigoPaleta => !!v
 export const NIVELES: Record<NivelMarca, { plan: string; incluye: string; resumen: string }> = {
   ESENCIAL: { plan: "Básico", incluye: "Logo, colores, portada, textos y redes", resumen: "logo, colores, portada, textos y redes" },
   COMPLETA: { plan: "Crecimiento", incluye: "Además: fuente, bordes, modo oscuro e imágenes de secciones", resumen: "también fuente, bordes, modo oscuro e imágenes" },
-  MARCA_BLANCA: { plan: "Cadena", incluye: "Además: favicon propio y sin \"Hecho con Tiendaria\"", resumen: "personalización completa, con favicon y sin insignia" },
+  MARCA_BLANCA: { plan: "Cadena", incluye: "Además: favicon propio y sin \"Hecho con MirrorIA\"", resumen: "personalización completa, con favicon y sin insignia" },
 }
 export const ORDEN_NIVEL: NivelMarca[] = ["ESENCIAL", "COMPLETA", "MARCA_BLANCA"]
 

@@ -1,4 +1,4 @@
-# 🟣 Tiendaria (repo MirrorIA) — Manual maestro del monorepo
+# 🟣 MirrorIA — Manual maestro del monorepo
 
 > **Si sos una IA nueva en este proyecto, leé [`HANDOFF.md`](./HANDOFF.md) primero** (estado, reglas del usuario,
 > decisiones tomadas y trampas). Este archivo es el mapa técnico del monorepo.
@@ -7,14 +7,17 @@
 
 ## 1. Qué es
 
-**Tiendaria** es una plataforma **SaaS multi-tenant** (*Software as a Service*: un solo sistema que atiende a muchas
+> **2026-11-05: se intercambiaron los nombres** — la plataforma SaaS se llama **MirrorIA** (como el repo) y la tienda
+> principal se llama **Tiendaria** (slug `tiendaria`); en specs/commits anteriores al cambio, 'Tiendaria' significa la plataforma.
+
+**MirrorIA** es una plataforma **SaaS multi-tenant** (*Software as a Service*: un solo sistema que atiende a muchas
 tiendas, cada una aislada como "inquilino") de e-commerce de moda femenina multi-sucursal: probador virtual por IA
 (Decart `lucy-vton-3.5`), reservas para probarse en tienda, carrito y checkout con cupones, pagos (tarjeta Stripe,
 QR dinámico con el banco simulado Wayra, efectivo), reportes por IA en lenguaje natural (DeepSeek + DuckDB) y un
 panel de plataforma para el dueño del SaaS.
 
-**MirrorIA es una tienda más** (slug `mirroria`, `/t/mirroria`, marca vino/rosa) y fue el nombre de todo el proyecto en
-el Parcial 1: el repo, los contenedores (`mirroria_*`), las env y `plataforma@mirroria.com` conservan el nombre.
+**Tiendaria es una tienda más** (slug `tiendaria`, `/t/tiendaria`, marca vino/rosa, datos del Parcial 1). El repo, los
+contenedores (`mirroria_*`), la BD (`mirroria_db`), las env y los correos `*@mirroria.com` dicen `mirroria`.
 
 Proyecto del **Parcial 2 de SI2** (Sistemas de Información II, 2-2026), entrega 2026-11-11 08:00 (PDF ICONIX + UML 2.5).
 Documentación en el vault de Obsidian (`/mnt/c/Users/lmc/Documents/Obsidian`):
@@ -61,8 +64,9 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   ├── deploy-azure.sh          # despliegue a la VM por git bundle + scp (lo corre el usuario)
 │   ├── sembrar-catalogo.mjs + catalogo-demo.mjs   # catálogo demo idempotente contra la API
 │   ├── sembrar-tiendas-demo.mjs # tiendas demo casa-andina y nomada (marca, prendas, clientas, ventas)
-│   ├── sql/fase1-multitenant-backfill.sql   # tenant_id + datos a la tienda "mirroria" (BD con datos del Parcial 1)
+│   ├── sql/fase1-multitenant-backfill.sql   # tenant_id + datos a la tienda demo (id …0001; hoy "tiendaria")
 │   ├── sql/fase1b-marca.sql     # Azure: inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
+│   ├── sql/renombre-tiendaria.sql  # Azure: tienda demo "MirrorIA"/mirroria → "Tiendaria"/tiendaria (idempotente)
 │   └── qa/                      # QA contra la API real: reglas 21, mostrador 14, aislamiento 84, marca 37 (ver su README)
 ├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 101 rutas)
 │   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 12 módulos de negocio
@@ -71,9 +75,9 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 └── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
 ```
 
-## 4. Tiendaria vs. las tiendas
+## 4. MirrorIA (plataforma) vs. las tiendas
 
-| | Tiendaria (plataforma) | Cada tienda (inquilino) |
+| | MirrorIA (plataforma) | Cada tienda (inquilino) |
 |---|---|---|
 | Rutas web | `/`, `/planes`, `/registro-tienda`, `/entrar`, `/plataforma/*`, `/wayra/pagar/:token` | `/t/:slug/*` (vitrina, carrito, pago…) y `/admin/*` (panel de SU tienda) |
 | Identidad | índigo `#281B89` + lima `#C3F74C`, Bricolage Grotesque | su marca (`inquilino_marca`): logo, colores, modo, bordes, fuente, portada, textos, redes |
@@ -82,7 +86,7 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 
 Planes: **Básico** (Bs 99, 1 sucursal, 50 prendas, 3 staff, marca ESENCIAL) · **Crecimiento** (Bs 249, 3/300/10,
 COMPLETA, destacado) · **Cadena** (Bs 599, sin límites, MARCA_BLANCA). Toda tienda nueva arranca en prueba (TRIAL) de 14 días.
-Tiendas locales: `mirroria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 1), `casa-andina` y `nomada`
+Tiendas locales: `tiendaria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 1), `casa-andina` y `nomada`
 (Cadena TRIAL hasta 2026-11-19). Cuentas: vault `Parcial1/App/Database.md` → "Estado de la BD local".
 
 ## 5. Mapa frontend ↔ backend
@@ -124,7 +128,7 @@ docker compose up -d --build --force-recreate        # todo: :5435, :3000, :80 (
 docker compose up -d postgres-db                     # solo la BD
 cd mirroria-backend && npm run start:dev             # API en :3000
 cd mirroria-frontend && npm run dev                  # web en :5174
-curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos
+curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos
 docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 101 rutas
 
 # Tests (conteos en f91938c)
@@ -148,8 +152,10 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-04:** endurecimiento de seguridad, limpieza (fuera AR, `lucide-react`, ramas viejas), móvil congelado,
   motor IA híbrido (DuckDB + agente multi-herramienta), "Mis pedidos" y edición de cantidad en el carrito.
 - **2026-11-05 — Fase 1 (`d6d05f6`):** SaaS multi-tenant (módulo `saas`, `core/tenancy`, 93 rutas, 26 tablas).
-- **2026-11-05 — Fase 1b (`f91938c`):** identidad Tiendaria, marca por tienda (`/admin/apariencia`), panel de
+- **2026-11-05 — Fase 1b (`f91938c`):** identidad de la plataforma (entonces "Tiendaria"), marca por tienda (`/admin/apariencia`), panel de
   plataforma con dashboard y bitácora, tiendas demo (101 rutas, 28 tablas).
+- **2026-11-05 — Renombre:** la plataforma pasa a llamarse MirrorIA y la tienda demo `mirroria` → Tiendaria (`tiendaria`);
+  BD: `scripts/sql/renombre-tiendaria.sql` (idempotente).
 
 ## 9. Dónde está cada cosa
 

@@ -14,7 +14,7 @@ process.env.IA_API_KEY = '';
 /** Registra un usuario nuevo y devuelve su token y su email. El registro publico siempre da CUSTOMER. */
 async function registrarCustomer(app: INestApplication<App>): Promise<{ email: string; token: string }> {
   const email = `ia-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
-  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
     .post('/api/v1/seguridad/auth/register')
     .send({ email, password: 'Password123', fullName: 'E2E IA' })
     .expect(201);
@@ -50,7 +50,7 @@ async function usuarioConRol(
   await ds.query('UPDATE usuarios SET role = $2, sucursal_id = $3 WHERE email = $1', [
     email, role, sucursalId,
   ]);
-  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
     .post('/api/v1/seguridad/auth/login')
     .send({ email, password: 'Password123' })
     .expect(200);
@@ -82,7 +82,7 @@ describe('IA - reportes (e2e)', () => {
   });
 
   it('sin token devuelve 401', async () => {
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
       .expect(401);
@@ -90,7 +90,7 @@ describe('IA - reportes (e2e)', () => {
 
   it('un CUSTOMER devuelve 403', async () => {
     const token = await tokenDeCustomer(app);
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -102,7 +102,7 @@ describe('IA - reportes (e2e)', () => {
     // corren ANTES que los Pipes de parametro, asi que RolesGuard corta primero.
     // Para ejercer el 400 del PIPE_FICHA hace falta un rol que pase el guard.
     const token = await tokenDeAdmin(app);
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno', sqlCrudo: 'DROP TABLE ventas' })
@@ -111,7 +111,7 @@ describe('IA - reportes (e2e)', () => {
 
   it('un ADMIN consulta y recibe 200 con filas', async () => {
     const token = await tokenDeAdmin(app);
-    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -124,7 +124,7 @@ describe('IA - reportes (e2e)', () => {
     // lo tiene que dar SinSucursalAsignadaException dentro del servicio. Dejar el filtro
     // vacio abriria TODAS las sucursales, que es lo contrario de lo que se busca.
     const { token } = await usuarioConRol(app, 'ENCARGADO_SUCURSAL');
-    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })
@@ -139,9 +139,9 @@ describe('IA - reportes (e2e)', () => {
     const HISTORIAL = '/api/v1/ia/interacciones';
 
     it('sin token es 401 y con un CUSTOMER es 403', async () => {
-      await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria').get(HISTORIAL).expect(401);
+      await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria').get(HISTORIAL).expect(401);
       const token = await tokenDeCustomer(app);
-      await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+      await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
@@ -164,7 +164,7 @@ describe('IA - reportes (e2e)', () => {
         [admin.id, encargado.id, `${marca}-admin`, `${marca}-encargado`],
       );
 
-      const delEncargado = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+      const delEncargado = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${encargado.token}`)
         .expect(200);
@@ -174,7 +174,7 @@ describe('IA - reportes (e2e)', () => {
       expect(textosEncargado).toContain(`${marca}-encargado`);
       expect(textosEncargado).not.toContain(`${marca}-admin`);
 
-      const delAdmin = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+      const delAdmin = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
         .get(HISTORIAL)
         .set('Authorization', `Bearer ${admin.token}`)
         .expect(200);
@@ -203,13 +203,13 @@ describe('IA - reportes (e2e)', () => {
     // mas importa conservar, que el camino manual sigue vivo sin clave.
     const token = await tokenDeAdmin(app);
 
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post('/api/v1/ia/reportes')
       .set('Authorization', `Bearer ${token}`)
       .send({ prompt: 'cuanto vendi este mes por sucursal' })
       .expect(503);
 
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post(RUTA)
       .set('Authorization', `Bearer ${token}`)
       .send({ metrica: 'ingresos', agruparPor: 'ninguno' })

@@ -34,7 +34,7 @@ describe('WayraBancoService (banco simulado)', () => {
   it('al escanear muestra comercio, glosa, monto y las cuentas de prueba', async () => {
     const res = await wayra.verCobro('tok');
     expect(res).toMatchObject({
-      comercio: 'MirrorIA',
+      comercio: 'Tiendaria',
       glosa: 'Compra #8F3A1C9E',
       montoCents: 24500,
     });

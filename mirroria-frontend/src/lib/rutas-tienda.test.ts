@@ -25,10 +25,10 @@ describe("rutaTienda", () => {
 
 describe("rutaLegacy", () => {
   it("conserva la query string (retorno de Stripe)", () => {
-    expect(rutaLegacy("mirroria", "/pago/exito", "?venta=v1")).toBe("/t/mirroria/pago/exito?venta=v1")
+    expect(rutaLegacy("tiendaria", "/pago/exito", "?venta=v1")).toBe("/t/tiendaria/pago/exito?venta=v1")
   })
 
   it("/register pasa a /registro", () => {
-    expect(rutaLegacy("mirroria", "/register")).toBe("/t/mirroria/registro")
+    expect(rutaLegacy("tiendaria", "/register")).toBe("/t/tiendaria/registro")
   })
 })

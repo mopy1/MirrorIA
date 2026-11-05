@@ -28,7 +28,7 @@ export function SlugInput({ value, onChange, estado, error }: SlugInputProps) {
     <Field data-invalid={mal}>
       <FieldLabel htmlFor="slug">Dirección de tu tienda</FieldLabel>
       <div className="flex items-center rounded-lg border border-input bg-background pl-3 text-sm focus-within:ring-3 focus-within:ring-ring/50">
-        <span className="shrink-0 text-muted-foreground">tiendaria.app/t/</span>
+        <span className="shrink-0 text-muted-foreground">mirroria.app/t/</span>
         <Input id="slug" value={value} onChange={(e) => onChange(e.target.value.toLowerCase())} aria-invalid={mal} className="border-0 pl-0.5 focus-visible:ring-0" placeholder="boutique-lila" />
         <span className="pr-3">
           {estado.tipo === "verificando" && <CircleNotch className="size-4 animate-spin text-muted-foreground" />}

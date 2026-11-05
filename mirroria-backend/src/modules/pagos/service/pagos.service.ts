@@ -441,7 +441,8 @@ export class PagosService {
    */
   private descripcionParaLaPasarela(venta: { id: string; numeroComprobante: string | null }): string {
     const referencia = venta.numeroComprobante ?? `#${venta.id.slice(0, 8).toUpperCase()}`;
-    return `MirrorIA — Compra ${referencia}`;
+    // Pendiente (Fase 2): nombre de la tienda del contexto en vez del de la demo.
+    return `Tiendaria — Compra ${referencia}`;
   }
 
   /**

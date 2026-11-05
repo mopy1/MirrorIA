@@ -10,7 +10,7 @@ import { IaService } from './../src/modules/ia/service/ia.service.js';
 import { CombinacionInvalidaException } from './../src/modules/ia/exception/combinacion-invalida.exception.js';
 import { usarTenantE2E } from './setup-tenant.e2e.js';
 
-/** Tienda propia de este archivo (Fase 1 SaaS): sus números no se mezclan con los datos demo de mirroria. */
+/** Tienda propia de este archivo (Fase 1 SaaS): sus números no se mezclan con los datos demo de tiendaria. */
 const TENANT_E2E = '00000000-0000-4000-a000-0000000000e2';
 usarTenantE2E(TENANT_E2E);
 

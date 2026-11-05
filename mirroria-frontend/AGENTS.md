@@ -1,11 +1,11 @@
-# 🪞 mirroria-frontend (web de Tiendaria) — Arquitectura, Árbol Real y Lógica por Feature
+# 🪞 mirroria-frontend (web de MirrorIA) — Arquitectura, Árbol Real y Lógica por Feature
 
 Este documento define la arquitectura técnica, los patrones de diseño y la estructura de
 carpetas de `mirroria-frontend`. Es la fuente de verdad exclusiva del frontend web — el
 `AGENTS.md` de la raíz del repo (`../AGENTS.md`) solo enlaza para acá. La arquitectura y las
 reglas son una adaptación directa de `sw-case/case-frontend/AGENTS.md` (mismo patrón y mismo
-criterio de cuándo aplicar cada regla), llevada al dominio del proyecto: **Tiendaria**, una plataforma SaaS multi-tenant
-de tiendas de moda femenina multi-sucursal, donde **MirrorIA es una tienda más** (`/t/mirroria`). Si sos una IA nueva,
+criterio de cuándo aplicar cada regla), llevada al dominio del proyecto: **MirrorIA**, una plataforma SaaS multi-tenant
+de tiendas de moda femenina multi-sucursal, donde **Tiendaria es una tienda más** (`/t/tiendaria`). Si sos una IA nueva,
 leé antes `../HANDOFF.md` y `../AGENTS.md`.
 
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
@@ -28,24 +28,24 @@ directrices de forma obligatoria.
   skeleton, switch, table, tabs, textarea, toggle, toggle-group, tooltip. `cn` viene del paquete npm `cn` (`import { cn } from "cn"`) — **no** existe
   `lib/utils.ts`, no crearlo.
 - **Identidad visual (Fase 1b):** dos mundos que no se mezclan.
-  **Tiendaria** (la plataforma) = `:root`/`.dark` de `src/index.css`: índigo `oklch(0.33 0.17 277)`
+  **MirrorIA** (la plataforma) = `:root`/`.dark` de `src/index.css`: índigo `oklch(0.33 0.17 277)`
   (`#281B89`) + acento lima `--brand-accent` (`#C3F74C`, solo como relleno, nunca texto sobre claro);
   oscuro compuesto aparte (noche índigo, primario lima). Títulos en Bricolage Grotesque
   (`--heading-font`, `h1-h3` y la utilidad `font-heading`), cuerpo Geist. Wordmark/isotipo en
-  `components/marca/tiendaria-logo.tsx`, favicon = isotipo. **Cada tienda** pinta su marca encima:
+  `components/marca/plataforma-logo.tsx` (`mırrorIA` con el punto de la "i" en lima; isotipo = "m" de tres patas + punto lima), favicon = isotipo. **Cada tienda** pinta su marca encima:
   neutros de croma 0 en `[data-tema="tienda"]` (+ `.dark`) y sus colores como variables inline en
   `<html>` (`lib/tema/`). `--accent` sigue siendo el hover de shadcn; el acento de marca es
   `bg-brand-accent text-brand-accent-foreground`. Fuentes de tienda (Outfit, DM Sans, Playfair)
-  se cargan con `import()` dinámico (`lib/tema/fuentes.ts`). `--radius: 0.75rem` en Tiendaria. Iconos **100% Phosphor** (`@phosphor-icons/react`), también en los
+  se cargan con `import()` dinámico (`lib/tema/fuentes.ts`). `--radius: 0.75rem` en MirrorIA. Iconos **100% Phosphor** (`@phosphor-icons/react`), también en los
   primitivos de shadcn (`dialog`/`sheet` → `X`, `select` → `CaretDown`/`CaretUp`/`Check`,
-  `navigation-menu` → `CaretDown`; el isotipo de MirrorIA usa el path de `Sparkle`). `lucide-react` desinstalado
+  `navigation-menu` → `CaretDown`; el isotipo de la tienda Tiendaria usa el path de `Sparkle`). `lucide-react` desinstalado
   (2026-11-04) y `components.json` con `"iconLibrary": "phosphor"`, así `shadcn add` genera los
   componentes nuevos con Phosphor; si alguno llega con un import de lucide, cambiarlo a mano. Animación con `motion` (`motion/react`).
 **Modo oscuro (decisión confirmada por el usuario, 2026-11-05):**
-1. **Tiendaria** (landing, alta, `/entrar`, `/plataforma/*`, Wayra) sigue el `prefers-color-scheme` del sistema del visitante (hook `hooks/useTemaTiendaria.ts`), sin botón.
+1. **MirrorIA** (landing, alta, `/entrar`, `/plataforma/*`, Wayra) sigue el `prefers-color-scheme` del sistema del visitante (hook `hooks/useTemaPlataforma.ts`), sin botón.
 2. **Cada tienda** tiene un modo **fijo de marca** `CLARO` u `OSCURO` (`inquilino_marca.modo`) que elige la dueña en `/admin/apariencia` (desde el plan Crecimiento; el nivel `ESENCIAL` del Básico no lo permite) e **ignora** el modo del sistema del visitante: `lib/tema/aplicar-tema.ts` pone `.dark` en `<html>` solo si la marca es `OSCURO` (y solo en la vitrina `/t/:slug`; el `/admin` de la tienda queda claro). Al pasar a oscuro se revalida el contraste del color principal contra el fondo oscuro `#0A0A0A` (≥ 4.5:1, botón "Ajustar contraste"; el backend responde 400 si no cumple).
 3. **No existe** interruptor de modo para el visitante en las tiendas **ni** un modo "Automático": decisión del usuario, no agregarlo sin que lo pida.
-Ejemplos: `nomada` es OSCURO; `mirroria` y `casa-andina` son CLARO.
+Ejemplos: `nomada` es OSCURO; `tiendaria` y `casa-andina` son CLARO.
 
 - **Otras dependencias:** React Hook Form + Zod (`@hookform/resolvers`), Recharts (reportes),
   `@decartai/sdk` (probador virtual).
@@ -139,7 +139,7 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 | `/t/:slug/carrito`, `/checkout`, `/pago/:ventaId`, `/pago/exito`, `/pago/cancelado`, `/mis-pedidos`, `/reservas` | las de siempre | `ProtectedRoute` (sesión de ESTA tienda) |
 | `/t/:slug/login`, `/t/:slug/registro` | `auth/LoginPage`, `RegisterPage` | `GuestRoute` por tienda (`AuthLayout` con nombre de tienda) |
 | `/t/:slug/*` | `NotFoundPage` (versión tienda) | `TiendaLayout` |
-| rutas viejas `/tienda/*`, `/sucursales`, `/carrito`, `/checkout`, `/pago/*`, `/mis-pedidos`, `/reservas`, `/probador/*`, `/login`, `/register` | `routes/LegacyRedirect` → `/t/<sesión o mirroria>/…` (+ query; `/register`→`/registro`) | — |
+| rutas viejas `/tienda/*`, `/sucursales`, `/carrito`, `/checkout`, `/pago/*`, `/mis-pedidos`, `/reservas`, `/probador/*`, `/login`, `/register` | `routes/LegacyRedirect` → `/t/<sesión o tiendaria>/…` (+ query; `/register`→`/registro`) | — |
 | `/wayra/pagar/:token` | `wayra/WayraPagoPage` | público, global, sin layout |
 | `/admin` (padre con `<Outlet/>`) | → `/admin/catalogo` | `StaffRoute` (staff + `user.tenant`) + `AdminLayout` |
 | `/admin/catalogo`, `/proveedores`, `/sucursales`, `/cupones`, `/usuarios`, **`/suscripcion`** | `admin/*AdminPage`, `subscription/SuscripcionAdminPage` | `AdminRoute` (ADMIN + tenant) |
@@ -166,16 +166,16 @@ la landing `/` sigue estática. Nginx sirve `index.html` con `Cache-Control: no-
 cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en blanco).
 
 **Navegación (sin páginas huérfanas):**
-- SaaS (Tiendaria): navbar (`layouts/saas-header/`) Planes · Tiendas · Preguntas (anclas de `/`) · Entrar/Ir a mi
+- SaaS (MirrorIA): navbar (`layouts/saas-header/`) Planes · Tiendas · Preguntas (anclas de `/`) · Entrar/Ir a mi
   panel (ghost) · **Crear mi tienda** (único primario); footer Producto (Planes, Comparar planes, Tiendas,
   Preguntas) · Cuenta (Entrar, Crear mi tienda, Tienda demo, Acceso plataforma).
 - Tienda: `components/marca/logo-tienda-actual.tsx` (su logo o monograma + nombre, nunca el wordmark de
-  Tiendaria); subrayado del ítem activo y contador del carrito con `bg-brand-accent`; footer con eslogan,
-  "sobre nosotras", redes cargadas e `InsigniaTiendaria` ("Hecho con Tiendaria" → `/`, se quita con Cadena).
+  MirrorIA); subrayado del ítem activo y contador del carrito con `bg-brand-accent`; footer con eslogan,
+  "sobre nosotras", redes cargadas e `InsigniaPlataforma` ("Hecho con MirrorIA" → `/`, se quita con Cadena).
 - Admin: grupo **"Mi tienda"** (`admin-sidebar.data.ts`): Ver mi tienda · **Apariencia** (ADMIN) · Plan y
   suscripción (ADMIN, badge de días en TRIAL); cabecera con el logo/monograma de la tienda y plan; pie
-  "Funciona con Tiendaria". `layouts/useTemaAdmin.ts` aplica el tema parcial y escucha
-  `tiendaria:marca-actualizada` (lo emite Apariencia al guardar). `admin-avisos.tsx`: verde de bienvenida
+  "Funciona con MirrorIA". `layouts/useTemaAdmin.ts` aplica el tema parcial y escucha
+  `mirroria:marca-actualizada` (lo emite Apariencia al guardar). `admin-avisos.tsx`: verde de bienvenida
   (link "Cargar mi primera prenda"; el alta cae en `/admin/apariencia`), ámbar ≤ 3 días y rojo con "Activar plan".
 - Plataforma: `layouts/plataforma-sidebar.tsx` Resumen · Tiendas · Planes · Ciudades · Cerrar sesión; filas
   con "Gestionar" + menú ⋯ (Ver tienda, Copiar enlace) y detalle con "← Volver a tiendas".
@@ -198,22 +198,22 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
 ```text
 mirroria-frontend/
 ├── public/
-│   ├── favicon.svg                    # isotipo de Tiendaria
-│   └── images/hero-model.webp, images/marcas/mirroria.svg   # hero de MirrorIA · isotipo de la tienda MirrorIA
+│   ├── favicon.svg                    # isotipo de MirrorIA
+│   └── images/hero-model.webp, images/marcas/tiendaria.svg   # hero de Tiendaria · isotipo de la tienda Tiendaria
 ├── src/
 │   ├── main.tsx                       # AuthProvider > App (CartProvider vive en TiendaRoot)
 │   ├── App.tsx                        # árbol de rutas (§2); tablas en routes/rutas-app.ts
-│   ├── index.css                      # tokens Tiendaria (:root/.dark índigo + lima) y neutros de tienda [data-tema="tienda"], Tailwind v4
+│   ├── index.css                      # tokens MirrorIA (:root/.dark índigo + lima) y neutros de tienda [data-tema="tienda"], Tailwind v4
 │   ├── components/
 │   │   ├── ui/                        # primitivas shadcn (Base UI), sin lógica de negocio
-│   │   ├── marca/                     # logos (Tiendaria, de tienda, monograma), insignia, selector de paleta, galería, vista-previa/
+│   │   ├── marca/                     # logos (MirrorIA, de tienda, monograma), insignia, selector de paleta, galería, vista-previa/
 │   │   └── common/                    # SearchInput, PageFallback, ProductImagePlaceholder, EstadoBadge, UsoPlanMeters,
 │   │                                  # HistorialSuscripcion, ErrorConPlan (409 de plan + "Ver mi plan")
 │   ├── context/                       # AuthContext (+auth-context), CartContext (+cart-context), TenantContext (+tenant-context, cargando-tienda)
 │   ├── hooks/                         # globales: useAuth, useCart, useResourceList, useCreateResource, useRecurso,
-│   │                                  # useTienda, useRutaTienda, useSesionEnTienda, useMarca, useTemaTiendaria
+│   │                                  # useTienda, useRutaTienda, useSesionEnTienda, useMarca, useTemaPlataforma
 │   ├── layouts/
-│   │   ├── SaasLayout.tsx + saas-header/ + saas-footer/     # Tiendaria pública
+│   │   ├── SaasLayout.tsx + saas-header/ + saas-footer/     # MirrorIA pública
 │   │   ├── TiendaLayout.tsx (TiendaRoot, TiendaLayout) → StorefrontLayout.tsx + site-header/ + site-footer/   # cada tienda
 │   │   ├── AuthLayout.tsx             # split-screen de login/registro ("← Volver a <tienda>")
 │   │   ├── AdminLayout.tsx + admin-sidebar-{content,header,nav,footer}.tsx + admin-sidebar.data.ts + admin-avisos.tsx + useTemaAdmin.ts
@@ -269,15 +269,15 @@ conteos y agregados de cada tienda, nunca filas de negocio.
 - **`lib/tema/`** (puro, con tests): `color.ts` (hex↔OKLCH, contraste WCAG, `textoSobre` blanco/negro,
   `validarPrincipal`, `ajustarContraste` baja/sube L de a 0.02), `derivar-tokens.ts` (`derivarTokens(marca,
   'tienda'|'admin')`, `VARS_TEMA`), `aplicar-tema.ts` (`aplicarTemaTienda`, `limpiarTema`,
-  `prepararNeutrosTienda`, caché `tiendaria.marca.<slug>`), `fuentes.ts`, `marca.constants.ts` (FUENTES,
+  `prepararNeutrosTienda`, caché `mirroria.marca.<slug>`), `fuentes.ts`, `marca.constants.ts` (FUENTES,
   RADIOS, DESTINOS, PALETAS con portada, NIVELES, `marcaPorDefecto`, `marcaDe`), `eventos.ts`.
 - **Quién aplica el tema:** `context/TenantContext.tsx` (layout effect: neutros + caché antes del paint;
-  tras `resolverTienda`, fuente ≤ 300 ms y marca; inexistente/caída → Tiendaria; desmontar → limpiar),
-  `layouts/useTemaAdmin.ts` (admin), `hooks/useTemaTiendaria.ts` (SaasLayout, PlataformaLayout,
+  tras `resolverTienda`, fuente ≤ 300 ms y marca; inexistente/caída → MirrorIA; desmontar → limpiar),
+  `layouts/useTemaAdmin.ts` (admin), `hooks/useTemaPlataforma.ts` (SaasLayout, PlataformaLayout,
   login de plataforma, Wayra). `hooks/useMarca.ts` = marca de la tienda navegada.
-- **`components/marca/`** (compartidos por saas, appearance, platform y la tienda): `tiendaria-logo`,
+- **`components/marca/`** (compartidos por saas, appearance, platform y la tienda): `plataforma-logo`,
   `logo-tienda`, `logo-tienda-actual`, `monograma` (+`iniciales.ts`), `imagen-marca` (`<img>` con
-  `no-referrer`, lazy y respaldo), `insignia-tiendaria`, `selector-paleta`, `galeria-imagenes.data.ts`
+  `no-referrer`, lazy y respaldo), `insignia-plataforma`, `selector-paleta`, `galeria-imagenes.data.ts`
   (24 fotos verificadas) y `vista-previa/` (`VistaPreviaTienda`: mini tienda con el tema en SU contenedor,
   escalada desde 1280/390 px por `MarcoDispositivo`; sin portales ni variantes `dark:`).
 - **`features/appearance/`** (`/admin/apariencia`): `api/aparienciaApi.ts` (GET/PUT `/saas/mi-marca`,
@@ -569,9 +569,9 @@ inexistente (ficha de prenda).
 - **Fase 2 (siguiente):** `/admin/suscripcion/activar` y el botón "Pagar" de `/admin/suscripcion` muestran las pasarelas
   como "Próximamente"; ahí se conectan las pasarelas enchufables.
 - **Login/registro:** falta botón para mostrar la contraseña. Dictado por voz de reportes sin probar en un navegador real.
-- **P3 de la auditoría 1b:** texto muted "Elegí tienda y horario…" de MirrorIA con contraste 4.35:1; el título de pestaña del
-  admin es "Tiendaria"; en el paso 2 del alta la vista previa no es sticky. En `/t/mirroria/login` el panel de foto dice
-  "MirrorIA / MirrorIA".
+- **P3 de la auditoría 1b:** texto muted "Elegí tienda y horario…" de Tiendaria con contraste 4.35:1; el título de pestaña del
+  admin es "MirrorIA"; en el paso 2 del alta la vista previa no es sticky. En `/t/tiendaria/login` el panel de foto dice
+  "Tiendaria / Tiendaria".
 - **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens cada 10 min por IP.
 - **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend se optimizan como si no
   existiera.
@@ -638,7 +638,7 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
   reportes IA híbridos (`ReasoningSteps`, `WhatIfChart`).
 - **2026-11-05 — Fase 1 SaaS (commit `d6d05f6`):** rutas de tienda bajo `/t/:slug`, `LegacyRedirect` de las viejas, landing
   SaaS, alta de tienda, `/admin/suscripcion`, panel `/plataforma/*`, `X-Tenant` en `apiFetch`, `CartProvider` a `TiendaRoot`.
-- **2026-11-05 — Fase 1b (commit `f91938c`):** identidad Tiendaria (índigo + lima), tema por tienda (`lib/tema/`),
+- **2026-11-05 — Fase 1b (commit `f91938c`):** identidad de la plataforma (entonces "Tiendaria"; índigo + lima), tema por tienda (`lib/tema/`),
   `/admin/apariencia`, `/admin/suscripcion/activar`, dashboard de plataforma, landing nueva con cifras vivas.
 
 ---

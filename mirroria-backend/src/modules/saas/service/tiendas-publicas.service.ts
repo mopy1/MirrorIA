@@ -6,7 +6,7 @@ import type { DisponibilidadSlugDto } from '../dto/disponibilidad-slug.dto.js';
 import type { TiendaPublicaDto } from '../dto/tienda-publica.dto.js';
 import { Inquilino } from '../entities/inquilino.entity.js';
 import { marcaInicial } from '../marca/marca-reglas.js';
-import { MIRRORIA_TENANT_ID, REGEX_SLUG, SLUGS_RESERVADOS } from '../saas-reglas.js';
+import { TIENDA_DEMO_ID, REGEX_SLUG, SLUGS_RESERVADOS } from '../saas-reglas.js';
 import { estaDisponible, nivelDe, tiendaADto } from './inquilinos.helpers.js';
 import { InquilinosService } from './inquilinos.service.js';
 import { efectivaPublica, MarcaService } from './marca.service.js';
@@ -22,7 +22,7 @@ export class TiendasPublicasService {
     private readonly marcas: MarcaService,
   ) {}
 
-  /** Directorio de la landing: solo disponibles, más nuevas primero, MirrorIA siempre primera. Sin N+1. */
+  /** Directorio de la landing: solo disponibles, más nuevas primero, Tiendaria (la demo) siempre primera. Sin N+1. */
   async tiendasPublicas(limite = 12): Promise<TiendaPublicaDto[]> {
     const [ultimas, inquilinos] = await Promise.all([
       this.inquilinos.ultimasPorInquilino(),
@@ -30,7 +30,7 @@ export class TiendasPublicasService {
     ]);
     const abiertas = inquilinos
       .filter((i) => estaDisponible(i, ultimas.get(i.id)))
-      .sort((a, b) => Number(b.id === MIRRORIA_TENANT_ID) - Number(a.id === MIRRORIA_TENANT_ID))
+      .sort((a, b) => Number(b.id === TIENDA_DEMO_ID) - Number(a.id === TIENDA_DEMO_ID))
       .slice(0, limite);
     const marcas = await this.marcas.guardadasPorInquilino(abiertas.map((i) => i.id));
     return abiertas.map((i) => {

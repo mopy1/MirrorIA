@@ -6,7 +6,7 @@ import type { TiendaPublica } from "@/types/tienda.types"
 import { cn } from "cn"
 import { AbanicoMarcas } from "./abanico-marcas"
 
-/** Hero de Tiendaria: split asimétrico, 1 primario + 1 secundario, sin eyebrow ni cifras (spec §E.3-2). */
+/** Hero de MirrorIA: split asimétrico, 1 primario + 1 secundario, sin eyebrow ni cifras (spec §E.3-2). */
 export function HeroSaas({ tiendas }: { tiendas: TiendaPublica[] }) {
   const reduce = useReducedMotion()
   return (

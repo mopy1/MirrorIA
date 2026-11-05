@@ -134,7 +134,7 @@ check("ADMIN de tienda en /saas/plataforma/dashboard -> 403", s == 403, s)
 # ------------------------------------------------------------ Cadena, bajar de plan, moderación
 s, mb = req("GET", "/saas/mi-marca", tok=TB)
 full = dict(mb["guardada"], nombre=f"Tienda {SB}", fuente="playfair", modo="OSCURO", colorPrimario="#E3C14B",
-            mostrarInsignia=False, faviconUrl="/images/marcas/mirroria.svg")
+            mostrarInsignia=False, faviconUrl="/images/marcas/tiendaria.svg")
 s, r = req("PUT", "/saas/mi-marca", full, TB)
 check("Cadena: playfair + OSCURO + amarillo + sin insignia + favicon -> 200", s == 200, (s, r))
 ID_B = b["tienda"]["id"]

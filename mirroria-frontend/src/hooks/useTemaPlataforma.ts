@@ -2,11 +2,11 @@ import { useLayoutEffect } from "react"
 import { limpiarTema } from "@/lib/tema/aplicar-tema"
 
 /**
- * Superficies de Tiendaria (landing, planes, alta, entrar, /plataforma, Wayra):
+ * Superficies de MirrorIA (landing, planes, alta, entrar, /plataforma, Wayra):
  * borra cualquier tema de tienda que haya quedado y sigue el claro/oscuro del
  * sistema. Segunda garantía además de la limpieza del TenantProvider (spec §B.5).
  */
-export function useTemaTiendaria() {
+export function useTemaPlataforma() {
   useLayoutEffect(() => {
     limpiarTema()
     const mq = window.matchMedia?.("(prefers-color-scheme: dark)")

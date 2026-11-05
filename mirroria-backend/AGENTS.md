@@ -1,4 +1,4 @@
-# 🪞 mirroria-backend (API de Tiendaria) — Arquitectura, módulos y endpoints
+# 🪞 mirroria-backend (API de MirrorIA) — Arquitectura, módulos y endpoints
 
 Fuente de verdad técnica del backend. Actualizado 2026-11-05 (commit `f91938c`). Si sos una IA nueva, leé antes
 `../HANDOFF.md` y `../AGENTS.md`. Contrato completo de cada ruta (request/response JSON): vault
@@ -35,7 +35,7 @@ src/
 │   │   ├── tenant.middleware.ts · tenant.subscriber.ts (completa tenant_id al insertar; insert sin tenant / update cruzado → Error)
 │   │   ├── sin-tenant.decorator.ts · permitir-tienda-no-disponible.decorator.ts
 │   │   ├── limites-plan.ts     # assertDentroDelPlan('sucursales'|'productos'|'usuariosStaff', uso) → 409
-│   │   └── tenant.constants.ts # HEADER_TENANT, MIRRORIA_TENANT_ID, REGEX_SLUG, SLUGS_RESERVADOS
+│   │   └── tenant.constants.ts # HEADER_TENANT, TIENDA_DEMO_ID, REGEX_SLUG, SLUGS_RESERVADOS
 │   ├── security/               # core-security.module (Passport @Global), jwt-auth.guard, jwt-opcional.guard, roles.decorator/guard,
 │   │                           # current-user.decorator, jwt-payload { sub, email, role, sucursalId, tenantId }, assert-own-user (403),
 │   │                           # sucursal-del-staff (staff → su sucursal; sin sucursal → 403), limite-por-ip (429)
@@ -90,17 +90,17 @@ en el contexto del tenant).
   tenant; webhook Stripe / aviso QR / Wayra buscan el pago por `referencia_externa` y siguen en `conTenant(pago.tenantId)`.
 - **Límites del plan:** `assertDentroDelPlan` en `SucursalesService.create`, `ProductosService.create/update` (reactivar),
   `UsuariosService.updateRol/updateEstado` (staff). Mensaje 409 siempre con la palabra "plan" (el front lo detecta).
-- **Tests:** `vitest.setup.ts` abre un tenant de prueba en cada unit test; `test/setup-tenant.e2e.ts` usa `mirroria`.
+- **Tests:** `vitest.setup.ts` abre un tenant de prueba en cada unit test; `test/setup-tenant.e2e.ts` usa `tiendaria`.
   Aislamiento contra la API real: `../scripts/qa/qa_aislamiento.py` (84 chequeos).
 
-## 5. Módulo `saas` (plataforma Tiendaria)
+## 5. Módulo `saas` (plataforma MirrorIA)
 
 ```text
 modules/saas/
 ├── saas.module.ts · saas-reglas.ts          # TenantInterceptor como APP_INTERCEPTOR
 ├── tenancy/tenant.interceptor.ts
-├── marca/marca-reglas.ts                    # catálogos cerrados (modos, radios, fuentes, destinos, niveles, secciones), 6 PALETAS + mirroria,
-│                                            # REGEX_URL_IMAGEN, marcaInicial, MARCA_MIRRORIA, marcaEfectiva(guardada, nivel), fueraDelPlan, restablecerSeccion
+├── marca/marca-reglas.ts                    # catálogos cerrados (modos, radios, fuentes, destinos, niveles, secciones), 6 PALETAS + mirroria (paleta interna de Tiendaria),
+│                                            # REGEX_URL_IMAGEN, marcaInicial, MARCA_TIENDA_DEMO, marcaEfectiva(guardada, nivel), fueraDelPlan, restablecerSeccion
 ├── marca/marca-color.ts                     # contraste WCAG, textoSobre (#FFFFFF/#000000), validarPrincipal (≥ 4.5:1)
 ├── entities/ plan · inquilino · suscripcion · marca-tienda (inquilino_marca) · evento-plataforma
 ├── controller/
@@ -126,7 +126,7 @@ modules/saas/
     ├── dashboard-plataforma.service.ts      # KPIs: MRR (ingreso mensual recurrente), ARR (anual), churn 30 d (bajas),
     │                                        # conversión de prueba a pago, GMV 30 d (ventas brutas de todas las tiendas), altas por mes (hora La Paz)
     ├── estadisticas.service.ts
-    └── saas-seed.service.ts                 # al arrancar: planes base, nivel de marca, tienda mirroria (id fijo 00000000-0000-4000-a000-000000000001,
+    └── saas-seed.service.ts                 # al arrancar: planes base, nivel de marca, tienda demo Tiendaria/`tiendaria` (id fijo 00000000-0000-4000-a000-000000000001,
                                              # Cadena ACTIVA hasta 2027-12-31), marcas faltantes, cuenta DUENO_PLATAFORMA desde PLATAFORMA_EMAIL/PASSWORD
 ```
 
@@ -933,7 +933,7 @@ vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant
     `ProveedoresService.crearPropio` + `CatalogoBaseService.sembrarBase`; devuelve `AuthService.emitirToken`),
     `SuscripcionesService` (TRIAL, cambio de plan, extender, barrida 1 h, **hook Fase 2
     `activarPorPago`** sin controller), `UsoPlanService` (conteos por SQL crudo `GROUP BY tenant_id`),
-    `InquilinosService`, `MiSuscripcionService`, `SaasSeedService` (planes, tienda `mirroria` id fijo
+    `InquilinosService`, `MiSuscripcionService`, `SaasSeedService` (planes, tienda `tiendaria` id fijo
     `00000000-0000-4000-a000-000000000001`, suscripción Cadena hasta 2027-12-31, cuenta de plataforma desde
     `PLATAFORMA_EMAIL`/`PLATAFORMA_PASSWORD`).
 - **Límites:** `assertDentroDelPlan` en `SucursalesService.create`, `ProductosService.create/update`
@@ -942,7 +942,7 @@ vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant
   no agrega un NOT NULL a tablas con filas). ⚠️ No reiniciar un backend VIEJO contra una BD ya migrada:
   su synchronize borraría `tenant_id`.
 - **Tests:** `vitest.setup.ts` deja un tenant de prueba en cada unit test (`entrarEnTenantDePrueba`);
-  `test/setup-tenant.e2e.ts` hace lo mismo con `mirroria` en los e2e (motor-consulta usa una tienda propia
+  `test/setup-tenant.e2e.ts` hace lo mismo con `tiendaria` en los e2e (motor-consulta usa una tienda propia
   con `usarTenantE2E`). Specs nuevos: tenant-context, tenant.subscriber, limites-plan, tenant.interceptor
   (6 combinaciones), aprovisionamiento, suscripciones, y motor-consulta (toda métrica filtra
   `<alias>.tenant_id = $1`). Aislamiento contra la API real: `../scripts/qa/qa_aislamiento.py` (84 chequeos).
@@ -968,8 +968,8 @@ Todo en `modules/saas` (tablas globales; nadie importa `saas`). `core/` solo sum
   `SuscripcionesService.cambiarPlan/extender/activarPorPago` (PLAN_CAMBIADO "Básico → Crecimiento", VIGENCIA_EXTENDIDA,
   PAGO_REGISTRADO), guardar/restablecer marca. Los controllers pasan `user.sub` como actor.
 - **Aprovisionamiento:** `tienda.paleta?` (IsIn de las 6) → `MarcaService.crearInicial` dentro de la transacción.
-- **Seed:** `nivelesDeMarca()` (mapeo base solo si ningún plan fue configurado), `asegurarMarcas()` (MirrorIA con
-  `MARCA_MIRRORIA`, cualquier otra sin fila con `marcaInicial`).
+- **Seed:** `nivelesDeMarca()` (mapeo base solo si ningún plan fue configurado), `asegurarMarcas()` (Tiendaria con
+  `MARCA_TIENDA_DEMO`, cualquier otra sin fila con `marcaInicial`).
 - **Datos:** Azure `../scripts/sql/fase1b-marca.sql`; demo `../scripts/sembrar-tiendas-demo.mjs`; QA `../scripts/qa/qa_marca.py`.
 - **Verificado (2026-11-05):** tsc, oxlint, 351 unit (specs nuevos: marca-color, marca-reglas, marca.service,
   dashboard-plataforma, metricas-tienda; aprovisionamiento y suscripciones actualizados), e2e 56/56, qa_marca 37/37,

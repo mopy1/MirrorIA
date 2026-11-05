@@ -48,7 +48,7 @@ describe("aplicar y limpiar el tema de una tienda", () => {
     expect(doc.link.href).toBe("/favicon.svg")
   })
 
-  it("limpiarTema deja <html> como Tiendaria: sin estilos, sin data-tema, sin .dark", () => {
+  it("limpiarTema deja <html> como MirrorIA: sin estilos, sin data-tema, sin .dark", () => {
     aplicarTemaTienda({ ...marcaPorDefecto("Casa Andina"), modo: "OSCURO", logoUrl: "/images/marcas/x.svg" }, "tienda")
     expect(doc.link.href).toBe("/images/marcas/x.svg")
     limpiarTema()
@@ -56,7 +56,7 @@ describe("aplicar y limpiar el tema de una tienda", () => {
     expect(doc.documentElement.dataset.tema).toBeUndefined()
     expect(doc.documentElement.classList.contains("dark")).toBe(false)
     expect(doc.link.href).toBe("/favicon.svg")
-    expect(doc.title).toBe("Tiendaria")
+    expect(doc.title).toBe("MirrorIA")
   })
 
   it("prepararNeutrosTienda marca la tienda sin colores todavía", () => {
@@ -79,7 +79,7 @@ describe("caché local de la marca", () => {
     guardarCacheMarca("nomada", marcaPorDefecto("Nómada"))
     expect(leerCacheMarca("nomada")?.colorPrimario).toBe("#26282E")
     expect(leerCacheMarca("otra")).toBeNull()
-    localStorage.setItem("tiendaria.marca.rota", "{no es json")
+    localStorage.setItem("mirroria.marca.rota", "{no es json")
     expect(leerCacheMarca("rota")).toBeNull()
   })
 })

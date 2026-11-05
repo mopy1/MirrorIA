@@ -22,7 +22,7 @@ describe("validarMarca", () => {
 
   it("solo acepta https o assets propios en las imágenes", () => {
     expect(REGEX_URL_IMAGEN.test("https://images.unsplash.com/photo-1?w=1")).toBe(true)
-    expect(REGEX_URL_IMAGEN.test("/images/marcas/mirroria.svg")).toBe(true)
+    expect(REGEX_URL_IMAGEN.test("/images/marcas/tiendaria.svg")).toBe(true)
     for (const mala of ["http://x.com/a.jpg", "javascript:alert(1)", "data:image/png;base64,AA", "https://x.com/a b.jpg"]) {
       expect(REGEX_URL_IMAGEN.test(mala)).toBe(false)
     }

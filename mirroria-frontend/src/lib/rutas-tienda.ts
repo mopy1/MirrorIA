@@ -1,5 +1,5 @@
 /** Slug de la tienda demo: destino de las rutas viejas sin sesión. */
-export const SLUG_DEMO = "mirroria"
+export const SLUG_DEMO = "tiendaria"
 
 /**
  * `rutaTienda("boutique-lila", "/carrito")` → `/t/boutique-lila/carrito`.

@@ -1,5 +1,5 @@
 /**
- * Catalogo de demostracion de MirrorIA.
+ * Catalogo de demostracion de la tienda Tiendaria (slug tiendaria).
  *
  * Las fotos son de Burst (https://burst.shopify.com), el banco gratuito de
  * Shopify: uso comercial libre y pensado justamente para tiendas. NO se usan
@@ -19,25 +19,25 @@ export const CIUDADES = [
 export const SUCURSALES = [
   {
     ciudad: 'Santa Cruz de la Sierra',
-    nombre: 'MirrorIA Equipetrol',
+    nombre: 'Tiendaria Equipetrol',
     direccion: 'Av. San Martín esq. Calle J, Equipetrol Norte',
     telefono: '+591 3 341-2280',
   },
   {
     ciudad: 'Santa Cruz de la Sierra',
-    nombre: 'MirrorIA Ventura Mall',
+    nombre: 'Tiendaria Ventura Mall',
     direccion: 'Av. San Martín 1800, Ventura Mall, planta alta',
     telefono: '+591 3 344-9110',
   },
   {
     ciudad: 'La Paz',
-    nombre: 'MirrorIA Sopocachi',
+    nombre: 'Tiendaria Sopocachi',
     direccion: 'Av. 20 de Octubre 2315, Sopocachi',
     telefono: '+591 2 241-7755',
   },
   {
     ciudad: 'Cochabamba',
-    nombre: 'MirrorIA El Prado',
+    nombre: 'Tiendaria El Prado',
     direccion: 'Av. Ballivián 682, El Prado',
     telefono: '+591 4 425-3390',
   },

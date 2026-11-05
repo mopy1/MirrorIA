@@ -15,7 +15,7 @@ import { ExtenderRapido } from "../components/extender-rapido"
 import { useDashboard } from "../hooks/useDashboard"
 import type { InquilinoResumenDto } from "../types/plataforma.types"
 
-/** `/plataforma/resumen` — salud del negocio Tiendaria (CU38). Solo agregados. */
+/** `/plataforma/resumen` — salud del negocio MirrorIA (CU38). Solo agregados. */
 export function PlataformaDashboardPage() {
   const { data, isLoading, error, reload } = useDashboard()
   const [extendiendo, setExtendiendo] = useState<InquilinoResumenDto | null>(null)
@@ -24,7 +24,7 @@ export function PlataformaDashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Resumen</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Cómo va Tiendaria. Son totales: los datos de cada tienda son de su dueña.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Cómo va MirrorIA. Son totales: los datos de cada tienda son de su dueña.</p>
         </div>
         <Link to="/plataforma/inquilinos" className={cn(buttonVariants({ variant: "outline" }))}>Ver tiendas</Link>
       </div>

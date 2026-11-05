@@ -18,7 +18,7 @@ export function TiendasDirectorio({ tiendas, isLoading, error, onReintentar }: P
   return (
     <section id="tiendas" className="scroll-mt-20 py-20 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <h2 className="max-w-[22ch] text-3xl font-bold tracking-tight text-balance sm:text-4xl">Tiendas que ya venden con Tiendaria.</h2>
+        <h2 className="max-w-[22ch] text-3xl font-bold tracking-tight text-balance sm:text-4xl">Tiendas que ya venden con MirrorIA.</h2>
         <p className="mt-3 max-w-[50ch] text-muted-foreground">Misma plataforma, marcas distintas. Entrá a cualquiera y mirala por dentro.</p>
         <div className="mt-10">
           {isLoading ? (

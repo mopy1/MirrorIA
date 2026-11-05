@@ -1,13 +1,13 @@
 import { Link } from "react-router-dom"
-import { useTemaTiendaria } from "@/hooks/useTemaTiendaria"
+import { useTemaPlataforma } from "@/hooks/useTemaPlataforma"
 import { AuthLayout } from "@/layouts/AuthLayout"
 import { LoginForm } from "../components/login-form"
 
 /** `/plataforma/login`: cuenta DUENO_PLATAFORMA (sin tienda). */
 export function PlataformaLoginPage() {
-  useTemaTiendaria()
+  useTemaPlataforma()
   return (
-    <AuthLayout title="Acceso plataforma" description="Administración de tiendas, planes y ciudades de Tiendaria.">
+    <AuthLayout title="Acceso plataforma" description="Administración de tiendas, planes y ciudades de MirrorIA.">
       <LoginForm modo="plataforma" />
       <p className="mt-6 text-center text-sm text-muted-foreground">
         ¿Tenés una tienda?{" "}

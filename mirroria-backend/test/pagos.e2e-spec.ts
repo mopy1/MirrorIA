@@ -417,7 +417,7 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
   });
 
   it('un webhook con firma invalida es 400 y la venta sigue PENDIENTE', async () => {
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', 'firma-que-no-es')
       .send({ id: 'evt_x', sesionId: 'ses_x' })
@@ -444,13 +444,13 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
   it('el mismo aviso dos veces: el segundo NO vuelve a procesar', async () => {
     const cuerpo = { id: 'evt_1', sesionId };
 
-    const primera = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    const primera = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send(cuerpo)
       .expect(200);
 
-    const segunda = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    const segunda = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send(cuerpo)
@@ -478,7 +478,7 @@ describe('Webhook de pagos: firma e idempotencia (pasarela simulada)', () => {
     // pasarela recibe 200 (si no, reintentaria para siempre) y el pago queda
     // guardado marcado para reembolso en vez de perderse.
     await ventas.cancelarPorPagoNoCompletado(ventaId, 'prueba');
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .post('/api/v1/pagos/webhook')
       .set('stripe-signature', FIRMA_SIMULADA)
       .send({ id: 'evt_2', sesionId: sesionId })
@@ -534,7 +534,7 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
   });
 
   it('la clienta dueña de la venta puede leerla', async () => {
-    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${clienteA.token}`)
       .expect(200);
@@ -544,14 +544,14 @@ describe('GET /ventas/:id — una clienta puede ver su propia compra', () => {
   // La que importa: sin este chequeo, agregar CUSTOMER a los roles del
   // endpoint abriria el acceso de cualquier clienta a cualquier venta.
   it('otra clienta NO puede leer una venta ajena', async () => {
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${clienteB.token}`)
       .expect(403);
   });
 
   it('un ADMIN puede leer cualquier venta', async () => {
-    await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+    await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
       .get(`/api/v1/ventas/${VID.venta}`)
       .set('Authorization', `Bearer ${admin.token}`)
       .expect(200);
@@ -698,7 +698,7 @@ async function registrarCliente(
   ds: DataSource,
 ): Promise<{ id: string; email: string; token: string }> {
   const email = `ventas-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
-  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+  const res = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
     .post('/api/v1/seguridad/auth/register')
     .send({ email, password: 'Password123', fullName: 'Clienta Ventas E2E' })
     .expect(201);
@@ -719,7 +719,7 @@ async function usuarioConRolGenerico(
 ): Promise<{ id: string; email: string; token: string }> {
   const { id, email } = await registrarCliente(app, ds);
   await ds.query('UPDATE usuarios SET role = $2 WHERE id = $1', [id, role]);
-  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'mirroria')
+  const login = await request.agent(app.getHttpServer()).set('X-Tenant', 'tiendaria')
     .post('/api/v1/seguridad/auth/login')
     .send({ email, password: 'Password123' })
     .expect(200);

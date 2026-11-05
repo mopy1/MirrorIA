@@ -15,7 +15,7 @@ const FILAS_MARCA: { texto: string; desde: NivelMarca }[] = [
   { texto: "Fuente de títulos, bordes y modo oscuro", desde: "COMPLETA" },
   { texto: "Imágenes de las secciones", desde: "COMPLETA" },
   { texto: "Favicon propio", desde: "MARCA_BLANCA" },
-  { texto: "Sin \"Hecho con Tiendaria\"", desde: "MARCA_BLANCA" },
+  { texto: "Sin \"Hecho con MirrorIA\"", desde: "MARCA_BLANCA" },
 ]
 const incluye = (p: PlanDto, desde: NivelMarca) => ORDEN_NIVEL.indexOf(p.nivelMarca ?? "ESENCIAL") >= ORDEN_NIVEL.indexOf(desde)
 

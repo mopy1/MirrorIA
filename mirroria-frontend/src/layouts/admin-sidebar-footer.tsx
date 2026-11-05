@@ -40,7 +40,7 @@ export function AdminSidebarFooter({ rolLabel, tiendaHref, onNavigate }: { rolLa
         </Button>
       </div>
       <p className="text-center text-[11px] text-muted-foreground">
-        Funciona con <span className="font-semibold text-foreground">Tiendaria</span>
+        Funciona con <span className="font-semibold text-foreground">MirrorIA</span>
       </p>
     </div>
   )

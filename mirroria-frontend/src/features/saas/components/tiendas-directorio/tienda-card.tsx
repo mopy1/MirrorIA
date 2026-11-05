@@ -8,7 +8,7 @@ import type { TiendaPublica } from "@/types/tienda.types"
 /**
  * Tarjeta del directorio con la marca de ESA tienda: su portada y una franja
  * de su color principal con texto calculado. Los colores son datos de la
- * tienda (estilo inline), no tokens de Tiendaria.
+ * tienda (estilo inline), no tokens de MirrorIA.
  */
 export function TiendaCard({ tienda }: { tienda: TiendaPublica }) {
   const marca = marcaDe(tienda)

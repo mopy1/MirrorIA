@@ -1,5 +1,5 @@
 /**
- * Siembra el catalogo de demostracion contra un MirrorIA que ya este corriendo.
+ * Siembra el catalogo de demostracion contra una API de MirrorIA que ya este corriendo.
  *
  *   MIRRORIA_EMAIL=... MIRRORIA_PASSWORD=... \
  *   node scripts/sembrar-catalogo.mjs [--api https://mirroria.duckdns.org/api/v1]
@@ -17,8 +17,8 @@ import {
 } from './catalogo-demo.mjs'
 
 const API = arg('--api') ?? 'https://mirroria.duckdns.org/api/v1'
-// Fase 1 SaaS: toda ruta de negocio va a una tienda (cabecera X-Tenant). El catálogo demo es de "mirroria".
-const TIENDA = arg('--tienda') ?? 'mirroria'
+// Fase 1 SaaS: toda ruta de negocio va a una tienda (cabecera X-Tenant). El catálogo demo es de "tiendaria".
+const TIENDA = arg('--tienda') ?? 'tiendaria'
 const EMAIL = process.env.MIRRORIA_EMAIL
 const PASSWORD = process.env.MIRRORIA_PASSWORD
 const SOLO_LEER = process.argv.includes('--solo-leer')

@@ -5,12 +5,14 @@
 
 ## 1. Qué es esto (en 6 líneas)
 
-- **Tiendaria** es una plataforma **SaaS multi-tenant** (*Software as a Service* con varios inquilinos)
+> **2026-11-05: se intercambiaron los nombres** — la plataforma SaaS se llama **MirrorIA** (como el repo) y la tienda
+> principal se llama **Tiendaria** (slug `tiendaria`); en specs/commits anteriores al cambio, 'Tiendaria' significa la plataforma.
+
+- **MirrorIA** es una plataforma **SaaS multi-tenant** (*Software as a Service* con varios inquilinos)
   de tiendas online de moda femenina: cualquier boutique elige un plan, se da de alta y recibe su
   tienda en `/t/<slug>`, con su marca, sucursales, catálogo, reservas, pagos, reportes por IA y probador virtual.
-- **MirrorIA** es **una tienda más** dentro de Tiendaria (slug `mirroria`). Antes (Parcial 1) el proyecto
-  entero se llamaba MirrorIA; por eso el repo, los contenedores, las variables de entorno y algunos
-  correos siguen diciendo `mirroria`. No se renombran.
+- **Tiendaria** es **una tienda más** dentro de MirrorIA (slug `tiendaria`, marca vino/rosa, datos del Parcial 1).
+  El repo, los contenedores, las variables de entorno, la BD y los correos (`*@mirroria.com`) dicen `mirroria`. No se renombran.
 - Es el **Segundo Parcial de Sistemas de Información II (SI2)**, semestre 2-2026. **Entrega: 2026-11-11 08:00**:
   un **PDF** con metodología **ICONIX** (modelo de dominio → casos de uso (CU) → diagramas de robustez →
   secuencia → clases → código) y **UML 2.5**, más la app funcionando como evidencia.
@@ -23,7 +25,7 @@
 |---|---|
 | 0 — Arquitectura e ICONIX base | integrada a las Fases 1 y 1b (capítulos `Parcial2/Documentacion/01_*` y `02_*`) |
 | 1 — SaaS multi-tenant | ✅ cerrada, commit `d6d05f6` |
-| 1b — Tiendaria: marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
+| 1b — Identidad de la plataforma (entonces "Tiendaria"): marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
 | **2 — Pasarelas enchufables** | ⏭️ **la siguiente**. Interfaz común + registro de proveedores. Funcionan Wayra (QR simulado) y Stripe; **PayPal y un QR bancario real se agregan como alternativas VACÍAS** ("no configurada", no aparecen en el checkout) por decisión del usuario. También el cobro de la suscripción SaaS (hook ya existente: `SuscripcionesService.activarPorPago`, y la pantalla `/admin/suscripcion/activar` con pasarelas "Próximamente"). |
 | 3 — Offline/PWA, idempotencia y conflictos | pendiente |
 | 4 — Reportes dinámicos (+ Excel) | pendiente |
@@ -52,15 +54,15 @@ cd /home/lmc/projects/MirrorIA
 docker compose up -d --build --force-recreate   # mirroria_postgres :5435 · mirroria_backend :3000 · mirroria_frontend :80
 # o en dev: docker compose up -d postgres-db ; (cd mirroria-backend && npm run start:dev) ; (cd mirroria-frontend && npm run dev)  → web :5174
 docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 101
-curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos                  # toda ruta de negocio necesita la tienda
+curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos                  # toda ruta de negocio necesita la tienda
 ```
 
 - API: prefijo `/api/v1`, Swagger en `/api/docs` (solo fuera de producción). Toda ruta de negocio necesita
   la cabecera **`X-Tenant: <slug>`** (sin sesión) o un JWT de esa tienda; sin ninguna → 400.
-- Web: `/` landing de Tiendaria · `/t/mirroria` (y `/t/casa-andina`, `/t/nomada`) tiendas · `/admin` panel de la
+- Web: `/` landing de MirrorIA · `/t/tiendaria` (y `/t/casa-andina`, `/t/nomada`) tiendas · `/admin` panel de la
   tienda del usuario logueado · `/plataforma` panel del dueño de la plataforma.
 - **Cuentas de prueba (solo BD local; la clave común de desarrollo NO se versiona, está en el vault):** lista completa y clave en vault
-  `U/2-2026/SI2/Parcial1/App/Database.md` → "Estado de la BD local". Atajos: `admin@mirroria.com` (ADMIN de MirrorIA),
+  `U/2-2026/SI2/Parcial1/App/Database.md` → "Estado de la BD local". Atajos: `admin@mirroria.com` (ADMIN de Tiendaria),
   `rosa@casa-andina.bo`, `camila@nomada.bo` (ADMIN de las tiendas demo). La cuenta de plataforma
   `plataforma@mirroria.com` (rol `DUENO_PLATAFORMA`) usa `PLATAFORMA_PASSWORD` de `mirroria-backend/.env`.
 - `NODE_ENV=development` en el `.env` local **a propósito** (activa `synchronize` de TypeORM y Swagger). Azure usa `production`.
@@ -107,10 +109,10 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - Machine Learning en un **servicio Python aparte** (`mirroria-ml`, FastAPI + scikit-learn), consumido por el backend.
 - Se mantiene el monolito modular; los microservicios se documentan como camino futuro.
 - IA de reportes: DeepSeek arma una "ficha" y el motor corre SQL parametrizado (el modelo nunca escribe SQL).
-- **Modo oscuro:** Tiendaria sigue el `prefers-color-scheme` del sistema (`useTemaTiendaria`, sin botón); cada tienda tiene
+- **Modo oscuro:** la plataforma MirrorIA sigue el `prefers-color-scheme` del sistema (`useTemaPlataforma`, sin botón); cada tienda tiene
   modo FIJO de marca `CLARO`/`OSCURO` (`inquilino_marca.modo`, desde el plan Crecimiento) que ignora el sistema del visitante
   (`lib/tema/aplicar-tema.ts`); al pasar a oscuro se revalida el contraste. **Sin** toggle de visitante ni modo "Automático":
-  no agregarlo sin pedido del usuario. `nomada` es OSCURO; `mirroria` y `casa-andina`, CLARO.
+  no agregarlo sin pedido del usuario. `nomada` es OSCURO; `tiendaria` y `casa-andina`, CLARO.
 
 ## 7. Trampas conocidas
 
@@ -122,16 +124,15 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - El proceso de Nest se llama `MainThread` (no `node`) para `pgrep`.
 - Fechas `timestamp` sin zona: un `UPDATE … now()` desde psql (UTC) queda corrido 4 h frente a la app (-04).
 - **Azure:** el próximo despliegue tiene un checklist obligatorio (JWT_SECRET, NODE_ENV, backfill multi-tenant,
-  SQL de marca, env de plataforma) en vault `U/2-2026/SI2/Parcial1/App/Despliegue_Azure.md`. **Recordáselo al usuario
+  SQL de marca, SQL de renombre `renombre-tiendaria.sql`, env de plataforma) en vault `U/2-2026/SI2/Parcial1/App/Despliegue_Azure.md`. **Recordáselo al usuario
   cuando diga que va a desplegar.** Los despliegues los corre él (`bash scripts/deploy-azure.sh`).
 
 ## 8. Pendientes conocidos (no bloquean)
 
-- P3 de la auditoría 1b: texto muted "Elegí tienda y horario…" de MirrorIA con contraste 4.35:1; el título de pestaña del
-  admin dice "Tiendaria" (no el nombre de la tienda); en el paso 2 del alta la vista previa no es sticky; la cuenta de
-  plataforma se llama "Plataforma MirrorIA" (dato).
-- Del QA de la Fase 1: el login de `/t/mirroria` muestra "MirrorIA / MirrorIA" en el panel de foto.
-- El QR de cobro (Wayra) dice `comercio: "MirrorIA"` en todas las tiendas (`COMERCIO_QR` fijo en `cobro-qr.service.ts`): corregir en la Fase 2.
+- P3 de la auditoría 1b: texto muted "Elegí tienda y horario…" de Tiendaria con contraste 4.35:1; el título de pestaña del
+  admin dice "MirrorIA" (no el nombre de la tienda); en el paso 2 del alta la vista previa no es sticky.
+- Del QA de la Fase 1: el login de `/t/tiendaria` repite el nombre ("Tiendaria / Tiendaria") en el panel de foto.
+- El QR de cobro (Wayra) dice `comercio: "Tiendaria"` en todas las tiendas (`COMERCIO_QR` fijo en `cobro-qr.service.ts`), igual que la glosa de Stripe (`Tiendaria — Compra …` en `pagos.service.ts`): usar el nombre de la tienda en la Fase 2.
 - Las tiendas demo `casa-andina` y `nomada` están en TRIAL hasta **2026-11-19**: extender desde `/plataforma` si la defensa es después.
 - Login/registro sin botón para mostrar la contraseña; dictado por voz de reportes nunca probado en un navegador real.
 - Refresh token: la tabla existe, el flujo no (JWT de 1 h).

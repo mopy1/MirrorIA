@@ -28,7 +28,9 @@ import { ExpiracionService } from '../expiracion.service.js';
 import type { AvisoPagoQr } from './aviso-pago-qr.js';
 import { firmaAvisoValida, secretoAvisosQr } from './firma-aviso.js';
 
-export const COMERCIO_QR = 'MirrorIA';
+// Pendiente (Fase 2): usar el nombre de la tienda del cobro. La ruta pública del banco (Wayra)
+// no tiene la tienda en el contexto y habría que leer `inquilinos` desde aquí; por ahora va la tienda demo.
+export const COMERCIO_QR = 'Tiendaria';
 const PREFIJO_TRANSACCION = 'wayra:';
 
 /** Lo que el banco necesita saber de un QR para mostrarlo al escanearlo. */

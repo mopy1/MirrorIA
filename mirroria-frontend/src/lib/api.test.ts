@@ -33,14 +33,14 @@ describe("cabecerasTenant", () => {
   })
 
   it("sesión de otra tienda: navega como invitada (sin token)", () => {
-    sesion("mirroria")
+    sesion("tiendaria")
     setTiendaActiva("lila")
     expect(cabecerasTenant()).toEqual({ "X-Tenant": "lila" })
   })
 
   it("en /admin (sin tienda activa) usa el slug de la sesión", () => {
-    sesion("mirroria")
-    expect(cabecerasTenant()).toEqual({ "X-Tenant": "mirroria", Authorization: "Bearer jwt-x" })
+    sesion("tiendaria")
+    expect(cabecerasTenant()).toEqual({ "X-Tenant": "tiendaria", Authorization: "Bearer jwt-x" })
   })
 
   it("dueño de plataforma: token sin X-Tenant", () => {
@@ -49,9 +49,9 @@ describe("cabecerasTenant", () => {
   })
 
   it("modo sesion ignora la tienda navegada; modo ninguno no manda nada", () => {
-    sesion("mirroria")
+    sesion("tiendaria")
     setTiendaActiva("lila")
-    expect(cabecerasTenant("sesion")).toEqual({ "X-Tenant": "mirroria", Authorization: "Bearer jwt-x" })
+    expect(cabecerasTenant("sesion")).toEqual({ "X-Tenant": "tiendaria", Authorization: "Bearer jwt-x" })
     expect(cabecerasTenant("ninguno")).toEqual({})
   })
 })
@@ -62,7 +62,7 @@ describe("destinoTras401", () => {
     expect(destinoTras401("/t/lila/carrito", null)).toBe("/t/lila/login")
     setTiendaActiva(null)
     expect(destinoTras401("/plataforma/inquilinos", null)).toBe("/plataforma/login")
-    expect(destinoTras401("/admin/catalogo", "mirroria")).toBe("/t/mirroria/login")
+    expect(destinoTras401("/admin/catalogo", "tiendaria")).toBe("/t/tiendaria/login")
     expect(destinoTras401("/admin/catalogo", null)).toBe("/entrar")
   })
 })

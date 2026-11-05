@@ -2,7 +2,7 @@ import { useMarca } from "@/hooks/useMarca"
 import { useTienda } from "@/hooks/useTienda"
 import { LogoTienda } from "./logo-tienda"
 
-/** Logo de la tienda que se navega (header, footer, menú móvil). Nunca el wordmark de Tiendaria. */
+/** Logo de la tienda que se navega (header, footer, menú móvil). Nunca el wordmark de MirrorIA. */
 export function LogoTiendaActual({ className }: { className?: string }) {
   const { tienda } = useTienda()
   const marca = useMarca()

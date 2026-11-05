@@ -101,7 +101,7 @@ export class UsuariosService {
     );
   }
 
-  /** Id de un usuario de la tienda del contexto por email (seed: propietario de MirrorIA). */
+  /** Id de un usuario de la tienda del contexto por email (seed: propietario de Tiendaria). */
   async idPorEmail(email: string): Promise<string | null> {
     const usuario = await this.usuarioRepository.findOne({
       where: soloTenant({ email: normalizarEmail(email) }),

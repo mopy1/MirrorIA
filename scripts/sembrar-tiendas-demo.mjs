@@ -1,5 +1,5 @@
 /**
- * Siembra las 2 tiendas demo de Tiendaria (Fase 1b §A.7) contra una API corriendo:
+ * Siembra las 2 tiendas demo de la plataforma MirrorIA (Fase 1b §A.7) contra una API corriendo:
  * casa-andina (terracota editorial, claro) y nomada (amarillo nocturno, oscuro).
  *
  *   PLATAFORMA_EMAIL=... PLATAFORMA_PASSWORD=... \

@@ -1,4 +1,4 @@
-export { REGEX_SLUG, SLUGS_RESERVADOS, MIRRORIA_TENANT_ID } from '../../core/tenancy/tenant.constants.js';
+export { REGEX_SLUG, SLUGS_RESERVADOS, TIENDA_DEMO_ID } from '../../core/tenancy/tenant.constants.js';
 
 /** Meses que suma cada pago de la suscripción (Fase 2). */
 export const MESES_POR_PAGO = 1;

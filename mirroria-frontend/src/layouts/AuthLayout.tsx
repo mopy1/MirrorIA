@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { ImagenMarca } from "@/components/marca/imagen-marca"
 import { LogoTienda } from "@/components/marca/logo-tienda"
-import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
+import { PlataformaLogo } from "@/components/marca/plataforma-logo"
 import { useMarca } from "@/hooks/useMarca"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
 import { useTienda } from "@/hooks/useTienda"
@@ -12,7 +12,7 @@ const FOTO_GENERICA = unsplashUrl("1759630752910-c4f9f628cf88", 1200, 1600)
 
 /**
  * Split-screen de login/registro. Dentro de `/t/:slug` es de la tienda (su
- * foto de acceso, su logo); fuera (acceso plataforma) es de Tiendaria.
+ * foto de acceso, su logo); fuera (acceso plataforma) es de MirrorIA.
  * `lg:h-dvh` fijo: la foto `absolute inset-0` se recorta a esa altura.
  */
 export function AuthLayout({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -21,7 +21,7 @@ export function AuthLayout({ title, description, children }: { title: string; de
   const ruta = useRutaTienda()
   const foto = marca ? (marca.imagenes.acceso ?? marca.hero.imagenUrl) : FOTO_GENERICA
   const logo = (sobreFoto: boolean) =>
-    tienda ? <LogoTienda nombre={tienda.nombre} logoUrl={marca?.logoUrl} sobreFoto={sobreFoto} /> : <TiendariaLogo size="lg" className={sobreFoto ? "text-white" : undefined} />
+    tienda ? <LogoTienda nombre={tienda.nombre} logoUrl={marca?.logoUrl} sobreFoto={sobreFoto} /> : <PlataformaLogo size="lg" className={sobreFoto ? "text-white" : undefined} />
 
   return (
     <div className="flex flex-col bg-background lg:grid lg:h-dvh lg:grid-cols-2">
@@ -46,7 +46,7 @@ export function AuthLayout({ title, description, children }: { title: string; de
         <div className="mx-auto w-full max-w-sm">
           {/* Ruta de retorno visible (regla 1 del protocolo). */}
           <Link to={ruta("/")} className="mb-6 inline-flex text-sm text-muted-foreground transition-colors hover:text-foreground">
-            ← Volver a {tienda ? tienda.nombre : "Tiendaria"}
+            ← Volver a {tienda ? tienda.nombre : "MirrorIA"}
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{description}</p>

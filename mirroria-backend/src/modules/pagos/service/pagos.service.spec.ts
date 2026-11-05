@@ -452,7 +452,7 @@ describe('PagosService — cobro manual', () => {
       await service.iniciarTarjeta('v1', DUENO);
 
       const { descripcion } = pasarela.crearSesion.mock.calls[0][0] as { descripcion: string };
-      expect(descripcion).toBe('MirrorIA — Compra #8F3A1C9E');
+      expect(descripcion).toBe('Tiendaria — Compra #8F3A1C9E');
       expect(descripcion).not.toContain('8f3a1c9e-4b2d');
     });
 
@@ -467,7 +467,7 @@ describe('PagosService — cobro manual', () => {
       await service.iniciarTarjeta('v1', DUENO);
 
       const { descripcion } = pasarela.crearSesion.mock.calls[0][0] as { descripcion: string };
-      expect(descripcion).toBe('MirrorIA — Compra F-000123');
+      expect(descripcion).toBe('Tiendaria — Compra F-000123');
     });
 
     it('si la sesion guardada ya se pago (webhook en camino) NO abre otra: 409', async () => {

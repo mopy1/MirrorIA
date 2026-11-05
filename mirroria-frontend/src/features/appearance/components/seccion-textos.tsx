@@ -21,7 +21,7 @@ export function SeccionTextos({ editor, mi }: SeccionProps) {
   const { vista: v, errores: e, actualizar } = editor
   return (
     <FieldGroup>
-      <CampoTextoMarca id="eslogan" label="Eslogan (opcional)" value={v.textos.eslogan} max={120} error={e["textos.eslogan"]} ayuda="Va bajo tu logo en el pie y en el directorio de Tiendaria." onChange={(s) => actualizar((b) => ({ ...b, textos: { ...b.textos, eslogan: opcional(s) } }))} />
+      <CampoTextoMarca id="eslogan" label="Eslogan (opcional)" value={v.textos.eslogan} max={120} error={e["textos.eslogan"]} ayuda="Va bajo tu logo en el pie y en el directorio de MirrorIA." onChange={(s) => actualizar((b) => ({ ...b, textos: { ...b.textos, eslogan: opcional(s) } }))} />
       <CampoTextoMarca id="sobre" label="Sobre nosotras (opcional)" multilinea value={v.textos.sobreNosotros} max={600} error={e["textos.sobreNosotros"]} onChange={(s) => actualizar((b) => ({ ...b, textos: { ...b.textos, sobreNosotros: opcional(s) } }))} />
       <FieldSeparator>Redes y contacto</FieldSeparator>
       <div className="grid gap-5 sm:grid-cols-2">
@@ -32,7 +32,7 @@ export function SeccionTextos({ editor, mi }: SeccionProps) {
       <CandadoPlan titulo="Marca blanca" nivel="MARCA_BLANCA" bloqueado={!mi.permitido.quitarInsignia}>
         <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
           <span>
-            <span className="block text-sm font-medium">Mostrar "Hecho con Tiendaria"</span>
+            <span className="block text-sm font-medium">Mostrar "Hecho con MirrorIA"</span>
             <span className="block text-xs text-muted-foreground">La insignia del pie de tu tienda.</span>
           </span>
           <Switch checked={v.mostrarInsignia} onCheckedChange={(mostrarInsignia) => actualizar((b) => ({ ...b, mostrarInsignia }))} />

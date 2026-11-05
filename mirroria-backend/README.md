@@ -1,7 +1,7 @@
 # mirroria-backend
 
-API de **Tiendaria**, plataforma SaaS multi-tenant de tiendas de moda femenina
-(MirrorIA es una de sus tiendas, slug `mirroria`). NestJS + TypeORM + PostgreSQL 16, ESM.
+API de **MirrorIA**, plataforma SaaS multi-tenant de tiendas de moda femenina
+(Tiendaria es una de sus tiendas, slug `tiendaria`). NestJS + TypeORM + PostgreSQL 16, ESM.
 Prefijo global `/api/v1` (101 rutas), Swagger en `/api/docs` fuera de producción.
 12 módulos en `src/modules/` (seguridad, catalogo, proveedores, sucursales, inventario,
 ventas, reservas, promociones, pagos, ia, probador, saas); infraestructura y multi-tenant
@@ -15,7 +15,7 @@ cp .env.example .env         # completar JWT_SECRET (openssl rand -hex 32) y PLA
 docker compose up -d postgres-db   # desde la raíz: Postgres en localhost:5435
 npm install
 npm run start:dev            # http://localhost:3000/api/v1
-curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos
+curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos
 ```
 
 ## Verificar

@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom"
 import { cn } from "cn"
 
-/** "Hecho con Tiendaria" en el pie de una tienda (se quita con el plan Cadena). Neutra: no usa colores de Tiendaria. */
-export function InsigniaTiendaria({ className }: { className?: string }) {
+/** "Hecho con MirrorIA" en el pie de una tienda (se quita con el plan Cadena). Neutra: no usa colores de MirrorIA. */
+export function InsigniaPlataforma({ className }: { className?: string }) {
   return (
     <Link
       to="/"
@@ -11,7 +11,7 @@ export function InsigniaTiendaria({ className }: { className?: string }) {
         className,
       )}
     >
-      Hecho con <span className="font-semibold text-foreground">Tiendaria</span>
+      Hecho con <span className="font-semibold text-foreground">MirrorIA</span>
     </Link>
   )
 }

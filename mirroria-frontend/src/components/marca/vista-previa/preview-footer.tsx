@@ -27,7 +27,7 @@ export function PreviewFooter({ marca, nombre, celular }: PropsPreview) {
       </div>
       {marca.mostrarInsignia && (
         <span className={cn("inline-flex rounded-full border border-border px-3 py-1 text-xs text-muted-foreground", celular && "mt-6")}>
-          Hecho con <b className="ml-1 text-foreground">Tiendaria</b>
+          Hecho con <b className="ml-1 text-foreground">MirrorIA</b>
         </span>
       )}
     </div>

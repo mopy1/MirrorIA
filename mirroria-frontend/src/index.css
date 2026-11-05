@@ -53,8 +53,8 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ==== Tiendaria (la plataforma): índigo profundo + acento lima (spec Fase 1b §E.2) ====
-   :root y .dark SON el tema de Tiendaria. Una tienda nunca se ve con estos
+/* ==== MirrorIA (la plataforma): índigo profundo + acento lima (spec Fase 1b §E.2) ====
+   :root y .dark SON el tema de MirrorIA. Una tienda nunca se ve con estos
    colores: sus neutros viven en [data-tema="tienda"] y sus colores llegan como
    variables inline en <html> (lib/tema/aplicar-tema.ts). Paleta en OKLCH, roles
    semánticos; el lima nunca es texto sobre fondo claro (1.26:1), solo relleno. */

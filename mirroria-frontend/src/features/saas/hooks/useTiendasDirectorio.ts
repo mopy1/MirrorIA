@@ -5,7 +5,7 @@ import { saasApi } from "../api/saasApi"
 
 const cargar = () => saasApi.getTiendas(12)
 
-/** Directorio de la landing (`GET /saas/tiendas?limite=12`): MirrorIA primero (es la demo). */
+/** Directorio de la landing (`GET /saas/tiendas?limite=12`): Tiendaria primero (es la tienda demo). */
 export function useTiendasDirectorio() {
   const { items, isLoading, error, reload } = useResourceList(cargar)
   const tiendas = useMemo(() => [...items].sort((a, b) => Number(b.slug === SLUG_DEMO) - Number(a.slug === SLUG_DEMO)), [items])

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validarPrincipal } from './marca-color.js';
 import {
-  CODIGOS_PALETA, fueraDelPlan, MARCA_MIRRORIA, marcaEfectiva, marcaInicial, PALETAS, permitidoPorNivel,
+  CODIGOS_PALETA, fueraDelPlan, MARCA_TIENDA_DEMO, marcaEfectiva, marcaInicial, PALETAS, permitidoPorNivel,
   REGEX_URL_IMAGEN, restablecerSeccion,
 } from './marca-reglas.js';
 
@@ -14,7 +14,7 @@ const premium = () => ({
 
 describe('marca-reglas', () => {
   it('URL_IMAGEN: acepta https y /images; rechaza http, data, javascript, comillas y paréntesis', () => {
-    for (const ok of ['https://images.unsplash.com/photo-1?w=1600&h=900', '/images/hero-model.webp', '/images/marcas/mirroria.svg']) {
+    for (const ok of ['https://images.unsplash.com/photo-1?w=1600&h=900', '/images/hero-model.webp', '/images/marcas/tiendaria.svg']) {
       expect(REGEX_URL_IMAGEN.test(ok)).toBe(true);
     }
     for (const mal of [
@@ -25,7 +25,7 @@ describe('marca-reglas', () => {
     }
   });
 
-  it('las 6 paletas y MirrorIA pasan 4.5:1 sobre blanco', () => {
+  it('las 6 paletas y la de Tiendaria pasan 4.5:1 sobre blanco', () => {
     for (const codigo of [...CODIGOS_PALETA, 'mirroria' as const]) {
       expect(validarPrincipal(PALETAS[codigo].primario, 'CLARO').ok).toBe(true);
       expect(REGEX_URL_IMAGEN.test(PALETAS[codigo].heroImagenUrl)).toBe(true);
@@ -52,7 +52,7 @@ describe('marca-reglas', () => {
     const base = marcaInicial('Lila');
     expect(fueraDelPlan({ ...base, fuente: 'playfair' }, base, 'ESENCIAL')).toBe('cambiar la fuente de títulos');
     expect(fueraDelPlan({ ...base, modo: 'OSCURO' }, base, 'ESENCIAL')).toBe('el modo oscuro');
-    expect(fueraDelPlan({ ...base, mostrarInsignia: false }, base, 'COMPLETA')).toContain('Hecho con Tiendaria');
+    expect(fueraDelPlan({ ...base, mostrarInsignia: false }, base, 'COMPLETA')).toContain('Hecho con MirrorIA');
     expect(fueraDelPlan({ ...base, fuente: 'playfair' }, base, 'COMPLETA')).toBeNull();
     expect(fueraDelPlan({ ...base, colorPrimario: '#000000' }, base, 'ESENCIAL')).toBeNull();
     // bajó de plan: reenviar lo guardado no falla
@@ -66,13 +66,13 @@ describe('marca-reglas', () => {
     expect(Object.values(permitidoPorNivel('MARCA_BLANCA')).every(Boolean)).toBe(true);
   });
 
-  it('restablecer COLORES vuelve a la paleta; TODO no toca paleta; MirrorIA vuelve a lo suyo', () => {
+  it('restablecer COLORES vuelve a la paleta; TODO no toca paleta; Tiendaria vuelve a lo suyo', () => {
     const g = { ...premium(), colorPrimario: '#000000', eslogan: 'hola' };
     const colores = restablecerSeccion(g, 'COLORES', marcaInicial('Casa Andina', 'terracota'));
     expect(colores).toMatchObject({ colorPrimario: '#9C3D24', fuente: 'geist', radio: 'SUAVE', eslogan: 'hola', paleta: 'terracota' });
     const todo = restablecerSeccion(g, 'TODO', marcaInicial('Casa Andina', 'terracota'));
     expect(todo).toEqual(marcaInicial('Casa Andina', 'terracota'));
-    const mirroria = restablecerSeccion({ ...MARCA_MIRRORIA, imagenProbadorUrl: null }, 'IMAGENES', MARCA_MIRRORIA);
-    expect(mirroria.imagenProbadorUrl).toBe(MARCA_MIRRORIA.imagenProbadorUrl);
+    const demo = restablecerSeccion({ ...MARCA_TIENDA_DEMO, imagenProbadorUrl: null }, 'IMAGENES', MARCA_TIENDA_DEMO);
+    expect(demo.imagenProbadorUrl).toBe(MARCA_TIENDA_DEMO.imagenProbadorUrl);
   });
 });

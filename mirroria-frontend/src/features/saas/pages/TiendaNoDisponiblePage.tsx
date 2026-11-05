@@ -14,7 +14,7 @@ export function TiendaNoDisponiblePage({ tienda }: { tienda: TiendaPublica }) {
       <p className="mt-6 text-xs font-semibold tracking-widest text-primary uppercase">{tienda.nombre}</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Esta tienda no está disponible por el momento.</h1>
       <p className="mt-3 max-w-[46ch] text-sm text-muted-foreground">
-        La tienda está en pausa. Volvé a intentar más tarde, o mirá otras tiendas creadas con Tiendaria.
+        La tienda está en pausa. Volvé a intentar más tarde, o mirá otras tiendas creadas con MirrorIA.
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link to="/#tiendas" className={cn(buttonVariants())}>

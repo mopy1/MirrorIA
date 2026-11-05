@@ -25,7 +25,7 @@ export class IaAgenteService {
     const mensajes: MensajeIa[] = [
       {
         role: 'system',
-        content: `Eres el analista de datos ejecutivo de MirrorIA. Hoy es ${hoy}. Resuelve consultas complejas usando las herramientas disponibles. Para preguntas como "Top N productos más vendidos", usa 'consultar_metricas' con metrica='unidades' (o 'ingresos'), dimension='producto', limite=N, orden='desc'. Al terminar, entrega SIEMPRE una narrativa ejecutiva clara basada en los datos devueltos por las herramientas.`,
+        content: `Eres el analista de datos ejecutivo de la tienda. Hoy es ${hoy}. Resuelve consultas complejas usando las herramientas disponibles. Para preguntas como "Top N productos más vendidos", usa 'consultar_metricas' con metrica='unidades' (o 'ingresos'), dimension='producto', limite=N, orden='desc'. Al terminar, entrega SIEMPRE una narrativa ejecutiva clara basada en los datos devueltos por las herramientas.`,
       },
       { role: 'user', content: pregunta },
     ];

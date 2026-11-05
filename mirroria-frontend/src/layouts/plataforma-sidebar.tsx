@@ -1,6 +1,6 @@
 import { ChartLineUp, MapPin, SignOut, Storefront, Tag, type Icon } from "@phosphor-icons/react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
+import { PlataformaLogo } from "@/components/marca/plataforma-logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"
@@ -28,7 +28,7 @@ export function PlataformaSidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col bg-card">
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/60 px-5">
         <Link to="/" onClick={onNavigate} className="transition-opacity hover:opacity-90">
-          <TiendariaLogo />
+          <PlataformaLogo />
         </Link>
         <Badge variant="outline" className="border-primary/30 bg-primary/10 text-[10px] font-semibold text-primary">
           Plataforma

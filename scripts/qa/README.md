@@ -19,9 +19,9 @@ python3 scripts/qa/qa_marca.py       # 37 chequeos de marca por tienda (Fase 1b)
 (avisar al usuario que no use la app mientras tanto). Los límites por IP (5 altas de tienda por hora, 10 logins cada
 5 min) viven en memoria: se resetean recreando el backend (`docker compose up -d --force-recreate mirroria-backend`).
 
-- **Fase 1 SaaS (2026-11-04):** todos mandan `X-Tenant` (`TENANT`, default `mirroria`) y aceptan
+- **Fase 1 SaaS (2026-11-04):** todos mandan `X-Tenant` (`TENANT`, default `tiendaria`; antes del 2026-11-05 era `mirroria`) y aceptan
   `API=http://localhost:3100/api/v1` para apuntar a otro puerto. El SQL directo se acota a la tienda
-  `mirroria` (`tenant_id`). `qa_aislamiento.py` registra tiendas `qa-a-*`/`qa-b-*` (máx. 5 altas por
+  `tiendaria` (`tenant_id`). `qa_aislamiento.py` registra tiendas `qa-a-*`/`qa-b-*` (máx. 5 altas por
   hora por IP: reiniciar el backend para resetear) y necesita `PLATAFORMA_EMAIL`/`PLATAFORMA_PASSWORD`.
   Conviene `pg_dump` antes y `pg_restore --clean` después.
 
@@ -30,6 +30,6 @@ python3 scripts/qa/qa_marca.py       # 37 chequeos de marca por tienda (Fase 1b)
   reiniciar el backend antes. Restaurar el dump después.
 
 - Usan `docker exec mirroria_postgres psql` para preparar datos y leer resultados.
-- `qa_mostrador.py` suma 20 unidades a todo el inventario local de `mirroria` para tener stock libre.
+- `qa_mostrador.py` suma 20 unidades a todo el inventario local de `tiendaria` para tener stock libre.
 - Las fechas son `timestamp without time zone` y el backend escribe con la zona del
   proceso: por eso los `UPDATE` de fechas usan hora local (`local_ts`), no `now()`.

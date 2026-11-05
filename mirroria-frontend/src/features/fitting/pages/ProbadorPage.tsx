@@ -71,7 +71,7 @@ export function ProbadorPage() {
         )}
 
         {/* Ancla oculta: acá cae la descarga de la foto que arma `sacarFoto`. */}
-        <a ref={enlaceDescarga} download="probador-mirroria.png" className="hidden">
+        <a ref={enlaceDescarga} download="probador.png" className="hidden">
           descarga
         </a>
       </div>

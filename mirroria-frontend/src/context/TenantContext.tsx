@@ -59,7 +59,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => {
         if (cancelado) return
-        limpiarTema() // tienda inexistente o caída: se muestra con la identidad Tiendaria
+        limpiarTema() // tienda inexistente o caída: se muestra con la identidad MirrorIA
         if (err instanceof ApiError && err.status === 404) setEstado({ tipo: "no-existe" })
         else setEstado({ tipo: "error", mensaje: err instanceof ApiError ? err.message : "No se pudo abrir la tienda" })
       })

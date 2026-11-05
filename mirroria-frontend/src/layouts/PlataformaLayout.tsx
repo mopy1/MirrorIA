@@ -2,15 +2,15 @@ import { Suspense, useState } from "react"
 import { PageFallback } from "@/components/common/PageFallback"
 import { List } from "@phosphor-icons/react"
 import { Outlet } from "react-router-dom"
-import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
-import { useTemaTiendaria } from "@/hooks/useTemaTiendaria"
+import { PlataformaLogo } from "@/components/marca/plataforma-logo"
+import { useTemaPlataforma } from "@/hooks/useTemaPlataforma"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { PlataformaSidebar } from "./plataforma-sidebar"
 
 /** Layout de `/plataforma/*`: sidebar fijo en desktop, Sheet en móvil. */
 export function PlataformaLayout() {
-  useTemaTiendaria()
+  useTemaPlataforma()
   const [abierto, setAbierto] = useState(false)
   return (
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
@@ -18,7 +18,7 @@ export function PlataformaLayout() {
         <Button variant="ghost" size="sm" className="size-9 p-0" onClick={() => setAbierto(true)} aria-label="Abrir menú de navegación">
           <List className="size-5" />
         </Button>
-        <TiendariaLogo size="sm" />
+        <PlataformaLogo size="sm" />
       </header>
       <Sheet open={abierto} onOpenChange={setAbierto}>
         <SheetContent side="left" showCloseButton={false} className="flex h-full w-72 flex-col p-0">

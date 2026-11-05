@@ -3,9 +3,9 @@
 import type { MarcaPublica } from "@/types/marca.types"
 import { derivarTokens, VARS_TEMA, type AlcanceTema } from "./derivar-tokens"
 
-export const FAVICON_TIENDARIA = "/favicon.svg"
-export const TITULO_TIENDARIA = "Tiendaria"
-const CLAVE_CACHE = "tiendaria.marca."
+export const FAVICON_PLATAFORMA = "/favicon.svg"
+export const TITULO_PLATAFORMA = "MirrorIA"
+const CLAVE_CACHE = "mirroria.marca."
 
 function html(): HTMLElement {
   return document.documentElement
@@ -27,18 +27,18 @@ export function aplicarTemaTienda(marca: MarcaPublica, alcance: AlcanceTema): vo
   el.dataset.tema = "tienda"
   el.classList.toggle("dark", alcance === "tienda" && marca.modo === "OSCURO")
   for (const [k, v] of Object.entries(derivarTokens(marca, alcance))) el.style.setProperty(k, v)
-  if (alcance === "tienda") ponerFavicon(marca.faviconUrl ?? marca.logoUrl ?? FAVICON_TIENDARIA)
+  if (alcance === "tienda") ponerFavicon(marca.faviconUrl ?? marca.logoUrl ?? FAVICON_PLATAFORMA)
 }
 
-/** Deja <html> como Tiendaria: sin `data-tema`, sin variables inline, sin `.dark`. */
+/** Deja <html> como MirrorIA: sin `data-tema`, sin variables inline, sin `.dark`. */
 export function limpiarTema(): void {
   const el = html()
   delete el.dataset.tema
   VARS_TEMA.forEach((k) => el.style.removeProperty(k))
   if (el.getAttribute("style") === "") el.removeAttribute("style")
   el.classList.remove("dark")
-  ponerFavicon(FAVICON_TIENDARIA)
-  document.title = TITULO_TIENDARIA
+  ponerFavicon(FAVICON_PLATAFORMA)
+  document.title = TITULO_PLATAFORMA
 }
 
 /** Caché local de la marca por slug: en la 2.ª visita se pinta sin esperar la red. */

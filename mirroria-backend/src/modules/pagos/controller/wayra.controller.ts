@@ -18,7 +18,7 @@ import { WayraBancoService } from '../service/wayra/wayra-banco.service.js';
 
 /**
  * La "app del banco" Wayra (simulado). Publico a proposito: quien escanea el QR
- * no tiene cuenta en MirrorIA. El token de la URL es la unica llave.
+ * no tiene cuenta en la tienda. El token de la URL es la unica llave.
  */
 @ApiTags('Wayra (banco simulado)')
 // Global ("otra app"): el tenant sale de la fila del pago, no del request.

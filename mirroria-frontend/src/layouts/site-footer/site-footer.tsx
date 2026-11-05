@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { InsigniaTiendaria } from "@/components/marca/insignia-tiendaria"
+import { InsigniaPlataforma } from "@/components/marca/insignia-plataforma"
 import { LogoTiendaActual } from "@/components/marca/logo-tienda-actual"
 import { useMarca } from "@/hooks/useMarca"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
@@ -9,7 +9,7 @@ import { FOOTER_COLUMNS } from "./site-footer.data"
 
 const linkClase = "text-sm text-muted-foreground transition-colors hover:text-foreground"
 
-/** Pie de la tienda: su logo, eslogan, "sobre nosotras", redes y la insignia de Tiendaria (si su plan la muestra). */
+/** Pie de la tienda: su logo, eslogan, "sobre nosotras", redes y la insignia de MirrorIA (si su plan la muestra). */
 export function SiteFooter() {
   const ruta = useRutaTienda()
   const { tienda } = useTienda()
@@ -50,7 +50,7 @@ export function SiteFooter() {
           <p>
             {new Date().getFullYear()} {tienda?.nombre}. Todos los derechos reservados.
           </p>
-          {marca?.mostrarInsignia !== false && <InsigniaTiendaria />}
+          {marca?.mostrarInsignia !== false && <InsigniaPlataforma />}
         </div>
       </div>
     </footer>

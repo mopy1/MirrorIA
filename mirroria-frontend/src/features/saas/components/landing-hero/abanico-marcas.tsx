@@ -20,7 +20,7 @@ export function AbanicoMarcas({ tiendas }: { tiendas: TiendaPublica[] }) {
   const lista = [...reales, ...RELLENO].slice(0, 3)
   const prendas = usePrendasAbanico(reales.map((t) => t.slug))
   return (
-    <div className="relative mx-auto h-[440px] w-full max-w-[540px] lg:h-[500px]" aria-label="Tres tiendas creadas con Tiendaria, cada una con su marca">
+    <div className="relative mx-auto h-[440px] w-full max-w-[540px] lg:h-[500px]" aria-label="Tres tiendas creadas con MirrorIA, cada una con su marca">
       {lista.map((t, i) => (
         <motion.div
           key={`${t.nombre}-${i}`}

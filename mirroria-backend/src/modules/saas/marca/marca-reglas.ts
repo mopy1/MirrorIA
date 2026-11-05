@@ -1,6 +1,6 @@
 /**
  * Reglas de la marca de cada tienda (spec Fase 1b §A, §C.4, §C.5). Lógica pura, sin Nest:
- * catálogos cerrados, paletas, marca inicial y de MirrorIA, recorte por nivel del plan y
+ * catálogos cerrados, paletas, marca inicial y de Tiendaria (la demo), recorte por nivel del plan y
  * restablecer por sección. El front tiene el espejo en `src/lib/tema/marca.constants.ts`.
  */
 export const MODOS = ['CLARO', 'OSCURO'] as const;
@@ -93,9 +93,9 @@ export function marcaInicial(nombre: string, paleta: CodigoPaleta = 'grafito'): 
   };
 }
 
-/** La marca de MirrorIA (se ve exactamente como antes de la Fase 1b). */
-export const MARCA_MIRRORIA: DatosMarca = {
-  paleta: 'mirroria', logoUrl: '/images/marcas/mirroria.svg', faviconUrl: null,
+/** La marca de Tiendaria, la tienda demo (paleta interna 'mirroria'; se ve exactamente como antes de la Fase 1b). */
+export const MARCA_TIENDA_DEMO: DatosMarca = {
+  paleta: 'mirroria', logoUrl: '/images/marcas/tiendaria.svg', faviconUrl: null,
   colorPrimario: '#820025', colorAcento: '#EDA6C1',
   modo: 'CLARO', radio: 'SUAVE', fuente: 'geist',
   heroImagenUrl: '/images/hero-model.webp',
@@ -110,9 +110,9 @@ export const MARCA_MIRRORIA: DatosMarca = {
   eslogan: 'Moda femenina con vestidor virtual',
 };
 
-/** Defaults de "restablecer": MirrorIA vuelve a lo suyo, el resto a su paleta. */
+/** Defaults de "restablecer": Tiendaria (paleta 'mirroria') vuelve a lo suyo, el resto a su paleta. */
 export function marcaPorDefecto(nombre: string, paleta: string): DatosMarca {
-  if (paleta === 'mirroria') return { ...MARCA_MIRRORIA };
+  if (paleta === 'mirroria') return { ...MARCA_TIENDA_DEMO };
   return marcaInicial(nombre, (CODIGOS_PALETA as readonly string[]).includes(paleta) ? (paleta as CodigoPaleta) : 'grafito');
 }
 
@@ -145,7 +145,7 @@ const BLOQUEOS: Array<{ nivel: NivelMarca; campos: Partial<DatosMarca>; que: str
     que: 'las imágenes de secciones',
   },
   { nivel: 'MARCA_BLANCA', campos: { faviconUrl: null }, que: 'un favicon propio' },
-  { nivel: 'MARCA_BLANCA', campos: { mostrarInsignia: true }, que: 'quitar el sello "Hecho con Tiendaria"' },
+  { nivel: 'MARCA_BLANCA', campos: { mostrarInsignia: true }, que: 'quitar el sello "Hecho con MirrorIA"' },
 ];
 
 export function incluyeNivel(nivel: NivelMarca, requerido: NivelMarca): boolean {

@@ -1,8 +1,8 @@
 # mirroria-frontend
 
-Web de **Tiendaria** (plataforma SaaS multi-tenant de tiendas de moda femenina):
+Web de **MirrorIA** (plataforma SaaS multi-tenant de tiendas de moda femenina):
 landing y alta de tiendas (`/`, `/planes`, `/registro-tienda`), cada tienda en
-`/t/:slug` (MirrorIA es `/t/mirroria`), panel de la tienda `/admin/*` y panel de la
+`/t/:slug` (Tiendaria es `/t/tiendaria`), panel de la tienda `/admin/*` y panel de la
 plataforma `/plataforma/*`. React 19 + Vite + Tailwind v4 + shadcn/ui (Base UI) +
 Phosphor, organizado por features (`src/features/<modulo>/`).
 

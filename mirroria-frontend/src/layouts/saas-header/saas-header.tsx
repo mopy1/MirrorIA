@@ -1,6 +1,6 @@
 import { List } from "@phosphor-icons/react"
 import { Link } from "react-router-dom"
-import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
+import { PlataformaLogo } from "@/components/marca/plataforma-logo"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/hooks/useAuth"
@@ -18,8 +18,8 @@ export function SaasHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <Link to="/" className="shrink-0 transition-opacity hover:opacity-90" aria-label="Tiendaria, inicio">
-          <TiendariaLogo />
+        <Link to="/" className="shrink-0 transition-opacity hover:opacity-90" aria-label="MirrorIA, inicio">
+          <PlataformaLogo />
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
           {SAAS_NAV.map((item) => (
@@ -45,8 +45,8 @@ export function SaasHeader() {
             />
             <SheetContent side="right" className="w-72">
               <SheetHeader>
-                <SheetTitle className="sr-only">Menú Tiendaria</SheetTitle>
-                <TiendariaLogo />
+                <SheetTitle className="sr-only">Menú MirrorIA</SheetTitle>
+                <PlataformaLogo />
               </SheetHeader>
               <nav className="flex flex-col gap-1 px-4">
                 {SAAS_NAV.map((item) => (

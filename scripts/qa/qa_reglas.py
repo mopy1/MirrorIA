@@ -1,9 +1,9 @@
 import json, subprocess, time, urllib.request, uuid, datetime as dt, math
 import os
 API=os.environ.get("API","http://localhost:3000/api/v1")
-# Fase 1 SaaS: toda ruta de negocio necesita la tienda. Los datos demo viven en "mirroria".
-TENANT=os.environ.get("TENANT","mirroria")
-TID="00000000-0000-4000-a000-000000000001"  # id fijo de "mirroria": el SQL directo también se acota a esa tienda
+# Fase 1 SaaS: toda ruta de negocio necesita la tienda. Los datos demo viven en "tiendaria".
+TENANT=os.environ.get("TENANT","tiendaria")
+TID="00000000-0000-4000-a000-000000000001"  # id fijo de "tiendaria": el SQL directo también se acota a esa tienda
 def req(m, path, body=None, tok=None):
     r=urllib.request.Request(API+path, method=m, data=json.dumps(body).encode() if body is not None else None,
         headers={"Content-Type":"application/json", "X-Tenant":TENANT, **({"Authorization":"Bearer "+tok} if tok else {})})

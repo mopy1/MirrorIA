@@ -124,7 +124,7 @@ describe('CobroQrService', () => {
       const res = await service.iniciar(VENTA_ID, DUENO);
       expect(res.montoCents).toBe(24500);
       expect(res.referencia).toBe('#8F3A1C9E');
-      expect(res.comercio).toBe('MirrorIA');
+      expect(res.comercio).toBe('Tiendaria');
       expect(res.qrImagen).toMatch(/^data:image\/png;base64,/);
       expect(pagoRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({

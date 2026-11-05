@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
+import { PlataformaLogo } from "@/components/marca/plataforma-logo"
 import { SLUG_DEMO } from "@/lib/rutas-tienda"
 
 const COLUMNAS = [
@@ -28,7 +28,7 @@ export function SaasFooter() {
     <footer className="border-t border-border/60">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div className="lg:col-span-2">
-          <TiendariaLogo />
+          <PlataformaLogo />
           <p className="mt-3 max-w-[36ch] text-sm text-muted-foreground">Tiendas online con tu marca.</p>
         </div>
         {COLUMNAS.map((col) => (
@@ -46,7 +46,7 @@ export function SaasFooter() {
           </div>
         ))}
       </div>
-      <p className="mx-auto max-w-7xl px-4 pb-8 text-xs text-muted-foreground sm:px-6">© {new Date().getFullYear()} Tiendaria. Hecho en Bolivia.</p>
+      <p className="mx-auto max-w-7xl px-4 pb-8 text-xs text-muted-foreground sm:px-6">© {new Date().getFullYear()} MirrorIA. Hecho en Bolivia.</p>
     </footer>
   )
 }

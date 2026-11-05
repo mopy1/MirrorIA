@@ -63,7 +63,7 @@ export const PlataformaDashboardPage = diferida(
   "PlataformaDashboardPage",
 )
 
-// Superficies Tiendaria fuera de la landing: el alta (arrastra paletas y vista previa), la comparativa y el login de plataforma.
+// Superficies MirrorIA fuera de la landing: el alta (arrastra paletas y vista previa), la comparativa y el login de plataforma.
 export const PlanesPage = diferida(() => import("@/features/saas/pages/PlanesPage"), "PlanesPage")
 export const RegistroTiendaPage = diferida(() => import("@/features/saas/pages/RegistroTiendaPage"), "RegistroTiendaPage")
 export const PlataformaLoginPage = diferida(
