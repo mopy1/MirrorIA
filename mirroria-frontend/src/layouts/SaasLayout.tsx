@@ -1,13 +1,15 @@
 import { useEffect } from "react"
 import { Outlet, useLocation } from "react-router-dom"
+import { useTemaTiendaria } from "@/hooks/useTemaTiendaria"
 import { SaasFooter } from "./saas-footer"
 import { SaasHeader } from "./saas-header"
 
-/** Landing de la plataforma (`/`, `/planes`, `/registro-tienda`, `/entrar`, 404). */
+/** Superficies de Tiendaria (`/`, `/planes`, `/registro-tienda`, `/entrar`, 404): siempre con su identidad. */
 export function SaasLayout() {
+  useTemaTiendaria()
   const { hash, pathname } = useLocation()
 
-  // Los links "/#tiendas" y "/#como-funciona" bajan a su sección (el router no lo hace solo).
+  // Los links "/#tiendas", "/#planes" y "/#preguntas" bajan a su sección (el router no lo hace solo).
   useEffect(() => {
     // Sin `return` del scroll: en Chromium nuevo scrollTo/scrollIntoView devuelven una Promise.
     if (!hash) {

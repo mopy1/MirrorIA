@@ -6,7 +6,7 @@ import { guardarBienvenida } from "@/lib/bienvenida"
 import { saasApi } from "../api/saasApi"
 import type { RegistrarTiendaDto } from "../types/saas.types"
 
-/** `POST /saas/tiendas` → entra logueada como ADMIN a `/admin/catalogo` con el aviso de bienvenida. */
+/** `POST /saas/tiendas` → entra logueada como ADMIN a `/admin/apariencia` con el aviso de bienvenida (spec 1b §E.4). */
 export function useRegistrarTienda() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -19,8 +19,9 @@ export function useRegistrarTienda() {
     try {
       const res = await saasApi.registrarTienda(dto)
       guardarBienvenida(res.suscripcion.diasRestantes)
+      // Mismo tick: React agrupa ambos cambios y GuestRoute no alcanza a mandar a /admin/catalogo.
+      navigate("/admin/apariencia", { replace: true })
       login(res)
-      navigate("/admin/catalogo", { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la tienda")
     } finally {

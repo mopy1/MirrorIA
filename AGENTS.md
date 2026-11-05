@@ -49,7 +49,9 @@ en este repo:
 │   ├── sembrar-catalogo.mjs     # siembra idempotente del catálogo demo contra una API corriendo
 │   ├── catalogo-demo.mjs        # datos del catálogo demo (productos, colores, sucursales...)
 │   ├── sql/fase1-multitenant-backfill.sql  # Fase 1 SaaS: tenant_id + datos a la tienda "mirroria" (antes del 1er arranque)
-│   └── qa/                      # QA contra la API real (Python): reglas, mostrador y aislamiento multi-tenant
+│   ├── sql/fase1b-marca.sql     # Fase 1b Tiendaria (Azure, idempotente): inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
+│   ├── sembrar-tiendas-demo.mjs # Fase 1b: tiendas demo casa-andina y nomada (marca, prendas, clientas, ventas) contra la API
+│   └── qa/                      # QA contra la API real (Python): reglas, mostrador, aislamiento multi-tenant y marca (qa_marca.py)
 │
 ├── mirroria-backend/           # 🪞 NestJS — ver mirroria-backend/AGENTS.md (fuente de verdad)
 │   ├── AGENTS.md                # arquitectura, convenciones, estado real de cada módulo
@@ -61,7 +63,7 @@ en este repo:
 ├── mirroria-frontend/          # ⚛️ React 19 + Tailwind v4 + shadcn/ui — ver mirroria-frontend/AGENTS.md
 │   ├── AGENTS.md
 │   ├── nginx.conf / nginx.prod.conf  # dev HTTP / VM con SSL: proxy /api/, fallback SPA, gzip, caché 1 año de /assets/
-│   └── src/routes/lazy-pages.ts      # React.lazy de /admin/*, probador y Wayra (bundle inicial 1.57 MB → 795 kB)
+│   └── src/routes/lazy-pages.ts      # React.lazy de /admin/*, probador, Wayra, /plataforma/*, alta y /planes (bundle inicial 861 kB tras la Fase 1b)
 │
 └── mirroria-mobile/            # 📱 CONGELADA (2026-11-04): app vieja, se rehará desde cero. No se edita ni se borra;
                                  #    backend y web ya NO mantienen compatibilidad con ella (tipos/contratos pueden romperla)
@@ -133,6 +135,21 @@ API=http://localhost:3000/api/v1 python3 scripts/qa/qa_reglas.py        # 21 esc
 API=http://localhost:3000/api/v1 python3 scripts/qa/qa_mostrador.py     # 14
 API=http://localhost:3000/api/v1 python3 scripts/qa/qa_aislamiento.py   # 84: aislamiento entre dos tiendas nuevas
 ```
+
+## 🟣 6-bis. Tiendaria vs. las tiendas (Fase 1b, 2026-11-05)
+
+- **Tiendaria** es la plataforma SaaS (landing `/`, `/planes`, alta de tiendas, panel `/plataforma/*` del
+  `DUENO_PLATAFORMA`), con identidad propia índigo + lima. **MirrorIA es una tienda más** (slug `mirroria`,
+  `/t/mirroria`), con su vino/rosa de siempre. No se renombran el repo, los contenedores, las env ni
+  `plataforma@mirroria.com`.
+- Cada tienda tiene su **marca** (tabla `inquilino_marca`: logo, colores, modo, bordes, fuente, portada,
+  imágenes, textos, redes) que su ADMIN edita en `/admin/apariencia` (`/saas/mi-marca`) según el
+  **nivel de marca** de su plan (Básico ESENCIAL · Crecimiento COMPLETA · Cadena MARCA_BLANCA). El público
+  la lee en `GET /saas/tiendas/:slug` (marca efectiva). La plataforma ve métricas **agregadas** por tienda,
+  una bitácora (`eventos_plataforma`) y puede restablecer una marca (moderación).
+- Tiendas demo locales: `casa-andina` (`rosa@casa-andina.bo`) y `nomada` (`camila@nomada.bo`), clave
+  `Mirroria2026!`. Spec: vault `U/2-2026/SI2/Parcial2/Fase1b_Spec_Personalizacion_Tiendaria.md`; detalle técnico
+  en `mirroria-backend/AGENTS.md` (sección Fase 1b).
 
 ## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-04)
 

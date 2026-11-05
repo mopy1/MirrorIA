@@ -24,7 +24,7 @@ export function AdminSidebarFooter({ rolLabel, tiendaHref, onNavigate }: { rolLa
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground truncate">{user?.fullName || "Administrador"}</p>
           <p className="text-xs text-muted-foreground font-mono truncate">{user?.email}</p>
-          <Badge variant="outline" className="mt-1 text-[10px] font-medium border-primary/30 bg-primary/10 text-primary uppercase tracking-wider">
+          <Badge variant="outline" className="mt-1 text-[10px] font-medium border-primary/30 bg-primary/10 text-primary">
             {rolLabel}
           </Badge>
         </div>
@@ -39,6 +39,9 @@ export function AdminSidebarFooter({ rolLabel, tiendaHref, onNavigate }: { rolLa
           <SignOut className="size-3.5" />
         </Button>
       </div>
+      <p className="text-center text-[11px] text-muted-foreground">
+        Funciona con <span className="font-semibold text-foreground">Tiendaria</span>
+      </p>
     </div>
   )
 }

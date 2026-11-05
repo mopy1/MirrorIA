@@ -1,5 +1,5 @@
 import {
-  ArrowSquareOut, CalendarBlank, ChartBar, CreditCard, Money, Package,
+  ArrowSquareOut, CalendarBlank, ChartBar, CreditCard, Money, Package, PaintBrush,
   Sparkle, Storefront, Ticket, Truck, Users, Warehouse, type Icon,
 } from "@phosphor-icons/react"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
@@ -32,6 +32,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     title: "Mi tienda",
     items: [
       { label: "Ver mi tienda", href: VER_MI_TIENDA, icon: ArrowSquareOut, roles: STAFF },
+      { label: "Apariencia", href: "/admin/apariencia", icon: PaintBrush },
       { label: "Plan y suscripción", href: "/admin/suscripcion", icon: CreditCard },
     ],
   },

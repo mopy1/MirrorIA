@@ -1,3 +1,5 @@
+import type { NivelMarca } from '../marca/marca-reglas.js';
+
 export class LimitesPlanDto {
   /** null = ilimitado */
   maxSucursales!: number | null;
@@ -18,4 +20,6 @@ export class PlanDto {
   orden!: number;
   activo!: boolean;
   limites!: LimitesPlanDto;
+  nivelMarca!: NivelMarca;
+  destacado!: boolean;
 }

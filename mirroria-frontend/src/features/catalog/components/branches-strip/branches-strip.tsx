@@ -2,6 +2,8 @@ import { motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { useSucursales } from "@/features/branches/hooks/useSucursales"
+import { ImagenMarca } from "@/components/marca/imagen-marca"
+import { useMarca } from "@/hooks/useMarca"
 import { unsplashUrl } from "@/lib/unsplash"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
 
@@ -9,6 +11,8 @@ export function BranchesStrip() {
   const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const { sucursales } = useSucursales()
+  const generica = unsplashUrl("1761090617068-f1b3257d27ad", 1600, 700)
+  const banner = useMarca()?.imagenes.bannerSucursales ?? generica
   const ciudades = [...new Set(sucursales.map((s) => s.ciudadNombre))]
 
   return (
@@ -21,10 +25,11 @@ export function BranchesStrip() {
           transition={{ duration: 0.6 }}
           className="relative flex min-h-80 flex-col justify-end overflow-hidden rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <img
-            src={unsplashUrl("1761090617068-f1b3257d27ad", 1600, 700)}
+          <ImagenMarca
+            src={banner}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
+            respaldo={<img src={generica} alt="" className="absolute inset-0 h-full w-full object-cover" />}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5" />
 

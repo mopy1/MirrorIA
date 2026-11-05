@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 import type { LimitesPlan } from '../../../core/tenancy/tenant-context.js';
+import type { NivelMarca } from '../marca/marca-reglas.js';
 import { SEGUNDOS_CACHE_TENANT } from '../saas-reglas.js';
 
 export interface InfoTenant {
@@ -12,6 +13,8 @@ export interface InfoTenant {
   disponible: boolean;
   planNombre: string | null;
   limites: LimitesPlan | null;
+  /** Nivel de marca del plan de la suscripción más reciente (ESENCIAL si no tiene). */
+  nivelMarca: NivelMarca;
 }
 
 interface FilaTenant {
@@ -25,6 +28,7 @@ interface FilaTenant {
   max_sucursales: number | null;
   max_productos: number | null;
   max_usuarios_staff: number | null;
+  nivel_marca: NivelMarca | null;
 }
 
 /**
@@ -64,7 +68,8 @@ export class ResolverTenantService {
     // Tablas globales de la plataforma: no llevan tenant_id.
     const filas: FilaTenant[] = await this.dataSource.query(
       `SELECT i.id, i.slug, i.nombre, i.estado, s.estado AS sus_estado, s.fin,
-              p.nombre AS plan_nombre, p.max_sucursales, p.max_productos, p.max_usuarios_staff
+              p.nombre AS plan_nombre, p.max_sucursales, p.max_productos, p.max_usuarios_staff,
+              p.nivel_marca
          FROM inquilinos i
          LEFT JOIN LATERAL (
            SELECT * FROM suscripciones s WHERE s.inquilino_id = i.id
@@ -96,5 +101,6 @@ function aInfo(f: FilaTenant): InfoTenant {
           maxUsuariosStaff: f.max_usuarios_staff,
         }
       : null,
+    nivelMarca: f.nivel_marca ?? 'ESENCIAL',
   };
 }

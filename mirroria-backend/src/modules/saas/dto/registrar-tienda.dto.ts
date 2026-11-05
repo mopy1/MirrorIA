@@ -1,8 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsEmail, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateNested,
+  IsEmail, IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
 import { REGEX_SLUG } from '../../../core/tenancy/tenant.constants.js';
+import { CODIGOS_PALETA, type CodigoPaleta } from '../marca/marca-reglas.js';
 
 const recortar = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const slug = ({ value }: { value: unknown }) =>
@@ -15,6 +16,10 @@ export class TiendaNuevaDto {
   @Transform(slug)
   @Matches(REGEX_SLUG, { message: 'slug: 3-40 caracteres (minúsculas, dígitos y guiones, sin guion en los extremos)' })
   slug!: string;
+
+  /** Fase 1b: paleta inicial (default grafito). */
+  @IsOptional() @IsIn(CODIGOS_PALETA, { message: `paleta: ${CODIGOS_PALETA.join(', ')}` })
+  paleta?: CodigoPaleta;
 }
 
 export class SucursalInicialDto {

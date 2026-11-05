@@ -1,8 +1,8 @@
 import { apiFetch } from "@/lib/api"
 import type { Ciudad } from "@/features/branches/types/branches.types"
 import type {
-  ActualizarPlanDto, CrearPlanDto, EstadoInquilino, FiltrosInquilinos, InquilinoDetalleDto,
-  InquilinoResumenDto, PlanDto, ResumenPlataformaDto,
+  ActualizarPlanDto, CrearPlanDto, DashboardPlataformaDto, EstadoInquilino, EventoPlataformaDto, FiltrosInquilinos,
+  InquilinoDetalleDto, InquilinoResumenDto, MetricasTiendaDto, PlanDto, SeccionMarca,
 } from "../types/plataforma.types"
 
 const BASE = "/saas/plataforma"
@@ -12,6 +12,8 @@ function query(f: FiltrosInquilinos): string {
   const p = new URLSearchParams()
   if (f.estado) p.set("estado", f.estado)
   if (f.suscripcion) p.set("suscripcion", f.suscripcion)
+  if (f.plan) p.set("plan", f.plan)
+  if (f.orden) p.set("orden", f.orden)
   if (f.q?.trim()) p.set("q", f.q.trim())
   const qs = p.toString()
   return qs ? `?${qs}` : ""
@@ -19,7 +21,11 @@ function query(f: FiltrosInquilinos): string {
 
 // DUENO_PLATAFORMA no tiene tienda: `apiFetch` manda solo el token (sin X-Tenant).
 export const plataformaApi = {
-  resumen: () => apiFetch<ResumenPlataformaDto>(`${BASE}/resumen`),
+  dashboard: () => apiFetch<DashboardPlataformaDto>(`${BASE}/dashboard`),
+  actividad: (limite = 20) => apiFetch<EventoPlataformaDto[]>(`${BASE}/actividad?limite=${limite}`),
+  metricas: (id: string) => apiFetch<MetricasTiendaDto>(`${BASE}/inquilinos/${id}/metricas`),
+  restablecerMarca: (id: string, seccion: SeccionMarca, motivo: string) =>
+    apiFetch<InquilinoDetalleDto>(`${BASE}/inquilinos/${id}/marca/restablecer`, json("POST", { seccion, motivo })),
   inquilinos: (f: FiltrosInquilinos = {}) => apiFetch<InquilinoResumenDto[]>(`${BASE}/inquilinos${query(f)}`),
   inquilino: (id: string) => apiFetch<InquilinoDetalleDto>(`${BASE}/inquilinos/${id}`),
   cambiarEstado: (id: string, estado: EstadoInquilino, motivo?: string) =>

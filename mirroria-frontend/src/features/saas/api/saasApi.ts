@@ -1,7 +1,8 @@
 import { apiFetch } from "@/lib/api"
 import type { Ciudad } from "@/features/branches/types/branches.types"
+import type { EstadisticasPublicasDto } from "@/types/marca.types"
 import type { TiendaPublica } from "@/types/tienda.types"
-import type { DisponibilidadSlugDto, PlanDto, RegistrarTiendaDto, RegistroTiendaResponse } from "../types/saas.types"
+import type { DisponibilidadSlugDto, PlanDto, PrendaCatalogo, RegistrarTiendaDto, RegistroTiendaResponse } from "../types/saas.types"
 
 // Todas son rutas globales (🧭): sin X-Tenant ni token, así una tienda no
 // disponible no tumba la consulta con 403 (el front necesita ver `disponible`).
@@ -13,5 +14,9 @@ export const saasApi = {
   resolverTienda: (slug: string) => apiFetch<TiendaPublica>(`/saas/tiendas/${encodeURIComponent(slug)}`, {}, "ninguno"),
   registrarTienda: (dto: RegistrarTiendaDto) =>
     apiFetch<RegistroTiendaResponse>("/saas/tiendas", { method: "POST", body: JSON.stringify(dto) }, "ninguno"),
+  getEstadisticas: () => apiFetch<EstadisticasPublicasDto>("/saas/estadisticas", {}, "ninguno"),
+  // Catálogo público de UNA tienda (cabecera explícita: la landing no navega ninguna tienda).
+  getPrendas: (slug: string) =>
+    apiFetch<PrendaCatalogo[]>("/catalogo/productos", { headers: { "X-Tenant": slug } }, "ninguno"),
   getCiudades: () => apiFetch<Ciudad[]>("/sucursales/ciudades", {}, "ninguno"),
 }

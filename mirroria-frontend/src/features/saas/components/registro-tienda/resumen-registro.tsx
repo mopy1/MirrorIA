@@ -25,7 +25,7 @@ export function ResumenRegistro({ form, plan }: { form: FormRegistro; plan: Plan
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Sucursal</dt>
-          <dd className="truncate font-medium">{form.sucursal.nombre || "—"}</dd>
+          <dd className="truncate font-medium">{form.sucursal.nombre || "Sin cargar"}</dd>
         </div>
       </dl>
       <Badge variant="outline" className="mt-6 gap-1.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">

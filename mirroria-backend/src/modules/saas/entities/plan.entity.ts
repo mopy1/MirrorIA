@@ -1,10 +1,12 @@
-import { Column, Entity } from 'typeorm';
+import { Check, Column, Entity } from 'typeorm';
 import { BaseEntity } from '../../../core/database/base.entity.js';
+import type { NivelMarca } from '../marca/marca-reglas.js';
 
 const centavos = { to: (v: number) => v, from: (v: string) => Number(v) };
 
 /** Catálogo de planes del SaaS (global, sin tenant). `codigo` es inmutable. */
 @Entity('planes')
+@Check('CHK_planes_nivel_marca', `"nivel_marca" IN ('ESENCIAL','COMPLETA','MARCA_BLANCA')`)
 export class Plan extends BaseEntity {
   @Column({ length: 30, unique: true })
   codigo!: string;
@@ -44,4 +46,12 @@ export class Plan extends BaseEntity {
   /** Un plan inactivo no se ofrece, pero sus suscripciones siguen valiendo. */
   @Column({ default: true })
   activo!: boolean;
+
+  /** Qué personalización incluye (Fase 1b §C.4). */
+  @Column({ name: 'nivel_marca', type: 'varchar', length: 20, default: 'ESENCIAL' })
+  nivelMarca!: NivelMarca;
+
+  /** "Más elegido" en la landing. A lo sumo uno (PlanesService apaga los demás). */
+  @Column({ type: 'boolean', default: false })
+  destacado!: boolean;
 }

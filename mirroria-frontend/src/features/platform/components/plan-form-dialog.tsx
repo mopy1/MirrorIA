@@ -38,12 +38,12 @@ export function PlanFormDialog({ open, onOpenChange, plan, onGuardado }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{creando ? "Nuevo plan" : `Editar ${plan.nombre}`}</DialogTitle>
           <DialogDescription>Los cambios de precio no afectan a las suscripciones ya creadas (el precio queda congelado).</DialogDescription>
         </DialogHeader>
-        <PlanFormFields form={form} creando={creando} onChange={(c, v) => setForm((f) => ({ ...f, [c]: v }))} />
+        <PlanFormFields form={form} creando={creando} onChange={(c, v) => setForm((f) => ({ ...f, [c]: v }))} onExtra={(c) => setForm((f) => ({ ...f, ...c }))} />
         {(local ?? error) && (
           <Alert variant="destructive">
             <WarningCircle weight="fill" />

@@ -13,7 +13,10 @@ import type { RegistroTiendaResponse } from '../dto/registro-tienda-response.dto
 import { EstadoInquilino, Inquilino } from '../entities/inquilino.entity.js';
 import { SlugNoDisponibleException } from '../exception/slug-no-disponible.exception.js';
 import { SLUGS_RESERVADOS } from '../saas-reglas.js';
-import { tiendaADto } from './inquilinos.service.js';
+import { marcaInicial } from '../marca/marca-reglas.js';
+import { EventosPlataformaService } from './eventos-plataforma.service.js';
+import { tiendaADto } from './inquilinos.helpers.js';
+import { efectivaPublica, MarcaService } from './marca.service.js';
 import { PlanesService } from './planes.service.js';
 import { suscripcionADto, SuscripcionesService } from './suscripciones.service.js';
 
@@ -33,6 +36,8 @@ export class AprovisionamientoService {
     private readonly sucursales: SucursalesService,
     private readonly proveedores: ProveedoresService,
     private readonly catalogoBase: CatalogoBaseService,
+    private readonly marcas: MarcaService,
+    private readonly eventos: EventosPlataformaService,
   ) {}
 
   async registrar(dto: RegistrarTiendaDto): Promise<RegistroTiendaResponse> {
@@ -72,8 +77,13 @@ export class AprovisionamientoService {
           const sucursal = await this.sucursales.crearInicial(dto.sucursal, manager);
           const proveedor = await this.proveedores.crearPropio(manager);
           await this.catalogoBase.sembrarBase(manager, { proveedorId: proveedor.id });
+          await this.marcas.crearInicial(manager, tenantId, dto.tienda.nombre, dto.tienda.paleta);
           inquilino.propietarioId = admin.id;
           await inquilinoRepo.save(inquilino);
+          await this.eventos.registrar(
+            { inquilinoId: tenantId, tipo: 'ALTA', detalle: `Plan ${plan.nombre}`, actorId: admin.id, actorRol: 'TIENDA' },
+            manager,
+          );
           return { inquilino, suscripcion, admin, sucursal };
         })
         .catch((err: unknown) => {
@@ -86,7 +96,10 @@ export class AprovisionamientoService {
 
       return {
         ...this.auth.emitirToken(creado.admin),
-        tienda: tiendaADto(creado.inquilino, creado.suscripcion),
+        tienda: tiendaADto(
+          creado.inquilino, creado.suscripcion,
+          efectivaPublica(marcaInicial(dto.tienda.nombre, dto.tienda.paleta), plan.nivelMarca),
+        ),
         suscripcion: suscripcionADto(creado.suscripcion),
         sucursalId: creado.sucursal.id,
       };

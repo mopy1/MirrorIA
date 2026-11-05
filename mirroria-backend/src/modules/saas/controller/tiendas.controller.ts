@@ -10,7 +10,7 @@ import { RegistrarTiendaDto } from '../dto/registrar-tienda.dto.js';
 import type { RegistroTiendaResponse } from '../dto/registro-tienda-response.dto.js';
 import type { TiendaPublicaDto } from '../dto/tienda-publica.dto.js';
 import { AprovisionamientoService } from '../service/aprovisionamiento.service.js';
-import { InquilinosService } from '../service/inquilinos.service.js';
+import { TiendasPublicasService } from '../service/tiendas-publicas.service.js';
 
 // Públicas: directorio, chequeo del slug, resolver una tienda y crear la propia.
 @ApiTags('saas/tiendas')
@@ -19,24 +19,24 @@ import { InquilinosService } from '../service/inquilinos.service.js';
 @Controller('saas/tiendas')
 export class TiendasController {
   constructor(
-    private readonly inquilinos: InquilinosService,
+    private readonly tiendas: TiendasPublicasService,
     private readonly aprovisionamiento: AprovisionamientoService,
   ) {}
 
   @Get()
   listar(@Query() filtro: FiltroTiendasDto): Promise<TiendaPublicaDto[]> {
-    return this.inquilinos.tiendasPublicas(filtro.limite ?? 12);
+    return this.tiendas.tiendasPublicas(filtro.limite ?? 12);
   }
 
   @Get('disponibilidad')
   disponibilidad(@Query('slug') slug?: string): Promise<DisponibilidadSlugDto> {
     if (!slug?.trim()) throw new SolicitudInvalidaException('Falta el parámetro slug');
-    return this.inquilinos.disponibilidad(slug);
+    return this.tiendas.disponibilidad(slug);
   }
 
   @Get(':slug')
   ver(@Param('slug') slug: string): Promise<TiendaPublicaDto> {
-    return this.inquilinos.tiendaPublica(slug);
+    return this.tiendas.tiendaPublica(slug);
   }
 
   // Alta de tienda en una transacción; devuelve el JWT del ADMIN. 5 por hora por IP.

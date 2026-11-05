@@ -8,7 +8,7 @@ import type { UsuarioResponse } from "@/features/auth/types/auth.types"
 export function destinoTrasLogin(user: Pick<UsuarioResponse, "role" | "tenant">): string {
   switch (user.role) {
     case "DUENO_PLATAFORMA":
-      return "/plataforma"
+      return "/plataforma/resumen"
     case "ADMIN":
       return "/admin"
     case "CAJERO":

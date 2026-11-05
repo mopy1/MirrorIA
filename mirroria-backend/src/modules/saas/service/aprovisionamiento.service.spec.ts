@@ -10,11 +10,13 @@ import type { RegistrarTiendaDto } from '../dto/registrar-tienda.dto.js';
 import { EstadoSuscripcion } from '../entities/suscripcion.entity.js';
 import { SlugNoDisponibleException } from '../exception/slug-no-disponible.exception.js';
 import { AprovisionamientoService } from './aprovisionamiento.service.js';
+import type { EventosPlataformaService } from './eventos-plataforma.service.js';
+import type { MarcaService } from './marca.service.js';
 import type { PlanesService } from './planes.service.js';
 import type { SuscripcionesService } from './suscripciones.service.js';
 
 const PLAN = {
-  id: 'plan-b', codigo: 'basico', nombre: 'Básico', precioMensualCents: 9900, diasPrueba: 14,
+  id: 'plan-b', codigo: 'basico', nombre: 'Básico', precioMensualCents: 9900, diasPrueba: 14, nivelMarca: 'ESENCIAL',
   maxSucursales: 1, maxProductos: 50, maxUsuariosStaff: 3,
 };
 
@@ -56,6 +58,8 @@ describe('AprovisionamientoService', () => {
       sucursales: { crearInicial: paso('sucursal', { id: 'suc1' }) },
       proveedores: { crearPropio: paso('proveedor', { id: 'prov1' }) },
       catalogo: { sembrarBase: paso('catalogo', undefined) },
+      marcas: { crearInicial: paso('marca', undefined) },
+      eventos: { registrar: paso('evento', undefined) },
       auth: { emitirToken: vi.fn().mockReturnValue({ accessToken: 'jwt', usuario: { id: 'u1' } }) },
     };
     const dataSource = { transaction: vi.fn(async (fn: (m: EntityManager) => unknown) => fn(manager)) };
@@ -68,12 +72,14 @@ describe('AprovisionamientoService', () => {
       deps.sucursales as unknown as SucursalesService,
       deps.proveedores as unknown as ProveedoresService,
       deps.catalogo as unknown as CatalogoBaseService,
+      deps.marcas as unknown as MarcaService,
+      deps.eventos as unknown as EventosPlataformaService,
     );
   });
 
   it('llama a los 5 servicios con el mismo manager, dentro del contexto de la tienda NUEVA', async () => {
     const res = await service.registrar(dto());
-    expect(pasos).toEqual(['suscripcion', 'admin', 'sucursal', 'proveedor', 'catalogo']);
+    expect(pasos).toEqual(['suscripcion', 'admin', 'sucursal', 'proveedor', 'catalogo', 'marca', 'evento']);
     const nuevo = res.tienda.id;
     expect(tenantsVistos.every((t) => t === nuevo)).toBe(true);
     expect(res).toMatchObject({
@@ -82,6 +88,22 @@ describe('AprovisionamientoService', () => {
       suscripcion: { estado: 'TRIAL', diasRestantes: 14 },
     });
     expect(deps.catalogo.sembrarBase).toHaveBeenCalledWith(manager, { proveedorId: 'prov1' });
+    expect(deps.eventos.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({ inquilinoId: nuevo, tipo: 'ALTA', actorRol: 'TIENDA' }), manager);
+  });
+
+  it('defaults de marca: sin paleta nace grafito; con paleta, sus colores (y la marca va en la respuesta)', async () => {
+    const res = await service.registrar(dto());
+    expect(deps.marcas.crearInicial).toHaveBeenCalledWith(manager, res.tienda.id, 'Boutique Lila', undefined);
+    expect(res.tienda.marca).toMatchObject({
+      colorPrimario: '#26282E', modo: 'CLARO', fuente: 'geist', mostrarInsignia: true,
+      hero: { titulo: 'Bienvenida a Boutique Lila', ctaDestino: 'CATALOGO' },
+    });
+    const conPaleta = dto('boutique-mar');
+    conPaleta.tienda.paleta = 'oceano';
+    const res2 = await service.registrar(conPaleta);
+    expect(deps.marcas.crearInicial).toHaveBeenLastCalledWith(manager, res2.tienda.id, 'Boutique Lila', 'oceano');
+    expect(res2.tienda.marca.colorPrimario).toBe('#0E4D74');
   });
 
   it('un error en un paso intermedio (sucursal) se propaga y no sigue: la transacción revierte todo', async () => {

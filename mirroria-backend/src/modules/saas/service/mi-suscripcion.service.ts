@@ -34,8 +34,8 @@ export class MiSuscripcionService {
     };
   }
 
-  async cambiarPlan(tenantId: string, planCodigo: string): Promise<MiSuscripcionDto> {
-    await this.suscripciones.cambiarPlan(tenantId, planCodigo, true);
+  async cambiarPlan(tenantId: string, planCodigo: string, actorId: string | null = null): Promise<MiSuscripcionDto> {
+    await this.suscripciones.cambiarPlan(tenantId, planCodigo, true, actorId);
     return this.ver(tenantId);
   }
 }

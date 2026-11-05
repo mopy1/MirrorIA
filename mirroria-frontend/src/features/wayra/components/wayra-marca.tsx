@@ -18,7 +18,7 @@ interface WayraShellProps {
 }
 
 /**
- * El marco de la app Wayra: su propia marca y colores, sin nada de MirrorIA,
+ * El marco de la app Wayra: su propia marca y colores, sin nada de Tiendaria,
  * porque representa la app del BANCO de quien paga. Siempre en claro: es otra
  * app, no hereda el tema de la tienda.
  */
@@ -41,7 +41,7 @@ export function WayraShell({ children, accion }: WayraShellProps) {
         )}
 
         <p className="px-5 pb-5 text-center text-[11px] leading-relaxed text-[#16306B]/45">
-          Wayra es un banco ficticio del entorno de pruebas de MirrorIA. No se mueve dinero real.
+          Wayra es un banco ficticio del entorno de pruebas de Tiendaria. No se mueve dinero real.
         </p>
       </div>
     </div>

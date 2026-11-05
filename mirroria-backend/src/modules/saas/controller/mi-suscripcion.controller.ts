@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
+import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { PermitirTiendaNoDisponible } from '../../../core/tenancy/permitir-tienda-no-disponible.decorator.js';
@@ -26,7 +28,7 @@ export class MiSuscripcionController {
 
   /** Solo en TRIAL (con cobro llega en la Fase 2). */
   @Patch('plan')
-  cambiarPlan(@Body() dto: CambiarPlanDto): Promise<MiSuscripcionDto> {
-    return this.miSuscripcion.cambiarPlan(tenantActual(), dto.planCodigo);
+  cambiarPlan(@Body() dto: CambiarPlanDto, @CurrentUser() user: JwtPayload): Promise<MiSuscripcionDto> {
+    return this.miSuscripcion.cambiarPlan(tenantActual(), dto.planCodigo, user.sub);
   }
 }

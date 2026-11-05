@@ -1,20 +1,23 @@
 import { Link } from "react-router-dom"
-import { BrandLogo } from "@/components/brand-logo"
+import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
 import { SLUG_DEMO } from "@/lib/rutas-tienda"
 
 const COLUMNAS = [
   {
     titulo: "Producto",
     links: [
-      { label: "Planes y precios", to: "/planes" },
-      { label: "Crear mi tienda", to: "/registro-tienda" },
-      { label: "Tienda demo", to: `/t/${SLUG_DEMO}` },
+      { label: "Planes", to: "/#planes" },
+      { label: "Comparar planes", to: "/planes" },
+      { label: "Tiendas", to: "/#tiendas" },
+      { label: "Preguntas", to: "/#preguntas" },
     ],
   },
   {
     titulo: "Cuenta",
     links: [
-      { label: "Entrar a mi tienda", to: "/entrar" },
+      { label: "Entrar", to: "/entrar" },
+      { label: "Crear mi tienda", to: "/registro-tienda" },
+      { label: "Tienda demo", to: `/t/${SLUG_DEMO}` },
       { label: "Acceso plataforma", to: "/plataforma/login" },
     ],
   },
@@ -22,13 +25,11 @@ const COLUMNAS = [
 
 export function SaasFooter() {
   return (
-    <footer className="border-t border-border/60 bg-muted/20">
+    <footer className="border-t border-border/60">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div className="lg:col-span-2">
-          <BrandLogo />
-          <p className="mt-3 max-w-[36ch] text-sm text-muted-foreground">
-            La plataforma para abrir tu tienda de moda femenina con vestidor virtual, reservas y cobro por QR.
-          </p>
+          <TiendariaLogo />
+          <p className="mt-3 max-w-[36ch] text-sm text-muted-foreground">Tiendas online con tu marca.</p>
         </div>
         {COLUMNAS.map((col) => (
           <div key={col.titulo}>
@@ -45,9 +46,7 @@ export function SaasFooter() {
           </div>
         ))}
       </div>
-      <p className="mx-auto max-w-7xl px-4 pb-8 text-xs text-muted-foreground sm:px-6">
-        {new Date().getFullYear()} MirrorIA · Hecho en Bolivia.
-      </p>
+      <p className="mx-auto max-w-7xl px-4 pb-8 text-xs text-muted-foreground sm:px-6">© {new Date().getFullYear()} Tiendaria. Hecho en Bolivia.</p>
     </footer>
   )
 }

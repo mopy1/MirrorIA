@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import type { ActualizarPlanDto, CrearPlanDto } from '../dto/crear-plan.dto.js';
@@ -24,6 +24,8 @@ export function planADto(plan: Plan): PlanDto {
       maxProductos: plan.maxProductos,
       maxUsuariosStaff: plan.maxUsuariosStaff,
     },
+    nivelMarca: plan.nivelMarca,
+    destacado: plan.destacado,
   };
 }
 
@@ -69,8 +71,12 @@ export class PlanesService {
         maxSucursales: dto.limites.maxSucursales ?? null,
         maxProductos: dto.limites.maxProductos ?? null,
         maxUsuariosStaff: dto.limites.maxUsuariosStaff ?? null,
+        nivelMarca: dto.nivelMarca ?? 'ESENCIAL',
+        destacado: dto.destacado ?? false,
       }),
     );
+    if (plan.destacado) await this.apagarOtrosDestacados(plan.id);
+    this.resolver.invalidar();
     return planADto(plan);
   }
 
@@ -85,12 +91,20 @@ export class PlanesService {
     if (dto.diasPrueba !== undefined) plan.diasPrueba = dto.diasPrueba;
     if (dto.orden !== undefined) plan.orden = dto.orden;
     if (dto.activo !== undefined) plan.activo = dto.activo;
+    if (dto.nivelMarca !== undefined) plan.nivelMarca = dto.nivelMarca;
+    if (dto.destacado !== undefined) plan.destacado = dto.destacado;
     const l = dto.limites;
     if (l?.maxSucursales !== undefined) plan.maxSucursales = l.maxSucursales;
     if (l?.maxProductos !== undefined) plan.maxProductos = l.maxProductos;
     if (l?.maxUsuariosStaff !== undefined) plan.maxUsuariosStaff = l.maxUsuariosStaff;
     const guardado = await this.planRepository.save(plan);
-    this.resolver.invalidar(); // los límites viajan en la caché de cada tienda
+    if (guardado.destacado) await this.apagarOtrosDestacados(guardado.id);
+    this.resolver.invalidar(); // los límites y el nivel de marca viajan en la caché de cada tienda
     return planADto(guardado);
+  }
+
+  /** A lo sumo un plan destacado. */
+  private async apagarOtrosDestacados(id: string): Promise<void> {
+    await this.planRepository.update({ destacado: true, id: Not(id) }, { destacado: false });
   }
 }

@@ -2,6 +2,9 @@ import type { FormEvent } from "react"
 import { ArrowLeft, ArrowRight, CircleNotch, WarningCircle } from "@phosphor-icons/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { VistaPreviaTienda } from "@/components/marca/vista-previa"
+import { marcaPorDefecto } from "@/lib/tema/marca.constants"
+import type { CodigoPaleta } from "@/types/marca.types"
 import { useDisponibilidadSlug } from "../../hooks/useDisponibilidadSlug"
 import { usePlanes } from "../../hooks/usePlanes"
 import { useRegistrarTienda } from "../../hooks/useRegistrarTienda"
@@ -13,9 +16,9 @@ import { ResumenRegistro } from "./resumen-registro"
 import { Stepper } from "./stepper"
 
 /** Asistente Plan → Tienda y sucursal → Cuenta (`POST /saas/tiendas`). */
-export function AsistenteRegistro({ planInicial }: { planInicial: string }) {
+export function AsistenteRegistro({ planInicial, paletaInicial }: { planInicial: string; paletaInicial?: CodigoPaleta }) {
   const { planes, isLoading: cargandoPlanes } = usePlanes()
-  const f = useRegistroTiendaForm(planInicial)
+  const f = useRegistroTiendaForm(planInicial, paletaInicial)
   const estadoSlug = useDisponibilidadSlug(f.form.tienda.slug)
   const { registrar, isLoading, error } = useRegistrarTienda()
   const plan = planes.find((p) => p.codigo === f.form.planCodigo)
@@ -38,7 +41,7 @@ export function AsistenteRegistro({ planInicial }: { planInicial: string }) {
             <PasoPlan planes={planes} isLoading={cargandoPlanes} seleccionado={f.form.planCodigo} onSeleccionar={f.setPlan} error={f.errores.planCodigo} />
           )}
           {f.paso === 1 && (
-            <PasoTienda form={f.form} errores={f.errores} estadoSlug={estadoSlug} onTienda={(c, v) => f.set("tienda", c, v)} onSucursal={(c, v) => f.set("sucursal", c, v)} />
+            <PasoTienda form={f.form} errores={f.errores} estadoSlug={estadoSlug} onTienda={(c, v) => f.set("tienda", c, v)} onSucursal={(c, v) => f.set("sucursal", c, v)} onPaleta={f.setPaleta} />
           )}
           {f.paso === 2 && <PasoCuenta form={f.form} errores={f.errores} onAdmin={(c, v) => f.set("admin", c, v)} />}
         </div>
@@ -59,7 +62,14 @@ export function AsistenteRegistro({ planInicial }: { planInicial: string }) {
           </Button>
         </div>
       </form>
-      <ResumenRegistro form={f.form} plan={plan} />
+      <div className="space-y-6">
+        {f.paso === 1 && (
+          <div className="hidden lg:block">
+            <VistaPreviaTienda marca={marcaPorDefecto(f.form.tienda.nombre || "Tu tienda", f.form.tienda.paleta)} nombre={f.form.tienda.nombre || "Tu tienda"} dispositivo="celular" className="max-w-[240px]" />
+          </div>
+        )}
+        <ResumenRegistro form={f.form} plan={plan} />
+      </div>
     </div>
   )
 }

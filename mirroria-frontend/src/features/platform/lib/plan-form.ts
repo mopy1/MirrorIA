@@ -1,3 +1,4 @@
+import type { NivelMarca } from "@/types/marca.types"
 import type { CrearPlanDto, PlanDto } from "../types/plataforma.types"
 
 /** Valores del formulario de plan como texto (inputs controlados). Límite vacío = ilimitado. */
@@ -13,6 +14,8 @@ export interface PlanForm {
   maxProductos: string
   maxUsuariosStaff: string
   activo: boolean
+  nivelMarca: NivelMarca
+  destacado: boolean
 }
 
 const txt = (n: number | null) => (n === null ? "" : String(n))
@@ -20,7 +23,7 @@ const dinero = (cents: number) => (cents / 100).toFixed(2)
 
 export function formDesdePlan(p: PlanDto | null): PlanForm {
   if (!p) {
-    return { codigo: "", nombre: "", descripcion: "", precioBs: "", precioUsd: "", diasPrueba: "14", orden: "0", maxSucursales: "", maxProductos: "", maxUsuariosStaff: "", activo: true }
+    return { codigo: "", nombre: "", descripcion: "", precioBs: "", precioUsd: "", diasPrueba: "14", orden: "0", maxSucursales: "", maxProductos: "", maxUsuariosStaff: "", activo: true, nivelMarca: "ESENCIAL", destacado: false }
   }
   return {
     codigo: p.codigo, nombre: p.nombre, descripcion: p.descripcion ?? "",
@@ -28,6 +31,8 @@ export function formDesdePlan(p: PlanDto | null): PlanForm {
     diasPrueba: String(p.diasPrueba), orden: String(p.orden),
     maxSucursales: txt(p.limites.maxSucursales), maxProductos: txt(p.limites.maxProductos), maxUsuariosStaff: txt(p.limites.maxUsuariosStaff),
     activo: p.activo,
+    nivelMarca: p.nivelMarca ?? "ESENCIAL",
+    destacado: p.destacado ?? false,
   }
 }
 
@@ -53,5 +58,7 @@ export function dtoDesdeForm(f: PlanForm): CrearPlanDto {
     diasPrueba: Number(f.diasPrueba),
     orden: Number(f.orden) || 0,
     limites: { maxSucursales: limite(f.maxSucursales), maxProductos: limite(f.maxProductos), maxUsuariosStaff: limite(f.maxUsuariosStaff) },
+    nivelMarca: f.nivelMarca,
+    destacado: f.destacado,
   }
 }

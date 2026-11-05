@@ -11,7 +11,7 @@ import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import {
-  CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, InventarioAdminPage, ProbadorPage, ProveedoresAdminPage,
+  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, InventarioAdminPage, ProbadorPage, ProveedoresAdminPage,
   ReportesAdminPage, ReservasAdminPage, SucursalesAdminPage, SuscripcionAdminPage, UsuariosAdminPage, VentasAdminPage,
 } from "./lazy-pages"
 
@@ -47,6 +47,8 @@ export const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
   { path: "cupones", Component: CuponesAdminPage },
   { path: "usuarios", Component: UsuariosAdminPage },
   { path: "suscripcion", Component: SuscripcionAdminPage },
+  { path: "suscripcion/activar", Component: ActivarPlanPage },
+  { path: "apariencia", Component: AparienciaAdminPage },
 ]
 
 // Operación de sucursal: cada ruta habilita los roles que el backend YA exige

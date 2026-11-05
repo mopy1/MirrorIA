@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useParams } from "react-router-dom"
+import { useTemaTiendaria } from "@/hooks/useTemaTiendaria"
 import { AvisoCobro } from "../components/aviso-cobro"
 import { ComprobanteWayraVista } from "../components/comprobante-wayra"
 import { PasoCobro } from "../components/paso-cobro"
@@ -8,14 +9,15 @@ import { WayraBoton, WayraLogo, WayraShell } from "../components/wayra-marca"
 import { useWayraPago } from "../hooks/useWayraPago"
 
 /**
- * Lo que se abre en el celular al escanear el QR de cobro de MirrorIA: la app
+ * Lo que se abre en el celular al escanear el QR de cobro de una tienda Tiendaria: la app
  * del banco (ficticio) Wayra. Pública: quien paga no tiene cuenta en la tienda.
  */
 export function WayraPagoPage() {
   const { token } = useParams<{ token: string }>()
   const w = useWayraPago(token)
+  useTemaTiendaria() // "otra app": nada del tema de la tienda que generó el QR
 
-  // Es la app del banco, no la tienda: la pestaña no puede decir "MirrorIA".
+  // Es la app del banco, no la tienda: la pestaña no puede decir "Tiendaria".
   useEffect(() => {
     const anterior = document.title
     document.title = "Wayra · Banca móvil"

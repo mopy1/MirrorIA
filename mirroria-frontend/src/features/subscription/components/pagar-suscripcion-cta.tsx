@@ -1,15 +1,13 @@
 import { CreditCard } from "@phosphor-icons/react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Link } from "react-router-dom"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "cn"
 
-/** Hook visual de la Fase 2: el pago de la suscripción llega con las pasarelas. */
+/** Primario de "Plan y suscripción": lleva al checkout (`/admin/suscripcion/activar`). */
 export function PagarSuscripcionCta() {
   return (
-    <Button variant="outline" disabled className="gap-2" title="El pago de la suscripción llega con las pasarelas de pago">
-      <CreditCard /> Pagar suscripción
-      <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
-        Próximamente
-      </Badge>
-    </Button>
+    <Link to="/admin/suscripcion/activar" className={cn(buttonVariants(), "gap-2")}>
+      <CreditCard /> Activar plan
+    </Link>
   )
 }

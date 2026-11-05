@@ -1,8 +1,9 @@
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsBoolean, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
+  IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
+import { NIVELES_MARCA, type NivelMarca } from '../marca/marca-reglas.js';
 
 /** Cada tope: entero ≥ 1, o null (ilimitado). */
 export class LimitesPlanInputDto {
@@ -40,6 +41,12 @@ export class CrearPlanDto {
 
   @ValidateNested() @Type(() => LimitesPlanInputDto)
   limites!: LimitesPlanInputDto;
+
+  @IsOptional() @IsIn(NIVELES_MARCA, { message: 'nivelMarca: ESENCIAL, COMPLETA o MARCA_BLANCA' })
+  nivelMarca?: NivelMarca;
+
+  @IsOptional() @IsBoolean()
+  destacado?: boolean;
 }
 
 export class ActualizarPlanDto extends PartialType(OmitType(CrearPlanDto, ['codigo'] as const)) {

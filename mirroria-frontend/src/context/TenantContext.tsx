@@ -1,34 +1,28 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useMatch, useParams } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
 import { saasApi } from "@/features/saas/api/saasApi"
 import { TiendaNoDisponiblePage } from "@/features/saas/pages/TiendaNoDisponiblePage"
 import { ApiError } from "@/lib/api"
+import {
+  aplicarTemaTienda, guardarCacheMarca, leerCacheMarca, limpiarTema, prepararNeutrosTienda,
+} from "@/lib/tema/aplicar-tema"
+import { cargarFuente } from "@/lib/tema/fuentes"
+import { marcaDe } from "@/lib/tema/marca.constants"
 import { getTiendaActiva, setTiendaActiva } from "@/lib/tienda-activa"
 import type { TiendaPublica } from "@/types/tienda.types"
 import { cn } from "cn"
+import { CargandoTienda } from "./cargando-tienda"
 import { TenantContext, type TenantContextValue } from "./tenant-context"
 
 type Estado = { tipo: "cargando" } | { tipo: "no-existe" } | { tipo: "error"; mensaje: string } | { tipo: "ok"; tienda: TiendaPublica }
 
-function CargandoTienda() {
-  return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-4 border-b border-border/60 px-4 sm:px-6">
-        <Skeleton className="h-8 w-36" />
-        <Skeleton className="ml-auto h-8 w-48" />
-      </div>
-      <Skeleton className="mx-auto mt-8 h-[60vh] w-full max-w-7xl rounded-2xl" />
-    </div>
-  )
-}
-
 /**
- * Resuelve `/t/:slug` (`GET /saas/tiendas/:slug`) y publica la tienda en
- * contexto. Fija la tienda activa EN EL RENDER (idempotente) para que el
- * primer fetch de los hijos ya lleve `X-Tenant`, y la limpia al desmontarse.
+ * Resuelve `/t/:slug` (`GET /saas/tiendas/:slug`), aplica SU marca en <html>
+ * sin parpadeo (spec Fase 1b §B.4) y publica la tienda en contexto. Fija la
+ * tienda activa EN EL RENDER (idempotente) para que el primer fetch de los
+ * hijos ya lleve `X-Tenant`. Al desmontarse limpia tienda y tema.
  */
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { slug = "" } = useParams()
@@ -37,12 +31,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const enLogin = useMatch("/t/:slug/login") !== null
   setTiendaActiva(slug)
 
-  // Layout effect: corre antes que los efectos pasivos de los hijos (también
-  // en el doble montaje de StrictMode). Solo limpia si sigue siendo la suya.
+  // Antes del primer paint: neutros de tienda y, si hay, la marca de la visita anterior.
   useLayoutEffect(() => {
     setTiendaActiva(slug)
+    prepararNeutrosTienda()
+    const cache = leerCacheMarca(slug)
+    if (cache) aplicarTemaTienda(cache, "tienda")
     return () => {
       if (getTiendaActiva() === slug) setTiendaActiva(null)
+      limpiarTema()
     }
   }, [slug])
 
@@ -51,9 +48,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     setEstado({ tipo: "cargando" })
     saasApi
       .resolverTienda(slug)
-      .then((tienda) => !cancelado && setEstado({ tipo: "ok", tienda }))
+      .then(async (tienda) => {
+        const marca = marcaDe(tienda)
+        await cargarFuente(marca.fuente)
+        if (cancelado) return
+        aplicarTemaTienda(marca, "tienda")
+        guardarCacheMarca(slug, marca)
+        document.title = tienda.nombre
+        setEstado({ tipo: "ok", tienda })
+      })
       .catch((err) => {
         if (cancelado) return
+        limpiarTema() // tienda inexistente o caída: se muestra con la identidad Tiendaria
         if (err instanceof ApiError && err.status === 404) setEstado({ tipo: "no-existe" })
         else setEstado({ tipo: "error", mensaje: err instanceof ApiError ? err.message : "No se pudo abrir la tienda" })
       })

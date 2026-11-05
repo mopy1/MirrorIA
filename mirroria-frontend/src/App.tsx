@@ -2,13 +2,10 @@ import { Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { PageFallback } from "@/components/common/PageFallback"
 import { LoginPage } from "@/features/auth/pages/LoginPage"
-import { PlataformaLoginPage } from "@/features/auth/pages/PlataformaLoginPage"
 import { RegisterPage } from "@/features/auth/pages/RegisterPage"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
 import { EntrarPage } from "@/features/saas/pages/EntrarPage"
 import { LandingPage } from "@/features/saas/pages/LandingPage"
-import { PlanesPage } from "@/features/saas/pages/PlanesPage"
-import { RegistroTiendaPage } from "@/features/saas/pages/RegistroTiendaPage"
 import { AdminLayout } from "@/layouts/AdminLayout"
 import { PlataformaLayout } from "@/layouts/PlataformaLayout"
 import { SaasLayout } from "@/layouts/SaasLayout"
@@ -17,7 +14,8 @@ import { AdminRoute } from "@/routes/AdminRoute"
 import { GuestRoute } from "@/routes/GuestRoute"
 import { LegacyRedirect } from "@/routes/LegacyRedirect"
 import {
-  PlataformaCiudadesPage, PlataformaInquilinoDetallePage, PlataformaInquilinosPage, PlataformaPlanesPage, WayraPagoPage,
+  PlanesPage, PlataformaCiudadesPage, PlataformaDashboardPage, PlataformaInquilinoDetallePage, PlataformaInquilinosPage, PlataformaLoginPage, PlataformaPlanesPage,
+  RegistroTiendaPage, WayraPagoPage,
 } from "@/routes/lazy-pages"
 import { PlataformaRoute } from "@/routes/PlataformaRoute"
 import { ProtectedRoute } from "@/routes/ProtectedRoute"
@@ -72,7 +70,8 @@ function App() {
 
           <Route path="/plataforma/login" element={<GuestRoute><PlataformaLoginPage /></GuestRoute>} />
           <Route path="/plataforma" element={<PlataformaRoute><PlataformaLayout /></PlataformaRoute>}>
-            <Route index element={<Navigate to="/plataforma/inquilinos" replace />} />
+            <Route index element={<Navigate to="/plataforma/resumen" replace />} />
+            <Route path="resumen" element={<PlataformaDashboardPage />} />
             <Route path="inquilinos" element={<PlataformaInquilinosPage />} />
             <Route path="inquilinos/:id" element={<PlataformaInquilinoDetallePage />} />
             <Route path="planes" element={<PlataformaPlanesPage />} />

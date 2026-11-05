@@ -1,5 +1,5 @@
 import { List, ShoppingBag } from "@phosphor-icons/react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { SearchInput } from "@/components/common/SearchInput"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,18 +14,20 @@ import { useCart } from "@/hooks/useCart"
 import { CategoriesMenu } from "./categories-menu"
 import { HeaderAuth } from "./header-auth"
 import { NAV_ITEMS } from "./site-header.data"
-import { TiendaLogo } from "@/components/tienda-logo"
+import { LogoTiendaActual } from "@/components/marca/logo-tienda-actual"
+import { cn } from "cn"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
 
 export function SiteHeader() {
   const { itemCount } = useCart()
   const ruta = useRutaTienda()
+  const { pathname } = useLocation()
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Link to={ruta("/")} className="flex min-w-0 shrink-0 items-center transition-opacity hover:opacity-90">
-          <TiendaLogo />
+          <LogoTiendaActual />
         </Link>
 
         <nav className="hidden shrink-0 items-center gap-1 lg:flex">
@@ -34,9 +36,16 @@ export function SiteHeader() {
             <Link
               key={item.href}
               to={ruta(item.href)}
-              className="rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className={cn(
+                "relative rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                pathname.startsWith(ruta(item.href)) && "text-foreground",
+              )}
             >
               {item.label}
+              {/* Subrayado del ítem activo con el acento de la marca (spec §B.1). */}
+              {pathname.startsWith(ruta(item.href)) && (
+                <span className="absolute inset-x-2.5 -bottom-0.5 h-0.5 rounded-full bg-brand-accent" aria-hidden />
+              )}
             </Link>
           ))}
         </nav>
@@ -49,7 +58,7 @@ export function SiteHeader() {
               <ShoppingBag />
             </Button>
             {itemCount > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 text-[11px]">
+              <Badge className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full bg-brand-accent px-1 text-[11px] text-brand-accent-foreground">
                 {itemCount}
               </Badge>
             )}
@@ -69,7 +78,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="w-72">
               <SheetHeader>
                 <SheetTitle className="sr-only">Menú de la tienda</SheetTitle>
-                <TiendaLogo />
+                <LogoTiendaActual />
               </SheetHeader>
               <div className="flex flex-col gap-4 px-4">
                 <SearchInput />

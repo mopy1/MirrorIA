@@ -1,4 +1,6 @@
-import { FieldGroup, FieldSeparator } from "@/components/ui/field"
+import { SelectorPaleta } from "@/components/marca/selector-paleta"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field"
+import type { CodigoPaleta } from "@/types/marca.types"
 import { useCiudades } from "../../hooks/useCiudades"
 import type { EstadoSlug } from "../../hooks/useDisponibilidadSlug"
 import type { Errores, FormRegistro } from "../../hooks/useRegistroTiendaForm"
@@ -12,15 +14,21 @@ interface PasoTiendaProps {
   estadoSlug: EstadoSlug
   onTienda: (campo: "nombre" | "slug", v: string) => void
   onSucursal: (campo: keyof FormRegistro["sucursal"], v: string) => void
+  onPaleta: (p: CodigoPaleta) => void
 }
 
-/** Paso 2: nombre + dirección de la tienda y su primera sucursal. */
-export function PasoTienda({ form, errores, estadoSlug, onTienda, onSucursal }: PasoTiendaProps) {
+/** Paso 2: nombre, dirección, colores de la tienda y su primera sucursal. */
+export function PasoTienda({ form, errores, estadoSlug, onTienda, onSucursal, onPaleta }: PasoTiendaProps) {
   const { ciudades, isLoading } = useCiudades()
   return (
     <FieldGroup>
       <CampoTexto id="tienda-nombre" label="Nombre de la tienda" placeholder="Boutique Lila" value={form.tienda.nombre} onChange={(v) => onTienda("nombre", v)} error={errores["tienda.nombre"]} />
       <SlugInput value={form.tienda.slug} onChange={(v) => onTienda("slug", v)} estado={estadoSlug} error={errores["tienda.slug"]} />
+      <Field>
+        <FieldLabel>Colores de tu tienda</FieldLabel>
+        <SelectorPaleta valor={form.tienda.paleta} onCambiar={onPaleta} etiqueta="Colores de tu tienda" />
+        <FieldDescription>Así arranca. Después cambiás colores, logo y fotos desde tu panel.</FieldDescription>
+      </Field>
       <FieldSeparator>Primera sucursal</FieldSeparator>
       <CampoTexto id="suc-nombre" label="Nombre de la sucursal" placeholder="Lila Equipetrol" value={form.sucursal.nombre} onChange={(v) => onSucursal("nombre", v)} error={errores["sucursal.nombre"]} />
       <CiudadSelect ciudades={ciudades} isLoading={isLoading} value={form.sucursal.ciudadId} onChange={(v) => onSucursal("ciudadId", v)} error={errores["sucursal.ciudadId"]} />

@@ -8,7 +8,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { ROLES_CONFIG } from "@/features/admin/components/usuario-rol-editor/usuario-rol-editor.data"
 import { useAuth } from "@/hooks/useAuth"
 import { AdminSidebarContent } from "./admin-sidebar-content"
-import { BrandLogo } from "@/components/brand-logo"
+import { LogoTienda } from "@/components/marca/logo-tienda"
+import { useTemaAdmin } from "./useTemaAdmin"
 import { useMiSuscripcion } from "@/features/subscription/hooks/useMiSuscripcion"
 import { AdminAvisos } from "./admin-avisos"
 
@@ -20,6 +21,8 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/sucursales": "Sucursales",
   "/admin/proveedores": "Proveedores",
   "/admin/usuarios": "Usuarios & Roles",
+  "/admin/apariencia": "Apariencia",
+  "/admin/suscripcion/activar": "Activar plan",
   "/admin/suscripcion": "Plan y suscripción",
 }
 
@@ -32,6 +35,9 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
   // Solo el ADMIN puede leer su suscripción (los demás roles reciben 403).
   const { data: miSuscripcion } = useMiSuscripcion(esAdmin)
   const tiendaHref = user?.tenant ? `/t/${user.tenant.slug}` : "/"
+  // Logo y colores de SU tienda en el panel (parcial: neutros y Geist fijos).
+  const { marca, nombre } = useTemaAdmin(user?.tenant?.slug ?? null)
+  const tiendaNombre = nombre ?? user?.tenant?.nombre ?? "Mi tienda"
 
   const currentTitle = Object.entries(ADMIN_TITLES).find(([path]) => pathname.startsWith(path))?.[1] ?? "Administración"
   const rolLabel = user?.role ? (ROLES_CONFIG[user.role]?.label ?? user.role) : "Admin"
@@ -51,7 +57,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             <List className="size-5" />
           </Button>
           <Link to={tiendaHref} className="inline-flex items-center transition-opacity hover:opacity-90">
-            <BrandLogo size="sm" />
+            <LogoTienda nombre={tiendaNombre} logoUrl={marca?.logoUrl} className="max-w-44 [&_span:last-child]:text-base" />
           </Link>
           <Badge variant="outline" className="text-[10px] font-medium border-primary/30 bg-primary/10 text-primary">
             {rolLabel}
@@ -62,13 +68,13 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
       {/* Mobile Navigation Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" showCloseButton={false} className="w-72 p-0 flex flex-col h-full bg-card border-r border-border">
-          <AdminSidebarContent onNavigate={() => setMobileOpen(false)} suscripcion={miSuscripcion?.suscripcion ?? null} />
+          <AdminSidebarContent onNavigate={() => setMobileOpen(false)} suscripcion={miSuscripcion?.suscripcion ?? null} tiendaNombre={tiendaNombre} logoUrl={marca?.logoUrl ?? null} />
         </SheetContent>
       </Sheet>
 
       {/* Desktop Sticky Sidebar (w-64 en laptops, w-72 en pantallas grandes) */}
       <aside className="hidden shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 xl:w-72 lg:self-start lg:overflow-y-auto">
-        <AdminSidebarContent suscripcion={miSuscripcion?.suscripcion ?? null} />
+        <AdminSidebarContent suscripcion={miSuscripcion?.suscripcion ?? null} tiendaNombre={tiendaNombre} logoUrl={marca?.logoUrl ?? null} />
       </aside>
 
       {/* Main Content Viewport */}
@@ -76,7 +82,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         {/* Desktop Topbar Header */}
         <header className="hidden lg:flex sticky top-0 z-30 h-16 shrink-0 items-center justify-between border-b border-border/60 bg-card/85 px-8 backdrop-blur-md">
           <div className="flex items-center gap-2.5 text-sm">
-            <span className="text-muted-foreground">{user?.tenant?.nombre ?? rolLabel}</span>
+            <span className="text-muted-foreground">{tiendaNombre}</span>
             <span className="text-muted-foreground/50">/</span>
             <span className="font-medium text-foreground">{currentTitle}</span>
           </div>
@@ -87,7 +93,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
               className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
             >
               <ArrowSquareOut className="size-3.5" />
-              <span>Ver Tienda</span>
+              <span>Ver mi tienda</span>
             </Link>
           </div>
         </header>

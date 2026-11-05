@@ -2,8 +2,9 @@ import { Field, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/f
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { PlanForm } from "../lib/plan-form"
+import { PlanMarcaFields } from "./plan-marca-fields"
 
-type Campo = Exclude<keyof PlanForm, "activo">
+type Campo = Exclude<keyof PlanForm, "activo" | "nivelMarca" | "destacado">
 
 function Campo({ id, label, value, onChange, ...rest }: { id: Campo; label: string; value: string; onChange: (c: Campo, v: string) => void } & Omit<React.ComponentProps<typeof Input>, "id" | "value" | "onChange">) {
   return (
@@ -14,7 +15,7 @@ function Campo({ id, label, value, onChange, ...rest }: { id: Campo; label: stri
   )
 }
 
-export function PlanFormFields({ form, creando, onChange }: { form: PlanForm; creando: boolean; onChange: (c: Campo, v: string) => void }) {
+export function PlanFormFields({ form, creando, onChange, onExtra }: { form: PlanForm; creando: boolean; onChange: (c: Campo, v: string) => void; onExtra: (c: Partial<PlanForm>) => void }) {
   return (
     <FieldGroup className="gap-3.5">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -37,6 +38,8 @@ export function PlanFormFields({ form, creando, onChange }: { form: PlanForm; cr
         <Campo id="maxProductos" label="Prendas activas" type="number" min={1} placeholder="∞" value={form.maxProductos} onChange={onChange} />
         <Campo id="maxUsuariosStaff" label="Staff" type="number" min={1} placeholder="∞" value={form.maxUsuariosStaff} onChange={onChange} />
       </div>
+      <FieldSeparator>Personalización y landing</FieldSeparator>
+      <PlanMarcaFields form={form} onExtra={onExtra} />
     </FieldGroup>
   )
 }

@@ -1,12 +1,13 @@
-import { MapPin, SignOut, Storefront, Tag, type Icon } from "@phosphor-icons/react"
+import { ChartLineUp, MapPin, SignOut, Storefront, Tag, type Icon } from "@phosphor-icons/react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { BrandLogo } from "@/components/brand-logo"
+import { TiendariaLogo } from "@/components/marca/tiendaria-logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "cn"
 
 const NAV: { label: string; href: string; icon: Icon }[] = [
+  { label: "Resumen", href: "/plataforma/resumen", icon: ChartLineUp },
   { label: "Tiendas", href: "/plataforma/inquilinos", icon: Storefront },
   { label: "Planes", href: "/plataforma/planes", icon: Tag },
   { label: "Ciudades", href: "/plataforma/ciudades", icon: MapPin },
@@ -27,9 +28,9 @@ export function PlataformaSidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col bg-card">
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/60 px-5">
         <Link to="/" onClick={onNavigate} className="transition-opacity hover:opacity-90">
-          <BrandLogo />
+          <TiendariaLogo />
         </Link>
-        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-[10px] tracking-wider text-primary uppercase">
+        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-[10px] font-semibold text-primary">
           Plataforma
         </Badge>
       </div>
@@ -56,7 +57,7 @@ export function PlataformaSidebar({ onNavigate }: { onNavigate?: () => void }) {
           <p className="truncate text-sm font-medium">{user?.fullName ?? "Dueño de plataforma"}</p>
           <p className="truncate font-mono text-xs text-muted-foreground">{user?.email}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={salir} className="w-full gap-1.5">
+        <Button variant="ghost" size="sm" onClick={salir} className="w-full justify-start gap-1.5">
           <SignOut /> Cerrar sesión
         </Button>
       </div>

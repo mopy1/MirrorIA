@@ -1,11 +1,11 @@
 import { useState } from "react"
 import { ApiError } from "@/lib/api"
 import { plataformaApi } from "../api/plataformaApi"
-import type { EstadoInquilino, InquilinoDetalleDto } from "../types/plataforma.types"
+import type { EstadoInquilino, InquilinoDetalleDto, SeccionMarca } from "../types/plataforma.types"
 
-type Accion = "estado" | "plan" | "extender"
+type Accion = "estado" | "plan" | "extender" | "marca"
 
-/** Suspender/reactivar, cambiar plan y extender vigencia. Cada diálogo ve su propio loading/error. */
+/** Suspender/reactivar, cambiar plan, extender vigencia y restablecer marca (CU40). Cada diálogo ve su propio loading/error. */
 export function useAccionesInquilino(id: string, onActualizado: (d: InquilinoDetalleDto) => void) {
   const [enCurso, setEnCurso] = useState<Accion | null>(null)
   const [error, setError] = useState<{ accion: Accion; mensaje: string } | null>(null)
@@ -31,5 +31,7 @@ export function useAccionesInquilino(id: string, onActualizado: (d: InquilinoDet
     cambiarEstado: (estado: EstadoInquilino, motivo?: string) => correr("estado", () => plataformaApi.cambiarEstado(id, estado, motivo)),
     cambiarPlan: (planCodigo: string) => correr("plan", () => plataformaApi.cambiarPlan(id, planCodigo)),
     extender: (dias: number) => correr("extender", () => plataformaApi.extender(id, dias)),
+    restablecerMarca: (seccion: SeccionMarca, motivo: string) =>
+      correr("marca", () => plataformaApi.restablecerMarca(id, seccion, motivo)),
   }
 }

@@ -1,11 +1,12 @@
-import { PencilSimple, Power } from "@phosphor-icons/react"
+import { PencilSimple, Power, Star } from "@phosphor-icons/react"
+import { NIVELES } from "@/lib/tema/marca.constants"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatMoneyEntero, formatUsd } from "@/lib/money"
 import type { PlanDto } from "../types/plataforma.types"
 
-const head = "text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+const head = "text-xs font-semibold text-muted-foreground"
 const lim = (n: number | null) => n ?? "∞"
 
 interface Props {
@@ -21,14 +22,17 @@ export function PlanesTable({ planes, cambiando, onEditar, onAlternarActivo }: P
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
-            {["Plan", "Precio", "Sucursales", "Prendas", "Staff", "Prueba", "Estado", ""].map((c) => <TableHead key={c} className={head}>{c}</TableHead>)}
+            {["Plan", "Precio", "Sucursales", "Prendas", "Staff", "Prueba", "Marca", "Estado", ""].map((c) => <TableHead key={c} className={head}>{c}</TableHead>)}
           </TableRow>
         </TableHeader>
         <TableBody>
           {planes.map((p) => (
             <TableRow key={p.id}>
               <TableCell>
-                <p className="font-medium">{p.nombre}</p>
+                <p className="flex items-center gap-1.5 font-medium">
+                  {p.nombre}
+                  {p.destacado && <Star weight="fill" className="size-4 text-amber-500" aria-label="Destacado en la landing" />}
+                </p>
                 <p className="font-mono text-xs text-muted-foreground">{p.codigo} · orden {p.orden}</p>
               </TableCell>
               <TableCell>
@@ -39,6 +43,9 @@ export function PlanesTable({ planes, cambiando, onEditar, onAlternarActivo }: P
               <TableCell>{lim(p.limites.maxProductos)}</TableCell>
               <TableCell>{lim(p.limites.maxUsuariosStaff)}</TableCell>
               <TableCell>{p.diasPrueba} días</TableCell>
+              <TableCell>
+                <Badge variant="outline" title={p.nivelMarca ? NIVELES[p.nivelMarca].incluye : undefined}>{p.nivelMarca ? NIVELES[p.nivelMarca].plan : "Sin definir"}</Badge>
+              </TableCell>
               <TableCell>
                 <Badge variant="outline" className={p.activo ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border bg-muted text-muted-foreground"}>
                   {p.activo ? "Ofrecido" : "Retirado"}

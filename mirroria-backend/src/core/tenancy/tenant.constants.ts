@@ -11,5 +11,5 @@ export const REGEX_SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 export const SLUGS_RESERVADOS: readonly string[] = [
   'admin', 'api', 'app', 't', 'www', 'plataforma', 'entrar', 'login', 'registro',
   'registro-tienda', 'planes', 'tiendas', 'wayra', 'assets', 'static', 'soporte',
-  'ayuda', 'mirroria-admin',
+  'ayuda', 'mirroria-admin', 'estadisticas', 'apariencia',
 ];

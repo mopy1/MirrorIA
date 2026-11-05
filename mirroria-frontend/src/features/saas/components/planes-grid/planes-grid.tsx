@@ -2,8 +2,9 @@ import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react"
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PLAN_DESTACADO } from "../../lib/planes"
+import { esDestacado } from "../../lib/planes"
 import type { PlanDto } from "../../types/saas.types"
+import type { Moneda } from "./moneda-toggle"
 import { PlanCard } from "./plan-card"
 
 interface PlanesGridProps {
@@ -11,10 +12,11 @@ interface PlanesGridProps {
   isLoading: boolean
   error: string | null
   onReintentar: () => void
+  moneda: Moneda
 }
 
 /** Tarjetas de planes con sus 4 estados. */
-export function PlanesGrid({ planes, isLoading, error, onReintentar }: PlanesGridProps) {
+export function PlanesGrid({ planes, isLoading, error, onReintentar, moneda }: PlanesGridProps) {
   if (isLoading) {
     return (
       <div className="grid gap-6 md:grid-cols-3">
@@ -40,9 +42,9 @@ export function PlanesGrid({ planes, isLoading, error, onReintentar }: PlanesGri
     )
   }
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-6 md:grid-cols-3 md:items-stretch">
       {planes.map((plan) => (
-        <PlanCard key={plan.id} plan={plan} destacado={plan.codigo === PLAN_DESTACADO} />
+        <PlanCard key={plan.id} plan={plan} destacado={esDestacado(plan, planes)} moneda={moneda} />
       ))}
     </div>
   )

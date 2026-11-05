@@ -1,28 +1,27 @@
+import { useState } from "react"
+import { ArrowRight } from "@phosphor-icons/react"
 import { Link } from "react-router-dom"
 import { usePlanes } from "../../hooks/usePlanes"
+import { MonedaToggle, type Moneda } from "./moneda-toggle"
 import { PlanesGrid } from "./planes-grid"
 
-/** Sección "Planes" de la landing (la página /planes suma la tabla comparativa). */
-export function SeccionPlanes({ conLinkComparar = true }: { conLinkComparar?: boolean }) {
+/** Sección "Planes" de la landing (`/planes` suma la comparativa completa). */
+export function SeccionPlanes() {
   const { planes, isLoading, error, reload } = usePlanes()
+  const [moneda, setMoneda] = useState<Moneda>("BOB")
   return (
-    <section id="planes" className="scroll-mt-20 border-b border-border/60 bg-muted/20 py-20">
+    <section id="planes" className="scroll-mt-20 bg-muted/50 py-20 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-widest text-primary uppercase">Planes</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Pagás según el tamaño de tu marca.</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Precios en bolivianos por mes. Todos con prueba gratis.</p>
-          </div>
-          {conLinkComparar && (
-            <Link to="/planes" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-              Comparar planes en detalle →
-            </Link>
-          )}
+          <h2 className="max-w-[20ch] text-3xl font-bold tracking-tight text-balance sm:text-4xl">Pagás según el tamaño de tu marca.</h2>
+          <MonedaToggle valor={moneda} onCambiar={setMoneda} />
         </div>
-        <div className="mt-10">
-          <PlanesGrid planes={planes} isLoading={isLoading} error={error} onReintentar={reload} />
+        <div className="mt-12">
+          <PlanesGrid planes={planes} isLoading={isLoading} error={error} onReintentar={reload} moneda={moneda} />
         </div>
+        <Link to="/planes" className="mt-10 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline">
+          Comparar planes en detalle <ArrowRight />
+        </Link>
       </div>
     </section>
   )

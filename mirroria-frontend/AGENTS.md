@@ -10,7 +10,7 @@ femenina multi-sucursal).
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-04 (Fase 1 SaaS multi-tenant: §0 cliente HTTP, §2 rutas, §3 features saas/subscription/platform).** Las secciones 2 y 3 describen lo que existe
+> **Actualizado: 2026-11-05 (Fase 1b: identidad Tiendaria, marca por tienda, `/admin/apariencia`, panel de plataforma; ver §0 "Identidad visual", §2 y §3 "Fase 1b").** Antes: 2026-11-04 (Fase 1 SaaS multi-tenant). Las secciones 2 y 3 describen lo que existe
 > hoy en `src/`, verificado contra `src/App.tsx` y `src/features/*`. El historial de sesiones
 > anteriores (2026-09-12 a 2026-09-29) está condensado en la sección 6: solo quedan las
 > decisiones y lecciones que siguen vigentes.
@@ -23,15 +23,22 @@ directrices de forma obligatoria.
   sin `tailwind.config.js`). `react-router-dom` 7 (`BrowserRouter` en `App.tsx`);
   `AuthProvider` y `CartProvider` envuelven `<App />` en `main.tsx`.
 - **UI: shadcn/ui**, preset **Nova** sobre **Base UI** (no Radix). Primitivas instaladas en
-  `src/components/ui/`: alert, aspect-ratio, avatar, badge, button, card, chart,
-  dialog, field, input, label, navigation-menu, select, separator, sheet, skeleton, table, tabs,
-  textarea. `cn` viene del paquete npm `cn` (`import { cn } from "cn"`) — **no** existe
+  `src/components/ui/`: accordion, alert, aspect-ratio, avatar, badge, button, card, chart,
+  dialog, dropdown-menu, field, input, label, navigation-menu, radio-group, select, separator, sheet,
+  skeleton, switch, table, tabs, textarea, toggle, toggle-group, tooltip. `cn` viene del paquete npm `cn` (`import { cn } from "cn"`) — **no** existe
   `lib/utils.ts`, no crearlo.
-- **Identidad visual:** Geist Variable (`@fontsource-variable/geist`) como única tipografía;
-  acento único vino/rosa profundo en `--primary`/`--ring` (`src/index.css`), resto neutro frío;
-  `--radius: 0.75rem`. Iconos **100% Phosphor** (`@phosphor-icons/react`), también en los
+- **Identidad visual (Fase 1b):** dos mundos que no se mezclan.
+  **Tiendaria** (la plataforma) = `:root`/`.dark` de `src/index.css`: índigo `oklch(0.33 0.17 277)`
+  (`#281B89`) + acento lima `--brand-accent` (`#C3F74C`, solo como relleno, nunca texto sobre claro);
+  oscuro compuesto aparte (noche índigo, primario lima). Títulos en Bricolage Grotesque
+  (`--heading-font`, `h1-h3` y la utilidad `font-heading`), cuerpo Geist. Wordmark/isotipo en
+  `components/marca/tiendaria-logo.tsx`, favicon = isotipo. **Cada tienda** pinta su marca encima:
+  neutros de croma 0 en `[data-tema="tienda"]` (+ `.dark`) y sus colores como variables inline en
+  `<html>` (`lib/tema/`). `--accent` sigue siendo el hover de shadcn; el acento de marca es
+  `bg-brand-accent text-brand-accent-foreground`. Fuentes de tienda (Outfit, DM Sans, Playfair)
+  se cargan con `import()` dinámico (`lib/tema/fuentes.ts`). `--radius: 0.75rem` en Tiendaria. Iconos **100% Phosphor** (`@phosphor-icons/react`), también en los
   primitivos de shadcn (`dialog`/`sheet` → `X`, `select` → `CaretDown`/`CaretUp`/`Check`,
-  `navigation-menu` → `CaretDown`, `brand-logo` → `Sparkle`). `lucide-react` desinstalado
+  `navigation-menu` → `CaretDown`; el isotipo de MirrorIA usa el path de `Sparkle`). `lucide-react` desinstalado
   (2026-11-04) y `components.json` con `"iconLibrary": "phosphor"`, así `shadcn add` genera los
   componentes nuevos con Phosphor; si alguno llega con un import de lucide, cambiarlo a mano. Animación con `motion` (`motion/react`).
 - **Otras dependencias:** React Hook Form + Zod (`@hookform/resolvers`), Recharts (reportes),
@@ -130,13 +137,14 @@ de la prenda, columnas del showcase) viven en `features/<modulo>/lib/*.ts` con s
 | `/wayra/pagar/:token` | `wayra/WayraPagoPage` | público, global, sin layout |
 | `/admin` (padre con `<Outlet/>`) | → `/admin/catalogo` | `StaffRoute` (staff + `user.tenant`) + `AdminLayout` |
 | `/admin/catalogo`, `/proveedores`, `/sucursales`, `/cupones`, `/usuarios`, **`/suscripcion`** | `admin/*AdminPage`, `subscription/SuscripcionAdminPage` | `AdminRoute` (ADMIN + tenant) |
+| **`/admin/apariencia`**, **`/admin/suscripcion/activar`** (Fase 1b) | `appearance/AparienciaAdminPage`, `subscription/ActivarPlanPage` | `AdminRoute` |
 | `/admin/inventario`, `/ventas` (ADMIN, ENCARGADO) · `/reservas` (+CAJERO) · `/cobros` (ADMIN, CAJERO) · `/reportes` | `admin/*AdminPage` | `StaffRoute` |
 | `/plataforma/login` | `auth/PlataformaLoginPage` (`LoginForm modo="plataforma"`) | `GuestRoute` |
-| `/plataforma` → `/plataforma/inquilinos`, `/inquilinos/:id`, `/planes`, `/ciudades` | `platform/*Page` | `PlataformaRoute` (DUENO_PLATAFORMA) + `PlataformaLayout` |
+| `/plataforma` → **`/plataforma/resumen`** (dashboard, 1b), `/inquilinos` (`?q&estado&suscripcion&plan&orden`), `/inquilinos/:id`, `/planes`, `/ciudades` | `platform/*Page` | `PlataformaRoute` (DUENO_PLATAFORMA) + `PlataformaLayout` |
 
 Guardas sin sesión: `ProtectedRoute` → `/t/:slug/login`; `AdminRoute`/`StaffRoute` → `/entrar`;
 `PlataformaRoute` → `/plataforma/login`. Con rol equivocado → `destinoTrasLogin(user)` (`lib/destino-sesion.ts`:
-plataforma → `/plataforma`, ADMIN → `/admin`, CAJERO → `/admin/cobros`, ENCARGADO → `/admin/reportes`, CUSTOMER → `/t/<slug>`).
+plataforma → `/plataforma/resumen`, ADMIN → `/admin`, CAJERO → `/admin/cobros`, ENCARGADO → `/admin/reportes`, CUSTOMER → `/t/<slug>`).
 
 **Helper de rutas:** `hooks/useRutaTienda.ts` → `ruta("/carrito")` = `/t/<slug>/carrito` (puro en
 `lib/rutas-tienda.ts` `rutaTienda`/`rutaLegacy`, con test). TODOS los links de la tienda pasan por `ruta()`
@@ -147,18 +155,24 @@ de `/t/:slug`), `hooks/useSesionEnTienda.ts` (usuario solo si su `tenant.slug` e
 `React.lazy` desde `routes/lazy-pages.ts` (un `<Suspense>` con `components/common/PageFallback`
 envuelve `<Routes>`); las de la tienda pública siguen estáticas. Bundle inicial: 1.57 MB →
 795 kB (gzip 457 → 241 kB). Una página nueva de admin se agrega ahí, no como import estático.
+Fase 1b: también `/planes`, `/registro-tienda` y `/plataforma/login` van diferidas (auditoría 1b: 903 → 861 kB);
+la landing `/` sigue estática. Nginx sirve `index.html` con `Cache-Control: no-cache` (si el navegador lo
+cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en blanco).
 
 **Navegación (sin páginas huérfanas):**
-- SaaS: navbar (`layouts/saas-header/`) Planes · Cómo funciona · Tiendas · Entrar/Ir a mi panel (ghost) ·
-  **Crear mi tienda** (único primario); footer (`saas-footer/`) Tienda demo · Acceso plataforma.
-- Tienda: el logo (`components/tienda-logo.tsx`) muestra `tienda.nombre`; footer "Tienda creada con MirrorIA ·
-  Creá la tuya" → `/`; `header-auth` avisa "Tenés sesión en <otra tienda> · Ir a mi panel".
-- Admin: grupo **"Mi tienda"** arriba (`admin-sidebar.data.ts`): "Ver mi tienda" (`/t/<slug>`, todo staff) y
-  "Plan y suscripción" (ADMIN, badge de días en TRIAL); cabecera con nombre de tienda y plan.
-  `layouts/admin-avisos.tsx`: banner verde de bienvenida tras el alta, ámbar con ≤ 3 días de prueba, rojo si
-  la tienda está suspendida/vencida.
-- Plataforma: `layouts/plataforma-sidebar.tsx` Tiendas · Planes · Ciudades · Cerrar sesión; filas con "Gestionar"
-  y detalle con "← Volver a tiendas".
+- SaaS (Tiendaria): navbar (`layouts/saas-header/`) Planes · Tiendas · Preguntas (anclas de `/`) · Entrar/Ir a mi
+  panel (ghost) · **Crear mi tienda** (único primario); footer Producto (Planes, Comparar planes, Tiendas,
+  Preguntas) · Cuenta (Entrar, Crear mi tienda, Tienda demo, Acceso plataforma).
+- Tienda: `components/marca/logo-tienda-actual.tsx` (su logo o monograma + nombre, nunca el wordmark de
+  Tiendaria); subrayado del ítem activo y contador del carrito con `bg-brand-accent`; footer con eslogan,
+  "sobre nosotras", redes cargadas e `InsigniaTiendaria` ("Hecho con Tiendaria" → `/`, se quita con Cadena).
+- Admin: grupo **"Mi tienda"** (`admin-sidebar.data.ts`): Ver mi tienda · **Apariencia** (ADMIN) · Plan y
+  suscripción (ADMIN, badge de días en TRIAL); cabecera con el logo/monograma de la tienda y plan; pie
+  "Funciona con Tiendaria". `layouts/useTemaAdmin.ts` aplica el tema parcial y escucha
+  `tiendaria:marca-actualizada` (lo emite Apariencia al guardar). `admin-avisos.tsx`: verde de bienvenida
+  (link "Cargar mi primera prenda"; el alta cae en `/admin/apariencia`), ámbar ≤ 3 días y rojo con "Activar plan".
+- Plataforma: `layouts/plataforma-sidebar.tsx` Resumen · Tiendas · Planes · Ciudades · Cerrar sesión; filas
+  con "Gestionar" + menú ⋯ (Ver tienda, Copiar enlace) y detalle con "← Volver a tiendas".
 - Header (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
   `useCategorias`), buscador, carrito con badge. `header-auth.tsx`: sin sesión → login/registro;
   con sesión → "Mis reservas" + link de staff por rol (`ADMIN` → `/admin`, `CAJERO` →
@@ -179,15 +193,15 @@ envuelve `<Routes>`); las de la tienda pública siguen estáticas. Bundle inicia
 ```text
 mirroria-frontend/
 ├── public/
-│   ├── favicon.svg
-│   └── images/hero-model.webp         # foto del hero, local (webp, antes .jpg de 244 kB)
+│   ├── favicon.svg                    # isotipo de Tiendaria
+│   └── images/hero-model.webp, images/marcas/mirroria.svg   # hero local · isotipo de la tienda MirrorIA
 ├── src/
 │   ├── main.tsx                       # AuthProvider > CartProvider > App
 │   ├── App.tsx                        # rutas data-driven (ver §2)
 │   ├── index.css                      # tokens de tema (acento vino/rosa), Tailwind v4
 │   ├── components/
 │   │   ├── ui/                        # primitivas shadcn (Base UI)
-│   │   ├── brand-logo.tsx             # logotipo MirrorIA
+│   │   ├── marca/                     # Fase 1b: logos (Tiendaria y de tienda), vista previa, paletas, galería
 │   │   └── common/
 │   │       ├── SearchInput.tsx        # navega a /tienda?q=
 │   │       ├── PageFallback.tsx       # Skeleton del <Suspense> de las páginas diferidas
@@ -257,6 +271,46 @@ lo usa `AdminLayout` solo para ADMIN), `hooks/useCambiarPlan.ts`, `components/` 
 `inquilino-metricas`, `accion-dialog` + `suspender-`/`extender-`/`cambiar-plan-inquilino-dialog`, `planes-table`,
 `plan-form-dialog` + `plan-form-fields`, `ciudades-table`, `ciudad-form-dialog`), 4 páginas. Solo conteos de
 cada tienda, nunca filas de negocio.
+
+### Fase 1b (2026-11-05): tema por tienda, Apariencia y panel de plataforma
+- **`lib/tema/`** (puro, con tests): `color.ts` (hex↔OKLCH, contraste WCAG, `textoSobre` blanco/negro,
+  `validarPrincipal`, `ajustarContraste` baja/sube L de a 0.02), `derivar-tokens.ts` (`derivarTokens(marca,
+  'tienda'|'admin')`, `VARS_TEMA`), `aplicar-tema.ts` (`aplicarTemaTienda`, `limpiarTema`,
+  `prepararNeutrosTienda`, caché `tiendaria.marca.<slug>`), `fuentes.ts`, `marca.constants.ts` (FUENTES,
+  RADIOS, DESTINOS, PALETAS con portada, NIVELES, `marcaPorDefecto`, `marcaDe`), `eventos.ts`.
+- **Quién aplica el tema:** `context/TenantContext.tsx` (layout effect: neutros + caché antes del paint;
+  tras `resolverTienda`, fuente ≤ 300 ms y marca; inexistente/caída → Tiendaria; desmontar → limpiar),
+  `layouts/useTemaAdmin.ts` (admin), `hooks/useTemaTiendaria.ts` (SaasLayout, PlataformaLayout,
+  login de plataforma, Wayra). `hooks/useMarca.ts` = marca de la tienda navegada.
+- **`components/marca/`** (compartidos por saas, appearance, platform y la tienda): `tiendaria-logo`,
+  `logo-tienda`, `logo-tienda-actual`, `monograma` (+`iniciales.ts`), `imagen-marca` (`<img>` con
+  `no-referrer`, lazy y respaldo), `insignia-tiendaria`, `selector-paleta`, `galeria-imagenes.data.ts`
+  (24 fotos verificadas) y `vista-previa/` (`VistaPreviaTienda`: mini tienda con el tema en SU contenedor,
+  escalada desde 1280/390 px por `MarcoDispositivo`; sin portales ni variantes `dark:`).
+- **`features/appearance/`** (`/admin/apariencia`): `api/aparienciaApi.ts` (GET/PUT `/saas/mi-marca`,
+  POST `/restablecer`, prendas para la vista previa), `lib/validar-marca.ts` (+test, mismas reglas que el
+  DTO) y `lib/borrador.ts` (`conBloqueos`: lo bloqueado se ve con su valor efectivo; el PUT manda lo
+  guardado), hooks `useMiMarca`, `useBorradorMarca`, `useGuardarMarca`, `useBloqueoSalida`
+  (beforeunload + click en links), `useProductosPreview`; componentes `editor-apariencia`,
+  `apariencia-tabs` (pestañas + grid formulario/vista previa), `seccion-{marca,colores,estilo,portada,
+  imagenes,textos}`, `campo-{imagen,color,texto-marca}`, `galeria-dialog`, `aviso-contraste`,
+  `candado-plan`, `panel-vista-previa` (sticky / Sheet en móvil), `barra-guardado`, `restablecer-menu`.
+- **`features/saas/`** (landing nueva): `landing-hero/` (+`abanico-marcas`), `cifras-vivas`,
+  `demo-personalizacion/`, `como-funciona`, `incluye-bento/`, `tiendas-directorio/` (tarjeta con portada y
+  franja del color de la tienda), `planes-grid/` (+`moneda-toggle`, filas de marca en la comparativa,
+  `esDestacado` usa `plan.destacado`), `preguntas-frecuentes/`, `landing-cta`; hooks `useEstadisticas`,
+  `useDemoMarca`, `usePrendasAbanico` (2 prendas reales por tienda del abanico, `X-Tenant` explícito);
+  alta con `tienda.paleta` (`?paleta=`) y vista previa en el paso 2. Tras el alta, `GuestRoute` manda a
+  `/admin/apariencia` si hay aviso de bienvenida pendiente (antes caía en `/admin/catalogo`).
+- **`features/subscription/`:** `ActivarPlanPage` + `resumen-activacion` + `pasarelas-suscripcion`
+  (+`.data.ts`, todas "Próximamente" hasta la Fase 2), `incluye-marca`; "Activar plan" es el primario.
+- **`features/platform/`:** `PlataformaDashboardPage` (`components/dashboard/`: kpi-card/strip,
+  indicadores-secundarios, grafico-altas, mrr-por-plan, trials-por-vencer, dashboard-estados),
+  `components/detalle/` (detalle-tabs, tab-resumen/suscripcion/metricas, grafico-ventas-30d,
+  acciones-menu), `actividad-feed`, `miniatura-tienda`, `uso-mini`, `restablecer-marca-dialog`,
+  `extender-rapido`, `plan-marca-fields`; `lib/indicadores.ts` (+test) y `lib/eventos.ts`; hooks
+  `useDashboard`, `useMetricasTienda`, `useFiltrosInquilinos` (filtros en la query string).
+  Se borraron `resumen-kpis`, `trials-por-vencer` (viejo), `inquilino-metricas` y `useResumenPlataforma`.
 
 ### Compartidos de la Fase 1
 `src/types/{tienda,plan}.types.ts`; `components/common/` `EstadoBadge` (badges semánticos de suscripción/tienda),

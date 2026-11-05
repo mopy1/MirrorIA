@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CambiarPlanDialog } from "../components/cambiar-plan-dialog"
 import { PagarSuscripcionCta } from "../components/pagar-suscripcion-cta"
+import { IncluyeMarca } from "../components/incluye-marca"
 import { PlanActualCard } from "../components/plan-actual-card"
 import { useMiSuscripcion } from "../hooks/useMiSuscripcion"
 
@@ -40,12 +41,13 @@ export function SuscripcionAdminPage() {
             acciones={
               <>
                 {data.puedeCambiarPlan && (
-                  <Button onClick={() => setDialogo(true)} className="gap-2"><ArrowsLeftRight /> Cambiar plan</Button>
+                  <Button variant="outline" onClick={() => setDialogo(true)} className="gap-2"><ArrowsLeftRight /> Cambiar plan</Button>
                 )}
                 <PagarSuscripcionCta />
               </>
             }
           />
+          <IncluyeMarca nivel={data.plan.nivelMarca ?? "ESENCIAL"} />
           {!data.puedeCambiarPlan && (
             <Alert>
               <Info />

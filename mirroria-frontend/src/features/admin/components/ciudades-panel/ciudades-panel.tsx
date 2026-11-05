@@ -17,8 +17,8 @@ export function CiudadesPanel() {
       <Alert>
         <Info />
         <AlertDescription>
-          Estas son las ciudades habilitadas en MirrorIA para tus sucursales. ¿Falta tu ciudad?{" "}
-          <a href="mailto:soporte@mirroria.app?subject=Nueva%20ciudad" className="font-medium text-primary underline-offset-4 hover:underline">
+          Estas son las ciudades habilitadas en Tiendaria para tus sucursales. ¿Falta tu ciudad?{" "}
+          <a href="mailto:soporte@tiendaria.app?subject=Nueva%20ciudad" className="font-medium text-primary underline-offset-4 hover:underline">
             Escribinos
           </a>
         </AlertDescription>

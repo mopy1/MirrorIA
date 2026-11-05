@@ -1,6 +1,8 @@
 import { ArrowUpRight } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
+import { ImagenMarca } from "@/components/marca/imagen-marca"
+import { useMarca } from "@/hooks/useMarca"
 import { unsplashUrl } from "@/lib/unsplash"
 import { FEATURE_HIGHLIGHTS } from "./feature-highlights.data"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
@@ -9,6 +11,8 @@ export function FeatureHighlights() {
   const ruta = useRutaTienda()
   const reduce = useReducedMotion()
   const [primary, ...rest] = FEATURE_HIGHLIGHTS
+  const generica = unsplashUrl(primary.imageId!, 1200, 900)
+  const imagen = useMarca()?.imagenes.probador ?? generica
 
   return (
     <section id="vestidor" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
@@ -24,10 +28,12 @@ export function FeatureHighlights() {
           transition={{ duration: 0.6 }}
           className="relative flex min-h-[22rem] flex-col justify-end overflow-hidden rounded-2xl lg:col-span-2 lg:row-span-2"
         >
-          <img
-            src={unsplashUrl(primary.imageId!, 1200, 900)}
+          {/* Imagen del vestidor de la marca (plan Crecimiento+) o la foto genérica. */}
+          <ImagenMarca
+            src={imagen}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
+            respaldo={<img src={generica} alt="" className="absolute inset-0 h-full w-full object-cover" />}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
           <div className="relative p-8 text-white">

@@ -11,9 +11,11 @@ interface AdminSidebarContentProps {
   onNavigate?: () => void
   /** Suscripción de la tienda (solo la ve el ADMIN): badge de plan y de días de prueba. */
   suscripcion: SuscripcionDto | null
+  tiendaNombre: string
+  logoUrl: string | null
 }
 
-export function AdminSidebarContent({ onNavigate, suscripcion }: AdminSidebarContentProps) {
+export function AdminSidebarContent({ onNavigate, suscripcion, tiendaNombre, logoUrl }: AdminSidebarContentProps) {
   const { user } = useAuth()
   const rolLabel = user?.role ? (ROLES_CONFIG[user.role]?.label ?? user.role) : "Admin"
   const tiendaHref = user?.tenant ? `/t/${user.tenant.slug}` : "/"
@@ -35,7 +37,8 @@ export function AdminSidebarContent({ onNavigate, suscripcion }: AdminSidebarCon
   return (
     <div className="flex h-full flex-col bg-card">
       <AdminSidebarHeader
-        tiendaNombre={user?.tenant?.nombre ?? "MirrorIA"}
+        tiendaNombre={tiendaNombre}
+        logoUrl={logoUrl}
         subtitulo={suscripcion ? `Plan ${suscripcion.plan.nombre}` : rolLabel}
         tiendaHref={tiendaHref}
         onNavigate={onNavigate}

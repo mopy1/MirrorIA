@@ -10,6 +10,7 @@ import { CambioPlanNoPermitidoException } from '../exception/cambio-plan-no-perm
 import { SinSuscripcionVigenteException } from '../exception/sin-suscripcion-vigente.exception.js';
 import { UsoSuperaPlanException } from '../exception/uso-supera-plan.exception.js';
 import { diasRestantes, HORAS_BARRIDA, MESES_POR_PAGO, MS_DIA, sumarMeses } from '../saas-reglas.js';
+import { EventosPlataformaService } from './eventos-plataforma.service.js';
 import { PlanesService } from './planes.service.js';
 import { ResolverTenantService } from './resolver-tenant.service.js';
 import { UsoPlanService } from './uso-plan.service.js';
@@ -44,6 +45,7 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     private readonly planes: PlanesService,
     private readonly usoPlan: UsoPlanService,
     private readonly resolver: ResolverTenantService,
+    private readonly eventos: EventosPlataformaService,
   ) {}
 
   onModuleInit(): void {
@@ -108,7 +110,9 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
    * TRIAL (con cobro llega en la Fase 2); la plataforma puede siempre. 409 si el
    * uso actual no entra en el plan nuevo.
    */
-  async cambiarPlan(inquilinoId: string, planCodigo: string, desdeLaTienda: boolean): Promise<void> {
+  async cambiarPlan(
+    inquilinoId: string, planCodigo: string, desdeLaTienda: boolean, actorId: string | null = null,
+  ): Promise<void> {
     const actual = await this.ultima(inquilinoId);
     const estado = estadoEfectivo(actual);
     if (desdeLaTienda && estado !== EstadoSuscripcion.TRIAL) throw new CambioPlanNoPermitidoException();
@@ -124,17 +128,22 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     for (const [n, max, recurso] of excesos) {
       if (max !== null && n > max) throw new UsoSuperaPlanException(n, recurso, plan.nombre);
     }
+    const antes = actual.plan.nombre;
     actual.plan = plan;
     actual.precioCents = plan.precioMensualCents;
     await this.repo.save(actual);
     this.resolver.invalidar(inquilinoId);
+    await this.eventos.registrar({
+      inquilinoId, tipo: 'PLAN_CAMBIADO', detalle: `${antes} → ${plan.nombre}`,
+      actorId, actorRol: desdeLaTienda ? 'TIENDA' : 'PLATAFORMA',
+    });
   }
 
   /**
    * La plataforma regala días. Vigente: fin += días. Vencida: vuelve a TRIAL
    * (nunca pagó) o ACTIVA (ya había pagado alguna vez), desde hoy.
    */
-  async extender(inquilinoId: string, dias: number): Promise<void> {
+  async extender(inquilinoId: string, dias: number, actorId: string | null = null): Promise<void> {
     const historial = await this.historial(inquilinoId);
     const actual = historial[0];
     if (!actual) throw new SinSuscripcionVigenteException();
@@ -147,6 +156,9 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     }
     await this.repo.save(actual);
     this.resolver.invalidar(inquilinoId);
+    await this.eventos.registrar({
+      inquilinoId, tipo: 'VIGENCIA_EXTENDIDA', detalle: `+${dias} días`, actorId, actorRol: 'PLATAFORMA',
+    });
   }
 
   /**
@@ -195,6 +207,9 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     fila.referenciaPago = pago.referencia;
     const guardada = await repo.save(fila);
     this.resolver.invalidar(inquilinoId);
+    await this.eventos.registrar({
+      inquilinoId, tipo: 'PAGO_REGISTRADO', detalle: `${pago.proveedor} ${pago.referencia}`, actorRol: 'SISTEMA',
+    }, manager);
     return guardada;
   }
 }

@@ -1,5 +1,6 @@
 // DTOs de planes y suscripciones (spec Fase 1 §6.1). Compartidos por los
 // features saas, subscription y platform: por eso viven acá y no en un feature.
+import type { NivelMarca } from "./marca.types"
 import type { EstadoSuscripcion } from "./tienda.types"
 
 export interface LimitesPlanDto {
@@ -19,6 +20,9 @@ export interface PlanDto {
   orden: number
   activo: boolean
   limites: LimitesPlanDto
+  /** Fase 1b: cuánto de la marca se puede personalizar y si la landing lo destaca. */
+  nivelMarca?: NivelMarca
+  destacado?: boolean
 }
 
 export interface UsoPlanDto {

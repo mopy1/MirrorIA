@@ -19,6 +19,10 @@ python3 scripts/qa/qa_aislamiento.py # 84 chequeos multi-tenant (Fase 1): dos ti
   hora por IP: reiniciar el backend para resetear) y necesita `PLATAFORMA_EMAIL`/`PLATAFORMA_PASSWORD`.
   Conviene `pg_dump` antes y `pg_restore --clean` después.
 
+- **Fase 1b (2026-11-05):** `qa_marca.py` (37 chequeos: aislamiento de la marca, roles, URLs, contraste, niveles por plan,
+  bajar de plan, moderación, métricas solo agregadas). Registra 3 tiendas `qa-m-*` y usa 4 de las 5 altas/hora:
+  reiniciar el backend antes. Restaurar el dump después.
+
 - Usan `docker exec mirroria_postgres psql` para preparar datos y leer resultados.
 - `qa_mostrador.py` suma 20 unidades a todo el inventario local de `mirroria` para tener stock libre.
 - Las fechas son `timestamp without time zone` y el backend escribe con la zona del

@@ -15,7 +15,7 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real** — no CommonJS), TypeORM 1.x + P
 Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`, Swagger
 (`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual), oxlint.
 Integraciones: `stripe` (tarjeta), `qrcode` (PNG del QR de cobro), `@decartai/sdk` (probador),
-DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 93 desde la Fase 1 SaaS (`docker logs mirroria_backend | grep
+DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 101 desde la Fase 1b (93 en la Fase 1) (`docker logs mirroria_backend | grep
 Mapped`); contrato de cada una en el vault, `U/2-2026/SI2/Parcial1/App/Endpoints.md`.
 
 > [!IMPORTANT]
@@ -822,6 +822,52 @@ vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant
 - **Auditoría QA (2026-11-05):** `test/ia.e2e-spec.ts` fuerza `process.env.IA_API_KEY = ''` (gana sobre
   el `.env` en `ConfigModule`) → e2e 56/56 sin depender del `.env` local. El 409 de límite usa singular
   con límite 1 ("hasta 1 sucursal"). Sin DDL en arranques repetidos (ver la corrección de `gen_random_uuid`).
+
+## 🎨 Fase 1b: marca por tienda y panel de plataforma (2026-11-05)
+
+Spec cerrada (con "Desviaciones del Backend 1b"): vault `U/2-2026/SI2/Parcial2/Fase1b_Spec_Personalizacion_Tiendaria.md`.
+Todo en `modules/saas` (tablas globales; nadie importa `saas`). `core/` solo suma `estadisticas` y `apariencia` a
+`SLUGS_RESERVADOS`.
+
+```text
+modules/saas/
+├── marca/                         # lógica pura + specs (sin Nest)
+│   ├── marca-reglas.ts            # MODOS/RADIOS/FUENTES/DESTINOS/NIVELES/SECCIONES, PALETAS (6 + mirroria), REGEX_URL_IMAGEN,
+│   │                              # marcaInicial, MARCA_MIRRORIA, marcaPorDefecto, marcaEfectiva(guardada, nivel),
+│   │                              # fueraDelPlan (409), permitidoPorNivel, restablecerSeccion
+│   └── marca-color.ts             # luminancia/contraste WCAG, textoSobre (#FFFFFF/#000000), validarPrincipal (≥ 4.5:1)
+├── entities/marca-tienda.entity.ts       # inquilino_marca (1:1, @Check con nombre fijo → sin DDL repetido)
+├── entities/evento-plataforma.entity.ts  # eventos_plataforma (bitácora, solo inserts)
+├── entities/plan.entity.ts               # + nivelMarca (CHECK), destacado
+├── controller/mi-marca.controller.ts     # GET/PUT /saas/mi-marca, POST /restablecer (ADMIN; GET con tienda no disponible)
+├── controller/estadisticas.controller.ts # GET /saas/estadisticas (público, caché 5 min)
+├── controller/plataforma-tiendas.controller.ts # dashboard, inquilinos/:id/metricas, actividad, inquilinos/:id/marca/restablecer
+└── service/
+    ├── tiendas-publicas.service.ts # (auditoría 1b) directorio, tienda por slug y disponibilidad del slug (antes en InquilinosService)
+    ├── inquilinos.helpers.ts      # (auditoría 1b) puras: estaDisponible, mrrDe, ORDENAR, nivelDe, tiendaADto, resumenDe
+    ├── inquilinos.service.ts      # panel de plataforma: listar/detalle/estado/plan/extender/restablecerMarca/resumen
+    ├── marca.service.ts           # miMarca, guardar (contraste 400 → nivel 409 → tx: marca + inquilinos.nombre + evento),
+    │                              # restablecer (bitácora con SECCION_TEXTO: "Toda la apariencia: motivo"), guardadasPorInquilino(ids) (1 SELECT: directorio/listados sin N+1)
+    ├── eventos-plataforma.service.ts # registrar(evento, manager?), recientes, deTienda (+ email del actor)
+    ├── metricas-tienda.service.ts # 3 consultas SQL crudo, TODAS con tenant_id = $1; solo count/sum (D7)
+    ├── dashboard-plataforma.service.ts # KPIs + funciones puras altasPorMes/churn30d/conversionPrueba (hora de La Paz)
+    └── estadisticas.service.ts
+```
+
+- **Nivel del plan:** viaja en `ResolverTenantService` (`InfoTenant.nivelMarca`, misma caché de 60 s, se invalida al
+  cambiar plan/marca). Lo público es siempre la marca **efectiva**; `MiMarcaDto` trae `guardada` y `efectiva`.
+- **Eventos:** alta (ALTA, en la tx del aprovisionamiento), `cambiarEstado` (SUSPENDIDA/REACTIVADA),
+  `SuscripcionesService.cambiarPlan/extender/activarPorPago` (PLAN_CAMBIADO "Básico → Crecimiento", VIGENCIA_EXTENDIDA,
+  PAGO_REGISTRADO), guardar/restablecer marca. Los controllers pasan `user.sub` como actor.
+- **Aprovisionamiento:** `tienda.paleta?` (IsIn de las 6) → `MarcaService.crearInicial` dentro de la transacción.
+- **Seed:** `nivelesDeMarca()` (mapeo base solo si ningún plan fue configurado), `asegurarMarcas()` (MirrorIA con
+  `MARCA_MIRRORIA`, cualquier otra sin fila con `marcaInicial`).
+- **Datos:** Azure `../scripts/sql/fase1b-marca.sql`; demo `../scripts/sembrar-tiendas-demo.mjs`; QA `../scripts/qa/qa_marca.py`.
+- **Verificado (2026-11-05):** tsc, oxlint, 351 unit (specs nuevos: marca-color, marca-reglas, marca.service,
+  dashboard-plataforma, metricas-tienda; aprovisionamiento y suscripciones actualizados), e2e 56/56, qa_marca 37/37,
+  aislamiento 84/84, reglas 21/21, mostrador 14/14; 101 rutas; dos arranques sin DDL (también sobre el esquema del SQL).
+- **Gotcha:** el proceso de Nest se llama `MainThread` (no `node`): `pgrep -x node` no lo encuentra; para apagar un
+  backend de prueba usar el PID de `ss -ltnp | grep :3100`.
 
 ## ⚡ Desarrollo local
 

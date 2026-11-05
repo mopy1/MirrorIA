@@ -3,7 +3,7 @@ import type { SuscripcionDto, UsoPlanDto } from './suscripcion.dto.js';
 import type { TiendaPublicaDto } from './tienda-publica.dto.js';
 
 export class MiSuscripcionDto {
-  tienda!: TiendaPublicaDto;
+  tienda!: Omit<TiendaPublicaDto, 'marca'>;
   plan!: PlanDto;
   /** la más reciente */
   suscripcion!: SuscripcionDto;

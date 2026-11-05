@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { errorDeSlug, slugDesdeNombre } from "../lib/slug"
+import type { CodigoPaleta } from "@/types/marca.types"
 import type { RegistrarTiendaDto } from "../types/saas.types"
 
-export type FormRegistro = RegistrarTiendaDto & { sucursal: { telefono: string } }
+export type FormRegistro = RegistrarTiendaDto & { tienda: { paleta: CodigoPaleta }; sucursal: { telefono: string } }
 export type Errores = Partial<Record<string, string>>
 export const PASOS = ["Plan", "Tu tienda y sucursal", "Tu cuenta"] as const
 
@@ -28,13 +29,13 @@ function validar(paso: number, f: FormRegistro): Errores {
 }
 
 /** Estado del asistente de 3 pasos (validación local igual a la del backend, spec §6.2). */
-export function useRegistroTiendaForm(planInicial: string) {
+export function useRegistroTiendaForm(planInicial: string, paletaInicial: CodigoPaleta = "grafito") {
   const [paso, setPaso] = useState(0)
   const [errores, setErrores] = useState<Errores>({})
   const [slugTocado, setSlugTocado] = useState(false)
   const [form, setForm] = useState<FormRegistro>({
     planCodigo: planInicial,
-    tienda: { nombre: "", slug: "" },
+    tienda: { nombre: "", slug: "", paleta: paletaInicial },
     sucursal: { nombre: "", direccion: "", ciudadId: "", telefono: "" },
     admin: { fullName: "", email: "", password: "" },
   })
@@ -61,7 +62,7 @@ export function useRegistroTiendaForm(planInicial: string) {
     const { telefono, ...sucursal } = form.sucursal
     return {
       planCodigo: form.planCodigo,
-      tienda: { nombre: form.tienda.nombre.trim(), slug: form.tienda.slug },
+      tienda: { nombre: form.tienda.nombre.trim(), slug: form.tienda.slug, paleta: form.tienda.paleta },
       sucursal: { ...sucursal, ...(telefono.trim() ? { telefono: telefono.trim() } : {}) },
       admin: { ...form.admin, email: form.admin.email.trim().toLowerCase() },
     }
@@ -70,6 +71,7 @@ export function useRegistroTiendaForm(planInicial: string) {
   return {
     paso, form, errores, set, avanzar, dto,
     setPlan: (codigo: string) => setForm((f) => ({ ...f, planCodigo: codigo })),
+    setPaleta: (paleta: CodigoPaleta) => setForm((f) => ({ ...f, tienda: { ...f.tienda, paleta } })),
     volver: () => setPaso((p) => Math.max(p - 1, 0)),
     esValido: () => Object.keys(validar(paso, form)).length === 0,
   }

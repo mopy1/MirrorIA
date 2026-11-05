@@ -11,4 +11,9 @@ describe("plan-form", () => {
     expect(errorPlanForm({ ...formDesdePlan(null), codigo: "X" }, true)).toMatch(/Código/)
     expect(errorPlanForm({ ...formDesdePlan(null), codigo: "pro", nombre: "Pro", precioBs: "1", precioUsd: "1", diasPrueba: "90" }, true)).toMatch(/Días/)
   })
+  it("manda nivel de marca y destacado (Fase 1b)", () => {
+    const f = { ...formDesdePlan(null), codigo: "pro", nombre: "Pro", precioBs: "1", precioUsd: "1", nivelMarca: "COMPLETA" as const, destacado: true }
+    expect(dtoDesdeForm(f)).toMatchObject({ nivelMarca: "COMPLETA", destacado: true })
+    expect(formDesdePlan(null).nivelMarca).toBe("ESENCIAL")
+  })
 })

@@ -51,3 +51,22 @@ export const PlataformaCiudadesPage = diferida(
   () => import("@/features/platform/pages/PlataformaCiudadesPage"),
   "PlataformaCiudadesPage",
 )
+
+// Fase 1b: personalización, activación del plan y panel de la plataforma.
+export const AparienciaAdminPage = diferida(
+  () => import("@/features/appearance/pages/AparienciaAdminPage"),
+  "AparienciaAdminPage",
+)
+export const ActivarPlanPage = diferida(() => import("@/features/subscription/pages/ActivarPlanPage"), "ActivarPlanPage")
+export const PlataformaDashboardPage = diferida(
+  () => import("@/features/platform/pages/PlataformaDashboardPage"),
+  "PlataformaDashboardPage",
+)
+
+// Superficies Tiendaria fuera de la landing: el alta (arrastra paletas y vista previa), la comparativa y el login de plataforma.
+export const PlanesPage = diferida(() => import("@/features/saas/pages/PlanesPage"), "PlanesPage")
+export const RegistroTiendaPage = diferida(() => import("@/features/saas/pages/RegistroTiendaPage"), "RegistroTiendaPage")
+export const PlataformaLoginPage = diferida(
+  () => import("@/features/auth/pages/PlataformaLoginPage"),
+  "PlataformaLoginPage",
+)

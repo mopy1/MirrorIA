@@ -5,6 +5,7 @@ import { CambioPlanNoPermitidoException } from '../exception/cambio-plan-no-perm
 import { UsoSuperaPlanException } from '../exception/uso-supera-plan.exception.js';
 import { MS_DIA } from '../saas-reglas.js';
 import type { PlanesService } from './planes.service.js';
+import type { EventosPlataformaService } from './eventos-plataforma.service.js';
 import type { ResolverTenantService } from './resolver-tenant.service.js';
 import { estadoEfectivo, SuscripcionesService } from './suscripciones.service.js';
 import type { UsoPlanService } from './uso-plan.service.js';
@@ -25,6 +26,7 @@ describe('SuscripcionesService', () => {
   let planes: { porCodigo: ReturnType<typeof vi.fn> };
   let uso: { calcular: ReturnType<typeof vi.fn> };
   let resolver: { invalidar: ReturnType<typeof vi.fn> };
+  let eventos: { registrar: ReturnType<typeof vi.fn> };
   let service: SuscripcionesService;
 
   beforeEach(() => {
@@ -38,11 +40,13 @@ describe('SuscripcionesService', () => {
     planes = { porCodigo: vi.fn().mockResolvedValue(CRECIMIENTO) };
     uso = { calcular: vi.fn().mockResolvedValue({ sucursales: 1, productos: 10, usuariosStaff: 1 }) };
     resolver = { invalidar: vi.fn() };
+    eventos = { registrar: vi.fn().mockResolvedValue(undefined) };
     service = new SuscripcionesService(
       repo as unknown as Repository<Suscripcion>,
       planes as unknown as PlanesService,
       uso as unknown as UsoPlanService,
       resolver as unknown as ResolverTenantService,
+      eventos as unknown as EventosPlataformaService,
     );
   });
 
@@ -60,6 +64,15 @@ describe('SuscripcionesService', () => {
   it('cambiar de plan desde la tienda solo en TRIAL (409 en ACTIVA)', async () => {
     repo.find.mockResolvedValue([suscripcion(EstadoSuscripcion.ACTIVA, 20)]);
     await expect(service.cambiarPlan('i1', 'crecimiento', true)).rejects.toThrow(CambioPlanNoPermitidoException);
+  });
+
+  it('cambiar plan registra PLAN_CAMBIADO con antes → después y el actor', async () => {
+    repo.find.mockResolvedValue([suscripcion(EstadoSuscripcion.TRIAL, 10)]);
+    await service.cambiarPlan('t1', 'crecimiento', false, 'u-plat');
+    expect(eventos.registrar).toHaveBeenCalledWith(expect.objectContaining({
+      inquilinoId: 't1', tipo: 'PLAN_CAMBIADO', actorId: 'u-plat', actorRol: 'PLATAFORMA',
+    }));
+    expect(eventos.registrar.mock.calls[0][0].detalle).toBe('Básico → Crecimiento');
   });
 
   it('en TRIAL cambia plan y precio congelado', async () => {

@@ -1,21 +1,31 @@
 import { Link } from "react-router-dom"
-import { FOOTER_COLUMNS } from "./site-footer.data"
-import { TiendaLogo } from "@/components/tienda-logo"
-import { useTienda } from "@/hooks/useTienda"
+import { InsigniaTiendaria } from "@/components/marca/insignia-tiendaria"
+import { LogoTiendaActual } from "@/components/marca/logo-tienda-actual"
+import { useMarca } from "@/hooks/useMarca"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
+import { useTienda } from "@/hooks/useTienda"
+import { RedesTienda } from "./redes-tienda"
+import { FOOTER_COLUMNS } from "./site-footer.data"
 
+const linkClase = "text-sm text-muted-foreground transition-colors hover:text-foreground"
+
+/** Pie de la tienda: su logo, eslogan, "sobre nosotras", redes y la insignia de Tiendaria (si su plan la muestra). */
 export function SiteFooter() {
   const ruta = useRutaTienda()
   const { tienda } = useTienda()
+  const marca = useMarca()
+
   return (
     <footer className="border-t border-border/60">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <TiendaLogo />
-            <p className="mt-3 max-w-[28ch] text-sm text-muted-foreground">
-              Ropa de mujer con vestidor virtual y reservas por sucursal.
+            <LogoTiendaActual />
+            {marca?.textos.eslogan && <p className="mt-3 max-w-[36ch] text-sm font-medium text-foreground">{marca.textos.eslogan}</p>}
+            <p className="mt-2 max-w-[48ch] text-sm leading-relaxed text-muted-foreground">
+              {marca?.textos.sobreNosotros ?? "Ropa de mujer con vestidor virtual y reservas por sucursal."}
             </p>
+            {marca && <RedesTienda contacto={marca.contacto} />}
           </div>
 
           {FOOTER_COLUMNS.map((column) => (
@@ -25,19 +35,9 @@ export function SiteFooter() {
                 {column.links.map((link) => (
                   <li key={link.label}>
                     {link.href.startsWith("/") ? (
-                      <Link
-                        to={ruta(link.href)}
-                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {link.label}
-                      </Link>
+                      <Link to={ruta(link.href)} className={linkClase}>{link.label}</Link>
                     ) : (
-                      <a
-                        href={link.href}
-                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {link.label}
-                      </a>
+                      <a href={link.href} className={linkClase}>{link.label}</a>
                     )}
                   </li>
                 ))}
@@ -46,16 +46,11 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-2 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
-            {new Date().getFullYear()} {tienda?.nombre ?? "MirrorIA"}. Todos los derechos reservados.
+            {new Date().getFullYear()} {tienda?.nombre}. Todos los derechos reservados.
           </p>
-          <p>
-            Tienda creada con MirrorIA ·{" "}
-            <Link to="/" className="font-medium text-primary underline-offset-4 hover:underline">
-              Creá la tuya
-            </Link>
-          </p>
+          {marca?.mostrarInsignia !== false && <InsigniaTiendaria />}
         </div>
       </div>
     </footer>

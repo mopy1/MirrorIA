@@ -12,13 +12,15 @@ const TONOS = {
   verde: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 }
 
-function Aviso({ tono, children, conLink }: { tono: keyof typeof TONOS; children: React.ReactNode; conLink: boolean }) {
+type Enlace = { to: string; label: string } | null
+
+function Aviso({ tono, children, enlace }: { tono: keyof typeof TONOS; children: React.ReactNode; enlace: Enlace }) {
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5 text-sm sm:px-8", TONOS[tono])}>
       <span className="flex items-center gap-2 [&_svg]:size-4">{children}</span>
-      {conLink && (
-        <Link to="/admin/suscripcion" className="font-medium underline underline-offset-4">
-          Ver mi plan
+      {enlace && (
+        <Link to={enlace.to} className="font-medium underline underline-offset-4">
+          {enlace.label}
         </Link>
       )}
     </div>
@@ -26,7 +28,7 @@ function Aviso({ tono, children, conLink }: { tono: keyof typeof TONOS; children
 }
 
 /**
- * Banners del panel (spec §7.2): bienvenida tras el alta, prueba por vencer
+ * Banners del panel (spec Fase 1 §7.2 + 1b §E.4): bienvenida tras el alta (cae en Apariencia), prueba por vencer
  * (≤ 3 días) y tienda no disponible (cualquier 403 "no está disponible").
  */
 export function AdminAvisos({ suscripcion, esAdmin }: { suscripcion: SuscripcionDto | null; esAdmin: boolean }) {
@@ -42,15 +44,20 @@ export function AdminAvisos({ suscripcion, esAdmin }: { suscripcion: Suscripcion
     return () => window.removeEventListener(EVENTO_TIENDA_NO_DISPONIBLE, marcar)
   }, [])
 
+  const activar: Enlace = esAdmin ? { to: "/admin/suscripcion/activar", label: "Activar plan" } : null
   const vencida = suscripcion && (suscripcion.estado === "VENCIDA" || suscripcion.diasRestantes === 0)
   if (noDisponible || vencida) {
-    return <Aviso tono="rojo" conLink={esAdmin}><Warning weight="fill" /> Tu tienda está suspendida o vencida: tus clientas no pueden comprar.</Aviso>
+    return <Aviso tono="rojo" enlace={activar}><Warning weight="fill" /> Tu tienda está suspendida o vencida: tus clientas no pueden comprar.</Aviso>
   }
   if (bienvenida !== null) {
-    return <Aviso tono="verde" conLink={esAdmin}><Confetti weight="fill" /> Tu tienda está lista: probá {bienvenida} días gratis. Empezá cargando tu primera prenda.</Aviso>
+    return (
+      <Aviso tono="verde" enlace={esAdmin ? { to: "/admin/catalogo", label: "Cargar mi primera prenda" } : null}>
+        <Confetti weight="fill" /> Tu tienda está lista. Probala gratis {bienvenida} días. Empezá por darle tu estilo.
+      </Aviso>
+    )
   }
   if (suscripcion?.estado === "TRIAL" && suscripcion.diasRestantes <= 3) {
-    return <Aviso tono="ambar" conLink={esAdmin}><HourglassMedium weight="fill" /> Te quedan {suscripcion.diasRestantes} días de prueba.</Aviso>
+    return <Aviso tono="ambar" enlace={activar}><HourglassMedium weight="fill" /> Te quedan {suscripcion.diasRestantes} días de prueba.</Aviso>
   }
   return null
 }
