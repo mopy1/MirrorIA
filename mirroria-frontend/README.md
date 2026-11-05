@@ -1,8 +1,10 @@
 # mirroria-frontend
 
-Tienda web de **MirrorIA** (e-commerce multi-sucursal de moda femenina) y panel
-de administración `/admin/*`. React 19 + Vite + Tailwind v4 + shadcn/ui,
-organizado por features (`src/features/<modulo>/`).
+Web de **Tiendaria** (plataforma SaaS multi-tenant de tiendas de moda femenina):
+landing y alta de tiendas (`/`, `/planes`, `/registro-tienda`), cada tienda en
+`/t/:slug` (MirrorIA es `/t/mirroria`), panel de la tienda `/admin/*` y panel de la
+plataforma `/plataforma/*`. React 19 + Vite + Tailwind v4 + shadcn/ui (Base UI) +
+Phosphor, organizado por features (`src/features/<modulo>/`).
 
 ## Correr en desarrollo
 
@@ -17,7 +19,7 @@ npm run dev          # http://localhost:5174 (el backend tiene que estar en :300
 
 ```bash
 npx tsc -b --noEmit  # tipos
-npm test             # vitest
+npm test             # vitest (112)
 npm run lint         # oxlint
 npm run build        # tsc + vite build -> dist/
 ```

@@ -1,99 +1,254 @@
-# 🪞 MirrorIA Backend — Arquitectura y Convenciones
+# 🪞 mirroria-backend (API de Tiendaria) — Arquitectura, módulos y endpoints
 
-Fuente de verdad técnica exclusiva de `mirroria-backend`. El `AGENTS.md` de la raíz del
-repo (`../AGENTS.md`) solo enlaza para acá y hacia `mirroria-frontend/AGENTS.md`. El diseño
-de base de datos completo (23 tablas, DBML) vive en el vault, no acá:
-`/mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/App/Database.md`.
+Fuente de verdad técnica del backend. Actualizado 2026-11-05 (commit `f91938c`). Si sos una IA nueva, leé antes
+`../HANDOFF.md` y `../AGENTS.md`. Contrato completo de cada ruta (request/response JSON): vault
+`U/2-2026/SI2/Parcial1/App/Endpoints.md`. Esquema y DBML de las 28 tablas: vault `U/2-2026/SI2/Parcial1/App/Database.md`.
 
-> La app móvil (`../mirroria-mobile/`) está congelada y se rehará desde cero (2026-11-04): este
-> backend se optimiza para la web como si el móvil no existiera; sus contratos pueden romperse.
-> El único probador es Decart (`modules/probador`).
+> La app móvil (`../mirroria-mobile/`) está congelada (2026-11-04): este backend se optimiza para la web y sus
+> contratos pueden romperla. El único probador virtual es Decart (`modules/probador`).
 
-## Stack
+## 1. Stack
 
-NestJS 12 (Node 24, TypeScript 6, **ESM real** — no CommonJS), TypeORM 1.x + PostgreSQL 16,
-Passport + JWT (`passport-jwt`), `class-validator`/`class-transformer`, `bcrypt`, Swagger
-(`@nestjs/swagger`), Vitest (no Jest — así lo trae el Nest CLI actual), oxlint.
-Integraciones: `stripe` (tarjeta), `qrcode` (PNG del QR de cobro), `@decartai/sdk` (probador),
-DeepSeek por `fetch` nativo (sin SDK). Rutas reales: 101 desde la Fase 1b (93 en la Fase 1) (`docker logs mirroria_backend | grep
-Mapped`); contrato de cada una en el vault, `U/2-2026/SI2/Parcial1/App/Endpoints.md`.
+NestJS 12 (Node 24, TypeScript 6, **ESM real**), TypeORM 1.x + PostgreSQL 16 (`synchronize: true` fuera de producción,
+sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request), `class-validator`, `bcrypt`, Swagger
+(`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
+QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
+*what-if*). **101 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
+Tests: **351 unitarios** en 41 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
-> **Este proyecto es ESM puro** (`"type": "module"` en `package.json`, `tsconfig.json` con
-> `module`/`moduleResolution: nodenext`). Todo import **relativo** dentro de `src/` debe
-> terminar en `.js` (no `.ts`), aunque el archivo real sea `.ts` — es la convención de
-> TypeScript para ESM con `nodenext`, y el build falla sin ella. Ejemplo correcto:
-> `import { Usuario } from '../entities/usuario.entity.js';`. Los imports de paquetes de
-> npm (`@nestjs/common`, `typeorm`, etc.) van sin extensión, como siempre.
+> **ESM puro** (`"type": "module"`, `module/moduleResolution: nodenext`): todo import **relativo** dentro de `src/`
+> termina en `.js` aunque el archivo sea `.ts` (`import { Usuario } from '../entities/usuario.entity.js';`).
 
-## 🏛️ Arquitectura: Monolito Modular (Package-by-Feature), igual criterio que `erp-backend`
+## 2. Árbol de `src/`
 
 ```text
 src/
-├── main.ts                    # bootstrap: rawBody:true (firmas de webhook/aviso), prefijo /api/v1, CORS, ValidationPipe, filtro global, Swagger en /api/docs (solo si NODE_ENV !== 'production')
-├── app.module.ts               # wiring: Config + TypeORM + CoreSecurityModule + los 11 módulos de negocio
-├── app.controller.ts           # GET /api/v1/health → { status: 'ok', service: 'mirroria-backend' }
-├── app.service.ts
-│
-├── core/                        # 🌐 Infraestructura transversal — CERO lógica de negocio,
-│   │                             # y CERO import de nada bajo modules/ (ver regla de desacoplo abajo)
-│   ├── config/
-│   │   ├── typeorm.config.ts    # factory de TypeOrmModuleOptions (lee ConfigService)
-│   │   └── cors.config.ts       # orígenes permitidos vía env CORS_ORIGINS
-│   ├── database/
-│   │   ├── base.entity.ts       # BaseEntity abstracta: id uuid (gen_random_uuid), createdAt, updatedAt
-│   │   └── tenant-base.entity.ts # TenantBaseEntity: BaseEntity + tenant_id uuid NOT NULL indexado (20 tablas de negocio)
-│   ├── tenancy/                 # 🏢 SaaS multi-tenant (Fase 1): contexto de tienda por request — ver sección propia
-│   │   ├── tenant-context.ts    # AsyncLocalStorage: contextoTenant/tenantActual (falla cerrado)/tenantOpcional/conTenant/soloTenant
-│   │   ├── tenant.middleware.ts # abre el contexto con la cabecera X-Tenant cruda (AppModule.configure, forRoutes('{*path}'))
-│   │   ├── tenant.subscriber.ts # @EventSubscriber: completa tenant_id al insertar; insert sin tenant / update cruzado → Error
-│   │   ├── sin-tenant.decorator.ts / permitir-tienda-no-disponible.decorator.ts
-│   │   ├── limites-plan.ts      # assertDentroDelPlan('sucursales'|'productos'|'usuariosStaff', uso) → 409
-│   │   └── tenant.constants.ts  # HEADER_TENANT, MIRRORIA_TENANT_ID, REGEX_SLUG, SLUGS_RESERVADOS
-│   ├── security/
-│   │   ├── core-security.module.ts  # @Global(): registra PassportModule una sola vez
-│   │   ├── jwt-payload.interface.ts # { sub, email, role, sucursalId, tenantId }
-│   │   ├── jwt-auth.guard.ts    # @UseGuards(JwtAuthGuard) — genérico, reutilizable por cualquier módulo
-│   │   ├── roles.decorator.ts   # @Roles('ADMIN', ...)
-│   │   ├── roles.guard.ts       # exige @UseGuards(JwtAuthGuard, RolesGuard) en ese orden
-│   │   ├── current-user.decorator.ts  # @CurrentUser() user: JwtPayload
-│   │   ├── assert-own-user.ts   # 403 si el recurso no es del usuario del JWT (carrito, venta, pago)
-│   │   ├── sucursal-del-staff.ts # ADMIN → sin límite; staff → su sucursalId del JWT; sin sucursal → 403
-│   │   ├── limite-por-ip.ts     # ipDelPedido (X-Real-IP o socket) + LimitadorPorIp + guard LimitePorIp(max, ms) → 429
-│   │   ├── jwt-opcional.guard.ts # como JwtAuthGuard pero sin rechazar: req.user si hay token válido (producto inactivo al ADMIN)
-│   │   └── express.d.ts         # augmenta Request.user con JwtPayload
-│   └── exception/
-│       ├── business.exception.ts           # base abstracta de toda excepción de negocio
-│       ├── recurso-no-encontrado.exception.ts  # 404
-│       ├── recurso-duplicado.exception.ts      # 409
-│       ├── operacion-invalida.exception.ts     # 409 (regla de negocio violada)
-│       ├── stock-insuficiente.exception.ts     # 409
-│       ├── forbidden-action.exception.ts       # 403 (ownership / alcance, distinto del 403 por rol)
-│       ├── demasiados-pedidos.exception.ts     # 429 (LimitePorIp)
-│       ├── tenant-requerido (400) · tienda-no-encontrada (404) · tienda-no-disponible (403)
-│       │   · sesion-de-otra-tienda (403) · limite-plan-excedido (409)   # Fase 1 SaaS
-│       └── global-exception.filter.ts      # @Catch() global — shape { status, message, timestamp }; Postgres 23505→409, 22P02→400
-│
-└── modules/                     # 📦 Un módulo por subdominio de negocio (mapea 1:1 a los
-    │                             # TableGroups de Database.md en el vault)
-    ├── seguridad/                # ✅ auth (registro/login/perfil) + gestión de usuarios/roles/estado (RF02); security/jwt.strategy.ts
-    ├── proveedores/               # ✅ proveedores (crear, listar, ver — solo ADMIN)
-    ├── catalogo/                  # ✅ categorias, temporadas, colecciones, tallas, colores, productos, variantes_producto
-    ├── sucursales/                # ✅ ciudades, sucursales
-    ├── inventario/                # ✅ inventario_sucursal, movimientos_inventario, ordenes_compra
-    ├── reservas/                  # ✅ reservas, reserva_items (RF09-12) + reglas-reserva.ts (topes anti-acaparamiento)
-    ├── ventas/                    # ✅ carritos, ventas, venta_items + reglas-compra.ts
-    ├── promociones/               # ✅ cupones (porcentuales y monto fijo, validación y consumo en ventas)
-    ├── pagos/                     # ✅ pagos (RF19): tarjeta Stripe + QR dinámico Wayra + efectivo (ver árbol abajo)
-    ├── ia/                        # ✅ interacciones_ia, reportes dinámicos con DeepSeek (CU24)
-    ├── probador/                  # ✅ token efímero de Decart para el probador (RF13, sin tabla propia)
-    └── saas/                      # 🏢 Fase 1: planes, inquilinos, suscripciones, alta de tienda, plataforma, TenantInterceptor (ver sección)
-
-test/                             # e2e (vitest.config.e2e.ts, requieren Postgres): app, bootstrap
-                                  # (vigila rawBody:true en main.ts), pagos, ia, motor-consulta
+├── main.ts                     # rawBody:true (firmas Stripe/Wayra), prefijo /api/v1, CORS, ValidationPipe(whitelist), filtro global, Swagger fuera de prod
+├── app.module.ts               # Config + TypeORM + CoreSecurityModule + TenantMiddleware ('{*path}') + los 12 módulos
+├── app.controller.ts           # GET /health
+├── core/                       # infraestructura transversal: CERO lógica de negocio y CERO imports de modules/
+│   ├── config/                 # typeorm.config.ts (uuidExtension: 'pgcrypto', synchronize fuera de prod), cors.config.ts (CORS_ORIGINS, default :5174)
+│   ├── database/               # base.entity.ts (id uuid gen_random_uuid, "createdAt", "updatedAt") · tenant-base.entity.ts (+ tenant_id NOT NULL indexado)
+│   ├── tenancy/                # 🏢 multi-tenant: ver §4
+│   │   ├── tenant-context.ts   # AsyncLocalStorage: contextoTenant, tenantActual (falla cerrado → 400), tenantOpcional, conTenant, soloTenant
+│   │   ├── tenant.middleware.ts · tenant.subscriber.ts (completa tenant_id al insertar; insert sin tenant / update cruzado → Error)
+│   │   ├── sin-tenant.decorator.ts · permitir-tienda-no-disponible.decorator.ts
+│   │   ├── limites-plan.ts     # assertDentroDelPlan('sucursales'|'productos'|'usuariosStaff', uso) → 409
+│   │   └── tenant.constants.ts # HEADER_TENANT, MIRRORIA_TENANT_ID, REGEX_SLUG, SLUGS_RESERVADOS
+│   ├── security/               # core-security.module (Passport @Global), jwt-auth.guard, jwt-opcional.guard, roles.decorator/guard,
+│   │                           # current-user.decorator, jwt-payload { sub, email, role, sucursalId, tenantId }, assert-own-user (403),
+│   │                           # sucursal-del-staff (staff → su sucursal; sin sucursal → 403), limite-por-ip (429)
+│   └── exception/              # BusinessException + 404/409/403/429/400 de negocio, tenant-requerido 400, tienda-no-encontrada 404,
+│                               # tienda-no-disponible 403, sesion-de-otra-tienda 403, limite-plan-excedido 409,
+│                               # global-exception.filter (shape { status, message, timestamp }; Postgres 23505→409, 22P02→400)
+└── modules/                    # un módulo por subdominio: controller/ dto/ entities/ exception/ service/ (+ security/ en seguridad)
+    ├── seguridad/  catalogo/  proveedores/  sucursales/  inventario/  ventas/
+    ├── reservas/   promociones/  pagos/  ia/  probador/
+    └── saas/                   # planes, inquilinos, suscripciones, marca, bitácora, panel de plataforma, TenantInterceptor
+test/                           # e2e: app, bootstrap (vigila rawBody:true), pagos, ia, motor-consulta + setup-tenant.e2e.ts
 ```
 
-Detalle de `modules/pagos/` (el módulo con más piezas):
+## 3. Módulos: qué resuelve cada uno
+
+| Módulo | Tablas | Lógica clave |
+|---|---|---|
+| `seguridad` | `usuarios`, `refresh_tokens` | Registro (siempre `CUSTOMER`, en la tienda de `X-Tenant`, email único **por tienda**, normalizado), login (con `X-Tenant`; sin cabecera solo entra `DUENO_PLATAFORMA`), `/me`. `JwtStrategy` relee usuario y `tenantId` de la BD (inactivo → 401). Gestión de usuarios (ADMIN): rol con `sucursalId` obligatorio para staff, nunca 0 ADMIN activos ni auto-degradarse, `DUENO_PLATAFORMA` no asignable. Límite de staff del plan. Refresh token: tabla sin flujo. |
+| `catalogo` | `categorias`, `temporadas`, `colecciones`, `tallas`, `colores`, `productos`, `variantes_producto` | GET públicos (vitrina), altas/ediciones ADMIN. `productos.imagenes` jsonb `{url, varianteId?, orden}[]` (la 1.ª foto la usa el probador). Producto inactivo → 404 salvo ADMIN (`JwtOpcionalGuard`). `precioCents` bigint con transformer a number. Límite de prendas del plan al crear/reactivar. `CatalogoBaseService.sembrarBase` para tiendas nuevas. |
+| `proveedores` | `proveedores` | CRUD mínimo (ADMIN). `crearPropio` ("Producción propia") en el alta de tienda. |
+| `sucursales` | `ciudades` (global), `sucursales` | Ciudades globales (9 capitales sembradas; solo la plataforma crea). Sucursales por tienda con límite del plan. `crearInicial` en el alta. |
+| `inventario` | `inventario_sucursal`, `movimientos_inventario`, `ordenes_compra` | `ajustarStock` es el único punto que toca `cantidad_disponible` (`UPDATE` condicionado, nunca negativo, movimiento en la misma transacción). Reservado y en tránsito con `UPDATE` atómicos. Órdenes de compra (ADMIN): crear (sube tránsito), recibir parcial/total con lock, cancelar (resta solo lo pendiente). Encargado acotado a su sucursal. |
+| `ventas` | `carritos`, `ventas`, `venta_items` | Carrito jsonb (1 por usuaria, tope 3 u. por variante, `FOR UPDATE`). Checkout digital → venta `PENDIENTE` (descuenta stock libre, consume cupón, vacía carrito, máx. `VENTAS_MAX_COMPRAS_PENDIENTES`=2 sin pagar). Venta presencial → `PAGADA` (cajero de su sucursal; con `reservaId` cierra la reserva). `numeroComprobante` `C-XXXXXXXX` al pagarse. "Mis pedidos" (`/ventas/mias`). Cancelar por pago no completado devuelve stock, cupón y prendas al carrito. |
+| `reservas` | `reservas`, `reserva_items` | Reservar para probarse en tienda: 1 u./variante, 3 prendas, 2 activas, ventana +30 min/+48 h, máx. 50 % del stock libre reservable, 2 faltas en 30 días bloquean 30 días (`reglas-reserva.ts`). Máquina de estados con transiciones manuales del staff; `COMPLETADA` solo vía venta. Barrida cada 5 min (vence → `EXPIRADA`/`NO_SHOW`). `GET /reservas/mias/cupo`. |
+| `promociones` | `cupones` | Cupones `PORCENTAJE`/`MONTO_FIJO` con vigencia, usos máximos y monto mínimo; validación pública (30/5 min por IP); consumo/liberación atómicos dentro de la venta. Código único por tienda. |
+| `pagos` | `pagos` | **Tarjeta** Stripe (sesión alojada; el webhook firmado es la única autoridad), **QR** dinámico con el banco simulado **Wayra** (aviso firmado HMAC; `/wayra/*` es la "app del banco"), **efectivo** (lo confirma ADMIN/CAJERO de la sucursal). Idempotencia por `event_id` único. Barrida de impagas cada 5 min (30 min tarjeta / 24 h QR-efectivo). Pago sobre venta cancelada → marcado para reembolso. |
+| `probador` | — | `POST /probador/token`: token efímero de Decart (5 min, `lucy-vton-3.5`); 503 sin `DECART_API_KEY`; 10 tokens/10 min por IP. |
+| `ia` | `interacciones_ia` | Reportes por lenguaje natural (CU24 = caso de uso 24). DeepSeek extrae una **ficha** y el motor (`catalogo-metricas.ts`: 23 métricas en 8 dominios) arma SQL **parametrizado** (el modelo nunca escribe SQL) y DeepSeek narra. `/ia/reportes/hibrido`: agente multi-paso (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if` en DuckDB `:memory:` 256 MB). Encargado forzado a su sucursal. Sin `IA_API_KEY`: 503 salvo `/ia/reportes/consulta` (ficha manual). |
+| `saas` | `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma` (globales) | Ver §5. |
+
+**Patrón de dependencias entre módulos** (siempre por *service exportado*, nunca entidad): `catalogo → proveedores`,
+`inventario → catalogo, sucursales, proveedores`, `ventas → inventario, reservas, promociones, catalogo`,
+`pagos → ventas`, `saas → seguridad, sucursales, catalogo, proveedores`. Nadie importa `saas` (los límites del plan viajan
+en el contexto del tenant).
+
+## 4. Multi-tenant (`core/tenancy` + `TenantInterceptor`)
+
+- **Contrato del request:** `TenantMiddleware` abre el contexto con la cabecera `X-Tenant` cruda; `TenantInterceptor`
+  (global en `SaasModule`, corre **después** de los guards) lo resuelve: con JWT la tienda es `user.tenantId`
+  (`X-Tenant` distinto → 403 "Tu sesión pertenece a otra tienda"; cuenta de plataforma con `X-Tenant` → 403); sin JWT,
+  `X-Tenant: <slug>` (inexistente → 404). Tienda no disponible (suspendida o suscripción vencida) → 403 salvo
+  `@PermitirTiendaNoDisponible()`. Ni JWT ni cabecera → 400 salvo `@SinTenant()`. Los GET públicos no corren guard:
+  siempre necesitan la cabecera.
+- **Rutas 🧭 `@SinTenant`:** `/health`, `/saas/*`, ciudades, login (cabecera opcional), `/me`, `/pagos/webhook`,
+  `/pagos/qr/aviso`, `/wayra/*`, `/probador/token`.
+- **Regla de servicios:** toda lectura/update/delete sobre una entidad con tenant usa `where: soloTenant({...})`; QueryBuilder
+  y SQL crudo llevan `AND <alias>.tenant_id = :tenantId` (`tenantActual()`); inserts por QB pasan `tenantId`. Las únicas
+  excepciones llevan el comentario `// sin-tenant: <motivo>` en la misma línea (barridas, webhooks, `JwtStrategy`, login de
+  plataforma) o son tablas globales. Auditoría: `grep -rn "where:" --include='*.service.ts' src/modules | grep -v soloTenant | grep -v sin-tenant`.
+  Entidad de negocio nueva → extiende `TenantBaseEntity`. Un id de otra tienda da **404**.
+- **Sin request** (`conTenant`): las barridas de ventas y reservas leen todas las tiendas y cierran cada fila con su
+  tenant; webhook Stripe / aviso QR / Wayra buscan el pago por `referencia_externa` y siguen en `conTenant(pago.tenantId)`.
+- **Límites del plan:** `assertDentroDelPlan` en `SucursalesService.create`, `ProductosService.create/update` (reactivar),
+  `UsuariosService.updateRol/updateEstado` (staff). Mensaje 409 siempre con la palabra "plan" (el front lo detecta).
+- **Tests:** `vitest.setup.ts` abre un tenant de prueba en cada unit test; `test/setup-tenant.e2e.ts` usa `mirroria`.
+  Aislamiento contra la API real: `../scripts/qa/qa_aislamiento.py` (84 chequeos).
+
+## 5. Módulo `saas` (plataforma Tiendaria)
+
+```text
+modules/saas/
+├── saas.module.ts · saas-reglas.ts          # TenantInterceptor como APP_INTERCEPTOR
+├── tenancy/tenant.interceptor.ts
+├── marca/marca-reglas.ts                    # catálogos cerrados (modos, radios, fuentes, destinos, niveles, secciones), 6 PALETAS + mirroria,
+│                                            # REGEX_URL_IMAGEN, marcaInicial, MARCA_MIRRORIA, marcaEfectiva(guardada, nivel), fueraDelPlan, restablecerSeccion
+├── marca/marca-color.ts                     # contraste WCAG, textoSobre (#FFFFFF/#000000), validarPrincipal (≥ 4.5:1)
+├── entities/ plan · inquilino · suscripcion · marca-tienda (inquilino_marca) · evento-plataforma
+├── controller/
+│   ├── planes.controller.ts                 # GET /saas/planes
+│   ├── tiendas.controller.ts                # directorio, disponibilidad del slug, tienda por slug, POST alta (5/h por IP)
+│   ├── estadisticas.controller.ts           # cifras de la landing (caché 5 min)
+│   ├── mi-suscripcion.controller.ts         # ADMIN: ver suscripción y uso, cambiar plan (solo en TRIAL)
+│   ├── mi-marca.controller.ts               # ADMIN: ver/guardar/restablecer la marca
+│   ├── plataforma.controller.ts             # DUENO_PLATAFORMA: resumen, inquilinos, estado, plan, extender, planes CRUD
+│   └── plataforma-tiendas.controller.ts     # DUENO_PLATAFORMA: dashboard, métricas por tienda, actividad, restablecer marca
+└── service/
+    ├── resolver-tenant.service.ts           # slug/id → info + disponible + límites + nivelMarca (caché Map 60 s, invalidar)
+    ├── aprovisionamiento.service.ts         # alta en UNA transacción: inquilino + TRIAL 14 d + ADMIN + 1.ª sucursal + proveedor propio
+    │                                        # + catálogo base + marca inicial (paleta) + evento ALTA → devuelve JWT
+    ├── suscripciones.service.ts             # TRIAL, cambiarPlan, extender, barrida horaria de vencidas, hook Fase 2 activarPorPago
+    ├── uso-plan.service.ts                  # conteos por SQL crudo GROUP BY tenant_id
+    ├── inquilinos.service.ts + inquilinos.helpers.ts   # panel: listar/detalle/estado/plan/extender/restablecerMarca/resumen
+    ├── tiendas-publicas.service.ts          # directorio, tienda por slug (marca efectiva), disponibilidad del slug
+    ├── mi-suscripcion.service.ts · planes.service.ts
+    ├── marca.service.ts                     # guardar: contraste 400 → nivel del plan 409 → tx (marca + inquilinos.nombre + evento)
+    ├── eventos-plataforma.service.ts        # bitácora (solo inserts) + recientes + por tienda
+    ├── metricas-tienda.service.ts           # agregados por tienda (solo count/sum, tenant_id = $1), nunca filas
+    ├── dashboard-plataforma.service.ts      # KPIs: MRR (ingreso mensual recurrente), ARR (anual), churn 30 d (bajas),
+    │                                        # conversión de prueba a pago, GMV 30 d (ventas brutas de todas las tiendas), altas por mes (hora La Paz)
+    ├── estadisticas.service.ts
+    └── saas-seed.service.ts                 # al arrancar: planes base, nivel de marca, tienda mirroria (id fijo 00000000-0000-4000-a000-000000000001,
+                                             # Cadena ACTIVA hasta 2027-12-31), marcas faltantes, cuenta DUENO_PLATAFORMA desde PLATAFORMA_EMAIL/PASSWORD
+```
+
+- **Disponibilidad de una tienda:** `ACTIVO` + suscripción más reciente TRIAL/ACTIVA con `fin` futuro (se calcula al resolver).
+- **Marca efectiva:** lo público es siempre la marca recortada por el nivel del plan (`ESENCIAL` / `COMPLETA` /
+  `MARCA_BLANCA`). Bajar de plan no borra lo guardado. Fuera del plan → 409 solo si el valor difiere del de fábrica y de lo guardado.
+- **Eventos de la bitácora:** `ALTA`, `SUSPENDIDA`, `REACTIVADA`, `PLAN_CAMBIADO`, `VIGENCIA_EXTENDIDA`,
+  `MARCA_ACTUALIZADA`, `MARCA_RESTABLECIDA`, `PAGO_REGISTRADO` (actor = `user.sub` o sistema).
+- **Datos:** BD con datos del Parcial 1 → `../scripts/sql/fase1-multitenant-backfill.sql` ANTES del primer arranque;
+  Azure (sin `synchronize`) → además el SQL de §5.2 de la spec de Fase 1 y `../scripts/sql/fase1b-marca.sql`.
+  Demo: `../scripts/sembrar-tiendas-demo.mjs`.
+
+## 6. Tabla de endpoints (101)
+
+Leyenda: **Acceso** = rol exigido (`@Roles`), `JWT` = cualquier usuaria logueada (los de carrito/ventas/pagos de la
+clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **Tienda:** 🏬 necesita tienda (`X-Tenant` o JWT),
+🧭 `@SinTenant`, ⏸ funciona aunque la tienda no esté disponible. Request/response de cada una: vault `Endpoints.md`.
+| # | Método | Ruta (`/api/v1/…`) | Acceso | Código OK | Tienda |
+|---|---|---|---|---|---|
+| 1 | GET | `/health` | Público | 200 | 🧭 |
+| 2 | POST | `/seguridad/auth/login` | Público · IP 10/5 min | 200 | 🧭 ⏸ |
+| 3 | GET | `/seguridad/auth/me` | JWT | 200 | 🧭 ⏸ |
+| 4 | POST | `/seguridad/auth/register` | Público | 201 | 🏬 |
+| 5 | GET | `/seguridad/usuarios` | ADMIN | 200 | 🏬 |
+| 6 | PATCH | `/seguridad/usuarios/:id/estado` | ADMIN | 200 | 🏬 |
+| 7 | PATCH | `/seguridad/usuarios/:id/rol` | ADMIN | 200 | 🏬 |
+| 8 | GET | `/catalogo/categorias` | Público | 200 | 🏬 |
+| 9 | POST | `/catalogo/categorias` | ADMIN | 201 | 🏬 |
+| 10 | GET | `/catalogo/colecciones` | Público | 200 | 🏬 |
+| 11 | POST | `/catalogo/colecciones` | ADMIN | 201 | 🏬 |
+| 12 | PATCH | `/catalogo/colecciones/:id` | ADMIN | 200 | 🏬 |
+| 13 | GET | `/catalogo/colores` | Público | 200 | 🏬 |
+| 14 | POST | `/catalogo/colores` | ADMIN | 201 | 🏬 |
+| 15 | GET | `/catalogo/productos` | Público | 200 | 🏬 |
+| 16 | POST | `/catalogo/productos` | ADMIN | 201 | 🏬 |
+| 17 | GET | `/catalogo/productos/:id` | Público (JWT opcional) | 200 | 🏬 |
+| 18 | PATCH | `/catalogo/productos/:id` | ADMIN | 200 | 🏬 |
+| 19 | POST | `/catalogo/productos/:id/variantes` | ADMIN | 201 | 🏬 |
+| 20 | GET | `/catalogo/tallas` | Público | 200 | 🏬 |
+| 21 | POST | `/catalogo/tallas` | ADMIN | 201 | 🏬 |
+| 22 | GET | `/catalogo/temporadas` | Público | 200 | 🏬 |
+| 23 | POST | `/catalogo/temporadas` | ADMIN | 201 | 🏬 |
+| 24 | GET | `/proveedores` | ADMIN | 200 | 🏬 |
+| 25 | POST | `/proveedores` | ADMIN | 201 | 🏬 |
+| 26 | GET | `/proveedores/:id` | ADMIN | 200 | 🏬 |
+| 27 | GET | `/sucursales` | Público | 200 | 🏬 |
+| 28 | POST | `/sucursales` | ADMIN | 201 | 🏬 |
+| 29 | GET | `/sucursales/:id` | Público | 200 | 🏬 |
+| 30 | GET | `/sucursales/ciudades` | Público | 200 | 🧭 |
+| 31 | POST | `/sucursales/ciudades` | DUENO_PLATAFORMA | 201 | 🧭 |
+| 32 | GET | `/inventario` | Público | 200 | 🏬 |
+| 33 | POST | `/inventario/ajustes` | ADMIN, ENCARGADO_SUCURSAL | 201 | 🏬 |
+| 34 | GET | `/inventario/movimientos` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+| 35 | GET | `/inventario/ordenes-compra` | ADMIN | 200 | 🏬 |
+| 36 | POST | `/inventario/ordenes-compra` | ADMIN | 201 | 🏬 |
+| 37 | GET | `/inventario/ordenes-compra/:id` | ADMIN | 200 | 🏬 |
+| 38 | PATCH | `/inventario/ordenes-compra/:id/cancelar` | ADMIN | 200 | 🏬 |
+| 39 | PATCH | `/inventario/ordenes-compra/:id/recibir` | ADMIN | 200 | 🏬 |
+| 40 | GET | `/ventas` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+| 41 | GET | `/ventas/:id` | ADMIN, ENCARGADO_SUCURSAL, CUSTOMER | 200 | 🏬 |
+| 42 | GET | `/ventas/carrito/:usuarioId` | JWT | 200 | 🏬 |
+| 43 | POST | `/ventas/carrito/:usuarioId/checkout` | JWT | 201 | 🏬 |
+| 44 | POST | `/ventas/carrito/:usuarioId/items` | JWT | 201 | 🏬 |
+| 45 | DELETE | `/ventas/carrito/:usuarioId/items/:varianteId` | JWT | 200 | 🏬 |
+| 46 | PATCH | `/ventas/carrito/:usuarioId/items/:varianteId` | JWT | 200 | 🏬 |
+| 47 | GET | `/ventas/mias` | JWT | 200 | 🏬 |
+| 48 | POST | `/ventas/presenciales` | ADMIN, CAJERO | 201 | 🏬 |
+| 49 | GET | `/reservas` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
+| 50 | POST | `/reservas` | JWT | 201 | 🏬 |
+| 51 | GET | `/reservas/:id` | JWT | 200 | 🏬 |
+| 52 | PATCH | `/reservas/:id/cancelar` | JWT | 200 | 🏬 |
+| 53 | PATCH | `/reservas/:id/estado` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
+| 54 | GET | `/reservas/mias` | JWT | 200 | 🏬 |
+| 55 | GET | `/reservas/mias/cupo` | JWT | 200 | 🏬 |
+| 56 | GET | `/promociones/cupones` | ADMIN | 200 | 🏬 |
+| 57 | POST | `/promociones/cupones` | ADMIN | 201 | 🏬 |
+| 58 | GET | `/promociones/cupones/:id` | ADMIN | 200 | 🏬 |
+| 59 | PATCH | `/promociones/cupones/:id/estado` | ADMIN | 200 | 🏬 |
+| 60 | POST | `/promociones/cupones/validar` | Público · IP 30/5 min | 201 | 🏬 |
+| 61 | POST | `/pagos/:pagoId/confirmar` | ADMIN, CAJERO | 200 | 🏬 |
+| 62 | POST | `/pagos/expirar-vencidas` | ADMIN | 200 | 🏬 |
+| 63 | GET | `/pagos/pendientes` | ADMIN, CAJERO | 200 | 🏬 |
+| 64 | GET | `/pagos/qr/:pagoId` | JWT | 200 | 🏬 |
+| 65 | POST | `/pagos/qr/aviso` | Público | 200 | 🧭 |
+| 66 | POST | `/pagos/ventas/:ventaId/cancelar` | JWT | 204 | 🏬 |
+| 67 | POST | `/pagos/ventas/:ventaId/manual` | JWT | 201 | 🏬 |
+| 68 | POST | `/pagos/ventas/:ventaId/qr` | JWT | 201 | 🏬 |
+| 69 | POST | `/pagos/ventas/:ventaId/sesion` | JWT | 201 | 🏬 |
+| 70 | POST | `/pagos/webhook` | Público | 200 | 🧭 |
+| 71 | GET | `/wayra/cobros/:token` | Público | 200 | 🧭 |
+| 72 | POST | `/wayra/cobros/:token/pagar` | Público | 200 | 🧭 |
+| 73 | POST | `/probador/token` | Público | 201 | 🧭 |
+| 74 | GET | `/ia/interacciones` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+| 75 | POST | `/ia/reportes` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
+| 76 | POST | `/ia/reportes/consulta` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
+| 77 | POST | `/ia/reportes/hibrido` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
+| 78 | GET | `/saas/estadisticas` | Público | 200 | 🧭 ⏸ |
+| 79 | GET | `/saas/mi-marca` | ADMIN | 200 | 🏬 ⏸ |
+| 80 | PUT | `/saas/mi-marca` | ADMIN | 200 | 🏬 |
+| 81 | POST | `/saas/mi-marca/restablecer` | ADMIN | 200 | 🏬 |
+| 82 | GET | `/saas/mi-suscripcion` | ADMIN | 200 | 🏬 ⏸ |
+| 83 | PATCH | `/saas/mi-suscripcion/plan` | ADMIN | 200 | 🏬 ⏸ |
+| 84 | GET | `/saas/planes` | Público | 200 | 🧭 ⏸ |
+| 85 | GET | `/saas/plataforma/actividad` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 86 | GET | `/saas/plataforma/dashboard` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 87 | GET | `/saas/plataforma/inquilinos` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 88 | GET | `/saas/plataforma/inquilinos/:id` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 89 | PATCH | `/saas/plataforma/inquilinos/:id/estado` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 90 | POST | `/saas/plataforma/inquilinos/:id/extender` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 91 | POST | `/saas/plataforma/inquilinos/:id/marca/restablecer` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 92 | GET | `/saas/plataforma/inquilinos/:id/metricas` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 93 | PATCH | `/saas/plataforma/inquilinos/:id/plan` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 94 | GET | `/saas/plataforma/planes` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 95 | POST | `/saas/plataforma/planes` | DUENO_PLATAFORMA | 201 | 🧭 |
+| 96 | PATCH | `/saas/plataforma/planes/:id` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 97 | GET | `/saas/plataforma/resumen` | DUENO_PLATAFORMA | 200 | 🧭 |
+| 98 | GET | `/saas/tiendas` | Público | 200 | 🧭 ⏸ |
+| 99 | POST | `/saas/tiendas` | Público · IP 5/h | 201 | 🧭 ⏸ |
+| 100 | GET | `/saas/tiendas/:slug` | Público | 200 | 🧭 ⏸ |
+| 101 | GET | `/saas/tiendas/disponibilidad` | Público | 200 | 🧭 ⏸ |
+
+## 7. Detalle de `modules/pagos/` (el módulo con más piezas)
 
 ```text
 modules/pagos/
@@ -120,7 +275,12 @@ modules/pagos/
         └── wayra-banco.service.ts # lado BANCO simulado: cuentas ficticias, PIN, saldo, firma y avisa
 ```
 
-## 📂 Convención interna de cada módulo (una vez implementado)
+# 📚 Convenciones y detalle histórico por módulo
+
+Lo que sigue explica por qué el código es como es (decisiones, trampas, verificaciones). Los conteos de rutas y tests
+que aparecen con fecha son de ese momento; los vigentes están en §1.
+
+## 📂 Convención interna de cada módulo
 
 Mismo criterio de `erp-backend`/`case-backend`, adaptado a NestJS — carpeta por **capa
 técnica**, nunca archivos sueltos en la raíz del módulo. `modules/seguridad/` es la
@@ -168,7 +328,7 @@ salvo que un módulo necesite queries muy custom (ahí sí, un `repository/` con
    si no se configura nada). Desde 2026-11-05: `BaseEntity` usa `@PrimaryGeneratedColumn('uuid')`
    **+ `uuidExtension: 'pgcrypto'`** en `typeorm.config.ts` → TypeORM genera `DEFAULT gen_random_uuid()`.
    Ver nota siguiente.
-6. **Todo `Entity` extiende `core/database/base.entity.ts`** (da `id`, `createdAt`,
+6. **Todo `Entity` extiende `core/database/base.entity.ts`** (las de negocio, `tenant-base.entity.ts`, que suma `tenant_id`) (da `id`, `createdAt`,
    `updatedAt`). Simplificación consciente frente al diseño del vault: `refresh_tokens` ahí
    documenta solo `created_at`, acá también recibe `updatedAt` por venir gratis de la base
    compartida — columna sin uso real, no rompe nada.
@@ -739,43 +899,14 @@ relación con ningún otro módulo.
   `nginx.prod.conf`), con fallback a `req.ip` si se llama directo a `:3000`.
   No se usa el primer valor de `X-Forwarded-For` porque lo controla el cliente.
 
-## 🗺️ Roadmap de los módulos que faltan
+## 🗺️ Alcance de `ia` (decisión 2026-09-13)
 
-```mermaid
-flowchart LR
-    A["🏬 sucursales ✅"] --> D["📊 inventario ✅"]
-    B["📦 catalogo ✅"] --> D
-    D --> E["🗓️ reservas ✅"]
-    D --> F["🛒 ventas ✅"]
-    F --> G["💳 pagos ✅"]
-    B --> H["🏷️ promociones ✅<br/>cupones"]
-    F --> I["🤖 ia ✅<br/>interacciones_ia"]
-    D --> I
-    J["🧥 probador ✅<br/>sin tabla"]
-```
+La IA del proyecto quedó acotada a **reportes dinámicos** (consulta en lenguaje natural, texto o voz transcrita en el
+frontend → reporte con datos reales), no recomendación de productos ni chatbot de clienta. `interacciones_ia.usuario_id`
+(renombrado desde `cliente_id`) apunta a un `ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. Los 12 módulos vigentes
+están en §3.
 
-**Los 10 módulos del diseño están implementados**, más `probador` (11.º, sin tabla, 2026-09-27). `pagos` era la única hoja pendiente del
-árbol de dependencias y se cerró el 2026-09-21 (ver la sección de estado de arriba) — depende de
-`ventas` (para `marcarPagada`/`cancelarPorPagoNoCompletado`), como muestra el diagrama.
-
-**`ia` (decisión 2026-09-13, implementado 2026-09-21, ver Backend.md del vault):** el alcance
-real de la IA en este proyecto quedó acotado a **reportes dinámicos** (consulta en lenguaje
-natural, texto o voz transcrita en el frontend → reporte generado), no recomendación de
-productos ni chatbot de cliente. Por eso `ia` depende de `ventas`/`inventario`/`reservas`
-(de ahí saca los datos reales del reporte) y no de `catalogo` directamente.
-`interacciones_ia.usuario_id` (renombrado desde `cliente_id`) apunta a un
-`ADMIN`/`ENCARGADO_SUCURSAL`, nunca a un `CUSTOMER`. Ver la sección de estado de arriba para
-el detalle real de la implementación.
-
-Nota histórica (ya resuelta): al planificar `pagos` se dejó dicho acá seguir la convención de
-carpetas de arriba, extender `BaseEntity`, y revisar primero la sección correspondiente de
-`Database.md` en el vault — los campos exactos, los jsonb embebidos (`carritos.items`,
-`ordenes_compra.items`) y las columnas que reemplazan tablas que se fusionaron
-(`ventas.cupon_id`, `pagos.monto_reembolsado_cents`,
-`movimientos_inventario.venta_item_id`/`motivo`). Se siguió tal cual; ver la sección de estado
-de `pagos` de arriba para el resultado real.
-
-## 🏢 Fase 1 SaaS multi-tenant (2026-11-04)
+## 🏢 Fase 1 SaaS multi-tenant — detalle de implementación (commit `d6d05f6`)
 
 Spec cerrada (fuente de verdad, con "Desviaciones del Backend"):
 vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant_id`.
@@ -791,7 +922,7 @@ vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant
 - **Sin request** (`conTenant`): `ExpiracionService` y `ReservasService.expirarVencidas` leen TODAS las
   tiendas y cierran cada fila con el tenant de su fila; webhook Stripe / aviso QR / Wayra buscan el pago
   por `referencia_externa` (sin tenant) y siguen dentro de `conTenant(pago.tenantId)`.
-- **`modules/saas/`** (tablas globales `planes`, `inquilinos`, `suscripciones`; importa Seguridad,
+- **`modules/saas/`** (árbol vigente en §5; en la Fase 1 tenía las tablas globales `planes`, `inquilinos`, `suscripciones`; importa Seguridad,
   Sucursales, Catalogo y Proveedores; nadie lo importa):
   - `controller/` planes (`GET /saas/planes`), tiendas (directorio, `disponibilidad`, `:slug`, `POST` alta
     5/h por IP), mi-suscripcion (ADMIN), plataforma (`@Roles('DUENO_PLATAFORMA')`: resumen, inquilinos,
@@ -823,36 +954,13 @@ vault `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`. BD compartida + `tenant
   el `.env` en `ConfigModule`) → e2e 56/56 sin depender del `.env` local. El 409 de límite usa singular
   con límite 1 ("hasta 1 sucursal"). Sin DDL en arranques repetidos (ver la corrección de `gen_random_uuid`).
 
-## 🎨 Fase 1b: marca por tienda y panel de plataforma (2026-11-05)
+## 🎨 Fase 1b: marca por tienda y panel de plataforma — detalle (commit `f91938c`)
 
 Spec cerrada (con "Desviaciones del Backend 1b"): vault `U/2-2026/SI2/Parcial2/Fase1b_Spec_Personalizacion_Tiendaria.md`.
 Todo en `modules/saas` (tablas globales; nadie importa `saas`). `core/` solo suma `estadisticas` y `apariencia` a
 `SLUGS_RESERVADOS`.
 
-```text
-modules/saas/
-├── marca/                         # lógica pura + specs (sin Nest)
-│   ├── marca-reglas.ts            # MODOS/RADIOS/FUENTES/DESTINOS/NIVELES/SECCIONES, PALETAS (6 + mirroria), REGEX_URL_IMAGEN,
-│   │                              # marcaInicial, MARCA_MIRRORIA, marcaPorDefecto, marcaEfectiva(guardada, nivel),
-│   │                              # fueraDelPlan (409), permitidoPorNivel, restablecerSeccion
-│   └── marca-color.ts             # luminancia/contraste WCAG, textoSobre (#FFFFFF/#000000), validarPrincipal (≥ 4.5:1)
-├── entities/marca-tienda.entity.ts       # inquilino_marca (1:1, @Check con nombre fijo → sin DDL repetido)
-├── entities/evento-plataforma.entity.ts  # eventos_plataforma (bitácora, solo inserts)
-├── entities/plan.entity.ts               # + nivelMarca (CHECK), destacado
-├── controller/mi-marca.controller.ts     # GET/PUT /saas/mi-marca, POST /restablecer (ADMIN; GET con tienda no disponible)
-├── controller/estadisticas.controller.ts # GET /saas/estadisticas (público, caché 5 min)
-├── controller/plataforma-tiendas.controller.ts # dashboard, inquilinos/:id/metricas, actividad, inquilinos/:id/marca/restablecer
-└── service/
-    ├── tiendas-publicas.service.ts # (auditoría 1b) directorio, tienda por slug y disponibilidad del slug (antes en InquilinosService)
-    ├── inquilinos.helpers.ts      # (auditoría 1b) puras: estaDisponible, mrrDe, ORDENAR, nivelDe, tiendaADto, resumenDe
-    ├── inquilinos.service.ts      # panel de plataforma: listar/detalle/estado/plan/extender/restablecerMarca/resumen
-    ├── marca.service.ts           # miMarca, guardar (contraste 400 → nivel 409 → tx: marca + inquilinos.nombre + evento),
-    │                              # restablecer (bitácora con SECCION_TEXTO: "Toda la apariencia: motivo"), guardadasPorInquilino(ids) (1 SELECT: directorio/listados sin N+1)
-    ├── eventos-plataforma.service.ts # registrar(evento, manager?), recientes, deTienda (+ email del actor)
-    ├── metricas-tienda.service.ts # 3 consultas SQL crudo, TODAS con tenant_id = $1; solo count/sum (D7)
-    ├── dashboard-plataforma.service.ts # KPIs + funciones puras altasPorMes/churn30d/conversionPrueba (hora de La Paz)
-    └── estadisticas.service.ts
-```
+(Árbol completo del módulo en §5.)
 
 - **Nivel del plan:** viaja en `ResolverTenantService` (`InfoTenant.nivelMarca`, misma caché de 60 s, se invalida al
   cambiar plan/marca). Lo público es siempre la marca **efectiva**; `MiMarcaDto` trae `guardada` y `efectiva`.
@@ -888,13 +996,15 @@ open http://localhost:3000/api/docs
 
 # Lint (oxlint) y tests (vitest)
 npm run lint
-npm test           # unitarios
+npm test           # unitarios (351 en f91938c)
 npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule completo)
 ```
 
 **Credenciales de desarrollo por defecto** (ver `.env.example` / `../.env`):
-- PostgreSQL: user `mirroria`, password `mirroria_password123`, db `mirroria_db`, puerto host `5435`
-- JWT secret dev: `dev_secret_change_me` (cambiar en producción)
+- PostgreSQL: user `mirroria`, password `mirroria_password123` (o el `POSTGRES_PASSWORD` de `../.env`), db `mirroria_db`, puerto host `5435`
+- `JWT_SECRET`: **obligatorio, ≥ 32 caracteres, sin valor por defecto** (`openssl rand -hex 32`); el viejo `dev_secret_change_me` ya no existe
+- `PLATAFORMA_EMAIL` / `PLATAFORMA_PASSWORD`: crean la cuenta `DUENO_PLATAFORMA` al arrancar (sin ellas, solo un warn)
+- `NODE_ENV=development` en local a propósito (Swagger y `synchronize`); el Dockerfile pone `production`, pero el `env_file` lo pisa
 - `synchronize: true` en TypeORM mientras no haya nada en producción (ver `core/config/typeorm.config.ts`)
   — análogo a `ddl-auto=update` en erp-backend. Si el proyecto pasa de examen a algo real,
   reemplazar por migraciones (`typeorm migration:generate`) y apagar `synchronize`.

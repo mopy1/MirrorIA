@@ -1,19 +1,19 @@
-# 🪞 MirrorIA Frontend — Arquitectura, Árbol Real y Lógica por Feature
+# 🪞 mirroria-frontend (web de Tiendaria) — Arquitectura, Árbol Real y Lógica por Feature
 
 Este documento define la arquitectura técnica, los patrones de diseño y la estructura de
 carpetas de `mirroria-frontend`. Es la fuente de verdad exclusiva del frontend web — el
 `AGENTS.md` de la raíz del repo (`../AGENTS.md`) solo enlaza para acá. La arquitectura y las
 reglas son una adaptación directa de `sw-case/case-frontend/AGENTS.md` (mismo patrón y mismo
-criterio de cuándo aplicar cada regla), llevada al dominio de MirrorIA (e-commerce de moda
-femenina multi-sucursal).
+criterio de cuándo aplicar cada regla), llevada al dominio del proyecto: **Tiendaria**, una plataforma SaaS multi-tenant
+de tiendas de moda femenina multi-sucursal, donde **MirrorIA es una tienda más** (`/t/mirroria`). Si sos una IA nueva,
+leé antes `../HANDOFF.md` y `../AGENTS.md`.
 
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-05 (Fase 1b: identidad Tiendaria, marca por tienda, `/admin/apariencia`, panel de plataforma; ver §0 "Identidad visual", §2 y §3 "Fase 1b").** Antes: 2026-11-04 (Fase 1 SaaS multi-tenant). Las secciones 2 y 3 describen lo que existe
-> hoy en `src/`, verificado contra `src/App.tsx` y `src/features/*`. El historial de sesiones
-> anteriores (2026-09-12 a 2026-09-29) está condensado en la sección 6: solo quedan las
-> decisiones y lecciones que siguen vigentes.
+> **Actualizado: 2026-11-05, commit `f91938c`** (Fase 1b cerrada). Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts` y `src/features/*`. Tests: **112** en 20 archivos
+> (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
 
 ---
 
@@ -21,7 +21,7 @@ directrices de forma obligatoria.
 
 - **Framework:** Vite + React 19 + TypeScript (~6.0) + Tailwind v4 (vía `@tailwindcss/vite`,
   sin `tailwind.config.js`). `react-router-dom` 7 (`BrowserRouter` en `App.tsx`);
-  `AuthProvider` y `CartProvider` envuelven `<App />` en `main.tsx`.
+  `AuthProvider` envuelve `<App />` en `main.tsx`; `CartProvider` y `TenantProvider` viven en `TiendaRoot` (`/t/:slug`).
 - **UI: shadcn/ui**, preset **Nova** sobre **Base UI** (no Radix). Primitivas instaladas en
   `src/components/ui/`: accordion, alert, aspect-ratio, avatar, badge, button, card, chart,
   dialog, dropdown-menu, field, input, label, navigation-menu, radio-group, select, separator, sheet,
@@ -41,6 +41,12 @@ directrices de forma obligatoria.
   `navigation-menu` → `CaretDown`; el isotipo de MirrorIA usa el path de `Sparkle`). `lucide-react` desinstalado
   (2026-11-04) y `components.json` con `"iconLibrary": "phosphor"`, así `shadcn add` genera los
   componentes nuevos con Phosphor; si alguno llega con un import de lucide, cambiarlo a mano. Animación con `motion` (`motion/react`).
+**Modo oscuro (decisión confirmada por el usuario, 2026-11-05):**
+1. **Tiendaria** (landing, alta, `/entrar`, `/plataforma/*`, Wayra) sigue el `prefers-color-scheme` del sistema del visitante (hook `hooks/useTemaTiendaria.ts`), sin botón.
+2. **Cada tienda** tiene un modo **fijo de marca** `CLARO` u `OSCURO` (`inquilino_marca.modo`) que elige la dueña en `/admin/apariencia` (desde el plan Crecimiento; el nivel `ESENCIAL` del Básico no lo permite) e **ignora** el modo del sistema del visitante: `lib/tema/aplicar-tema.ts` pone `.dark` en `<html>` solo si la marca es `OSCURO` (y solo en la vitrina `/t/:slug`; el `/admin` de la tienda queda claro). Al pasar a oscuro se revalida el contraste del color principal contra el fondo oscuro `#0A0A0A` (≥ 4.5:1, botón "Ajustar contraste"; el backend responde 400 si no cumple).
+3. **No existe** interruptor de modo para el visitante en las tiendas **ni** un modo "Automático": decisión del usuario, no agregarlo sin que lo pida.
+Ejemplos: `nomada` es OSCURO; `mirroria` y `casa-andina` son CLARO.
+
 - **Otras dependencias:** React Hook Form + Zod (`@hookform/resolvers`), Recharts (reportes),
   `@decartai/sdk` (probador virtual).
 - **Alias `@/*` → `src/*`:** en `vite.config.ts`, `tsconfig.app.json` **y** en el
@@ -87,8 +93,8 @@ encapsula sus propios `api/`, `types/`, `components/`, `hooks/`, `lib/` y `pages
 2. **Separación de Lógica y Presentación (Custom Hooks):** validación, HTTP, loading y errores
    viven en hooks, no en el JSX.
 3. **Data-Driven UI (`*.data.ts`):** textos largos, configuraciones y listas de opciones se
-   extraen a un `*.data.ts` cuando aplica el criterio C. Las rutas de `App.tsx` también son
-   data-driven (`STOREFRONT_ROUTES`, `ADMIN_ROUTES`, `STAFF_ROUTES`).
+   extraen a un `*.data.ts` cuando aplica el criterio C. Las rutas también son
+   data-driven: `TIENDA_ROUTES`, `ADMIN_ROUTES`, `STAFF_ROUTES` y `LEGACY_PATHS` en `routes/rutas-app.ts`.
 
 ### C. Patrón de Carpeta por Componente (solo cuando se justifica)
 Carpeta con `index.ts` (+ `.data.ts` opcional) **solo** si el componente se reutiliza en 2+
@@ -173,15 +179,14 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
   (link "Cargar mi primera prenda"; el alta cae en `/admin/apariencia`), ámbar ≤ 3 días y rojo con "Activar plan".
 - Plataforma: `layouts/plataforma-sidebar.tsx` Resumen · Tiendas · Planes · Ciudades · Cerrar sesión; filas
   con "Gestionar" + menú ⋯ (Ver tienda, Copiar enlace) y detalle con "← Volver a tiendas".
-- Header (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
+- Header de tienda (`layouts/site-header/`): Tienda, Sucursales, menú de Categorías (en vivo desde
   `useCategorias`), buscador, carrito con badge. `header-auth.tsx`: sin sesión → login/registro;
-  con sesión → "Mis reservas" + link de staff por rol (`ADMIN` → `/admin`, `CAJERO` →
+  con sesión → "Mis pedidos", "Mis reservas" + link de staff por rol (`ADMIN` → `/admin`, `CAJERO` →
   `/admin/cobros`, `ENCARGADO_SUCURSAL` → `/admin/reportes`, porque `/admin` redirige a una ruta
   solo ADMIN).
-- Footer (`site-footer.data.ts`): Catálogo, Vestidor virtual (`/probador`), Sucursales,
-  Reservas, Contacto (`#contacto`). Sin columna Legal (no hay páginas de términos/privacidad).
-- Hero y feature-highlights enlazan a `/tienda` y `/probador`; la ficha enlaza a
-  `/probador/:id`.
+- Footer de tienda (`site-footer.data.ts`, paths relativos que `ruta()` convierte a `/t/<slug>/…`): Catálogo,
+  Vestidor virtual (probador), Sucursales, Reservas, Contacto (`#contacto`). Sin columna Legal.
+- Hero y feature-highlights enlazan a `ruta("/tienda")` y `ruta("/probador")`; la ficha enlaza a `ruta("/probador/:id")`.
 - Sidebar admin (`admin-sidebar-content.tsx`): filtra ítems por `roles` (mismos del router) y
   oculta los grupos vacíos.
 - `/wayra/pagar/:token` no tiene link interno a propósito: se llega escaneando el QR.
@@ -194,49 +199,36 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
 mirroria-frontend/
 ├── public/
 │   ├── favicon.svg                    # isotipo de Tiendaria
-│   └── images/hero-model.webp, images/marcas/mirroria.svg   # hero local · isotipo de la tienda MirrorIA
+│   └── images/hero-model.webp, images/marcas/mirroria.svg   # hero de MirrorIA · isotipo de la tienda MirrorIA
 ├── src/
-│   ├── main.tsx                       # AuthProvider > CartProvider > App
-│   ├── App.tsx                        # rutas data-driven (ver §2)
-│   ├── index.css                      # tokens de tema (acento vino/rosa), Tailwind v4
+│   ├── main.tsx                       # AuthProvider > App (CartProvider vive en TiendaRoot)
+│   ├── App.tsx                        # árbol de rutas (§2); tablas en routes/rutas-app.ts
+│   ├── index.css                      # tokens Tiendaria (:root/.dark índigo + lima) y neutros de tienda [data-tema="tienda"], Tailwind v4
 │   ├── components/
-│   │   ├── ui/                        # primitivas shadcn (Base UI)
-│   │   ├── marca/                     # Fase 1b: logos (Tiendaria y de tienda), vista previa, paletas, galería
-│   │   └── common/
-│   │       ├── SearchInput.tsx        # navega a /tienda?q=
-│   │       ├── PageFallback.tsx       # Skeleton del <Suspense> de las páginas diferidas
-│   │       └── ProductImagePlaceholder.tsx  # fallback cuando un producto no tiene foto
-│   ├── context/
-│   │   ├── AuthContext.tsx + auth-context.ts   # usuario, token, login/logout (contexto separado por fast-refresh); al montar refresca el usuario con GET /seguridad/auth/me (rol viejo en localStorage) y cierra sesión si da 401
-│   │   └── CartContext.tsx + cart-context.ts   # carrito, itemCount, refresh()
-│   ├── hooks/                         # globales
-│   │   ├── useAuth.ts, useCart.ts
-│   │   ├── useResourceList.ts         # lista + loading/error + reload() (reacciona a reloadKey, no a fetchFn)
-│   │   └── useCreateResource.ts       # submit + loading/error para mutaciones
+│   │   ├── ui/                        # primitivas shadcn (Base UI), sin lógica de negocio
+│   │   ├── marca/                     # logos (Tiendaria, de tienda, monograma), insignia, selector de paleta, galería, vista-previa/
+│   │   └── common/                    # SearchInput, PageFallback, ProductImagePlaceholder, EstadoBadge, UsoPlanMeters,
+│   │                                  # HistorialSuscripcion, ErrorConPlan (409 de plan + "Ver mi plan")
+│   ├── context/                       # AuthContext (+auth-context), CartContext (+cart-context), TenantContext (+tenant-context, cargando-tienda)
+│   ├── hooks/                         # globales: useAuth, useCart, useResourceList, useCreateResource, useRecurso,
+│   │                                  # useTienda, useRutaTienda, useSesionEnTienda, useMarca, useTemaTiendaria
 │   ├── layouts/
-│   │   ├── StorefrontLayout.tsx       # site-header + site-footer
-│   │   ├── site-header/               # site-header, header-auth, categories-menu, *.data.ts
-│   │   ├── site-footer/               # site-footer + site-footer.data.ts (+ test)
-│   │   ├── AuthLayout.tsx             # split-screen con foto (login/registro)
-│   │   ├── AdminLayout.tsx            # header + Sheet en móvil + aside en desktop
-│   │   ├── admin-sidebar-content.tsx  # arma la nav filtrada por rol y compone las 3 partes:
-│   │   ├── admin-sidebar-header.tsx   #   nombre de la tienda + plan
-│   │   ├── admin-sidebar-nav.tsx      #   grupos de links
-│   │   └── admin-sidebar-footer.tsx   #   perfil + badge de rol + "Tienda"/logout
-│   ├── lib/
-│   │   ├── api.ts                     # API_URL, apiFetch(), ApiError
-│   │   ├── money.ts                   # formatMoney(cents) es-BO / BOB
-│   │   ├── unsplash.ts                # unsplashUrl(), unsplashUrlNative()
-│   │   └── estado-de-lista.ts (+test) # "cargando" | "vacio" | "con-datos"
-│   ├── routes/
-│   │   ├── ProtectedRoute.tsx         # exige sesión
-│   │   ├── GuestRoute.tsx             # con sesión, fuera de /login y /register
-│   │   ├── AdminRoute.tsx             # sesión + ADMIN exacto
-│   │   ├── StaffRoute.tsx             # sesión + allowedRoles (default REPORTES_ROLES)
-│   │   └── lazy-pages.ts              # React.lazy de admin, probador y Wayra (ver §2)
-│   └── features/                      # ver detalle abajo
+│   │   ├── SaasLayout.tsx + saas-header/ + saas-footer/     # Tiendaria pública
+│   │   ├── TiendaLayout.tsx (TiendaRoot, TiendaLayout) → StorefrontLayout.tsx + site-header/ + site-footer/   # cada tienda
+│   │   ├── AuthLayout.tsx             # split-screen de login/registro ("← Volver a <tienda>")
+│   │   ├── AdminLayout.tsx + admin-sidebar-{content,header,nav,footer}.tsx + admin-sidebar.data.ts + admin-avisos.tsx + useTemaAdmin.ts
+│   │   └── PlataformaLayout.tsx + plataforma-sidebar.tsx
+│   ├── lib/                           # api.ts (apiFetch, ApiError, X-Tenant), tienda-activa.ts, rutas-tienda.ts, destino-sesion.ts,
+│   │                                  # money.ts (formatMoney/formatUsd), fechas.ts, limites-plan.ts, bienvenida.ts, unsplash.ts,
+│   │                                  # estado-de-lista.ts, tema/ (color, derivar-tokens, aplicar-tema, fuentes, marca.constants, eventos)
+│   ├── routes/                        # ProtectedRoute, GuestRoute, AdminRoute, StaffRoute, PlataformaRoute, LegacyRedirect,
+│   │                                  # rutas-app.ts (tablas de rutas), lazy-pages.ts (React.lazy)
+│   ├── types/                         # plan.types, tienda.types, marca.types (compartidos entre features)
+│   └── features/                      # 19 features, ver detalle abajo:
+│                                      # admin appearance auth branches cart catalog checkout errors fitting inventory orders
+│                                      # payments platform promotions providers reports reservations saas subscription wayra
 ├── Dockerfile, nginx.conf, nginx.prod.conf
-├── components.json                    # config shadcn (preset Nova, Base UI)
+├── components.json                    # shadcn (preset Nova, Base UI, iconLibrary phosphor)
 ├── vite.config.ts                     # alias @, puerto 5174
 └── tsconfig.json / tsconfig.app.json / tsconfig.node.json
 ```
@@ -265,12 +257,13 @@ lo usa `AdminLayout` solo para ADMIN), `hooks/useCambiarPlan.ts`, `components/` 
 
 ### `features/platform/` ↔ `/saas/plataforma/*` + ciudades (DUENO_PLATAFORMA)
 `api/plataformaApi.ts`, `types/plataforma.types.ts`, `lib/plan-form.ts` (+test), hooks (`useResumenPlataforma`,
-`useInquilinos`, `useInquilino` sobre `hooks/useRecurso.ts`; `useFiltrosInquilinos` con búsqueda debounce;
-`useAccionesInquilino`; `usePlanesPlataforma`; `useCiudadesPlataforma`), components (`resumen-kpis`,
-`trials-por-vencer`, `inquilinos-filtros`, `inquilinos-table` + `inquilino-row`, `inquilino-cabecera`,
-`inquilino-metricas`, `accion-dialog` + `suspender-`/`extender-`/`cambiar-plan-inquilino-dialog`, `planes-table`,
-`plan-form-dialog` + `plan-form-fields`, `ciudades-table`, `ciudad-form-dialog`), 4 páginas. Solo conteos de
-cada tienda, nunca filas de negocio.
+`useInquilinos`, `useInquilino` sobre `hooks/useRecurso.ts`; `useFiltrosInquilinos` (filtros en la query string);
+`useAccionesInquilino`; `usePlanesPlataforma`; `useCiudadesPlataforma`; `useDashboard`; `useMetricasTienda`), components
+(`inquilinos-filtros`, `inquilinos-table` + `inquilino-row`, `inquilino-cabecera`, `accion-dialog` +
+`suspender-`/`extender-`/`cambiar-plan-inquilino-dialog`, `planes-table`, `plan-form-dialog` + `plan-form-fields`,
+`ciudades-table`, `ciudad-form-dialog`, más los de la Fase 1b abajo), **5 páginas** (`PlataformaDashboardPage`,
+`PlataformaInquilinosPage`, `PlataformaInquilinoDetallePage`, `PlataformaPlanesPage`, `PlataformaCiudadesPage`). Solo
+conteos y agregados de cada tienda, nunca filas de negocio.
 
 ### Fase 1b (2026-11-05): tema por tienda, Apariencia y panel de plataforma
 - **`lib/tema/`** (puro, con tests): `color.ts` (hex↔OKLCH, contraste WCAG, `textoSobre` blanco/negro,
@@ -387,7 +380,7 @@ sin `usuarioId` ni en el DTO de alta ni en `OrdenCompra` — el backend usa el J
 ### `features/orders/` ↔ backend `ventas` ("Mis pedidos")
 `api/ordersApi.ts` (`getMisPedidos` vía `GET /ventas/mias`, `getPedidoById`), `types/orders.types.ts` (`Pedido`, `PedidoItem`, `EstadoPedido`),
 `components/order-status-badge.tsx` (badges semánticos de estado), `components/order-card.tsx` (tarjeta de pedido con comprobante/código, fecha, lista de prendas, desglose y botón a `/pago/:id` si está PENDIENTE),
-`pages/MyOrdersPage.tsx` (ruta `/mis-pedidos` protegida en `STOREFRONT_ROUTES`, vinculada en `header-auth.tsx`).
+`pages/MyOrdersPage.tsx` (ruta `/t/:slug/mis-pedidos` protegida en `TIENDA_ROUTES`, vinculada en `header-auth.tsx`).
 2026-11-03: un ítem cuya variante ya no está en el catálogo o está inactiva ya no se oculta en
 silencio: `CartLineItem.disponible = false` (precio 0), `cart-item` lo muestra "Ya no está
 disponible" con el botón de quitar, `CartSummary bloqueado` oculta "Continuar", y `CheckoutPage`
@@ -481,7 +474,7 @@ sesión ni layout de la tienda (representa otra app). El token del QR es la úni
 Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAdminPage.tsx` (columnas en `admin/components/proveedores-columns.tsx`, con órdenes abiertas/tránsito y "Nueva orden").
 
 ### `features/fitting/` ↔ backend `probador` (RF13, probador virtual web)
-- `api/probadorApi.ts`: `POST /probador/token` → API key efímera (10 min). `DECART_API_KEY`
+- `api/probadorApi.ts`: `POST /probador/token` → API key efímera (5 min). `DECART_API_KEY`
   nunca sale del backend; sin ella el endpoint responde 503 y el panel se queda en "Conectá con
   la IA".
 - `hooks/useCamara.ts` (`getUserMedia`), `hooks/useProbadorIA.ts` (`createDecartClient` +
@@ -568,22 +561,24 @@ inexistente (ficha de prenda).
 
 ---
 
-## 🗺️ 5. Pendientes e inconsistencias conocidas (2026-11-04)
+## 🗺️ 5. Pendientes e inconsistencias conocidas (2026-11-05)
 
-- **Sin POS a propósito (decisión del usuario):** la tienda física tiene su propio sistema de
-  caja; `POST /ventas/presenciales` existe en el backend sin pantalla. La web solo verifica pagos
-  en persona (`/admin/cobros`) y resuelve reservas (`/admin/reservas`). No construir un POS.
-- **"Mis pedidos" web:** no existe; el 409 de "2 compras sin pagar" del checkout la menciona sin
-  link.
-- **Login/registro:** falta botón para mostrar la contraseña.
-- **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens
-  cada 10 min por IP (helper `core/security/limite-por-ip.ts`, mismo que login/cupón/IA).
-- **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend
-  se optimizan como si no existiera (sus contratos pueden romperse).
+- **Sin POS a propósito (decisión del usuario):** la tienda física tiene su propio sistema de caja;
+  `POST /ventas/presenciales` existe en el backend sin pantalla. La web solo verifica pagos en persona
+  (`/admin/cobros`) y resuelve reservas (`/admin/reservas`). No construir un POS.
+- **Fase 2 (siguiente):** `/admin/suscripcion/activar` y el botón "Pagar" de `/admin/suscripcion` muestran las pasarelas
+  como "Próximamente"; ahí se conectan las pasarelas enchufables.
+- **Login/registro:** falta botón para mostrar la contraseña. Dictado por voz de reportes sin probar en un navegador real.
+- **P3 de la auditoría 1b:** texto muted "Elegí tienda y horario…" de MirrorIA con contraste 4.35:1; el título de pestaña del
+  admin es "Tiendaria"; en el paso 2 del alta la vista previa no es sticky. En `/t/mirroria/login` el panel de foto dice
+  "MirrorIA / MirrorIA".
+- **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens cada 10 min por IP.
+- **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend se optimizan como si no
+  existiera.
 
 ---
 
-## 📜 6. Historial condensado (2026-09-12 → 2026-11-04)
+## 📜 6. Historial condensado (2026-09-12 → 2026-11-05)
 
 Solo lo que explica por qué el código es como es; el detalle de cada sesión quedó en git.
 
@@ -639,6 +634,12 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
   desinstalado. `.agents/`, `.claude/` (symlinks a `.agents/skills`) y `skills-lock.json` dejaron
   de versionarse: siguen en disco para Claude Code/Antigravity, pero son herramientas locales.
   El único probador es Decart (`features/fitting`).
+- **2026-11-04 — "Mis pedidos" y carrito:** `features/orders` (`/mis-pedidos`), stepper de cantidad 1-3 en el carrito,
+  reportes IA híbridos (`ReasoningSteps`, `WhatIfChart`).
+- **2026-11-05 — Fase 1 SaaS (commit `d6d05f6`):** rutas de tienda bajo `/t/:slug`, `LegacyRedirect` de las viejas, landing
+  SaaS, alta de tienda, `/admin/suscripcion`, panel `/plataforma/*`, `X-Tenant` en `apiFetch`, `CartProvider` a `TiendaRoot`.
+- **2026-11-05 — Fase 1b (commit `f91938c`):** identidad Tiendaria (índigo + lima), tema por tienda (`lib/tema/`),
+  `/admin/apariencia`, `/admin/suscripcion/activar`, dashboard de plataforma, landing nueva con cifras vivas.
 
 ---
 

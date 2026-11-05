@@ -1,5 +1,9 @@
 # SDD ledger — plan: docs/superpowers/plans/2026-09-21-pagos.md
 
+> **Documento histórico (2026-09-21).** Ya implementado y mergeado a `main`; los `plans/` que cita se borraron. Desde
+> entonces cambió: proveedor de IA Gemini → DeepSeek (2026-09-22), QR manual → QR dinámico Wayra (2026-11-03), todo es
+> multi-tenant (`tenant_id`, `X-Tenant`, 2026-11-05). Estado vigente: `mirroria-backend/AGENTS.md`.
+
 Spec: docs/superpowers/specs/2026-09-21-pagos-design.md (leída, es la autoridad)
 Rama: pagos. Base: b1d4698. Estado heredado: 95 unitarias + 38 e2e en verde, 22 tablas.
 

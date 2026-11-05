@@ -1,5 +1,9 @@
 # SDD ledger — plan: docs/superpowers/plans/2026-09-21-ia-reportes.md
 
+> **Documento histórico (2026-09-21).** Ya implementado y mergeado a `main`; los `plans/` que cita se borraron. Desde
+> entonces cambió: proveedor de IA Gemini → DeepSeek (2026-09-22), QR manual → QR dinámico Wayra (2026-11-03), todo es
+> multi-tenant (`tenant_id`, `X-Tenant`, 2026-11-05). Estado vigente: `mirroria-backend/AGENTS.md`.
+
 Spec: docs/superpowers/specs/2026-09-21-ia-reportes-design.md (leída, es la autoridad)
 Rama: ia-reportes. Base de la rama: 2488f1b (main). Línea base de pruebas: 7 en 2 archivos.
 

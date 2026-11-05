@@ -1,5 +1,9 @@
 # CRITICAL residual — el ingreso por categoría es bruto y la siembra lo escondía
 
+> **Documento histórico (2026-09-21).** Ya implementado y mergeado a `main`; los `plans/` que cita se borraron. Desde
+> entonces cambió: proveedor de IA Gemini → DeepSeek (2026-09-22), QR manual → QR dinámico Wayra (2026-11-03), todo es
+> multi-tenant (`tenant_id`, `X-Tenant`, 2026-11-05). Estado vigente: `mirroria-backend/AGENTS.md`.
+
 Commit **`1bea219`**, rama `ia-reportes`. Un solo hallazgo, acotado. La decisión de agregar con
 `SUM(vi.subtotal_cents)` cuando se agrupa por `categoria`/`producto` **no se tocó**: es
 correcta. Lo que estaba mal era que su consecuencia no estaba declarada en ningún lado, y

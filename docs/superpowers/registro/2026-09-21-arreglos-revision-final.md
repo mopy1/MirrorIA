@@ -1,5 +1,9 @@
 # Arreglo de los hallazgos de la revisión final — rama `ia-reportes`
 
+> **Documento histórico (2026-09-21).** Ya implementado y mergeado a `main`; los `plans/` que cita se borraron. Desde
+> entonces cambió: proveedor de IA Gemini → DeepSeek (2026-09-22), QR manual → QR dinámico Wayra (2026-11-03), todo es
+> multi-tenant (`tenant_id`, `X-Tenant`, 2026-11-05). Estado vigente: `mirroria-backend/AGENTS.md`.
+
 Fecha: 2026-09-21. Un commit por hallazgo, en el orden sugerido.
 
 | # | Commit | Hallazgo |

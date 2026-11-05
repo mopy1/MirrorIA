@@ -1,25 +1,29 @@
 # mirroria-backend
 
-API de **MirrorIA** (e-commerce multi-sucursal de moda femenina). NestJS +
-TypeORM + PostgreSQL 16, ESM. Prefijo global `/api/v1`, Swagger en `/api/docs`.
-Un módulo por subdominio en `src/modules/` (seguridad, catálogo, inventario,
-ventas, reservas, pagos, ia, probador, ...); infraestructura en `src/core/`.
+API de **Tiendaria**, plataforma SaaS multi-tenant de tiendas de moda femenina
+(MirrorIA es una de sus tiendas, slug `mirroria`). NestJS + TypeORM + PostgreSQL 16, ESM.
+Prefijo global `/api/v1` (101 rutas), Swagger en `/api/docs` fuera de producción.
+12 módulos en `src/modules/` (seguridad, catalogo, proveedores, sucursales, inventario,
+ventas, reservas, promociones, pagos, ia, probador, saas); infraestructura y multi-tenant
+en `src/core/` (`core/tenancy`). Toda ruta de negocio necesita la cabecera
+`X-Tenant: <slug>` o un JWT de esa tienda.
 
 ## Correr en desarrollo
 
 ```bash
-cp .env.example .env         # defaults de dev listos; claves externas opcionales
+cp .env.example .env         # completar JWT_SECRET (openssl rand -hex 32) y PLATAFORMA_EMAIL/PASSWORD; claves externas opcionales
 docker compose up -d postgres-db   # desde la raíz: Postgres en localhost:5435
 npm install
 npm run start:dev            # http://localhost:3000/api/v1
+curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos
 ```
 
 ## Verificar
 
 ```bash
 npx tsc --noEmit -p tsconfig.build.json   # tipos
-npm test                                  # vitest (unit)
-npm run test:e2e                          # vitest e2e
+npm test                                  # vitest (unit, 351)
+npm run test:e2e                          # vitest e2e (56, usa la BD local)
 npm run lint                              # oxlint
 ```
 

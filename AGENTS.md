@@ -1,264 +1,160 @@
-# 🪞 MirrorIA — Monorepo Master Architecture & AI Agent Operating Manual
+# 🟣 Tiendaria (repo MirrorIA) — Manual maestro del monorepo
 
-## 🌐 1. Qué es este proyecto
+> **Si sos una IA nueva en este proyecto, leé [`HANDOFF.md`](./HANDOFF.md) primero** (estado, reglas del usuario,
+> decisiones tomadas y trampas). Este archivo es el mapa técnico del monorepo.
+>
+> Actualizado: 2026-11-05 · commit `f91938c` · rama única `main`.
 
-**MirrorIA** es el proyecto del Examen 1 de Sistemas de Información II (S2-2026): una
-plataforma de e-commerce **multi-sucursal, exclusivamente de moda femenina**, con probador
-virtual por IA (Decart VTON, `lucy-vton-3.5` — el único probador del proyecto), reservas de prendas para probar en tienda, punto de venta
-presencial y digital, y un asistente/recomendador con IA. El enunciado completo, el diseño de
-base de datos (23 tablas, DBML) y las decisiones de diseño viven en el vault de Obsidian, no
-en este repo:
+## 1. Qué es
 
+**Tiendaria** es una plataforma **SaaS multi-tenant** (*Software as a Service*: un solo sistema que atiende a muchas
+tiendas, cada una aislada como "inquilino") de e-commerce de moda femenina multi-sucursal: probador virtual por IA
+(Decart `lucy-vton-3.5`), reservas para probarse en tienda, carrito y checkout con cupones, pagos (tarjeta Stripe,
+QR dinámico con el banco simulado Wayra, efectivo), reportes por IA en lenguaje natural (DeepSeek + DuckDB) y un
+panel de plataforma para el dueño del SaaS.
+
+**MirrorIA es una tienda más** (slug `mirroria`, `/t/mirroria`, marca vino/rosa) y fue el nombre de todo el proyecto en
+el Parcial 1: el repo, los contenedores (`mirroria_*`), las env y `plataforma@mirroria.com` conservan el nombre.
+
+Proyecto del **Parcial 2 de SI2** (Sistemas de Información II, 2-2026), entrega 2026-11-11 08:00 (PDF ICONIX + UML 2.5).
+Documentación en el vault de Obsidian (`/mnt/c/Users/lmc/Documents/Obsidian`):
+
+```text
+U/2-2026/SI2/
+├── Parcial2/                     # 2.º parcial (vigente)
+│   ├── Enunciado.md · Plan_Parcial2.md (estado por fase)
+│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md   # specs implementadas
+│   └── Documentacion/            # capítulos del PDF (00_Indice.md, 01_*, 02_*, betaICONIX.md)
+└── Parcial1/
+    ├── App/                      # notas VIVAS de la app: Endpoints, Database (DBML), Backend, Frontend,
+    │                             # Reglas_de_Negocio, Troubleshooting, Despliegue_Azure, Mobile (congelada)
+    └── Documentacion/            # dossier PUDS de la entrega 1 (histórico)
 ```
-/mnt/c/Users/lmc/Documents/Obsidian/U/2-2026/SI2/Parcial1/
-├── Referencias/Examen1-Ecommerce-Si2-s2-26.pdf   # enunciado original del profesor
-├── Documentacion/                # dossier PUDS/UML (perfil, requisitos, análisis, diseño)
-└── App/                          # notas vivas de la app (al día con el código)
-    ├── Database.md               # esquema relacional + DBML completo + estado de la BD local
-    ├── Endpoints.md · Reglas_de_Negocio.md · Backend.md · Frontend.md
-    └── Troubleshooting.md · Despliegue_Azure.md · Mobile.md (congelada)
-```
 
-> [!IMPORTANT]
-> El enunciado del PDF sugiere Python+FastAPI / Angular / Flutter — **no es el stack real**.
-> El stack de este repo (abajo) es una decisión explícita del usuario, distinta a la del PDF.
+> El PDF del enunciado del Parcial 1 sugería Python+FastAPI / Angular / Flutter: **no es el stack real** (decisión del usuario).
 
-## 🛠️ 2. Stack real
+## 2. Stack y puertos
 
-| Componente | Tecnología |
-|---|---|
-| Backend | **NestJS** (Node 24, TypeScript ESM, TypeORM + PostgreSQL) |
-| Frontend web | **React** |
-| Móvil | **React Native** — app actual congelada/obsoleta, se rehará desde cero |
-| Base de datos | **PostgreSQL 16** |
-| Despliegue | **Azure** |
+| Parte | Tecnología | Puerto local | Contenedor |
+|---|---|---|---|
+| Base de datos | PostgreSQL 16 (`pgcrypto`) | `127.0.0.1:5435` → 5432 | `mirroria_postgres` (volumen `mirroria_pgdata`) |
+| Backend | NestJS 12, Node 24, TypeScript ESM, TypeORM 1.x | `127.0.0.1:3000` (`/api/v1`, Swagger `/api/docs` fuera de prod) | `mirroria_backend` |
+| Frontend | React 19, Vite, Tailwind v4, shadcn/ui (Base UI), Phosphor | `5174` en dev · `80` en Docker (Nginx + proxy `/api/`) | `mirroria_frontend` |
+| Móvil | React Native / Expo SDK 57 — **congelada**, se rehará (Expo + SQLite) | `8081` | — |
+| Despliegue | Azure VM (`https://mirroria.duckdns.org`), `scripts/deploy-azure.sh` | 443 | override `docker-compose.prod.yml` |
 
-## 📁 3. Topología del Monorepo
+Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, password en `.env` de la raíz
+(`POSTGRES_PASSWORD`). El backend lee `mirroria-backend/.env` (plantilla `.env.example`).
+
+## 3. Árbol del monorepo
 
 ```text
 /home/lmc/projects/MirrorIA/
-├── docker-compose.yml          # DEV local: Postgres + backend + frontend, HTTP plano sin dominio
-├── docker-compose.prod.yml     # override SOLO para la VM real (dominio + Let's Encrypt, ver §7)
-├── db/init/001-extensions.sql  # crea pgcrypto automáticamente en el primer arranque del volumen
-├── .env / .env.example         # POSTGRES_PASSWORD compartido por docker-compose
-├── .gitignore                  # incluye .playwright-mcp/, *.tsbuildinfo, *.dump y las herramientas locales de IA (.agents/, .claude/, skills-lock.json)
-├── AGENTS.md                   # 🌟 Este manual maestro
-├── docs/superpowers/           # specs + registro de decisiones de `ia` (CU24) y `pagos` (RF19), aún vigentes
+├── HANDOFF.md                   # entrada para una IA nueva
+├── AGENTS.md                    # este manual
+├── docker-compose.yml           # DEV: postgres + backend + frontend (HTTP plano en :80), sin restart
+├── docker-compose.prod.yml      # override SOLO para la VM (nginx.prod.conf + Let's Encrypt en :443)
+├── db/init/001-extensions.sql   # CREATE EXTENSION pgcrypto en el primer arranque del volumen
+├── .env / .env.example          # POSTGRES_PASSWORD
+├── docs/superpowers/            # specs y registros de decisiones de `ia` (CU24) y `pagos` (RF19), 2026-09-21 (históricos)
 ├── scripts/
-│   ├── deploy-azure.sh          # despliegue a la VM de Azure (ver §8)
-│   ├── sembrar-catalogo.mjs     # siembra idempotente del catálogo demo contra una API corriendo
-│   ├── catalogo-demo.mjs        # datos del catálogo demo (productos, colores, sucursales...)
-│   ├── sql/fase1-multitenant-backfill.sql  # Fase 1 SaaS: tenant_id + datos a la tienda "mirroria" (antes del 1er arranque)
-│   ├── sql/fase1b-marca.sql     # Fase 1b Tiendaria (Azure, idempotente): inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
-│   ├── sembrar-tiendas-demo.mjs # Fase 1b: tiendas demo casa-andina y nomada (marca, prendas, clientas, ventas) contra la API
-│   └── qa/                      # QA contra la API real (Python): reglas, mostrador, aislamiento multi-tenant y marca (qa_marca.py)
-│
-├── mirroria-backend/           # 🪞 NestJS — ver mirroria-backend/AGENTS.md (fuente de verdad)
-│   ├── AGENTS.md                # arquitectura, convenciones, estado real de cada módulo
-│   ├── package.json
-│   └── src/
-│       ├── core/                # infraestructura transversal (config, security, exception)
-│       └── modules/              # un módulo por subdominio (seguridad, catalogo, ventas, ...)
-│
-├── mirroria-frontend/          # ⚛️ React 19 + Tailwind v4 + shadcn/ui — ver mirroria-frontend/AGENTS.md
-│   ├── AGENTS.md
-│   ├── nginx.conf / nginx.prod.conf  # dev HTTP / VM con SSL: proxy /api/, fallback SPA, gzip, caché 1 año de /assets/
-│   └── src/routes/lazy-pages.ts      # React.lazy de /admin/*, probador, Wayra, /plataforma/*, alta y /planes (bundle inicial 861 kB tras la Fase 1b)
-│
-└── mirroria-mobile/            # 📱 CONGELADA (2026-11-04): app vieja, se rehará desde cero. No se edita ni se borra;
-                                 #    backend y web ya NO mantienen compatibilidad con ella (tipos/contratos pueden romperla)
+│   ├── deploy-azure.sh          # despliegue a la VM por git bundle + scp (lo corre el usuario)
+│   ├── sembrar-catalogo.mjs + catalogo-demo.mjs   # catálogo demo idempotente contra la API
+│   ├── sembrar-tiendas-demo.mjs # tiendas demo casa-andina y nomada (marca, prendas, clientas, ventas)
+│   ├── sql/fase1-multitenant-backfill.sql   # tenant_id + datos a la tienda "mirroria" (BD con datos del Parcial 1)
+│   ├── sql/fase1b-marca.sql     # Azure: inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
+│   └── qa/                      # QA contra la API real: reglas 21, mostrador 14, aislamiento 84, marca 37 (ver su README)
+├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 101 rutas)
+│   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 12 módulos de negocio
+├── mirroria-frontend/           # React — ver mirroria-frontend/AGENTS.md (rutas, guards, features)
+│   └── src/{features,components,layouts,routes,lib,context,hooks,types}/
+└── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
 ```
 
-## 🐘 4. Base de datos: cómo levantarla
+## 4. Tiendaria vs. las tiendas
+
+| | Tiendaria (plataforma) | Cada tienda (inquilino) |
+|---|---|---|
+| Rutas web | `/`, `/planes`, `/registro-tienda`, `/entrar`, `/plataforma/*`, `/wayra/pagar/:token` | `/t/:slug/*` (vitrina, carrito, pago…) y `/admin/*` (panel de SU tienda) |
+| Identidad | índigo `#281B89` + lima `#C3F74C`, Bricolage Grotesque | su marca (`inquilino_marca`): logo, colores, modo, bordes, fuente, portada, textos, redes |
+| Quién la opera | `DUENO_PLATAFORMA` (`plataforma@mirroria.com`, sin tienda) | `ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`, `CUSTOMER` de esa tienda |
+| Backend | `/saas/*` (tablas globales `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma`) | resto de las rutas, filtradas por `tenant_id` |
+
+Planes: **Básico** (Bs 99, 1 sucursal, 50 prendas, 3 staff, marca ESENCIAL) · **Crecimiento** (Bs 249, 3/300/10,
+COMPLETA, destacado) · **Cadena** (Bs 599, sin límites, MARCA_BLANCA). Toda tienda nueva arranca en prueba (TRIAL) de 14 días.
+Tiendas locales: `mirroria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 1), `casa-andina` y `nomada`
+(Cadena TRIAL hasta 2026-11-19). Cuentas: vault `Parcial1/App/Database.md` → "Estado de la BD local".
+
+## 5. Mapa frontend ↔ backend
+
+| Feature front (`src/features/`) | Rutas web | Módulo backend → prefijo |
+|---|---|---|
+| `saas` | `/`, `/planes`, `/registro-tienda`, `/entrar` | `saas` → `/saas/planes`, `/saas/tiendas*`, `/saas/estadisticas` |
+| `platform` | `/plataforma/*` | `saas` → `/saas/plataforma/*`; `sucursales` → `/sucursales/ciudades` |
+| `subscription`, `appearance` | `/admin/suscripcion[/activar]`, `/admin/apariencia` | `saas` → `/saas/mi-suscripcion*`, `/saas/mi-marca*` |
+| `auth` | `/t/:slug/login`, `/t/:slug/registro`, `/plataforma/login` | `seguridad` → `/seguridad/auth/*` |
+| `catalog`, `branches` | `/t/:slug`, `/t/:slug/tienda[/producto/:id]`, `/t/:slug/sucursales` | `catalogo`, `sucursales`, `inventario` (GET) |
+| `cart`, `checkout`, `orders` | `/t/:slug/carrito`, `/checkout`, `/mis-pedidos` | `ventas` → `/ventas/carrito/*`, `/ventas/mias`; `promociones` → `/promociones/cupones/validar` |
+| `payments`, `wayra` | `/t/:slug/pago/*`, `/wayra/pagar/:token` | `pagos` → `/pagos/*`, `/wayra/*` |
+| `reservations` | `/t/:slug/reservas` + botón en la ficha | `reservas` → `/reservas/*` |
+| `fitting` | `/t/:slug/probador[/:productoId]` | `probador` → `/probador/token` |
+| `reports` | `/admin/reportes` | `ia` → `/ia/*` |
+| `admin`, `inventory`, `promotions`, `providers` | `/admin/{catalogo,proveedores,sucursales,cupones,usuarios,inventario,ventas,reservas,cobros}` | `catalogo`, `proveedores`, `sucursales`, `promociones`, `seguridad/usuarios`, `inventario`, `ventas`, `reservas`, `pagos` |
+
+Cliente HTTP: `mirroria-frontend/src/lib/api.ts` (`apiFetch`) manda `X-Tenant` = tienda navegada (o la de la sesión) y
+el JWT solo si la sesión es de esa tienda.
+
+## 6. Reglas transversales
+
+1. **Monolito modular:** un módulo de negocio no importa entidades de otro; referencias entre módulos = columna `uuid`
+   simple. Para validar contra otro módulo se inyecta su *service exportado*. `core/` nunca importa de `modules/`.
+2. **Multi-tenant:** BD compartida + `tenant_id` en 21 tablas. Toda ruta de negocio opera sobre UNA tienda (`X-Tenant:
+   <slug>` sin sesión, o el `tenantId` del JWT; cabecera de otra tienda con sesión → 403). Toda consulta lleva
+   `soloTenant()`; un id de otra tienda → 404. Detalle en `mirroria-backend/AGENTS.md` §4.
+3. `id` siempre `uuid DEFAULT gen_random_uuid()` (pgcrypto). Errores con shape único `{ status, message, timestamp }`.
+4. Catálogo exclusivamente femenino: no hay campo ni tabla de género.
+5. Seguridad: `JWT_SECRET` obligatorio (≥ 32 caracteres), límites por IP (login, cupón, IA, probador, alta de tienda),
+   nunca 0 ADMIN activos, staff acotado a su sucursal.
+6. Sin POS a propósito: la web confirma efectivo (`/admin/cobros`) y resuelve reservas (`/admin/reservas`).
+
+## 7. Comandos rápidos
 
 ```bash
-cd /home/lmc/projects/MirrorIA
-docker compose up -d postgres-db
-```
-
-Esto expone Postgres en `localhost:5435` (no `5432`, para no chocar con los otros proyectos
-del usuario — `erp` usa `5432`, `sw-case` usa `5434`), crea la extensión `pgcrypto`
-automáticamente (`db/init/001-extensions.sql`), y persiste datos en el volumen nombrado
-`mirroria_pgdata`. Credenciales de desarrollo por defecto (`.env`, gitignoreado):
-usuario `mirroria`, password `mirroria_password123`, base `mirroria_db`.
-
-## 🏛️ 5. Reglas cross-cutting
-
-Estas reglas están desarrolladas en detalle (con ejemplos y el porqué) en
-`mirroria-backend/AGENTS.md` — acá solo el resumen para quien recién llega al repo:
-
-1. **Ningún módulo de negocio del backend importa entidades/servicios de otro módulo
-   directamente.** Cuando haga falta referenciar un dato de otro dominio, se guarda como
-   columna simple (uuid), no como relación ORM cruzando módulos.
-2. **`core/` (backend) nunca depende de `modules/`.** Todo lo que sea específico de un
-   dominio (ej. `JwtStrategy`, que necesita conocer `Usuario`) vive dentro de su módulo.
-3. **`id` siempre `uuid` con default `gen_random_uuid()`** (pgcrypto), nunca
-   `uuid_generate_v4()` (uuid-ossp, el default "automático" de TypeORM/JPA si no se fuerza lo
-   contrario) — así quedó documentado y decidido en el diseño del vault.
-4. **Catálogo exclusivamente de moda femenina:** no agregar campo/tabla de género en ningún
-   punto del dominio de catálogo/productos.
-5. **Errores de API con shape único:** `{ status, message, timestamp }` en cualquier endpoint
-   que falle (ver `GlobalExceptionFilter` en el backend).
-6. **🏢 SaaS multi-tenant (Fase 1, 2026-11-04):** BD compartida + `tenant_id` en 21 tablas. Toda
-   ruta de negocio opera sobre UNA tienda: cabecera **`X-Tenant: <slug>`** (sin sesión) o el
-   `tenantId` del JWT (con sesión; si la cabecera es de otra tienda → 403). Todo service filtra con
-   `soloTenant()` (`core/tenancy/`, falla cerrado con 400). La tienda demo con los datos del
-   Parcial 1 es **`mirroria`**; la cuenta `DUENO_PLATAFORMA` (`plataforma@mirroria.com`, clave en
-   `mirroria-backend/.env`) administra planes/tiendas/ciudades en `/saas/plataforma/*`. Detalle:
-   `mirroria-backend/AGENTS.md` (sección Fase 1) y spec en el vault
-   `U/2-2026/SI2/Parcial2/Fase1_Spec_MultiTenant.md`.
-
-## ⚡ 6. Comandos rápidos
-
-```bash
-# Base de datos
-docker compose up -d postgres-db
-
-# Backend (puerto 3000, prefijo /api/v1, Swagger en /api/docs)
-cd mirroria-backend && npm run start:dev
-
-# Frontend (puerto 5174)
-cd mirroria-frontend && npm run dev
-
-# Todo dockerizado a la vez (Postgres + backend + frontend), HTTP plano en localhost:80
-docker compose up -d --build
-
-# Fase 1 SaaS: migrar una BD con datos del Parcial 1 ANTES del primer arranque del backend nuevo
-docker exec mirroria_postgres pg_dump -U mirroria -Fc mirroria_db > ~/backups/mirroria_pre_fase1.dump
-docker exec -i mirroria_postgres psql -U mirroria -d mirroria_db -v ON_ERROR_STOP=1 < scripts/sql/fase1-multitenant-backfill.sql
-
-# Probar la API a mano: toda ruta de negocio necesita la tienda
+docker compose up -d --build --force-recreate        # todo: :5435, :3000, :80 (siempre recrear tras cambiar código)
+docker compose up -d postgres-db                     # solo la BD
+cd mirroria-backend && npm run start:dev             # API en :3000
+cd mirroria-frontend && npm run dev                  # web en :5174
 curl -H 'X-Tenant: mirroria' localhost:3000/api/v1/catalogo/productos
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 101 rutas
 
-# QA contra la API local (crean datos: restaurar la BD después)
-API=http://localhost:3000/api/v1 python3 scripts/qa/qa_reglas.py        # 21 escenarios (X-Tenant: mirroria)
-API=http://localhost:3000/api/v1 python3 scripts/qa/qa_mostrador.py     # 14
-API=http://localhost:3000/api/v1 python3 scripts/qa/qa_aislamiento.py   # 84: aislamiento entre dos tiendas nuevas
+# Tests (conteos en f91938c)
+cd mirroria-backend && npx vitest run                # 351 unit (41 archivos) · npm run test:e2e → 56 (usa la BD local)
+cd mirroria-frontend && npx vitest run               # 112 (20 archivos)
+
+# QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
+python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
+
+# Tiendas demo (contra una API con las tablas 1b)
+PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.mjs --api http://localhost:3000/api/v1
 ```
 
-## 🟣 6-bis. Tiendaria vs. las tiendas (Fase 1b, 2026-11-05)
+## 8. Historial condensado
 
-- **Tiendaria** es la plataforma SaaS (landing `/`, `/planes`, alta de tiendas, panel `/plataforma/*` del
-  `DUENO_PLATAFORMA`), con identidad propia índigo + lima. **MirrorIA es una tienda más** (slug `mirroria`,
-  `/t/mirroria`), con su vino/rosa de siempre. No se renombran el repo, los contenedores, las env ni
-  `plataforma@mirroria.com`.
-- Cada tienda tiene su **marca** (tabla `inquilino_marca`: logo, colores, modo, bordes, fuente, portada,
-  imágenes, textos, redes) que su ADMIN edita en `/admin/apariencia` (`/saas/mi-marca`) según el
-  **nivel de marca** de su plan (Básico ESENCIAL · Crecimiento COMPLETA · Cadena MARCA_BLANCA). El público
-  la lee en `GET /saas/tiendas/:slug` (marca efectiva). La plataforma ve métricas **agregadas** por tienda,
-  una bitácora (`eventos_plataforma`) y puede restablecer una marca (moderación).
-- Tiendas demo locales: `casa-andina` (`rosa@casa-andina.bo`) y `nomada` (`camila@nomada.bo`), clave
-  `Mirroria2026!`. Spec: vault `U/2-2026/SI2/Parcial2/Fase1b_Spec_Personalizacion_Tiendaria.md`; detalle técnico
-  en `mirroria-backend/AGENTS.md` (sección Fase 1b).
+- **2026-09-12 → 09-29 (Parcial 1):** 11 módulos (`seguridad`, `catalogo`, `proveedores`, `sucursales`, `inventario`,
+  `ventas`, `reservas`, `promociones`, `pagos`, `ia`, `probador`), 23 tablas, e-commerce web completo, reglas
+  anti-acaparamiento y flujo de mostrador, probador migrado del AR propio a Decart, separación `nginx.conf`/`nginx.prod.conf`.
+- **2026-11-03:** merge de `pago-qr` (QR dinámico con banco simulado Wayra, firma HMAC), concurrencia de stock/cobros
+  con `UPDATE` condicionados, "volver al carrito", alcance por sucursal en ventas/cobros/inventario.
+- **2026-11-04:** endurecimiento de seguridad, limpieza (fuera AR, `lucide-react`, ramas viejas), móvil congelado,
+  motor IA híbrido (DuckDB + agente multi-herramienta), "Mis pedidos" y edición de cantidad en el carrito.
+- **2026-11-05 — Fase 1 (`d6d05f6`):** SaaS multi-tenant (módulo `saas`, `core/tenancy`, 93 rutas, 26 tablas).
+- **2026-11-05 — Fase 1b (`f91938c`):** identidad Tiendaria, marca por tienda (`/admin/apariencia`), panel de
+  plataforma con dashboard y bitácora, tiendas demo (101 rutas, 28 tablas).
 
-## 🗺️ 7. Estado actual y próximos pasos (actualizado 2026-11-04)
+## 9. Dónde está cada cosa
 
-- ✅ Postgres dockerizado y funcionando. **Las 23 tablas del diseño están completas** (antes de
-  cerrar `pagos` eran 22 de 23).
-- ✅ Backend NestJS: `core/` completo y los **10 módulos de negocio** implementados y verificados
-  end-to-end contra Postgres real: `seguridad` (registro/login/perfil + gestión de
-  usuarios/roles RF02), `proveedores`, `catalogo`, `sucursales`, `inventario`, `ventas`
-  (digital + presencial), `reservas` (RF09-12), `promociones` (cupones porcentuales y monto
-  fijo, validación pública, consumo transaccional en ventas con cálculo de descuento), `ia`
-  (CU24, reportes dinámicos por lenguaje natural — el modelo nunca escribe SQL) y **`pagos`**
-  (RF19, cerrado 2026-09-21: tarjeta por Stripe con webhook firmado como única autoridad sobre
-  el cobro, efectivo confirmado a mano por un `CAJERO`/`ADMIN`, y desde 2026-11-03 QR dinámico
-  con el banco simulado Wayra que se acredita solo — ver más abajo y
-  `mirroria-backend/AGENTS.md`).
-- ✅ `mirroria-frontend/` — e-commerce completo funcionando de punta a punta contra el backend
-  real: inicio, tienda, ficha de producto, carrito, checkout (ahora con soporte de cupones de
-  descuento y cálculo reactivo de ahorros), pago de la venta (tarjeta vía Stripe, o instrucciones
-  de QR/efectivo con seguimiento de estado real, no afirmado por la ruta de regreso), `/reservas`
-  del cliente, y panel de administración (`/admin/*`) con catálogo, proveedores, sucursales,
-  inventario, ventas, reservas, usuarios/roles, promociones/cupones (`/admin/cupones`) y cobros
-  manuales pendientes de confirmar, más una pantalla de reportes por IA (CU24) para staff con
-  ficha interpretada, tabla, comparación y dictado por voz vía Web Speech API — esto último no
-  se probó todavía en un navegador real. Stack visual 100% compuesto con shadcn/ui.
-- ⛔ **Sin POS a propósito (decisión del usuario, 2026-11-03):** la tienda física tiene su propio
-  sistema de caja; la web solo verifica si la clienta pagó en persona (`/admin/cobros`) y resuelve
-  reservas en el mostrador (`/admin/reservas`). `POST /ventas/presenciales` existe pero no tiene UI.
-- 🔐 **Seguridad (2026-11-04):** `JWT_SECRET` obligatorio (≥ 32 caracteres, sin fallback: el
-  backend no arranca sin él), usuario inactivo → 401, límite por IP en login, validar cupón, IA y
-  probador (`core/security/limite-por-ip.ts`, 429), no se puede quitar el último ADMIN, filtro
-  global 23505 → 409 / 22P02 → 400. Detalle en `mirroria-backend/AGENTS.md`.
-- 🧊 `mirroria-mobile/` **congelada/obsoleta (2026-11-04):** la app se rehará desde cero. La
-  carpeta queda como referencia, sin mantenimiento: el backend y la web se optimizan como si no
-  existiera (ya no compila contra los contratos actuales, p. ej. sin campos AR).
-- ✅ Todo dockerizado (`docker-compose.yml`, proyecto compose `name: mirroria`): `mirroria_postgres`,
-  `mirroria_backend` y `mirroria_frontend` (Nginx en `:80`, proxy `/api/` al backend). Despliegue
-  a Azure por `scripts/deploy-azure.sh` (ver §8).
-- ✅ **Cobro por QR dinámico con banco simulado Wayra** (rama `pago-qr`, mergeada 2026-11-03):
-  la tienda genera un QR por compra (`POST /pagos/ventas/:id/qr`) y hace polling del estado; al
-  escanearlo se abre `/wayra/pagar/:token` (la "app del banco", pública), que paga con PIN de
-  prueba y avisa al backend con firma HMAC (`POST /pagos/qr/aviso`), que acredita solo. Reemplaza
-  al QR estático confirmado a mano (`PAGOS_QR_URL` eliminado; el cobro manual quedó solo para
-  efectivo). Env opcionales `WAYRA_URL_BASE`, `WAYRA_SECRETO_AVISOS`, `WAYRA_HABILITADO` — apagar
-  Wayra el día que haya pasarela real.
-- ✅ Asistente de reportes por IA (CU24) migrado de Gemini a **DeepSeek** (2026-09-22, decisión
-  del usuario) — verificado por primera vez contra un modelo real de punta a punta (ver
-  `mirroria-backend/AGENTS.md`, sección del cambio de proveedor).
-- ✅ Auditoría de arquitectura (2026-09-22) sobre los 89 commits de `pagos`/`ia`/reportes que no
-  hizo el usuario: backend sin violaciones; 3 archivos del frontend que superaban la Regla 1.B
-  (< 150 líneas) corregidos — ver la sección dedicada en cada `AGENTS.md` de proyecto.
-- 🔧 **Docker arreglado (2026-09-27):** el `docker-compose.yml`/`nginx.conf` que había quedado
-  commiteado (`feat(infra): HTTPS con Let's Encrypt`) exigía el dominio real
-  (`mirroria.duckdns.org`) + certificados de Let's Encrypt montados desde el host — imposible de
-  levantar en una laptop de desarrollo sin esos certificados. El contenedor que seguía "andando"
-  local era una imagen vieja (de antes de ese commit), no la que el repo realmente construye hoy.
-  Se separó en dos: `nginx.conf` (default, HTTP plano, `server_name _`, lo que usa
-  `docker-compose.yml` solo) y `nginx.prod.conf` (dominio+SSL, solo con el override
-  `docker-compose.prod.yml`, `ARG NGINX_CONF` del Dockerfile). Verificado con
-  `docker compose up -d --build`: los 3 servicios levantan en `localhost:80` sin ningún
-  certificado, `/api/` llega al backend, y un estático faltante (ej. un `.png`) sigue dando 404
-  (no `index.html` con 200).
-- 🔁 **Probador web (RF13) migrado de pose-detection propio a Decart VTON (2026-09-27):**
-  `mirroria-frontend` dejó de usar `@mediapipe/tasks-vision` + landmarks/anclaje manual para
-  el `/probador` — ahora usa la API realtime de Decart (`lucy-vton-3.5`, `@decartai/sdk`), que
-  viste a la clienta con la foto real del producto en vez de un PNG recortado siguiendo dos
-  puntos de anclaje. Backend ganó `modules/probador/` (token efímero de Decart, `DECART_API_KEY`
-  nunca sale del servidor). El móvil hizo la misma migración el 2026-09-29 (ver
-  `mirroria-mobile/AGENTS.md`); el detalle de la web está en `mirroria-frontend/AGENTS.md` y
-  `mirroria-backend/AGENTS.md`.
-
-- 🧹 **Limpieza web (2026-11-04):** fuera los restos del AR viejo en la web (`public/prendas/`,
-  su `location` de Nginx, el campo AR de los formularios admin, el bloque de recortes de
-  `sembrar-catalogo.mjs`), `scripts/prendas/` y los `.sql` de una sola vez; `.playwright-mcp/` y
-  el `tsbuildinfo` del backend dejaron de versionarse. Nginx con gzip + caché inmutable de
-  `/assets/`; front con carga diferida de admin/probador/Wayra; hero en `.webp`. Las columnas
-  Las columnas AR quedaron para una segunda pasada (ver abajo). Mobile sin tocar.
-- 🧠 **Motor Analítico Híbrido IA (2026-11-04, en `main`):**
-  - Backend: `@duckdb/node-api` in-process (`:memory:`, max 256MB) para simulaciones What-If + bucle agéntico multi-paso en `modules/ia` (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if`) exponiendo `POST /ia/reportes/hibrido`. Soporte completo para "Top productos más vendidos" (dimension: 'producto', límite, orden, filtros y serialización de datos JSON hacia el LLM con fecha actual).
-  - Frontend: componentes `<ReasoningSteps />` y `<WhatIfChart />` (Recharts comparativo Real vs Proyectado) en `src/features/reports/`, feedback en chat, formateo inteligente de moneda según métrica devuelta y thin page < 120 líneas.
-- 🛒 **Carrito y Pedidos (2026-11-04, en `main`):**
-  - Backend: nuevo endpoint `PATCH /ventas/carrito/:usuarioId/items/:varianteId` (`UpdateItemCarritoDto` validando 1 a 3 unidades con lock pesimista).
-  - Frontend: edición interactiva de cantidad en carrito (stepper 1 a 3 unidades), nueva feature `src/features/orders/` (`/mis-pedidos`, `MyOrdersPage`, `OrderCard`, `OrderStatusBadge`) consumiendo `GET /ventas/mias` y enlazada en `SiteHeader` (desktop y drawer móvil). Todos los componentes < 120 líneas.
-- 🧹 **Limpieza profunda (2026-11-04, ya en `main`):** fuera los campos
-  del vestidor viejo en backend y web (`productos.modelo_ar_url`, `productos.ar_overlay_image_url`
-  e `imagenes[].esArAsset`; local los quita `synchronize`, Azure necesita el SQL manual del vault
-  `App/Despliegue_Azure.md`). `usuarioId` ya no sale en `GET /inventario/movimientos` ni en las
-  órdenes de compra. Iconos 100% Phosphor (`lucide-react` desinstalado, `components.json` con
-  `iconLibrary: "phosphor"`). Fuera `@nestjs/mau` y el script `deploy` (`nest deploy`) del
-  backend; CORS por defecto solo `:5174` (sin `:8081` de Expo). `.agents/`, `.claude/` y
-  `skills-lock.json` del front dejaron de versionarse (siguen en disco). Borrados los plans de
-  `docs/superpowers/` y el spec del probador con MediaPipe.
-
-## 🧭 8. Dónde está todo (actualizado 2026-11-04) — leer antes de pedir una mejora
-
-- **Reglas de negocio** (topes de reserva/compra, vencimiento, faltas, flujo de mostrador,
-  alcance por sucursal, código de reserva): vault `U/2-2026/SI2/Parcial1/App/Reglas_de_Negocio.md`
-  (qué hace cada regla y en qué archivo se cambia) + `mirroria-backend/AGENTS.md` (detalle técnico).
-- **Despliegue a Azure sin GitHub**: `bash scripts/deploy-azure.sh` (bundle por scp, respaldo de
-  imágenes, se frena si la VM tiene cambios sueltos) — vault `App/Despliegue_Azure.md`. Los
-  despliegues los corre el usuario: el modo automático bloquea desplegar a producción.
-- **QA de reglas contra la API real** (backend y Postgres locales): `scripts/qa/` (35 escenarios de
-  reglas + 84 de aislamiento multi-tenant en `qa_aislamiento.py`; todos mandan `X-Tenant`).
-- **Móvil**: congelado, se rehará desde cero (aviso en vault `App/Mobile.md`). Al rehacerlo,
-  partir de los contratos actuales del vault `App/Endpoints.md`, no de `mirroria-mobile/`.
-- **GitHub** (`mopy1/MirrorIA`): **una sola rama, `main`** (2026-11-04: se borraron las ramas
-  viejas y `feat/ordenes-compra-proveedores` ya mergeada). Push a `main` habilitado. Si otra IA
-  crea una rama para una feature, se mergea a `main` al probarla y se borra.
-- **Próximo despliegue a Azure:** checklist pendiente (JWT_SECRET nuevo, NODE_ENV=production,
-  DECART_API_KEY nueva, SQL opcional del AR) en el vault `App/Despliegue_Azure.md`.
-- **Vault de la app** (`U/2-2026/SI2/Parcial1/App/`): `Backend.md`, `Frontend.md`, `Database.md`,
-  `Endpoints.md`, `Reglas_de_Negocio.md`, `Troubleshooting.md`, `Despliegue_Azure.md`, `Mobile.md`
-  — actualizados al 2026-11-04 (`Mobile.md` solo con el aviso de congelada).
+- Reglas de negocio (topes, vencimientos, mostrador, planes, marca): vault `Parcial1/App/Reglas_de_Negocio.md`.
+- Contrato de cada ruta: vault `Parcial1/App/Endpoints.md`. Esquema + DBML + cuentas locales: `Parcial1/App/Database.md`.
+- Despliegue y **checklist obligatorio del próximo despliegue**: vault `Parcial1/App/Despliegue_Azure.md`.
+- Errores resueltos: vault `Parcial1/App/Troubleshooting.md`.
+- GitHub `mopy1/MirrorIA`: una sola rama `main`; push permitido cuando el usuario lo pide.

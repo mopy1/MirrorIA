@@ -1,7 +1,11 @@
 # RF19 / CU12 — Pasarela de pago (módulo `pagos`)
 
+> **Documento histórico (2026-09-21).** Ya implementado y mergeado a `main`; los `plans/` que cita se borraron. Desde
+> entonces cambió: proveedor de IA Gemini → DeepSeek (2026-09-22), QR manual → QR dinámico Wayra (2026-11-03), todo es
+> multi-tenant (`tenant_id`, `X-Tenant`, 2026-11-05). Estado vigente: `mirroria-backend/AGENTS.md`.
+
 **Fecha:** 2026-09-21
-**Estado:** diseño aprobado, pendiente de plan de implementación
+**Estado:** implementado (2026-09-21)
 **Requisito:** RF19 — *Integrar una pasarela de pago para compras digitales* (mapea a CU12)
 **Actores:** `CUSTOMER` (paga), `CAJERO` y `ADMIN` (confirman cobros manuales)
 
