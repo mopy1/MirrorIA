@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { ChartLineUp, Desktop } from "@phosphor-icons/react"
 import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
@@ -9,10 +10,13 @@ import { useDashboardOperativo } from "../hooks/useDashboardOperativo"
 import type { PeriodoDashboard } from "../types/dashboard.types"
 
 export function AdminDashboardPage() {
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const esAdmin = user?.role === "ADMIN"
 
-  const [modoAdmin, setModoAdmin] = useState<"ejecutivo" | "operativo">("ejecutivo")
+  const [modoAdmin, setModoAdmin] = useState<"ejecutivo" | "operativo">(
+    searchParams.get("modo") === "operativo" ? "operativo" : "ejecutivo",
+  )
   const [periodo, setPeriodo] = useState<PeriodoDashboard>("30d")
   const [sucursalId, setSucursalId] = useState<string | undefined>()
 

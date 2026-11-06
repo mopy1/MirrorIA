@@ -9,6 +9,19 @@
     <link rel="manifest" href="/manifest.webmanifest" />
   </head>
   <body>
+    <script>
+      (function() {
+        try {
+          var p = new URLSearchParams(window.location.search);
+          var tok = p.get('__qa_token');
+          var usr = p.get('__qa_user');
+          if (tok && usr) {
+            localStorage.setItem('mirroria_token', tok);
+            localStorage.setItem('mirroria_user', decodeURIComponent(usr));
+          }
+        } catch (_) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
