@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { PageFallback } from "@/components/common/PageFallback"
+import { ModalConflictoStock } from "@/components/common/modal-conflicto-stock"
 import { LoginPage } from "@/features/auth/pages/LoginPage"
 import { RegisterPage } from "@/features/auth/pages/RegisterPage"
 import { NotFoundPage } from "@/features/errors/pages/NotFoundPage"
@@ -30,6 +31,7 @@ import { StaffRoute } from "@/routes/StaffRoute"
 function App() {
   return (
     <BrowserRouter>
+      <ModalConflictoStock />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route element={<SaasLayout />}>

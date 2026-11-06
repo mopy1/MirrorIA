@@ -26,15 +26,15 @@
 | 0 — Arquitectura e ICONIX base | integrada a las Fases 1 y 1b (capítulos `Parcial2/Documentacion/01_*` y `02_*`) |
 | 1 — SaaS multi-tenant | ✅ cerrada, commit `d6d05f6` |
 | 1b — Identidad de la plataforma (entonces "Tiendaria"): marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
-| 2 — Pasarelas enchufables | ✅ cerrada (`RegistroPasarelasService` + adaptadores Stripe/Wayra funcionales para checkout y suscripción SaaS en `/admin/suscripcion/activar`; PayPal y QR bancario como stubs 503 "Próximamente"; nueva tabla `cobros_suscripcion`). |
-| **3 — Offline/PWA, idempotencia y conflictos** | ⏭️ **la siguiente**. PWA + Service Worker (IndexedDB), outbox, cabecera `Idempotency-Key` + tabla `idempotencia`, conflicto `stock = 1` resuelto por servidor con compensación, diseño móvil SQLite. |
-| 4 — Reportes dinámicos (+ Excel) | pendiente |
+| 2 — Pasarelas enchufables | ✅ cerrada, commit `b4eaa0a` (registro centralizado, adaptadores Stripe y Wayra funcionales, stubs 503 para PayPal y QR Bancario, nueva tabla `cobros_suscripcion`). |
+| 3 — Offline/PWA, idempotencia y conflictos | ✅ cerrada (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria). |
+| **4 — Reportes dinámicos (+ Excel)** | ⏭️ **la siguiente**. Filtros, filas, columnas y agrupación dinámica sobre CU24/IA, exportación a `.xlsx` y métricas cruzadas. |
 | 5 — BI: dashboards por rol | pendiente |
 | 6 — Machine Learning (servicio Python aparte) | pendiente |
-| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01, 02 y 03; índice en `Parcial2/Documentacion/00_Indice.md`) |
+| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 a 04; índice en `Parcial2/Documentacion/00_Indice.md`) |
 
-Números verificados: **105 rutas** HTTP, **29 tablas**, **385** tests unitarios backend (45 archivos),
-**127** tests frontend (23 archivos), e2e backend 62/62 (incluyendo pasarelas y cobros SaaS).
+Números verificados: **105 rutas** HTTP, **30 tablas**, **404** tests unitarios backend (48 archivos),
+**140** tests frontend (25 archivos), e2e backend 62/62.
 
 ## 3. Orden de lectura
 
@@ -70,9 +70,9 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 385 unit (45 archivos)
+cd mirroria-backend && npx vitest run          # 404 unit (48 archivos)
 cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
-cd mirroria-frontend && npx vitest run         # 127 (23 archivos)
+cd mirroria-frontend && npx vitest run         # 140 (25 archivos)
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
 python3 scripts/qa/qa_reglas.py      # 21  · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
 ```

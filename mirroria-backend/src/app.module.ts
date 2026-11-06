@@ -18,6 +18,7 @@ import { ReservasModule } from './modules/reservas/reservas.module.js';
 import { SeguridadModule } from './modules/seguridad/seguridad.module.js';
 import { SucursalesModule } from './modules/sucursales/sucursales.module.js';
 import { VentasModule } from './modules/ventas/ventas.module.js';
+import { IdempotenciaModule } from './core/security/idempotencia/idempotencia.module.js';
 
 @Module({
   imports: [
@@ -45,6 +46,8 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
     ProbadorModule,
     // SaaS multi-tenant (Fase 1): registra el TenantInterceptor global.
     SaasModule,
+    // Idempotencia y control concurrente (Fase 3): registra IdempotenciaInterceptor global.
+    IdempotenciaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,5 +1,6 @@
 import { Suspense, useState, type ReactNode } from "react"
 import { PageFallback } from "@/components/common/PageFallback"
+import { EstadoConexionBadge } from "@/components/common/estado-conexion-badge"
 import { ArrowSquareOut, List } from "@phosphor-icons/react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +64,9 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             {rolLabel}
           </Badge>
         </div>
+        <div className="flex items-center gap-2">
+          <EstadoConexionBadge tenantId={user?.tenant?.slug} />
+        </div>
       </header>
 
       {/* Mobile Navigation Drawer */}
@@ -88,6 +92,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <EstadoConexionBadge tenantId={user?.tenant?.slug} />
             <Link
               to={tiendaHref}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"

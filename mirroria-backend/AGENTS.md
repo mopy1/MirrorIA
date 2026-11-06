@@ -14,7 +14,7 @@ sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request),
 (`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
 QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
 *what-if*). **105 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
-Tests: **385 unitarios** en 45 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
+Tests: **404 unitarios** en 48 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
 > **ESM puro** (`"type": "module"`, `module/moduleResolution: nodenext`): todo import **relativo** dentro de `src/`
@@ -38,7 +38,8 @@ src/
 │   │   └── tenant.constants.ts # HEADER_TENANT, TIENDA_DEMO_ID, REGEX_SLUG, SLUGS_RESERVADOS
 │   ├── security/               # core-security.module (Passport @Global), jwt-auth.guard, jwt-opcional.guard, roles.decorator/guard,
 │   │                           # current-user.decorator, jwt-payload { sub, email, role, sucursalId, tenantId }, assert-own-user (403),
-│   │                           # sucursal-del-staff (staff → su sucursal; sin sucursal → 403), limite-por-ip (429)
+│   │                           # sucursal-del-staff (staff → su sucursal; sin sucursal → 403), limite-por-ip (429),
+│   │                           # idempotencia/ (30.ª tabla idempotencia, IdempotenciaInterceptor global, SHA-256 canónico, HIT/MISS, 409/422)
 │   └── exception/              # BusinessException + 404/409/403/429/400 de negocio, tenant-requerido 400, tienda-no-encontrada 404,
 │                               # tienda-no-disponible 403, sesion-de-otra-tienda 403, limite-plan-excedido 409,
 │                               # global-exception.filter (shape { status, message, timestamp }; Postgres 23505→409, 22P02→400)

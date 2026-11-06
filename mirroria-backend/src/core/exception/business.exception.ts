@@ -6,7 +6,10 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  * mismo criterio que `BusinessException` en erp-backend/case-backend.
  */
 export abstract class BusinessException extends HttpException {
-  protected constructor(message: string, status: HttpStatus) {
-    super(message, status);
+  protected constructor(
+    response: string | Record<string, unknown>,
+    status: HttpStatus,
+  ) {
+    super(response, status);
   }
 }

@@ -1,5 +1,6 @@
 import { List, ShoppingBag } from "@phosphor-icons/react"
 import { Link, useLocation } from "react-router-dom"
+import { EstadoConexionBadge } from "@/components/common/estado-conexion-badge"
 import { SearchInput } from "@/components/common/SearchInput"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -53,6 +54,7 @@ export function SiteHeader() {
         <SearchInput className="hidden max-w-xs flex-1 md:block" />
 
         <div className="ml-auto flex items-center gap-2">
+          <EstadoConexionBadge />
           <Link to={ruta("/carrito")} className="relative hidden sm:inline-flex">
             <Button variant="ghost" size="icon" aria-label="Carrito">
               <ShoppingBag />

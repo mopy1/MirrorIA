@@ -11,26 +11,25 @@ const MENSAJE_NO_DISPONIBLE = "no está disponible"
 
 export class ApiError extends Error {
   status: number
+  codigo?: string
+  detalles?: Record<string, unknown>
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, codigo?: string, detalles?: Record<string, unknown>) {
     super(message)
     this.status = status
+    this.codigo = codigo
+    this.detalles = detalles
   }
 }
 
 interface BackendErrorBody {
   status: number
+  codigo?: string
+  detalles?: Record<string, unknown>
   message: string | string[]
   timestamp: string
 }
 
-/**
- * De dónde sale la tienda del request:
- * - `auto` (default): la tienda que se navega (`/t/:slug`) o, si no hay, la de la sesión.
- * - `sesion`: siempre la de la sesión, con su token (ej. `/auth/me` aunque se navegue otra tienda).
- * - `ninguno`: sin `X-Tenant` ni token (rutas globales 🧭: `/saas/*` públicas, ciudades,
- *   login de plataforma).
- */
 export type ModoTenant = "auto" | "sesion" | "ninguno"
 
 function slugDeSesion(): string | null {
@@ -45,11 +44,10 @@ function slugDeSesion(): string | null {
 /** Cabeceras de tienda y sesión según la regla de la spec §7.3 (exportada para test). */
 export function cabecerasTenant(modo: ModoTenant = "auto"): Record<string, string> {
   if (modo === "ninguno") return {}
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
   const deSesion = slugDeSesion()
   const activa = modo === "sesion" ? null : getTiendaActiva()
   const slug = activa ?? deSesion
-  // Una sesión de otra tienda navega esta como invitada: nunca dispara el 403 "otra tienda".
   const mandarToken = token && (!activa || deSesion === activa)
   return {
     ...(slug ? { "X-Tenant": slug } : {}),
@@ -66,12 +64,22 @@ export function destinoTras401(pathname: string, slugSesion: string | null): str
   return "/entrar"
 }
 
+/** Inyecta Idempotency-Key en mutaciones (POST, PUT, PATCH) si no viene una explícita. */
+function cabecerasIdempotencia(method?: string, headers?: HeadersInit): Record<string, string> {
+  const m = (method ?? "GET").toUpperCase()
+  if (m !== "POST" && m !== "PUT" && m !== "PATCH") return {}
+  const yaTiene = headers && Object.keys(headers as Record<string, string>).some(
+    (k) => k.toLowerCase() === "idempotency-key"
+  )
+  if (yaTiene) return {}
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? { "Idempotency-Key": crypto.randomUUID() }
+    : {}
+}
+
 /**
- * fetch envuelto con: URL base, JSON automático, `X-Tenant` + Bearer token
- * (regla de `cabecerasTenant`) y errores con el shape único del backend
- * ({ status, message, timestamp }). Ante un 401 de un endpoint protegido
- * limpia la sesión y redirige (`destinoTras401`) — salvo en
- * `/seguridad/auth/*`, donde 401 = credenciales incorrectas.
+ * fetch envuelto con: URL base, JSON automático, `X-Tenant`, Bearer token,
+ * `Idempotency-Key` automática en mutaciones y mapeo de errores con código/detalles.
  */
 export async function apiFetch<T>(path: string, options: RequestInit = {}, modo: ModoTenant = "auto"): Promise<T> {
   const isAuthEndpoint = path.startsWith("/seguridad/auth/")
@@ -80,6 +88,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, modo:
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...cabecerasIdempotencia(options.method, options.headers),
       ...cabecerasTenant(modo),
       ...options.headers,
     },
@@ -99,7 +108,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, modo:
     if (response.status === 403 && message.includes(MENSAJE_NO_DISPONIBLE)) {
       window.dispatchEvent(new Event(EVENTO_TIENDA_NO_DISPONIBLE))
     }
-    throw new ApiError(response.status, message)
+    throw new ApiError(response.status, message, body?.codigo, body?.detalles)
   }
 
   if (response.status === 204) return undefined as T

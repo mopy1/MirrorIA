@@ -3,7 +3,10 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
-import { StockInsuficienteException } from '../../../core/exception/stock-insuficiente.exception.js';
+import {
+  type DetallesStockInsuficiente,
+  StockInsuficienteException,
+} from '../../../core/exception/stock-insuficiente.exception.js';
 import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
@@ -117,13 +120,45 @@ export class InventarioSucursalService {
       .execute();
     if (affected !== 1) {
       const actual = await invRepo.findOneOrFail({ where: donde }); // donde ya es soloTenant(...)
+      const disponible = params.respetarReservadas
+        ? actual.cantidadDisponible - actual.cantidadReservada
+        : actual.cantidadDisponible;
+      const solicitado = -params.cantidad;
+
+      let detallesExtra: Partial<DetallesStockInsuficiente> | undefined;
+      try {
+        const variante = await this.productosService.findVarianteById(params.varianteId).catch(() => null);
+        const sucursal = await this.sucursalesService.findOne(params.sucursalId).catch(() => null);
+
+        const otrasSucursalesFilas = await invRepo.find({
+          where: soloTenant({ varianteId: params.varianteId }),
+        });
+        const otrasSucursales = otrasSucursalesFilas
+          .filter((f) => f.sucursalId !== params.sucursalId && (f.cantidadDisponible - f.cantidadReservada) > 0)
+          .map((f) => ({
+            sucursalId: f.sucursalId,
+            disponible: f.cantidadDisponible - f.cantidadReservada,
+          }));
+
+        detallesExtra = {
+          prendaNombre: (variante as any)?.producto?.titulo ?? (variante as any)?.producto?.nombre,
+          talla: (variante as any)?.talla?.nombre ?? (variante as any)?.tallaId,
+          color: (variante as any)?.color?.nombre ?? (variante as any)?.colorId,
+          sucursalNombre: sucursal?.nombre,
+          alternativas: {
+            otrasSucursales,
+          },
+        };
+      } catch {
+        // En caso de mock en tests o fallo secundario, continuamos sin metadata adicional
+      }
+
       throw new StockInsuficienteException(
         params.varianteId,
         params.sucursalId,
-        params.respetarReservadas
-          ? actual.cantidadDisponible - actual.cantidadReservada
-          : actual.cantidadDisponible,
-        -params.cantidad,
+        disponible,
+        solicitado,
+        detallesExtra,
       );
     }
     const fila = await invRepo.findOneOrFail({ where: donde }); // donde ya es soloTenant(...)

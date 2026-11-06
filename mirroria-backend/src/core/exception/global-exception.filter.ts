@@ -48,9 +48,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(exception);
     }
 
+    const rawBody = exception instanceof HttpException ? exception.getResponse() : null;
+    const extra: Record<string, unknown> =
+      typeof rawBody === 'object' && rawBody !== null && !Array.isArray(rawBody)
+        ? { ...(rawBody as Record<string, unknown>) }
+        : {};
+    delete extra.statusCode;
+    delete extra.message;
+
     response.status(status).json({
       status,
       message,
+      ...extra,
       timestamp: new Date().toISOString(),
     });
   }

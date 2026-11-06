@@ -11,8 +11,8 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-05 (Fase 2 Pasarelas Enchufables)**. Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts` y `src/features/*`. Tests: **127** en 23 archivos
+> **Actualizado: 2026-11-06 (Fase 3 Modo Offline, PWA, Idempotencia y Manejo de Conflictos)**. Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **140** en 25 archivos
 > (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
 
 ---
@@ -199,28 +199,31 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
 mirroria-frontend/
 ├── public/
 │   ├── favicon.svg                    # isotipo de MirrorIA
+│   ├── manifest.webmanifest           # manifiesto PWA (start_url "/", theme_color "#281b89", standalone)
+│   ├── sw.js                          # Service Worker liviano (App Shell Cache-First, fallback /index.html SPA)
 │   └── images/hero-model.webp, images/marcas/tiendaria.svg   # hero de Tiendaria · isotipo de la tienda Tiendaria
 ├── src/
-│   ├── main.tsx                       # AuthProvider > App (CartProvider vive en TiendaRoot)
-│   ├── App.tsx                        # árbol de rutas (§2); tablas en routes/rutas-app.ts
+│   ├── main.tsx                       # AuthProvider > App, registro no bloqueante de Service Worker
+│   ├── App.tsx                        # árbol de rutas (§2) + ModalConflictoStock global
 │   ├── index.css                      # tokens MirrorIA (:root/.dark índigo + lima) y neutros de tienda [data-tema="tienda"], Tailwind v4
 │   ├── components/
 │   │   ├── ui/                        # primitivas shadcn (Base UI), sin lógica de negocio
 │   │   ├── marca/                     # logos (MirrorIA, de tienda, monograma), insignia, selector de paleta, galería, vista-previa/
 │   │   └── common/                    # SearchInput, PageFallback, ProductImagePlaceholder, EstadoBadge, UsoPlanMeters,
-│   │                                  # HistorialSuscripcion, ErrorConPlan (409 de plan + "Ver mi plan")
+│   │                                  # HistorialSuscripcion, ErrorConPlan, EstadoConexionBadge, ListaOutboxSheet, ModalConflictoStock
 │   ├── context/                       # AuthContext (+auth-context), CartContext (+cart-context), TenantContext (+tenant-context, cargando-tienda)
 │   ├── hooks/                         # globales: useAuth, useCart, useResourceList, useCreateResource, useRecurso,
 │   │                                  # useTienda, useRutaTienda, useSesionEnTienda, useMarca, useTemaPlataforma
 │   ├── layouts/
 │   │   ├── SaasLayout.tsx + saas-header/ + saas-footer/     # MirrorIA pública
-│   │   ├── TiendaLayout.tsx (TiendaRoot, TiendaLayout) → StorefrontLayout.tsx + site-header/ + site-footer/   # cada tienda
+│   │   ├── TiendaLayout.tsx (TiendaRoot, TiendaLayout) → StorefrontLayout.tsx + site-header/ (con EstadoConexionBadge) + site-footer/
 │   │   ├── AuthLayout.tsx             # split-screen de login/registro ("← Volver a <tienda>")
-│   │   ├── AdminLayout.tsx + admin-sidebar-{content,header,nav,footer}.tsx + admin-sidebar.data.ts + admin-avisos.tsx + useTemaAdmin.ts
+│   │   ├── AdminLayout.tsx + admin-sidebar-{content,header,nav,footer}.tsx + admin-sidebar.data.ts + admin-avisos.tsx + useTemaAdmin.ts (con EstadoConexionBadge)
 │   │   └── PlataformaLayout.tsx + plataforma-sidebar.tsx
-│   ├── lib/                           # api.ts (apiFetch, ApiError, X-Tenant), tienda-activa.ts, rutas-tienda.ts, destino-sesion.ts,
-│   │                                  # money.ts (formatMoney/formatUsd), fechas.ts, limites-plan.ts, bienvenida.ts, unsplash.ts,
-│   │                                  # estado-de-lista.ts, tema/ (color, derivar-tokens, aplicar-tema, fuentes, marca.constants, eventos)
+│   ├── lib/                           # api.ts (apiFetch, ApiError, Idempotency-Key automática, X-Tenant), tienda-activa.ts,
+│   │                                  # rutas-tienda.ts, destino-sesion.ts, money.ts, fechas.ts, limites-plan.ts,
+│   │                                  # offline/ (idb.types.ts, idb.ts, outbox-manager.ts, use-outbox.ts, spec tests),
+│   │                                  # tema/ (color, derivar-tokens, aplicar-tema, fuentes, marca.constants, eventos)
 │   ├── routes/                        # ProtectedRoute, GuestRoute, AdminRoute, StaffRoute, PlataformaRoute, LegacyRedirect,
 │   │                                  # rutas-app.ts (tablas de rutas), lazy-pages.ts (React.lazy)
 │   ├── types/                         # plan.types, tienda.types, marca.types (compartidos entre features)
@@ -645,6 +648,12 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
   SaaS, alta de tienda, `/admin/suscripcion`, panel `/plataforma/*`, `X-Tenant` en `apiFetch`, `CartProvider` a `TiendaRoot`.
 - **2026-11-05 — Fase 1b (commit `f91938c`):** identidad de la plataforma (entonces "Tiendaria"; índigo + lima), tema por tienda (`lib/tema/`),
   `/admin/apariencia`, `/admin/suscripcion/activar`, dashboard de plataforma, landing nueva con cifras vivas.
+- **2026-11-06 — Fase 3: Operación Offline, PWA, Idempotencia y Manejo de Conflictos:**
+  * PWA: `public/manifest.webmanifest` (start_url "/", theme_color "#281b89", standalone) y `public/sw.js` (App shell Cache-First, fallback /index.html en navegaciones para arranque de la SPA en modo avión, Network-First para API). Registro en `src/main.tsx`.
+  * IndexedDB (`src/lib/offline/idb.ts`): almacenes `catalogo_cache` (TTL 7 días según requerimiento de cátedra) y `outbox` (cola FIFO, estados `PENDIENTE`, `SINCRONIZANDO`, `SINCRONIZADO`, `COMPENSADO`, `FALLIDO`).
+  * Gestor Outbox (`src/lib/offline/outbox-manager.ts`): listener de conectividad `window.ononline`/`offline`, drenado FIFO de mutaciones enviando cabecera `Idempotency-Key: <uuid>`, manejo del choque `stock = 1` ante HTTP 409 `STOCK_AGOTADO_CONFLICTO` marcando `COMPENSADO` y emitiendo evento `mirroria:conflicto-stock`.
+  * Cliente HTTP (`src/lib/api.ts`): inyección automática de `Idempotency-Key` en operaciones mutantes (`POST`, `PUT`, `PATCH`), captura tipada de `codigo` y `detalles` en `ApiError`.
+  * UI (< 120 líneas, 100% Phosphor Icons): `EstadoConexionBadge` (indicador de red con conteo de pendientes en `AdminLayout` y `SiteHeader`), `ListaOutboxSheet` (panel lateral con historial y botón de sincronización manual), `ModalConflictoStock` (diálogo accesible en `App.tsx` para explicar y compensar choque de concurrencia con alternativas de sucursal y talla). Tests: 140 vitest (25 suites).
 
 ---
 

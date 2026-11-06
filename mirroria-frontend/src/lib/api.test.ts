@@ -87,4 +87,62 @@ describe("apiFetch", () => {
     expect(headers["X-Tenant"]).toBe("lila")
     expect(headers.Authorization).toBe("Bearer jwt-x")
   })
+
+  it("inyecta Idempotency-Key automáticamente en peticiones POST", async () => {
+    sinSesion()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await apiFetch("/ventas/checkout", { method: "POST", body: JSON.stringify({ item: 1 }) })
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(headers["Idempotency-Key"]).toBeDefined()
+    expect(typeof headers["Idempotency-Key"]).toBe("string")
+  })
+
+  it("respeta Idempotency-Key explícita si se proporciona", async () => {
+    sinSesion()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await apiFetch("/ventas/checkout", {
+      method: "POST",
+      headers: { "Idempotency-Key": "mi-llave-manual-456" },
+      body: JSON.stringify({ item: 1 }),
+    })
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(headers["Idempotency-Key"]).toBe("mi-llave-manual-456")
+  })
+
+  it("captura codigo y detalles en ApiError ante conflicto 409", async () => {
+    sinSesion()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          status: 409,
+          codigo: "STOCK_AGOTADO_CONFLICTO",
+          message: "Prenda sin stock",
+          detalles: { prendaNombre: "Vestido Rosa" },
+          timestamp: "",
+        }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(apiFetch("/ventas/presencial", { method: "POST" })).rejects.toMatchObject({
+      status: 409,
+      codigo: "STOCK_AGOTADO_CONFLICTO",
+      detalles: { prendaNombre: "Vestido Rosa" },
+    })
+  })
 })
