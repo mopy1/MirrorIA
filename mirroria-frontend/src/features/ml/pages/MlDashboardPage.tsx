@@ -1,94 +1,61 @@
 import { useState } from "react"
-import {
-  useAnomaliasVentas,
-  useDemandaMl,
-  useModelosMetricas,
-  useNoShowAgenda,
-  useRfmSegmentos,
-} from "../hooks/useMlKpis"
-import { MlHeader } from "../components/ml-header"
-import { MlToolbar, type MlVistaTab } from "../components/ml-toolbar"
-import { MlKpiRibbon } from "../components/ml-kpi-ribbon"
-import { MlDemandaSection } from "../components/demanda/ml-demanda-section"
-import { MlNoshowPanel } from "../components/noshow/ml-noshow-panel"
-import { MlRfmSection } from "../components/rfm/ml-rfm-section"
-import { MlAnomaliasSection } from "../components/anomalias/ml-anomalias-section"
-import { MlFichaTecnicaDialog } from "../components/cientifico/ml-ficha-tecnica-dialog"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { usePrediccionesMl } from "../hooks/usePrediccionesMl"
+import { useTabPredicciones } from "../hooks/useTabPredicciones"
+import { leerTab } from "../lib/ml-tabs"
+import { PrediccionesEncabezado } from "../components/predicciones-encabezado"
+import { PrediccionesBarra } from "../components/predicciones-barra"
+import { VistaResumen } from "../components/resumen/vista-resumen"
+import { SeccionReponer } from "../components/reponer/seccion-reponer"
+import { SeccionCitas } from "../components/citas/seccion-citas"
+import { SeccionClientas } from "../components/clientas/seccion-clientas"
+import { SeccionVentas } from "../components/ventas/seccion-ventas"
+import { FichaTecnicaSheet } from "../components/cientifico/ficha-tecnica-sheet"
 
-/** Panel ejecutivo de Machine Learning: vista unificada y navegación sin pestañas apiladas. */
+/** /admin/ml — Predicciones en lenguaje de negocio; lo técnico vive en "¿Cómo se calcula?". */
 export function MlDashboardPage() {
-  const [vista, setVista] = useState<MlVistaTab>(() => {
-    const param = new URLSearchParams(window.location.search).get("tab")
-    if (param === "demanda" || param === "noshow" || param === "rfm" || param === "auditoria") {
-      return param
-    }
-    return "overview"
-  })
-  const [dias, setDias] = useState<number>(30)
+  const [tab, setTab] = useTabPredicciones()
+  const [dias, setDias] = useState(30)
   const [sucursalId, setSucursalId] = useState<string | undefined>(undefined)
-  const [fichaAbierta, setFichaAbierta] = useState<boolean>(false)
-
-  const demanda = useDemandaMl({ dias, sucursalId })
-  const noShow = useNoShowAgenda({ sucursalId })
-  const rfm = useRfmSegmentos()
-  const anomalias = useAnomaliasVentas({ sucursalId })
-  const metricas = useModelosMetricas()
-
-  const cargando = demanda.isLoading || noShow.isLoading || rfm.isLoading || anomalias.isLoading || metricas.isLoading
-  const esFallback = Boolean(demanda.data?.fallback || noShow.data?.fallback || rfm.data?.fallback)
-
-  const recargarTodo = () => {
-    void Promise.all([demanda.reload(), noShow.reload(), rfm.reload(), anomalias.reload(), metricas.reload()])
-  }
+  const [fichaAbierta, setFichaAbierta] = useState(false)
+  const p = usePrediccionesMl({ dias, sucursalId })
+  const { demanda, noShow, rfm, anomalias, metricas, nombres } = p
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-      <MlHeader
-        esFallback={esFallback}
-        cargando={cargando}
-        onActualizar={recargarTodo}
-        onAbrirFichaTecnica={() => setFichaAbierta(true)}
+    <div className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-4 sm:p-6">
+      <PrediccionesEncabezado
+        cargando={p.cargando}
+        esEstimacion={p.esEstimacion}
+        onActualizar={p.recargarTodo}
+        onComoSeCalcula={() => setFichaAbierta(true)}
       />
 
-      <MlToolbar
-        vista={vista}
-        onVistaChange={setVista}
-        dias={dias}
-        onDiasChange={setDias}
-        sucursalId={sucursalId}
-        onSucursalChange={setSucursalId}
-        disabled={cargando}
-      />
+      <Tabs value={tab} onValueChange={(v) => setTab(leerTab(String(v)))} className="min-w-0 gap-5">
+        <PrediccionesBarra dias={dias} onDiasChange={setDias} sucursalId={sucursalId} onSucursalChange={setSucursalId} />
+        <TabsContent value="resumen">
+          <VistaResumen p={p} onIrA={setTab} />
+        </TabsContent>
+        <TabsContent value="demanda">
+          <SeccionReponer data={demanda.data} nombres={nombres} isLoading={demanda.isLoading} error={demanda.error} onReintentar={() => void demanda.reload()} />
+        </TabsContent>
+        <TabsContent value="noshow">
+          <SeccionCitas data={noShow.data} isLoading={noShow.isLoading} error={noShow.error} onReintentar={() => void noShow.reload()} />
+        </TabsContent>
+        <TabsContent value="rfm">
+          <SeccionClientas data={rfm.data} isLoading={rfm.isLoading} error={rfm.error} onReintentar={() => void rfm.reload()} />
+        </TabsContent>
+        <TabsContent value="auditoria">
+          <SeccionVentas data={anomalias.data} isLoading={anomalias.isLoading} error={anomalias.error} onReintentar={() => void anomalias.reload()} />
+        </TabsContent>
+      </Tabs>
 
-      <MlKpiRibbon demanda={demanda.data} noShow={noShow.data} rfm={rfm.data} anomalias={anomalias.data} />
-
-      {vista === "overview" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-            <div className="lg:col-span-8">
-              <MlDemandaSection data={demanda.data} isLoading={demanda.isLoading} />
-            </div>
-            <div className="lg:col-span-4">
-              <MlNoshowPanel data={noShow.data} isLoading={noShow.isLoading} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />
-            <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />
-          </div>
-        </div>
-      )}
-
-      {vista === "demanda" && <MlDemandaSection data={demanda.data} isLoading={demanda.isLoading} />}
-      {vista === "noshow" && <MlNoshowPanel data={noShow.data} isLoading={noShow.isLoading} />}
-      {vista === "rfm" && <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />}
-      {vista === "auditoria" && <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />}
-
-      <MlFichaTecnicaDialog
+      <FichaTecnicaSheet
         abierto={fichaAbierta}
         onOpenChange={setFichaAbierta}
-        data={metricas.data}
-        isLoading={metricas.isLoading}
+        metricas={metricas.data}
+        cargandoMetricas={metricas.isLoading}
+        datos={{ demanda: demanda.data, noShow: noShow.data, rfm: rfm.data, anomalias: anomalias.data }}
+        esEstimacion={p.esEstimacion}
       />
     </div>
   )

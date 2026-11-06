@@ -1,73 +1,57 @@
 import type { ItemDiagnosticoAnomalia } from "../types/ml.types"
+import { formatearHora } from "./ml-lenguaje"
 
-export interface InfoAnomaliaHumanizada {
-  badges: string[]
-  descripcion: string
+export interface VentaHumanizada {
+  inusual: boolean
+  estado: "Normal" | "Inusual, revisar"
+  /** Motivos cortos en palabras ("97% de descuento", "Fuera de horario (03:00)"). */
+  motivos: string[]
+}
+
+function porcentajeDescuento(diag: ItemDiagnosticoAnomalia, raw: string): number | null {
+  const enTexto = raw.match(/(\d+)%/)
+  if (enTexto) return Number(enTexto[1])
+  const desc = diag.descuento_cents ?? 0
+  const total = (diag.monto_total_cents ?? 0) + desc
+  return desc > 0 && total > 0 ? Math.round((desc / total) * 100) : null
 }
 
 /**
- * Traduce diagnósticos técnicos de anomalías POS (Isolation Forest) a lenguaje
- * ejecutivo natural para el Gerente Comercial y Director de Tienda.
+ * Traduce el diagnóstico del detector de ventas raras a lenguaje de tienda:
+ * "Normal" o "Inusual, revisar" + los motivos en palabras. Sin puntajes ni jerga.
  */
-export function humanizarAnomalia(diag: ItemDiagnosticoAnomalia): InfoAnomaliaHumanizada {
+export function humanizarAnomalia(diag: ItemDiagnosticoAnomalia): VentaHumanizada {
   if (!diag.es_anomalo || diag.nivel_riesgo === "NORMAL") {
-    return {
-      badges: [],
-      descripcion: "Transacción regular dentro de los parámetros comerciales esperados.",
-    }
+    return { inusual: false, estado: "Normal", motivos: [] }
   }
 
   const raw = diag.motivo_sospecha ?? ""
-  const badges: string[] = []
+  const motivos: string[] = []
 
-  const tieneDescuento =
-    /descuento/i.test(raw) || Boolean(diag.descuento_cents && diag.descuento_cents > 30000)
-
-  const pctMatch = raw.match(/(\d+)%/)
-  const pct = pctMatch ? pctMatch[1] : null
-
-  if (tieneDescuento) {
-    badges.push(pct ? `Descuento excesivo (${pct}%)` : "Descuento excesivo")
+  if (/descuento/i.test(raw) || (diag.descuento_cents ?? 0) > 30000) {
+    const pct = porcentajeDescuento(diag, raw)
+    motivos.push(pct ? `${pct}% de descuento` : "Descuento muy alto")
   }
 
-  const tieneFueraHorario =
+  const fueraDeHorario =
     /fuera de horario/i.test(raw) ||
     (typeof diag.hora_venta === "number" && (diag.hora_venta < 6 || diag.hora_venta > 23))
-
-  if (tieneFueraHorario) {
-    badges.push("Fuera de horario")
+  if (fueraDeHorario) {
+    const hora = formatearHora(diag.hora_venta)
+    motivos.push(hora ? `Fuera de horario (${hora})` : "Fuera de horario")
   }
 
-  const tieneMontoAtipico =
-    /monto total insignificante|efectivo at[ií]picamente|monto at[ií]pico/i.test(raw) ||
-    (diag.metodo_pago?.toUpperCase() === "EFECTIVO" && (diag.monto_total_cents ?? 0) > 250000)
-
-  if (tieneMontoAtipico) {
-    badges.push("Monto atípico")
+  const prendas = raw.match(/para (\d+) prendas/i)
+  if (/insignificante/i.test(raw)) {
+    motivos.push(prendas ? `Monto muy bajo para ${prendas[1]} prendas` : "Monto muy bajo para lo que se llevó")
   }
 
-  if (badges.length === 0) {
-    badges.push("Sin patrón conocido")
+  if (/efectivo at[ií]picamente/i.test(raw) ||
+    (diag.metodo_pago?.toUpperCase() === "EFECTIVO" && (diag.monto_total_cents ?? 0) > 250000)) {
+    motivos.push("Mucho dinero en efectivo")
   }
 
-  let descripcion = ""
-  if (tieneFueraHorario && tieneDescuento) {
-    const detallePct = pct ? `${pct}% de ` : ""
-    descripcion = `Venta realizada fuera de horario con ${detallePct}descuento manual aplicado en caja.`
-  } else if (tieneDescuento) {
-    const detallePct = pct ? ` (${pct}%)` : ""
-    descripcion = `Descuento manual inusualmente alto${detallePct} registrado en ticket de venta.`
-  } else if (tieneFueraHorario) {
-    const horaTxt =
-      typeof diag.hora_venta === "number"
-        ? ` a las ${String(diag.hora_venta).padStart(2, "0")}:00 hrs`
-        : ""
-    descripcion = `Venta registrada${horaTxt}, fuera del horario comercial habitual de la tienda.`
-  } else if (tieneMontoAtipico) {
-    descripcion = "Transacción con importe o volumen de prendas fuera del rango estándar de caja."
-  } else {
-    descripcion = "Comportamiento atípico detectado en caja que difiere de la operativa habitual."
-  }
+  if (motivos.length === 0) motivos.push("No se parece a tus ventas de siempre")
 
-  return { badges, descripcion }
+  return { inusual: true, estado: "Inusual, revisar", motivos }
 }

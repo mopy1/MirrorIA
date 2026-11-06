@@ -14,25 +14,14 @@ import { useTemaAdmin } from "./useTemaAdmin"
 import { useMiSuscripcion } from "@/features/subscription/hooks/useMiSuscripcion"
 import { AdminAvisos } from "./admin-avisos"
 import { SelectorTiendaAdmin } from "./selector-tienda-admin"
-
-const ADMIN_TITLES: Record<string, string> = {
-  "/admin/dashboard": "Dashboard",
-  "/admin/catalogo": "Catálogo",
-  "/admin/inventario": "Inventario & Stock",
-  "/admin/ventas": "Ventas",
-  "/admin/reservas": "Reservas",
-  "/admin/sucursales": "Sucursales",
-  "/admin/proveedores": "Proveedores",
-  "/admin/usuarios": "Usuarios & Roles",
-  "/admin/apariencia": "Apariencia",
-  "/admin/suscripcion/activar": "Activar plan",
-  "/admin/suscripcion": "Plan y suscripción",
-  "/admin/ml": "Predicciones & Machine Learning",
-}
+import { tituloAdmin } from "./admin-sidebar-logica"
+import { useSidebarColapsado } from "./admin-sidebar-use-colapsado"
+import { cn } from "cn"
 
 /** Layout de `/admin/*` (ruta padre con <Outlet/>: no se remonta al navegar). */
 export function AdminLayout({ children }: { children?: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { colapsado, alternar: alternarColapso } = useSidebarColapsado()
   const { pathname } = useLocation()
   const { user } = useAuth()
   const esAdmin = user?.role === "ADMIN"
@@ -43,7 +32,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
   const { marca, nombre } = useTemaAdmin(user?.tenant?.slug ?? null)
   const tiendaNombre = nombre ?? user?.tenant?.nombre ?? "Mi tienda"
 
-  const currentTitle = Object.entries(ADMIN_TITLES).find(([path]) => pathname.startsWith(path))?.[1] ?? "Administración"
+  const currentTitle = tituloAdmin(pathname)
   const rolLabel = user?.role ? (ROLES_CONFIG[user.role]?.label ?? user.role) : "Admin"
 
   return (
@@ -79,9 +68,21 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop Sticky Sidebar (w-64 en laptops, w-72 en pantallas grandes) */}
-      <aside className="hidden shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 xl:w-72 lg:self-start lg:overflow-y-auto">
-        <AdminSidebarContent suscripcion={miSuscripcion?.suscripcion ?? null} tiendaNombre={tiendaNombre} logoUrl={marca?.logoUrl ?? null} />
+      {/* Sidebar de escritorio: w-64/w-72, o 4.5rem contraído a íconos (persistido). */}
+      <aside
+        className={cn(
+          "hidden shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start",
+          "transition-[width] duration-200 ease-out motion-reduce:transition-none",
+          colapsado ? "lg:w-18" : "lg:w-64 xl:w-72",
+        )}
+      >
+        <AdminSidebarContent
+          suscripcion={miSuscripcion?.suscripcion ?? null}
+          tiendaNombre={tiendaNombre}
+          logoUrl={marca?.logoUrl ?? null}
+          colapsado={colapsado}
+          onAlternarColapso={alternarColapso}
+        />
       </aside>
 
       {/* Main Content Viewport */}

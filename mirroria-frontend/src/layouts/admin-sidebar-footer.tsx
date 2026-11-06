@@ -1,47 +1,61 @@
-import { ArrowSquareOut, SignOut } from "@phosphor-icons/react"
-import { Link } from "react-router-dom"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { useAuth } from "@/hooks/useAuth"
+import { SidebarSimple } from "@phosphor-icons/react"
 import { cn } from "cn"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { AdminSidebarUsuarioMenu } from "./admin-sidebar-usuario-menu"
 
-function getInitials(name?: string): string {
-  if (!name) return "AD"
-  const parts = name.trim().split(/\s+/)
-  return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+interface Props {
+  rolLabel: string
+  tiendaHref: string
+  colapsado?: boolean
+  /** Solo en escritorio: contrae/expande el menú a íconos. */
+  onAlternarColapso?: () => void
+  onNavigate?: () => void
 }
 
-/** Pie del sidebar: quién está logueada, su rol, ir a la tienda y cerrar sesión. */
-export function AdminSidebarFooter({ rolLabel, tiendaHref, onNavigate }: { rolLabel: string; tiendaHref: string; onNavigate?: () => void }) {
-  const { user, logout } = useAuth()
-  return (
-    <div className="mt-auto border-t border-border/60 p-4 xl:p-5 bg-muted/20 space-y-3">
-      <div className="flex items-center gap-3">
-        <Avatar size="default">
-          <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs">{getInitials(user?.fullName)}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground truncate">{user?.fullName || "Administrador"}</p>
-          <p className="text-xs text-muted-foreground font-mono truncate">{user?.email}</p>
-          <Badge variant="outline" className="mt-1 text-[10px] font-medium border-primary/30 bg-primary/10 text-primary">
-            {rolLabel}
-          </Badge>
-        </div>
-      </div>
+/** Pie compacto: cuenta (con su menú), botón de contraer y la firma discreta de la plataforma. */
+export function AdminSidebarFooter({ rolLabel, tiendaHref, colapsado = false, onAlternarColapso, onNavigate }: Props) {
+  const etiqueta = colapsado ? "Expandir menú" : "Contraer menú"
+  const botonColapso = onAlternarColapso && (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={onAlternarColapso}
+            aria-label={etiqueta}
+            aria-pressed={colapsado}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none",
+              "transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+              colapsado && "mx-auto",
+            )}
+          >
+            <SidebarSimple className="size-4" />
+          </button>
+        }
+      />
+      <TooltipContent side="right" sideOffset={10}>{etiqueta}</TooltipContent>
+    </Tooltip>
+  )
 
-      <div className="flex items-center gap-1.5 pt-1">
-        <Link to={tiendaHref} onClick={onNavigate} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8 flex-1 text-xs gap-1.5")}>
-          <ArrowSquareOut className="size-3.5" />
-          Tienda
-        </Link>
-        <Button variant="ghost" size="sm" onClick={logout} className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive" title="Cerrar sesión">
-          <SignOut className="size-3.5" />
-        </Button>
+  if (colapsado) {
+    return (
+      <div className="mt-auto flex shrink-0 flex-col items-center gap-1 border-t border-border/60 py-2">
+        <AdminSidebarUsuarioMenu rolLabel={rolLabel} tiendaHref={tiendaHref} colapsado onNavigate={onNavigate} />
+        {botonColapso}
       </div>
-      <p className="text-center text-[11px] text-muted-foreground">
-        Funciona con <span className="font-semibold text-foreground">MirrorIA</span>
-      </p>
+    )
+  }
+
+  return (
+    <div className="mt-auto shrink-0 border-t border-border/60 px-3 pt-2 pb-2.5">
+      <AdminSidebarUsuarioMenu rolLabel={rolLabel} tiendaHref={tiendaHref} onNavigate={onNavigate} />
+      <div className="mt-1 flex h-8 items-center justify-between gap-2 pl-1.5">
+        <p className="truncate text-[11px] text-muted-foreground">
+          Funciona con <span className="font-medium text-foreground/80">MirrorIA</span>
+        </p>
+        {botonColapso}
+      </div>
     </div>
   )
 }

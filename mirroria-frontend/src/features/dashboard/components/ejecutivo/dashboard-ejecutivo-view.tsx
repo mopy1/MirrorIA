@@ -1,81 +1,63 @@
-import type { DashboardEjecutivoDto, PeriodoDashboard } from "../../types/dashboard.types"
-import { FiltrosDashboardEjecutivo } from "./filtros-dashboard-ejecutivo"
-import { GraficoDistribucionPagos } from "./grafico-distribucion-pagos"
-import { GraficoTendenciaIngresos } from "./grafico-tendencia-ingresos"
-import { GraficoTopPrendas } from "./grafico-top-prendas"
-import { GraficoTopProveedores } from "./grafico-top-proveedores"
-import { KpiGridEjecutivo } from "./kpi-grid-ejecutivo"
-import { WidgetLimitesPlan } from "./widget-limites-plan"
+import { Skeleton } from "@/components/ui/skeleton"
+import { describirRango } from "../../lib/fechas-dashboard"
+import { contarCompras } from "../../lib/resumen-negocio"
+import type { DashboardEjecutivoDto } from "../../types/dashboard.types"
+import { BloqueError } from "../shared/bloque-error"
+import { EncabezadoDashboard, type CambioModo } from "../shared/encabezado-dashboard"
+import { BarraFiltros, type BarraFiltrosProps } from "./barra-filtros"
+import { ComoTePagan } from "./como-te-pagan"
+import { FranjaKpis } from "./franja-kpis"
+import { GraficoIngresosDia } from "./grafico-ingresos-dia"
+import { PrendasMasVendidas, ProveedoresTop } from "./rankings-ventas"
+import { ResumenNegocio } from "./resumen-negocio"
+import { UsoPlan } from "./uso-plan"
 
 interface DashboardEjecutivoViewProps {
-  periodo: PeriodoDashboard
-  fechaInicio?: string
-  fechaFin?: string
-  sucursalId?: string
-  onPeriodoChange: (p: PeriodoDashboard) => void
-  onFechaInicioChange?: (f?: string) => void
-  onFechaFinChange?: (f?: string) => void
-  onSucursalChange: (s?: string) => void
-  onRefrescar?: () => void
-  data?: DashboardEjecutivoDto | null
-  isLoading?: boolean
+  filtros: Omit<BarraFiltrosProps, "isLoading" | "onRefrescar">
+  data: DashboardEjecutivoDto | null
+  isLoading: boolean
+  error: string | null
+  onRecargar: () => void
+  modo?: CambioModo
 }
 
-export function DashboardEjecutivoView({
-  periodo,
-  fechaInicio,
-  fechaFin,
-  sucursalId,
-  onPeriodoChange,
-  onFechaInicioChange,
-  onFechaFinChange,
-  onSucursalChange,
-  onRefrescar,
-  data,
-  isLoading,
-}: DashboardEjecutivoViewProps) {
+/** "Resumen del negocio": primero la conclusión en palabras, después el detalle. */
+export function DashboardEjecutivoView({ filtros, data, isLoading, error, onRecargar, modo }: DashboardEjecutivoViewProps) {
+  const cargando = isLoading || (!data && !error)
+  const g = data?.graficos
+  const rango = data && !isLoading ? describirRango(data.periodo) : null
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground font-heading">
-            Dashboard Ejecutivo BI
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Rendimiento comercial, rotación de percha y salud financiera en tiempo real.
-          </p>
-        </div>
-        <FiltrosDashboardEjecutivo
-          periodo={periodo}
-          fechaInicio={fechaInicio}
-          fechaFin={fechaFin}
-          sucursalId={sucursalId}
-          isLoading={isLoading}
-          onPeriodoChange={onPeriodoChange}
-          onFechaInicioChange={onFechaInicioChange}
-          onFechaFinChange={onFechaFinChange}
-          onSucursalChange={onSucursalChange}
-          onRefrescar={onRefrescar}
-        />
+    <div className="flex flex-col gap-5">
+      <EncabezadoDashboard titulo="Resumen del negocio" modo={modo} />
+      <div className="flex flex-col gap-2">
+        <BarraFiltros {...filtros} isLoading={isLoading} onRefrescar={onRecargar} />
+        {rango ? (
+          <p className="text-xs text-muted-foreground tabular-nums">{rango}</p>
+        ) : (
+          !error && <Skeleton className="h-3.5 w-64 max-w-full" />
+        )}
       </div>
 
-      <KpiGridEjecutivo kpis={data?.kpis} isLoading={isLoading} />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <GraficoTendenciaIngresos data={data?.graficos.tendenciaIngresos} isLoading={isLoading} />
-        </div>
-        <div>
-          <GraficoDistribucionPagos data={data?.graficos.distribucionPagos} isLoading={isLoading} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GraficoTopPrendas prendas={data?.graficos.topPrendas} isLoading={isLoading} />
-        <GraficoTopProveedores proveedores={data?.graficos.topProveedores} isLoading={isLoading} />
-      </div>
-
-      <WidgetLimitesPlan planSaaS={data?.planSaaS} isLoading={isLoading} />
+      {error && !isLoading ? (
+        <BloqueError onReintentar={onRecargar} />
+      ) : (
+        <>
+          <ResumenNegocio data={data} isLoading={cargando} />
+          <FranjaKpis data={data} compras={data ? contarCompras(data) : 0} isLoading={cargando} />
+          <GraficoIngresosDia dias={g?.tendenciaIngresos} isLoading={cargando} />
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+            <div className="min-w-0 lg:col-span-2">
+              <PrendasMasVendidas prendas={g?.topPrendas} isLoading={cargando} />
+            </div>
+            <div className="flex min-w-0 flex-col gap-5">
+              <ComoTePagan pagos={g?.distribucionPagos} isLoading={cargando} />
+              <ProveedoresTop proveedores={g?.topProveedores} isLoading={cargando} />
+            </div>
+          </div>
+          <UsoPlan plan={data?.planSaaS} isLoading={cargando} />
+        </>
+      )}
     </div>
   )
 }

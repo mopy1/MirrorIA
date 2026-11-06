@@ -5,6 +5,11 @@ export function formatearMontoBs(monto: number): string {
   return `Bs ${monto.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/** Monto sin centavos para frases y ejes ("Bs 7.120"); el exacto va en tooltips y listas. */
+export function formatearMontoRedondo(monto: number): string {
+  return `Bs ${Math.round(monto).toLocaleString("es-BO")}`
+}
+
 /** Calcula variación porcentual simétrica protegiendo división por cero. */
 export function calcularVariacionPorcentual(actual: number, anterior: number): number {
   if (anterior === 0) {

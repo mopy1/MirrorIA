@@ -1,70 +1,60 @@
 import { describe, expect, it } from "vitest"
-import {
-  calcularReabastecimientoSugerido,
-  clasificarRiesgoNoShow,
-  clasificarRiesgoQuiebre,
-  obtenerInfoClusterRfm,
-} from "./ml.utils"
+import { formatearNombrePrenda, formatearNombreVenta } from "./ml.utils"
+import { leerTab } from "./ml-tabs"
+import { ordenarPorUrgencia, textoDuracion, textoReposicion } from "./ml-demanda"
+import type { ItemPrediccionDemanda } from "../types/ml.types"
+
+const prenda = (over: Partial<ItemPrediccionDemanda>): ItemPrediccionDemanda => ({
+  producto_id: "prod_vestido_seda_01",
+  demanda_proyectada_unidades: 15.4,
+  stock_actual: 4,
+  reabastecimiento_sugerido: 11,
+  riesgo_quiebre: "ALTO",
+  dias_de_stock_estimados: 7.8,
+  ...over,
+})
 
 describe("ml.utils", () => {
-  describe("calcularReabastecimientoSugerido", () => {
-    it("aplica buffer del 20% y resta el stock actual", () => {
-      // demanda=10, 20% buffer = 12, stock=4 -> reposicion=8
-      expect(calcularReabastecimientoSugerido(10, 4, 20)).toBe(8)
-    })
-
-    it("retorna 0 si el stock actual cubre holgadamente la demanda proyectada", () => {
-      // demanda=10, 20% buffer = 12, stock=20 -> 0
-      expect(calcularReabastecimientoSugerido(10, 20)).toBe(0)
-    })
-
-    it("retorna 0 si la demanda proyectada es 0 o negativa", () => {
-      expect(calcularReabastecimientoSugerido(0, 5)).toBe(0)
-      expect(calcularReabastecimientoSugerido(-3, 5)).toBe(0)
-    })
+  it("usa el nombre real y humaniza ids semilla sin mostrar UUIDs", () => {
+    expect(formatearNombrePrenda("x", "Blusa de Lino")).toBe("Blusa de Lino")
+    expect(formatearNombrePrenda("prod_vestido_seda_01")).toBe("Vestido Seda")
+    expect(formatearNombrePrenda("3f2b8c1e-0a4d-4c1b-9f7e-2a1b3c4d5e6f")).toBe("Prenda sin nombre")
   })
 
-  describe("clasificarRiesgoQuiebre", () => {
-    it("clasifica correctamente según días de stock", () => {
-      expect(clasificarRiesgoQuiebre(2)).toBe("CRITICO")
-      expect(clasificarRiesgoQuiebre(5)).toBe("ALTO")
-      expect(clasificarRiesgoQuiebre(12)).toBe("MEDIO")
-      expect(clasificarRiesgoQuiebre(25)).toBe("BAJO")
-    })
+  it("formatea ventas como 'Venta #101' y no inventa número para UUIDs", () => {
+    expect(formatearNombreVenta("vta_pos_reg_101")).toBe("Venta #101")
+    expect(formatearNombreVenta("3f2b8c1e-0a4d-4c1b-9f7e-2a1b3c4d5e61")).toBeNull()
+  })
+})
+
+describe("ml-tabs", () => {
+  it("conserva los valores históricos de ?tab= y cae al resumen si no hay o no es válido", () => {
+    expect(leerTab("demanda")).toBe("demanda")
+    expect(leerTab("auditoria")).toBe("auditoria")
+    expect(leerTab(null)).toBe("resumen")
+    expect(leerTab("overview")).toBe("resumen")
+  })
+})
+
+describe("ml-demanda", () => {
+  it("ordena lo más urgente primero", () => {
+    const orden = ordenarPorUrgencia([
+      prenda({ producto_id: "a", riesgo_quiebre: "BAJO" }),
+      prenda({ producto_id: "b", riesgo_quiebre: "CRITICO", dias_de_stock_estimados: 2 }),
+      prenda({ producto_id: "c", riesgo_quiebre: "CRITICO", dias_de_stock_estimados: 1 }),
+    ])
+    expect(orden.map((p) => p.producto_id)).toEqual(["c", "b", "a"])
   })
 
-  describe("clasificarRiesgoNoShow", () => {
-    it("identifica riesgo bajo (< 30%)", () => {
-      const res = clasificarRiesgoNoShow(0.15)
-      expect(res.nivel).toBe("BAJO")
-      expect(res.color).toBe("VERDE")
-    })
-
-    it("identifica riesgo moderado (30% - 60%)", () => {
-      const res = clasificarRiesgoNoShow(0.45)
-      expect(res.nivel).toBe("MODERADO")
-      expect(res.color).toBe("AMARILLO")
-    })
-
-    it("identifica alto riesgo (> 60%) con alerta de WhatsApp", () => {
-      const res = clasificarRiesgoNoShow(0.75)
-      expect(res.nivel).toBe("ALTO")
-      expect(res.color).toBe("ROJO")
-      expect(res.accion).toContain("WhatsApp")
-    })
-
-    it("soporta valores porcentuales en escala 0-100", () => {
-      expect(clasificarRiesgoNoShow(75).nivel).toBe("ALTO")
-      expect(clasificarRiesgoNoShow(25).nivel).toBe("BAJO")
-    })
+  it("dice cuánto alcanza el stock en palabras", () => {
+    expect(textoDuracion(prenda({}), 30)).toBe("Alcanza para ~8 días")
+    expect(textoDuracion(prenda({ stock_actual: 0 }), 30)).toBe("Ya no tenés stock")
+    expect(textoDuracion(prenda({ dias_de_stock_estimados: 999 }), 30)).toBe("Alcanza para más de 30 días")
+    expect(textoDuracion(prenda({ dias_de_stock_estimados: 0.6 }), 30)).toBe("Se termina hoy o mañana")
   })
 
-  describe("obtenerInfoClusterRfm", () => {
-    it("retorna metadatos válidos para cada clúster", () => {
-      expect(obtenerInfoClusterRfm("VIPS_LEALES").nombre).toBe("VIPs / Leales")
-      expect(obtenerInfoClusterRfm("POTENCIALES_NUEVAS").nombre).toBe("Nuevas Promesas")
-      expect(obtenerInfoClusterRfm("EN_RIESGO_DORMIDAS").nombre).toBe("En Riesgo / Dormidas")
-      expect(obtenerInfoClusterRfm("OCASIONALES_OUTLET").nombre).toBe("Ocasionales / Outlet")
-    })
+  it("arma la frase de reposición y omite el pedido cuando no hace falta", () => {
+    expect(textoReposicion(prenda({}), 30)).toBe("Tenés 4 · se venderían ~15 en 30 días · pedí 11 más")
+    expect(textoReposicion(prenda({ reabastecimiento_sugerido: 0 }), 7)).toBe("Tenés 4 · se venderían ~15 en 7 días")
   })
 })

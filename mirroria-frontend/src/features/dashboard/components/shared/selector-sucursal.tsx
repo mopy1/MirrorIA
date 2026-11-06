@@ -33,7 +33,7 @@ export function SelectorSucursal({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-2.5 py-1 text-xs shadow-xs transition-colors hover:border-border",
+        "inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs transition-colors hover:border-foreground/30 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-ring",
         className,
       )}
     >
@@ -42,8 +42,8 @@ export function SelectorSucursal({
         value={sucursalId ?? ""}
         onChange={(e) => onSucursalChange(e.target.value ? e.target.value : undefined)}
         disabled={disabled}
-        className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer pr-1 disabled:opacity-50"
-        aria-label="Filtrar por sucursal"
+        className="min-w-0 max-w-full cursor-pointer truncate bg-transparent pr-1 text-xs font-medium text-foreground outline-none disabled:opacity-50"
+        aria-label="Sucursal"
       >
         <option value="">{labelTodas}</option>
         {sucursales.map((s) => (
