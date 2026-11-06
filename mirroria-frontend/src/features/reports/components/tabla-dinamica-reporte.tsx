@@ -1,87 +1,55 @@
-import { CaretDown, CaretUp, CaretUpDown } from "@phosphor-icons/react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useTablaDinamica, type ColumnaOrden } from "../hooks/useTablaDinamica"
-import { formatearValor } from "../lib/report-value.utils"
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { useTablaDinamica } from "../hooks/useTablaDinamica"
+import { capitalizar, dimensionDelReporte, esMetricaAditiva, metricaDelReporte, nombreDimension, nombreMetrica, opcionesPivote } from "../lib/report-metricas"
+import { formatearPorcentaje, formatearValor } from "../lib/report-value.utils"
+import { claseVariacion } from "../lib/tabla-dinamica.utils"
 import type { Reporte } from "../types/reports.types"
+import { TablaDinamicaCabecera } from "./tabla-dinamica-cabecera"
 import { TablaDinamicaToolbar } from "./tabla-dinamica-toolbar"
 import { TablaDinamicaTotales } from "./tabla-dinamica-totales"
+import { etiquetaFila } from "../lib/report-etiquetas"
 
 interface Props {
   reporte: Reporte
   onPivoteChange?: (dimension: string) => void
 }
 
-function claseVariacion(delta: number | null | undefined): string {
-  if (delta == null) return "text-muted-foreground"
-  if (delta > 0) return "text-emerald-600 dark:text-emerald-400"
-  if (delta < 0) return "text-destructive"
-  return "text-muted-foreground"
-}
-
+/** Tabla de "Datos": buscar, ordenar por columna, reagrupar y totales. Scroll horizontal solo dentro de su caja. */
 export function TablaDinamicaReporte({ reporte, onPivoteChange }: Props) {
-  const {
-    busqueda,
-    setBusqueda,
-    columnaOrden,
-    direccionOrden,
-    conmutarOrden,
-    filas,
-    totalFilas,
-    exportando,
-    descargarExcel,
-  } = useTablaDinamica(reporte, onPivoteChange)
-
+  const { busqueda, setBusqueda, columnaOrden, direccionOrden, conmutarOrden, filas, totalFilas } = useTablaDinamica(reporte)
+  const metricaId = metricaDelReporte(reporte)
+  const metrica = metricaId ?? ""
+  const dimension = dimensionDelReporte(reporte)
   const variaciones = reporte.comparacion?.variaciones
-
-  function renderIcono(col: ColumnaOrden) {
-    if (columnaOrden !== col) return <CaretUpDown className="size-3 text-muted-foreground ml-1 inline" />
-    return direccionOrden === "asc" ? (
-      <CaretUp className="size-3 text-primary ml-1 inline" />
-    ) : (
-      <CaretDown className="size-3 text-primary ml-1 inline" />
-    )
-  }
+  const columnas = variaciones ? 4 : 2
+  const cabecera = { actual: columnaOrden, direccion: direccionOrden, onOrdenar: conmutarOrden }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0">
       <TablaDinamicaToolbar
         busqueda={busqueda}
         onBusquedaChange={setBusqueda}
-        dimensionActual={reporte.ficha.agruparPor}
+        dimensionActual={dimension}
+        opciones={reporte.esSimulacion ? [] : opcionesPivote(metricaId)}
         onPivote={onPivoteChange}
-        onExportar={descargarExcel}
-        exportando={exportando}
         conteoFiltradas={filas.length}
         totalFilas={totalFilas}
       />
-
-      <div className="rounded-md border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-border">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/40">
             <TableRow>
-              <TableHead onClick={() => conmutarOrden("etiqueta")} className="cursor-pointer select-none">
-                <span className="flex items-center">Concepto {renderIcono("etiqueta")}</span>
-              </TableHead>
-              <TableHead onClick={() => conmutarOrden("valor")} className="cursor-pointer select-none text-right">
-                <span className="flex items-center justify-end">Valor {renderIcono("valor")}</span>
-              </TableHead>
-              {variaciones && (
-                <TableHead onClick={() => conmutarOrden("anterior")} className="cursor-pointer select-none text-right">
-                  <span className="flex items-center justify-end">Período anterior {renderIcono("anterior")}</span>
-                </TableHead>
-              )}
-              {variaciones && (
-                <TableHead onClick={() => conmutarOrden("variacion")} className="cursor-pointer select-none text-right">
-                  <span className="flex items-center justify-end">Variación {renderIcono("variacion")}</span>
-                </TableHead>
-              )}
+              <TablaDinamicaCabecera columna="etiqueta" titulo={capitalizar(nombreDimension(dimension) ?? "detalle")} {...cabecera} />
+              <TablaDinamicaCabecera columna="valor" titulo={reporte.esSimulacion ? "Con el escenario simulado" : capitalizar(nombreMetrica(metricaId).replace(/^(el|la|los|las)\s+/, ""))} alDerecha {...cabecera} />
+              {variaciones && <TablaDinamicaCabecera columna="anterior" titulo="Período anterior" alDerecha {...cabecera} />}
+              {variaciones && <TablaDinamicaCabecera columna="variacion" titulo="Cambio" alDerecha {...cabecera} />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={variaciones ? 4 : 2} className="h-20 text-center text-xs text-muted-foreground">
-                  No hay filas que coincidan con la búsqueda.
+                <TableCell colSpan={columnas} className="h-20 text-center text-sm whitespace-normal text-muted-foreground">
+                  Nada coincide con “{busqueda.trim()}”. Probá con otra palabra o borrá la búsqueda.
                 </TableCell>
               </TableRow>
             ) : (
@@ -89,16 +57,12 @@ export function TablaDinamicaReporte({ reporte, onPivoteChange }: Props) {
                 const v = variaciones?.find((x) => x.clave === fila.clave)
                 return (
                   <TableRow key={fila.clave}>
-                    <TableCell className="font-medium whitespace-normal">{fila.etiqueta}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatearValor(fila.valor, reporte.ficha.metrica)}</TableCell>
+                    <TableCell className="min-w-40 whitespace-normal">{etiquetaFila(fila.etiqueta, dimension)}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">{formatearValor(fila.valor, metrica)}</TableCell>
+                    {variaciones && <TableCell className="text-right tabular-nums text-muted-foreground">{v ? formatearValor(v.anterior, metrica) : "Sin datos"}</TableCell>}
                     {variaciones && (
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {v ? formatearValor(v.anterior, reporte.ficha.metrica) : "—"}
-                      </TableCell>
-                    )}
-                    {variaciones && (
-                      <TableCell className={`text-right tabular-nums font-semibold ${claseVariacion(v?.deltaPorcentual)}`}>
-                        {v?.deltaPorcentual == null ? "—" : `${v.deltaPorcentual > 0 ? "+" : ""}${v.deltaPorcentual}%`}
+                      <TableCell className={`text-right tabular-nums ${claseVariacion(v?.deltaPorcentual)}`}>
+                        {v?.deltaPorcentual == null ? "Sin datos antes" : formatearPorcentaje(v.deltaPorcentual, true)}
                       </TableCell>
                     )}
                   </TableRow>
@@ -106,7 +70,7 @@ export function TablaDinamicaReporte({ reporte, onPivoteChange }: Props) {
               })
             )}
           </TableBody>
-          <TablaDinamicaTotales filas={filas} reporte={reporte} />
+          {esMetricaAditiva(metricaId) && <TablaDinamicaTotales filas={filas} metrica={metrica} variaciones={variaciones} />}
         </Table>
       </div>
     </div>

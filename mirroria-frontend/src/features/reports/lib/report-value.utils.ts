@@ -23,3 +23,18 @@ export function formatearValor(valor: number, metrica: string): string {
 export function formatearValorEje(valor: number, metrica: string): string {
   return esMetricaMoneda(metrica) ? formatMoneyEntero(valor) : valor.toLocaleString("es-BO")
 }
+
+/** Promedios: dinero redondeado al centavo; cantidades con un decimal como mucho ("6,6"). */
+export function formatearPromedio(valor: number, metrica: string): string {
+  return esMetricaMoneda(metrica)
+    ? formatMoney(Math.round(valor))
+    : valor.toLocaleString("es-BO", { maximumFractionDigits: 1 })
+}
+
+/** "27 %", "+12,5 %" (con signo si se pide). Formato boliviano: espacio antes del %. */
+export function formatearPorcentaje(pct: number, conSigno = false): string {
+  const n = Math.round(pct * 10) / 10
+  const texto = Math.abs(n).toLocaleString("es-BO", { maximumFractionDigits: 1 })
+  const signo = conSigno ? (n > 0 ? "+" : n < 0 ? "−" : "") : n < 0 ? "−" : ""
+  return `${signo}${texto} %`
+}

@@ -56,20 +56,15 @@ export function ConstructorReporteDialog({ onReporteGenerado }: Props) {
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setAbierto(true)}
-        className="gap-2 text-xs border-primary/30 hover:bg-primary/5"
-      >
-        <SlidersHorizontal className="size-4 text-primary" weight="bold" />
-        <span>Constructor dinámico</span>
+      <Button variant="outline" size="sm" onClick={() => setAbierto(true)} className="gap-2">
+        <SlidersHorizontal className="size-4" />
+        <span>Armar un reporte sin IA</span>
       </Button>
 
       <Dialog open={abierto} onOpenChange={setAbierto}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Constructor Dinámico de Reportes</DialogTitle>
+            <DialogTitle className="text-base font-semibold">Armar un reporte sin IA</DialogTitle>
           </DialogHeader>
           {error && <div className="rounded-md bg-destructive/10 p-2.5 text-xs text-destructive">{error}</div>}
           <ConstructorReporteCampos
@@ -89,7 +84,7 @@ export function ConstructorReporteDialog({ onReporteGenerado }: Props) {
             <Button variant="ghost" size="sm" onClick={() => setAbierto(false)}>Cancelar</Button>
             <Button size="sm" onClick={ejecutar} disabled={cargando} className="gap-1.5 text-xs">
               {cargando ? <SpinnerGap className="size-3.5 animate-spin" /> : <Play className="size-3.5" weight="fill" />}
-              <span>{cargando ? "Generando..." : "Generar Reporte"}</span>
+              <span>{cargando ? "Generando…" : "Generar reporte"}</span>
             </Button>
           </div>
         </DialogContent>

@@ -1,69 +1,50 @@
-import { CheckCircle, Lightning, MagnifyingGlass, Package, Sparkle } from "@phosphor-icons/react"
-import { Badge } from "@/components/ui/badge"
+import { CaretRight, ChartLineUp, Database, Package, Sparkle, type Icon } from "@phosphor-icons/react"
+import { describirPaso, plural, type TipoPaso } from "../../lib/lienzo-pasos"
 import type { PasoEjecutado } from "../../types/reports-hybrid.types"
+
+const ICONOS: Record<TipoPaso, Icon> = {
+  consulta: Database,
+  proveedores: Package,
+  simulacion: ChartLineUp,
+  otro: Sparkle,
+}
 
 interface ReasoningStepsProps {
   pasos: PasoEjecutado[]
 }
 
-const TOOL_CONFIG: Record<
-  string,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  consultar_metricas: {
-    label: "Consultó métricas históricas",
-    icon: MagnifyingGlass,
-  },
-  consultar_proveedores_stock: {
-    label: "Cruzó órdenes con proveedores",
-    icon: Package,
-  },
-  simular_what_if: {
-    label: "Simuló proyección en DuckDB",
-    icon: Lightning,
-  },
-}
-
+/**
+ * "Cómo se armó este reporte": colapsado por defecto (es transparencia, no lo que hay que leer).
+ * `<details>` nativo: abre con teclado y lector de pantalla sin JS extra.
+ */
 export function ReasoningSteps({ pasos }: ReasoningStepsProps) {
   if (!pasos || pasos.length === 0) return null
+  const humanos = pasos.map(describirPaso)
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-        <Sparkle className="size-3.5 text-primary" weight="fill" />
-        <span>Razonamiento agéntico ({pasos.length} pasos)</span>
-      </div>
-
-      <div className="flex flex-col gap-2 pt-1">
-        {pasos.map((paso) => {
-          const config = TOOL_CONFIG[paso.herramienta] ?? {
-            label: paso.herramienta,
-            icon: CheckCircle,
-          }
-          const Icon = config.icon
-
+    <details className="group min-w-0">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-1 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <CaretRight className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-90" aria-hidden />
+        Cómo se armó este reporte
+        <span className="font-normal text-muted-foreground">· {plural(pasos.length, "paso")}</span>
+      </summary>
+      <ol className="mt-3 flex flex-col gap-3 pl-5.5">
+        {humanos.map((p) => {
+          const Icono = ICONOS[p.tipo]
           return (
-            <div
-              key={paso.paso}
-              className="flex items-start gap-2.5 rounded-md bg-background/80 p-2 text-xs border border-border/50"
-            >
-              <Badge
-                variant="secondary"
-                className="size-5 shrink-0 items-center justify-center rounded-full p-0 text-[10px] font-mono"
-              >
-                {paso.paso}
-              </Badge>
-              <Icon className="mt-0.5 size-3.5 shrink-0 text-primary" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground">{config.label}</p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {paso.resultadoResumen}
-                </p>
+            <li key={p.id} className="flex items-start gap-2.5 text-sm">
+              <Icono className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-foreground">{p.titulo}</p>
+                {p.detalle && <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">{p.detalle}</p>}
               </div>
-            </div>
+            </li>
           )
         })}
-      </div>
-    </div>
+      </ol>
+      <p className="mt-3 pl-5.5 text-xs text-muted-foreground">
+        Las cifras salen directo de tu tienda; la IA solo elige qué consultar y redacta el análisis.
+      </p>
+    </details>
   )
 }

@@ -1,61 +1,70 @@
 import type { Reporte } from "../types/reports.types"
-
-export type TipoGrafico = "line" | "pie" | "bar" | "bar-horizontal"
-
-/**
- * Dimensiones "cerradas" (un enum chico y fijo del negocio, no una lista
- * abierta de entidades): torta/dona tiene sentido acá porque las porciones
- * suman un todo con pocas categorías reales (canal de venta, estado de una
- * reserva/venta...). `producto`/`sucursal`/`proveedor`/`cliente`/`categoria`
- * quedan afuera a propósito — son listas abiertas donde lo que importa es
- * comparar magnitudes/ranking, no ver una proporción de un total cerrado.
- */
-const DIMENSIONES_CERRADAS = new Set(["canal", "estado", "tipo_movimiento", "rol"])
-const TIPOS_VALIDOS = new Set<TipoGrafico>(["bar-horizontal", "line", "pie", "bar"])
+import {
+  capitalizar,
+  dimensionDelReporte,
+  esSerieTemporal,
+  metricaDelReporte,
+  nombreDimension,
+  nombreMetrica,
+} from "./report-metricas"
+import { etiquetaFila } from "./report-etiquetas"
 
 /**
- * Elige el tipo de gráfico según la forma del reporte, no una preferencia
- * fija — mismo espíritu que ya tenía el Line-vs-Bar original:
- * 1. `tipoGraficoSugerido` (si vino explícito del agente IA) → manda primero.
- * 2. `dia`/`mes` (serie temporal) → línea, siempre.
- * 3. Con comparación de períodos → barras agrupadas (dos series por
- *    categoría) — una torta no puede mostrar dos períodos a la vez.
- * 4. Dimensión cerrada con pocas filas → torta/dona (proporción de un todo).
- * 5. Muchas filas → barras horizontales (las etiquetas largas, ej. nombres
- *    de producto, no se pisan como en un eje vertical rotado).
- * 6. Todo lo demás → barras verticales (el default de siempre).
+ * Forma del gráfico según el trabajo del dato (skill dataviz):
+ * - `linea`: serie de tiempo (día/mes) → cambio en el tiempo.
+ * - `simulacion`: escenario proyectado → hoy vs. simulado por fila.
+ * - `comparacion`: períodos comparados → actual vs. anterior por fila.
+ * - `barras`: ranking/categorías → barras horizontales con nombre completo y valor al final
+ *   (nunca un eje vertical que saltea etiquetas, ni torta: comparar largos se lee mejor que ángulos).
+ * - `null`: sin filas, no hay gráfico.
  */
-export function elegirTipoGrafico(reporte: Reporte): TipoGrafico {
-  if (reporte.tipoGraficoSugerido && TIPOS_VALIDOS.has(reporte.tipoGraficoSugerido as TipoGrafico)) {
-    return reporte.tipoGraficoSugerido as TipoGrafico
-  }
-  const { agruparPor } = reporte.ficha
-  if (agruparPor === "dia" || agruparPor === "mes") return "line"
-  if (reporte.comparacion) return "bar"
-  if (reporte.filas.length <= 4 && DIMENSIONES_CERRADAS.has(agruparPor)) return "pie"
-  if (reporte.filas.length > 8) return "bar-horizontal"
-  return "bar"
+export type FormaGrafico = "linea" | "simulacion" | "comparacion" | "barras"
+
+export function esReporteSimulado(reporte: Reporte): boolean {
+  return (
+    reporte.tipoGraficoSugerido === "what-if-comparison" ||
+    Boolean(reporte.esSimulacion) ||
+    reporte.filas.some((f) => f.valorProyectado !== undefined || f.detalles?.original !== undefined)
+  )
+}
+
+export function elegirFormaGrafico(reporte: Reporte): FormaGrafico | null {
+  if (reporte.filas.length === 0) return null
+  if (esReporteSimulado(reporte)) return "simulacion"
+  if (esSerieTemporal(dimensionDelReporte(reporte)) && reporte.filas.length > 1) return "linea"
+  if (reporte.comparacion) return "comparacion"
+  return "barras"
 }
 
 export interface FilaGrafico {
+  clave: string
   etiqueta: string
   valor: number
-  anterior?: number
+  /** Valor contra el que se compara (período anterior o "hoy" en una simulación). */
+  referencia?: number
 }
 
+/** Filas listas para dibujar, con etiquetas humanas y la referencia según la forma. */
 export function datosGrafico(reporte: Reporte): FilaGrafico[] {
+  const dimension = dimensionDelReporte(reporte)
   const variaciones = reporte.comparacion?.variaciones
   return reporte.filas.map((fila) => {
+    const base = { clave: fila.clave, etiqueta: etiquetaFila(fila.etiqueta, dimension), valor: fila.valor }
+    if (esReporteSimulado(reporte)) {
+      const original = fila.detalles?.original
+      const real = original !== undefined ? Number(original) : (fila.valorOriginal ?? fila.valor)
+      return { ...base, valor: fila.valorProyectado ?? fila.valor, referencia: real }
+    }
     const v = variaciones?.find((x) => x.clave === fila.clave)
-    return { etiqueta: fila.etiqueta, valor: fila.valor, ...(v ? { anterior: v.anterior } : {}) }
+    return v ? { ...base, referencia: v.anterior } : base
   })
 }
 
-/** `--chart-1`..`--chart-5` ya existen como tokens del tema (ver
- * `index.css`) — se ciclan en vez de inventar colores nuevos por afuera del
- * sistema de diseño. Con más de 5 porciones el color se repite; la torta
- * solo se usa con `filas.length <= 4` (ver `elegirTipoGrafico`), así que en
- * la práctica nunca se repite. */
-export function colorPorIndice(i: number): string {
-  return `var(--chart-${(i % 5) + 1})`
+
+/** "Unidades vendidas por prenda": qué muestra el gráfico, dicho en humano. */
+export function tituloGrafico(reporte: Reporte): string {
+  if (esReporteSimulado(reporte)) return "Hoy comparado con el escenario simulado"
+  const metrica = capitalizar(nombreMetrica(metricaDelReporte(reporte)).replace(/^(el|la|los|las)\s+/, ""))
+  const dim = nombreDimension(dimensionDelReporte(reporte))
+  return dim ? `${metrica} por ${dim}` : metrica
 }

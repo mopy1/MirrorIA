@@ -1,92 +1,68 @@
-import { FileXls, Funnel, MagnifyingGlass, SpinnerGap } from "@phosphor-icons/react"
-import { Button } from "@/components/ui/button"
+import { useId } from "react"
+import { MagnifyingGlass } from "@phosphor-icons/react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-const DIMENSIONES_DISPONIBLES = [
-  { id: "sucursal", label: "Sucursal" },
-  { id: "categoria", label: "Categoría" },
-  { id: "producto", label: "Producto" },
-  { id: "canal", label: "Canal" },
-  { id: "metodo_pago", label: "Método de Pago" },
-  { id: "proveedor_pago", label: "Pasarela / Proveedor" },
-  { id: "proveedor", label: "Proveedor (Catálogo)" },
-  { id: "dia", label: "Día" },
-  { id: "mes", label: "Mes" },
-]
+interface Opcion {
+  id: string
+  etiqueta: string
+}
 
 interface Props {
   busqueda: string
   onBusquedaChange: (v: string) => void
-  dimensionActual?: string
-  onPivote?: (dim: string) => void
-  onExportar: () => void
-  exportando: boolean
+  /** Dimensión actual y alternativas válidas para la métrica; sin alternativas no se muestra "Ver por". */
+  dimensionActual: string | null
+  opciones: Opcion[]
+  onPivote?: (dimension: string) => void
   conteoFiltradas: number
   totalFilas: number
 }
 
-export function TablaDinamicaToolbar({
-  busqueda,
-  onBusquedaChange,
-  dimensionActual,
-  onPivote,
-  onExportar,
-  exportando,
-  conteoFiltradas,
-  totalFilas,
-}: Props) {
+/** Buscar dentro de los datos y reagrupar ("Ver por sucursal"). La exportación vive en el encabezado. */
+export function TablaDinamicaToolbar({ busqueda, onBusquedaChange, dimensionActual, opciones, onPivote, conteoFiltradas, totalFilas }: Props) {
+  const idBuscar = useId()
+  const idVerPor = useId()
+  const puedePivotear = Boolean(onPivote && dimensionActual) && opciones.length >= 2
+  const etiquetaDe = (id: unknown) => opciones.find((o) => o.id === id)?.etiqueta ?? "Elegí cómo agrupar"
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-        <div className="relative w-full max-w-xs">
-          <MagnifyingGlass className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+        <label htmlFor={idBuscar} className="sr-only">Buscar en los datos</label>
+        <div className="relative w-full sm:max-w-64">
+          <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
-            placeholder="Filtrar en caliente..."
+            id={idBuscar}
+            type="search"
+            placeholder="Buscar en los datos"
             value={busqueda}
             onChange={(e) => onBusquedaChange(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="h-9 pl-8"
           />
         </div>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {conteoFiltradas} de {totalFilas} filas
-        </span>
+        <p className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums" aria-live="polite">
+          {conteoFiltradas === totalFilas ? `${totalFilas} ${totalFilas === 1 ? "fila" : "filas"}` : `${conteoFiltradas} de ${totalFilas} filas`}
+        </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        {onPivote && dimensionActual && (
-          <div className="flex items-center gap-1.5">
-            <Funnel className="size-4 text-muted-foreground" />
-            <Select value={dimensionActual} onValueChange={(val) => onPivote(val as string)}>
-              <SelectTrigger className="h-9 w-44 text-xs">
-                <SelectValue placeholder="Pivotear por..." />
-              </SelectTrigger>
-              <SelectContent>
-                {DIMENSIONES_DISPONIBLES.map((d) => (
-                  <SelectItem key={d.id} value={d.id} className="text-xs">
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onExportar}
-          disabled={exportando || totalFilas === 0}
-          className="h-9 gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-        >
-          {exportando ? (
-            <SpinnerGap className="size-4 animate-spin" />
-          ) : (
-            <FileXls className="size-4" weight="bold" />
-          )}
-          <span>Exportar a Excel (.xlsx)</span>
-        </Button>
-      </div>
+      {puedePivotear && (
+        <div className="flex items-center gap-2">
+          <span id={idVerPor} className="text-xs text-muted-foreground">Ver por</span>
+          <Select value={dimensionActual} onValueChange={(v) => v && onPivote?.(String(v))}>
+            <SelectTrigger aria-labelledby={idVerPor} className="h-9 min-w-36">
+              <SelectValue>{etiquetaDe}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {opciones.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.etiqueta}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   )
 }

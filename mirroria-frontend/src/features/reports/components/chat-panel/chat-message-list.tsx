@@ -1,76 +1,47 @@
 import { useEffect, useRef } from "react"
-import { Sparkle } from "@phosphor-icons/react"
-import { Button } from "@/components/ui/button"
-import { ChatMessageItem } from "./chat-message-item"
 import type { ChatMessage } from "../../types/chat.types"
+import { ChatMessageItem } from "./chat-message-item"
+import { ChatPensando } from "./chat-pensando"
+import { ChatVacio } from "./chat-vacio"
 
-const EJEMPLOS = [
-  "¿Cuánto vendí este mes por sucursal?",
-  "Top 5 productos más vendidos",
-  "¿Cuántas reservas se cancelaron?",
-  "Unidades pedidas por proveedor este mes",
-  "¿Cuántas órdenes de compra hay por estado?",
-  "¿Qué podés hacer?",
-]
-
-interface ChatMessageListProps {
-  mensajes: ChatMessage[]
-  cargando: boolean
-  onAbrirTab: (id: string) => void
-  onEjemplo: (texto: string) => void
+export interface AccionesChat {
+  onVerReporte: (mensaje: ChatMessage) => void
+  onReintentar: (mensaje: ChatMessage) => void
+  onPreguntar: (texto: string) => void
 }
 
-/** Feed de conversación con auto-scroll al último mensaje. Vacío, muestra
- * ejemplos clicables (mismos que antes vivían siempre visibles en
- * `PreguntaCard`) — acá solo aparecen antes de la primera pregunta, para no
- * repetirlos abajo de cada respuesta. */
-export function ChatMessageList({ mensajes, cargando, onAbrirTab, onEjemplo }: ChatMessageListProps) {
+interface ChatMessageListProps extends AccionesChat {
+  mensajes: ChatMessage[]
+  idsAbiertos: ReadonlySet<string>
+  pensandoDesde: number | null
+}
+
+/** Conversación con autoscroll al último mensaje (o al indicador "pensando"). */
+export function ChatMessageList({ mensajes, idsAbiertos, pensandoDesde, ...acciones }: ChatMessageListProps) {
   const finRef = useRef<HTMLDivElement>(null)
+  const ocupado = pensandoDesde !== null
 
   useEffect(() => {
-    finRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [mensajes.length, cargando])
+    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    finRef.current?.scrollIntoView({ behavior: reducido ? "auto" : "smooth", block: "end" })
+  }, [mensajes.length, ocupado])
 
-  if (mensajes.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-        <Sparkle className="size-8 text-primary" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Preguntame sobre tu negocio</p>
-          <p className="text-xs text-muted-foreground">
-            Ventas, inventario, reservas, cupones, compras, usuarios, productos, sucursales o
-            proveedores.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-center gap-2">
-          {EJEMPLOS.map((ej) => (
-            <Button
-              key={ej}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full font-normal"
-              onClick={() => onEjemplo(ej)}
-            >
-              {ej}
-            </Button>
-          ))}
-        </div>
-      </div>
-    )
+  if (mensajes.length === 0 && !ocupado) {
+    return <ChatVacio onPreguntar={acciones.onPreguntar} deshabilitado={ocupado} />
   }
 
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto p-4">
+    <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain p-4" aria-live="polite">
       {mensajes.map((m) => (
-        <ChatMessageItem key={m.id} mensaje={m} onAbrirTab={onAbrirTab} />
+        <ChatMessageItem
+          key={m.id}
+          mensaje={m}
+          reporteAbierto={Boolean(m.reporteTabId && idsAbiertos.has(m.reporteTabId))}
+          ocupado={ocupado}
+          {...acciones}
+        />
       ))}
-      {cargando && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Sparkle className="size-4 animate-pulse text-primary" />
-          Pensando…
-        </div>
-      )}
+      {pensandoDesde !== null && <ChatPensando desde={pensandoDesde} />}
       <div ref={finRef} />
     </div>
   )

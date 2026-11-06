@@ -76,3 +76,14 @@ describe("tabla-dinamica.utils", () => {
     })
   })
 })
+
+describe("filtrarFilas (tildes y etiqueta visible)", () => {
+  it("ignora tildes y busca sobre la etiqueta que se ve", () => {
+    const filas = [
+      { clave: "a", etiqueta: "Pantalón Palazzo", valor: 1 },
+      { clave: "b", etiqueta: "2026-10-05", valor: 2 },
+    ]
+    expect(filtrarFilas(filas, "pantalon")).toHaveLength(1)
+    expect(filtrarFilas(filas, "5 oct", (e) => (e === "2026-10-05" ? "5 oct" : e))).toHaveLength(1)
+  })
+})

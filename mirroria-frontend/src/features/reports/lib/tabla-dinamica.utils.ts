@@ -3,10 +3,17 @@ import type { FilaReporte, Variacion } from "../types/reports.types"
 export type ColumnaOrden = "etiqueta" | "valor" | "anterior" | "variacion"
 export type DireccionOrden = "asc" | "desc"
 
-export function filtrarFilas(filas: FilaReporte[], busqueda: string): FilaReporte[] {
-  if (!busqueda.trim()) return filas
-  const q = busqueda.toLowerCase().trim()
-  return filas.filter((f) => f.etiqueta.toLowerCase().includes(q))
+const normalizar = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+
+/** Búsqueda sin importar mayúsculas ni tildes; `etiquetar` permite buscar sobre la etiqueta que se ve ("5 oct"). */
+export function filtrarFilas(
+  filas: FilaReporte[],
+  busqueda: string,
+  etiquetar: (etiqueta: string) => string = (e) => e,
+): FilaReporte[] {
+  const q = normalizar(busqueda)
+  if (!q) return filas
+  return filas.filter((f) => normalizar(etiquetar(f.etiqueta)).includes(q) || normalizar(f.etiqueta).includes(q))
 }
 
 export function ordenarFilas(
@@ -42,4 +49,10 @@ export function ordenarFilas(
   })
 
   return lista
+}
+
+/** Color semántico de una variación porcentual (el signo y el número siempre van en texto). */
+export function claseVariacion(delta: number | null | undefined): string {
+  if (delta == null || delta === 0) return "text-muted-foreground"
+  return delta > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"
 }
