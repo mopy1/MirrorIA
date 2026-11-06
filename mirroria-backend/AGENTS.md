@@ -13,7 +13,7 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real**), TypeORM 1.x + PostgreSQL 16 (`s
 sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request), `class-validator`, `bcrypt`, Swagger
 (`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
 QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
-*what-if*), `exceljs` (exportación corporativa .xlsx). **106 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
+_what-if_), `exceljs` (exportación corporativa .xlsx). **106 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
 Tests: **425 unitarios** en 50 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
@@ -52,24 +52,24 @@ test/                           # e2e: app, bootstrap (vigila rawBody:true), pag
 
 ## 3. Módulos: qué resuelve cada uno
 
-| Módulo | Tablas | Lógica clave |
-|---|---|---|
-| `seguridad` | `usuarios`, `refresh_tokens` | Registro (siempre `CUSTOMER`, en la tienda de `X-Tenant`, email único **por tienda**, normalizado), login (con `X-Tenant`; sin cabecera solo entra `DUENO_PLATAFORMA`), `/me`. `JwtStrategy` relee usuario y `tenantId` de la BD (inactivo → 401). Gestión de usuarios (ADMIN): rol con `sucursalId` obligatorio para staff, nunca 0 ADMIN activos ni auto-degradarse, `DUENO_PLATAFORMA` no asignable. Límite de staff del plan. Refresh token: tabla sin flujo. |
-| `catalogo` | `categorias`, `temporadas`, `colecciones`, `tallas`, `colores`, `productos`, `variantes_producto` | GET públicos (vitrina), altas/ediciones ADMIN. `productos.imagenes` jsonb `{url, varianteId?, orden}[]` (la 1.ª foto la usa el probador). Producto inactivo → 404 salvo ADMIN (`JwtOpcionalGuard`). `precioCents` bigint con transformer a number. Límite de prendas del plan al crear/reactivar. `CatalogoBaseService.sembrarBase` para tiendas nuevas. |
-| `proveedores` | `proveedores` | CRUD mínimo (ADMIN). `crearPropio` ("Producción propia") en el alta de tienda. |
-| `sucursales` | `ciudades` (global), `sucursales` | Ciudades globales (9 capitales sembradas; solo la plataforma crea). Sucursales por tienda con límite del plan. `crearInicial` en el alta. |
-| `inventario` | `inventario_sucursal`, `movimientos_inventario`, `ordenes_compra` | `ajustarStock` es el único punto que toca `cantidad_disponible` (`UPDATE` condicionado, nunca negativo, movimiento en la misma transacción). Reservado y en tránsito con `UPDATE` atómicos. Órdenes de compra (ADMIN): crear (sube tránsito), recibir parcial/total con lock, cancelar (resta solo lo pendiente). Encargado acotado a su sucursal. |
-| `ventas` | `carritos`, `ventas`, `venta_items` | Carrito jsonb (1 por usuaria, tope 3 u. por variante, `FOR UPDATE`). Checkout digital → venta `PENDIENTE` (descuenta stock libre, consume cupón, vacía carrito, máx. `VENTAS_MAX_COMPRAS_PENDIENTES`=2 sin pagar). Venta presencial → `PAGADA` (cajero de su sucursal; con `reservaId` cierra la reserva). `numeroComprobante` `C-XXXXXXXX` al pagarse. "Mis pedidos" (`/ventas/mias`). Cancelar por pago no completado devuelve stock, cupón y prendas al carrito. |
-| `reservas` | `reservas`, `reserva_items` | Reservar para probarse en tienda: 1 u./variante, 3 prendas, 2 activas, ventana +30 min/+48 h, máx. 50 % del stock libre reservable, 2 faltas en 30 días bloquean 30 días (`reglas-reserva.ts`). Máquina de estados con transiciones manuales del staff; `COMPLETADA` solo vía venta. Barrida cada 5 min (vence → `EXPIRADA`/`NO_SHOW`). `GET /reservas/mias/cupo`. |
-| `promociones` | `cupones` | Cupones `PORCENTAJE`/`MONTO_FIJO` con vigencia, usos máximos y monto mínimo; validación pública (30/5 min por IP); consumo/liberación atómicos dentro de la venta. Código único por tienda. |
-| `pagos` | `pagos` | **Tarjeta** Stripe (sesión alojada; el webhook firmado es la única autoridad), **QR** dinámico con el banco simulado **Wayra** (aviso firmado HMAC; `/wayra/*` es la "app del banco"), **efectivo** (lo confirma ADMIN/CAJERO de la sucursal). Idempotencia por `event_id` único. Barrida de impagas cada 5 min (30 min tarjeta / 24 h QR-efectivo). Pago sobre venta cancelada → marcado para reembolso. |
-| `probador` | — | `POST /probador/token`: token efímero de Decart (5 min, `lucy-vton-3.5`); 503 sin `DECART_API_KEY`; 10 tokens/10 min por IP. |
-| `bi` | — (SQL analítico sobre `ventas`, `venta_items`, `pagos`, `inventario_sucursal`, `reservas`) | Fase 5: Dashboards especializados por rol. `GET /dashboard/ejecutivo` (ADMIN, ENCARGADO_SUCURSAL con visibilidad de su sucursal): salud financiera, deltas % simétricos, rotación percha, conversión probador→caja, gráficos Recharts con días rellenados a 0, pasarelas, top prendas/proveedores inmunes a fan-out, cuota plan SaaS (`UsoPlanService`). `GET /dashboard/operativo` (ADMIN, ENCARGADO_SUCURSAL, CAJERO): corte hoy en `America/La_Paz`, facturación, cobros pendientes, agenda de clientas con citas y alertas de stock crítico ≤ 2 o agotado. |
-| `ia` | `interacciones_ia` | Reportes por lenguaje natural (CU24 = caso de uso 24). DeepSeek extrae una **ficha** y el motor (`catalogo-metricas.ts`: 23 métricas en 8 dominios) arma SQL **parametrizado** (el modelo nunca escribe SQL) y DeepSeek narra. `/ia/reportes/hibrido`: agente multi-paso (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if` en DuckDB `:memory:` 256 MB). Encargado forzado a su sucursal. Sin `IA_API_KEY`: 503 salvo `/ia/reportes/consulta` (ficha manual). |
-| `ml` | — (Microservicio `mirroria-ml` en :8002 vía HTTP con fallback heurístico) | Fase 6: Machine Learning Orientado a KPIs de Negocio. M1 Demanda (`RandomForestRegressor`), M2 No-Show (`LogisticRegression` L2 calibrado con semáforo), M3 RFM (`KMeans(K=4)` + `StandardScaler`), M4 Anomalías (`IsolationForest(contamination=0.03)`). Endpoints 109 a 113. |
-| `saas` | `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma` (globales) | Ver §5. |
+| Módulo        | Tablas                                                                                            | Lógica clave                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seguridad`   | `usuarios`, `refresh_tokens`                                                                      | Registro (siempre `CUSTOMER`, en la tienda de `X-Tenant`, email único **por tienda**, normalizado), login (con `X-Tenant`; sin cabecera solo entra `DUENO_PLATAFORMA`), `/me`. `JwtStrategy` relee usuario y `tenantId` de la BD (inactivo → 401). Gestión de usuarios (ADMIN): rol con `sucursalId` obligatorio para staff, nunca 0 ADMIN activos ni auto-degradarse, `DUENO_PLATAFORMA` no asignable. Límite de staff del plan. Refresh token: tabla sin flujo.                                                                                              |
+| `catalogo`    | `categorias`, `temporadas`, `colecciones`, `tallas`, `colores`, `productos`, `variantes_producto` | GET públicos (vitrina), altas/ediciones ADMIN. `productos.imagenes` jsonb `{url, varianteId?, orden}[]` (la 1.ª foto la usa el probador). Producto inactivo → 404 salvo ADMIN (`JwtOpcionalGuard`). `precioCents` bigint con transformer a number. Límite de prendas del plan al crear/reactivar. `CatalogoBaseService.sembrarBase` para tiendas nuevas.                                                                                                                                                                                                       |
+| `proveedores` | `proveedores`                                                                                     | CRUD mínimo (ADMIN). `crearPropio` ("Producción propia") en el alta de tienda.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `sucursales`  | `ciudades` (global), `sucursales`                                                                 | Ciudades globales (9 capitales sembradas; solo la plataforma crea). Sucursales por tienda con límite del plan. `crearInicial` en el alta.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `inventario`  | `inventario_sucursal`, `movimientos_inventario`, `ordenes_compra`                                 | `ajustarStock` es el único punto que toca `cantidad_disponible` (`UPDATE` condicionado, nunca negativo, movimiento en la misma transacción). Reservado y en tránsito con `UPDATE` atómicos. Órdenes de compra (ADMIN): crear (sube tránsito), recibir parcial/total con lock, cancelar (resta solo lo pendiente). Encargado acotado a su sucursal.                                                                                                                                                                                                             |
+| `ventas`      | `carritos`, `ventas`, `venta_items`                                                               | Carrito jsonb (1 por usuaria, tope 3 u. por variante, `FOR UPDATE`). Checkout digital → venta `PENDIENTE` (descuenta stock libre, consume cupón, vacía carrito, máx. `VENTAS_MAX_COMPRAS_PENDIENTES`=2 sin pagar). Venta presencial → `PAGADA` (cajero de su sucursal; con `reservaId` cierra la reserva). `numeroComprobante` `C-XXXXXXXX` al pagarse. "Mis pedidos" (`/ventas/mias`). Cancelar por pago no completado devuelve stock, cupón y prendas al carrito.                                                                                            |
+| `reservas`    | `reservas`, `reserva_items`                                                                       | Reservar para probarse en tienda: 1 u./variante, 3 prendas, 2 activas, ventana +30 min/+48 h, máx. 50 % del stock libre reservable, 2 faltas en 30 días bloquean 30 días (`reglas-reserva.ts`). Máquina de estados con transiciones manuales del staff; `COMPLETADA` solo vía venta. Barrida cada 5 min (vence → `EXPIRADA`/`NO_SHOW`). `GET /reservas/mias/cupo`.                                                                                                                                                                                             |
+| `promociones` | `cupones`                                                                                         | Cupones `PORCENTAJE`/`MONTO_FIJO` con vigencia, usos máximos y monto mínimo; validación pública (30/5 min por IP); consumo/liberación atómicos dentro de la venta. Código único por tienda.                                                                                                                                                                                                                                                                                                                                                                    |
+| `pagos`       | `pagos`                                                                                           | **Tarjeta** Stripe (sesión alojada; el webhook firmado es la única autoridad), **QR** dinámico con el banco simulado **Wayra** (aviso firmado HMAC; `/wayra/*` es la "app del banco"), **efectivo** (lo confirma ADMIN/CAJERO de la sucursal). Idempotencia por `event_id` único. Barrida de impagas cada 5 min (30 min tarjeta / 24 h QR-efectivo). Pago sobre venta cancelada → marcado para reembolso.                                                                                                                                                      |
+| `probador`    | —                                                                                                 | `POST /probador/token`: token efímero de Decart (5 min, `lucy-vton-3.5`); 503 sin `DECART_API_KEY`; 10 tokens/10 min por IP.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `bi`          | — (SQL analítico sobre `ventas`, `venta_items`, `pagos`, `inventario_sucursal`, `reservas`)       | Fase 5: Dashboards especializados por rol. `GET /dashboard/ejecutivo` (ADMIN, ENCARGADO_SUCURSAL con visibilidad de su sucursal): salud financiera, deltas % simétricos, rotación percha, conversión probador→caja, gráficos Recharts con días rellenados a 0, pasarelas, top prendas/proveedores inmunes a fan-out, cuota plan SaaS (`UsoPlanService`). `GET /dashboard/operativo` (ADMIN, ENCARGADO_SUCURSAL, CAJERO): corte hoy en `America/La_Paz`, facturación, cobros pendientes, agenda de clientas con citas y alertas de stock crítico ≤ 2 o agotado. |
+| `ia`          | `interacciones_ia`                                                                                | Reportes por lenguaje natural (CU24 = caso de uso 24). DeepSeek extrae una **ficha** y el motor (`catalogo-metricas.ts`: 23 métricas en 8 dominios) arma SQL **parametrizado** (el modelo nunca escribe SQL) y DeepSeek narra. `/ia/reportes/hibrido`: agente multi-paso (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if` en DuckDB `:memory:` 256 MB). Encargado forzado a su sucursal. Sin `IA_API_KEY`: 503 salvo `/ia/reportes/consulta` (ficha manual).                                                                            |
+| `ml`          | — (Microservicio `mirroria-ml` en :8002 vía HTTP con fallback heurístico)                         | Fase 6: Machine Learning Orientado a KPIs de Negocio. M1 Demanda (`RandomForestRegressor`), M2 No-Show (`LogisticRegression` L2 calibrado con semáforo), M3 RFM (`KMeans(K=4)` + `StandardScaler`), M4 Anomalías (`IsolationForest(contamination=0.03)`). Endpoints 109 a 113.                                                                                                                                                                                                                                                                                 |
+| `saas`        | `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma` (globales)       | Ver §5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-**Patrón de dependencias entre módulos** (siempre por *service exportado*, nunca entidad): `catalogo → proveedores`,
+**Patrón de dependencias entre módulos** (siempre por _service exportado_, nunca entidad): `catalogo → proveedores`,
 `inventario → catalogo, sucursales, proveedores`, `ventas → inventario, reservas, promociones, catalogo`,
 `pagos → ventas`, `saas → seguridad, sucursales, catalogo, proveedores`. Nadie importa `saas` (los límites del plan viajan
 en el contexto del tenant).
@@ -148,121 +148,122 @@ modules/saas/
 Leyenda: **Acceso** = rol exigido (`@Roles`), `JWT` = cualquier usuaria logueada (los de carrito/ventas/pagos de la
 clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **Tienda:** 🏬 necesita tienda (`X-Tenant` o JWT),
 🧭 `@SinTenant`, ⏸ funciona aunque la tienda no esté disponible. Request/response de cada una: vault `Endpoints.md`.
-| # | Método | Ruta (`/api/v1/…`) | Acceso | Código OK | Tienda |
-|---|---|---|---|---|---|
-| 1 | GET | `/health` | Público | 200 | 🧭 |
-| 2 | POST | `/seguridad/auth/login` | Público · IP 10/5 min | 200 | 🧭 ⏸ |
-| 3 | GET | `/seguridad/auth/me` | JWT | 200 | 🧭 ⏸ |
-| 4 | POST | `/seguridad/auth/register` | Público | 201 | 🏬 |
-| 5 | GET | `/seguridad/usuarios` | ADMIN | 200 | 🏬 |
-| 6 | PATCH | `/seguridad/usuarios/:id/estado` | ADMIN | 200 | 🏬 |
-| 7 | PATCH | `/seguridad/usuarios/:id/rol` | ADMIN | 200 | 🏬 |
-| 8 | GET | `/catalogo/categorias` | Público | 200 | 🏬 |
-| 9 | POST | `/catalogo/categorias` | ADMIN | 201 | 🏬 |
-| 10 | GET | `/catalogo/colecciones` | Público | 200 | 🏬 |
-| 11 | POST | `/catalogo/colecciones` | ADMIN | 201 | 🏬 |
-| 12 | PATCH | `/catalogo/colecciones/:id` | ADMIN | 200 | 🏬 |
-| 13 | GET | `/catalogo/colores` | Público | 200 | 🏬 |
-| 14 | POST | `/catalogo/colores` | ADMIN | 201 | 🏬 |
-| 15 | GET | `/catalogo/productos` | Público | 200 | 🏬 |
-| 16 | POST | `/catalogo/productos` | ADMIN | 201 | 🏬 |
-| 17 | GET | `/catalogo/productos/:id` | Público (JWT opcional) | 200 | 🏬 |
-| 18 | PATCH | `/catalogo/productos/:id` | ADMIN | 200 | 🏬 |
-| 19 | POST | `/catalogo/productos/:id/variantes` | ADMIN | 201 | 🏬 |
-| 20 | GET | `/catalogo/tallas` | Público | 200 | 🏬 |
-| 21 | POST | `/catalogo/tallas` | ADMIN | 201 | 🏬 |
-| 22 | GET | `/catalogo/temporadas` | Público | 200 | 🏬 |
-| 23 | POST | `/catalogo/temporadas` | ADMIN | 201 | 🏬 |
-| 24 | GET | `/proveedores` | ADMIN | 200 | 🏬 |
-| 25 | POST | `/proveedores` | ADMIN | 201 | 🏬 |
-| 26 | GET | `/proveedores/:id` | ADMIN | 200 | 🏬 |
-| 27 | GET | `/sucursales` | Público | 200 | 🏬 |
-| 28 | POST | `/sucursales` | ADMIN | 201 | 🏬 |
-| 29 | GET | `/sucursales/:id` | Público | 200 | 🏬 |
-| 30 | GET | `/sucursales/ciudades` | Público | 200 | 🧭 |
-| 31 | POST | `/sucursales/ciudades` | DUENO_PLATAFORMA | 201 | 🧭 |
-| 32 | GET | `/inventario` | Público | 200 | 🏬 |
-| 33 | POST | `/inventario/ajustes` | ADMIN, ENCARGADO_SUCURSAL | 201 | 🏬 |
-| 34 | GET | `/inventario/movimientos` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
-| 35 | GET | `/inventario/ordenes-compra` | ADMIN | 200 | 🏬 |
-| 36 | POST | `/inventario/ordenes-compra` | ADMIN | 201 | 🏬 |
-| 37 | GET | `/inventario/ordenes-compra/:id` | ADMIN | 200 | 🏬 |
-| 38 | PATCH | `/inventario/ordenes-compra/:id/cancelar` | ADMIN | 200 | 🏬 |
-| 39 | PATCH | `/inventario/ordenes-compra/:id/recibir` | ADMIN | 200 | 🏬 |
-| 40 | GET | `/ventas` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
-| 41 | GET | `/ventas/:id` | ADMIN, ENCARGADO_SUCURSAL, CUSTOMER | 200 | 🏬 |
-| 42 | GET | `/ventas/carrito/:usuarioId` | JWT | 200 | 🏬 |
-| 43 | POST | `/ventas/carrito/:usuarioId/checkout` | JWT | 201 | 🏬 |
-| 44 | POST | `/ventas/carrito/:usuarioId/items` | JWT | 201 | 🏬 |
-| 45 | DELETE | `/ventas/carrito/:usuarioId/items/:varianteId` | JWT | 200 | 🏬 |
-| 46 | PATCH | `/ventas/carrito/:usuarioId/items/:varianteId` | JWT | 200 | 🏬 |
-| 47 | GET | `/ventas/mias` | JWT | 200 | 🏬 |
-| 48 | POST | `/ventas/presenciales` | ADMIN, CAJERO | 201 | 🏬 |
-| 49 | GET | `/reservas` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
-| 50 | POST | `/reservas` | JWT | 201 | 🏬 |
-| 51 | GET | `/reservas/:id` | JWT | 200 | 🏬 |
-| 52 | PATCH | `/reservas/:id/cancelar` | JWT | 200 | 🏬 |
-| 53 | PATCH | `/reservas/:id/estado` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
-| 54 | GET | `/reservas/mias` | JWT | 200 | 🏬 |
-| 55 | GET | `/reservas/mias/cupo` | JWT | 200 | 🏬 |
-| 56 | GET | `/promociones/cupones` | ADMIN | 200 | 🏬 |
-| 57 | POST | `/promociones/cupones` | ADMIN | 201 | 🏬 |
-| 58 | GET | `/promociones/cupones/:id` | ADMIN | 200 | 🏬 |
-| 59 | PATCH | `/promociones/cupones/:id/estado` | ADMIN | 200 | 🏬 |
-| 60 | POST | `/promociones/cupones/validar` | Público · IP 30/5 min | 201 | 🏬 |
-| 61 | POST | `/pagos/:pagoId/confirmar` | ADMIN, CAJERO | 200 | 🏬 |
-| 62 | POST | `/pagos/expirar-vencidas` | ADMIN | 200 | 🏬 |
-| 63 | GET | `/pagos/pendientes` | ADMIN, CAJERO | 200 | 🏬 |
-| 64 | GET | `/pagos/qr/:pagoId` | JWT | 200 | 🏬 |
-| 65 | POST | `/pagos/qr/aviso` | Público | 200 | 🧭 |
-| 66 | POST | `/pagos/ventas/:ventaId/cancelar` | JWT | 204 | 🏬 |
-| 67 | POST | `/pagos/ventas/:ventaId/manual` | JWT | 201 | 🏬 |
-| 68 | POST | `/pagos/ventas/:ventaId/qr` | JWT | 201 | 🏬 |
-| 69 | POST | `/pagos/ventas/:ventaId/sesion` | JWT | 201 | 🏬 |
-| 70 | POST | `/pagos/webhook` | Público | 200 | 🧭 |
-| 71 | GET | `/wayra/cobros/:token` | Público | 200 | 🧭 |
-| 72 | POST | `/wayra/cobros/:token/pagar` | Público | 200 | 🧭 |
-| 73 | POST | `/probador/token` | Público | 201 | 🧭 |
-| 74 | GET | `/ia/interacciones` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
-| 75 | POST | `/ia/reportes` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
-| 76 | POST | `/ia/reportes/consulta` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
-| 77 | POST | `/ia/reportes/hibrido` | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200 | 🏬 |
-| 78 | GET | `/saas/estadisticas` | Público | 200 | 🧭 ⏸ |
-| 79 | GET | `/saas/mi-marca` | ADMIN | 200 | 🏬 ⏸ |
-| 80 | PUT | `/saas/mi-marca` | ADMIN | 200 | 🏬 |
-| 81 | POST | `/saas/mi-marca/restablecer` | ADMIN | 200 | 🏬 |
-| 82 | GET | `/saas/mi-suscripcion` | ADMIN | 200 | 🏬 ⏸ |
-| 83 | PATCH | `/saas/mi-suscripcion/plan` | ADMIN | 200 | 🏬 ⏸ |
-| 84 | GET | `/saas/planes` | Público | 200 | 🧭 ⏸ |
-| 85 | GET | `/saas/plataforma/actividad` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 86 | GET | `/saas/plataforma/dashboard` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 87 | GET | `/saas/plataforma/inquilinos` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 88 | GET | `/saas/plataforma/inquilinos/:id` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 89 | PATCH | `/saas/plataforma/inquilinos/:id/estado` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 90 | POST | `/saas/plataforma/inquilinos/:id/extender` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 91 | POST | `/saas/plataforma/inquilinos/:id/marca/restablecer` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 92 | GET | `/saas/plataforma/inquilinos/:id/metricas` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 93 | PATCH | `/saas/plataforma/inquilinos/:id/plan` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 94 | GET | `/saas/plataforma/planes` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 95 | POST | `/saas/plataforma/planes` | DUENO_PLATAFORMA | 201 | 🧭 |
-| 96 | PATCH | `/saas/plataforma/planes/:id` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 97 | GET | `/saas/plataforma/resumen` | DUENO_PLATAFORMA | 200 | 🧭 |
-| 98 | GET | `/saas/tiendas` | Público | 200 | 🧭 ⏸ |
-| 99 | POST | `/saas/tiendas` | Público · IP 5/h | 201 | 🧭 ⏸ |
-| 100 | GET | `/saas/tiendas/:slug` | Público | 200 | 🧭 ⏸ |
-| 101 | GET | `/saas/tiendas/disponibilidad` | Público | 200 | 🧭 ⏸ |
-| 102 | GET | `/pagos/pasarelas` | Público / Tenant opcional | 200 | 🧭 |
-| 103 | POST | `/saas/mi-suscripcion/cobro` | ADMIN | 201 | 🏬 ⏸ |
-| 104 | GET | `/saas/mi-suscripcion/cobro/:cobroId/estado` | ADMIN | 200 | 🏬 ⏸ |
-| 105 | POST | `/saas/mi-suscripcion/cobro/:cobroId/simular-pago` | ADMIN | 200 | 🏬 ⏸ |
-| 106 | POST | `/ia/reportes/exportar-excel` | ADMIN, ENCARGADO_SUCURSAL · IP 30/5 min | 200 | 🏬 |
-| 107 | GET | `/dashboard/ejecutivo` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
-| 108 | GET | `/dashboard/operativo` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
-| 109 | GET | `/ml/kpis/demanda` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
-| 110 | GET | `/ml/kpis/no-show` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
-| 111 | GET | `/ml/kpis/rfm` | ADMIN | 200 | 🏬 |
-| 112 | GET | `/ml/kpis/anomalias` | ADMIN | 200 | 🏬 |
-| 113 | GET | `/ml/modelos/metricas` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+
+| #   | Método | Ruta (`/api/v1/…`)                                  | Acceso                                   | Código OK | Tienda |
+| --- | ------ | --------------------------------------------------- | ---------------------------------------- | --------- | ------ |
+| 1   | GET    | `/health`                                           | Público                                  | 200       | 🧭     |
+| 2   | POST   | `/seguridad/auth/login`                             | Público · IP 10/5 min                    | 200       | 🧭 ⏸   |
+| 3   | GET    | `/seguridad/auth/me`                                | JWT                                      | 200       | 🧭 ⏸   |
+| 4   | POST   | `/seguridad/auth/register`                          | Público                                  | 201       | 🏬     |
+| 5   | GET    | `/seguridad/usuarios`                               | ADMIN                                    | 200       | 🏬     |
+| 6   | PATCH  | `/seguridad/usuarios/:id/estado`                    | ADMIN                                    | 200       | 🏬     |
+| 7   | PATCH  | `/seguridad/usuarios/:id/rol`                       | ADMIN                                    | 200       | 🏬     |
+| 8   | GET    | `/catalogo/categorias`                              | Público                                  | 200       | 🏬     |
+| 9   | POST   | `/catalogo/categorias`                              | ADMIN                                    | 201       | 🏬     |
+| 10  | GET    | `/catalogo/colecciones`                             | Público                                  | 200       | 🏬     |
+| 11  | POST   | `/catalogo/colecciones`                             | ADMIN                                    | 201       | 🏬     |
+| 12  | PATCH  | `/catalogo/colecciones/:id`                         | ADMIN                                    | 200       | 🏬     |
+| 13  | GET    | `/catalogo/colores`                                 | Público                                  | 200       | 🏬     |
+| 14  | POST   | `/catalogo/colores`                                 | ADMIN                                    | 201       | 🏬     |
+| 15  | GET    | `/catalogo/productos`                               | Público                                  | 200       | 🏬     |
+| 16  | POST   | `/catalogo/productos`                               | ADMIN                                    | 201       | 🏬     |
+| 17  | GET    | `/catalogo/productos/:id`                           | Público (JWT opcional)                   | 200       | 🏬     |
+| 18  | PATCH  | `/catalogo/productos/:id`                           | ADMIN                                    | 200       | 🏬     |
+| 19  | POST   | `/catalogo/productos/:id/variantes`                 | ADMIN                                    | 201       | 🏬     |
+| 20  | GET    | `/catalogo/tallas`                                  | Público                                  | 200       | 🏬     |
+| 21  | POST   | `/catalogo/tallas`                                  | ADMIN                                    | 201       | 🏬     |
+| 22  | GET    | `/catalogo/temporadas`                              | Público                                  | 200       | 🏬     |
+| 23  | POST   | `/catalogo/temporadas`                              | ADMIN                                    | 201       | 🏬     |
+| 24  | GET    | `/proveedores`                                      | ADMIN                                    | 200       | 🏬     |
+| 25  | POST   | `/proveedores`                                      | ADMIN                                    | 201       | 🏬     |
+| 26  | GET    | `/proveedores/:id`                                  | ADMIN                                    | 200       | 🏬     |
+| 27  | GET    | `/sucursales`                                       | Público                                  | 200       | 🏬     |
+| 28  | POST   | `/sucursales`                                       | ADMIN                                    | 201       | 🏬     |
+| 29  | GET    | `/sucursales/:id`                                   | Público                                  | 200       | 🏬     |
+| 30  | GET    | `/sucursales/ciudades`                              | Público                                  | 200       | 🧭     |
+| 31  | POST   | `/sucursales/ciudades`                              | DUENO_PLATAFORMA                         | 201       | 🧭     |
+| 32  | GET    | `/inventario`                                       | Público                                  | 200       | 🏬     |
+| 33  | POST   | `/inventario/ajustes`                               | ADMIN, ENCARGADO_SUCURSAL                | 201       | 🏬     |
+| 34  | GET    | `/inventario/movimientos`                           | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
+| 35  | GET    | `/inventario/ordenes-compra`                        | ADMIN                                    | 200       | 🏬     |
+| 36  | POST   | `/inventario/ordenes-compra`                        | ADMIN                                    | 201       | 🏬     |
+| 37  | GET    | `/inventario/ordenes-compra/:id`                    | ADMIN                                    | 200       | 🏬     |
+| 38  | PATCH  | `/inventario/ordenes-compra/:id/cancelar`           | ADMIN                                    | 200       | 🏬     |
+| 39  | PATCH  | `/inventario/ordenes-compra/:id/recibir`            | ADMIN                                    | 200       | 🏬     |
+| 40  | GET    | `/ventas`                                           | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
+| 41  | GET    | `/ventas/:id`                                       | ADMIN, ENCARGADO_SUCURSAL, CUSTOMER      | 200       | 🏬     |
+| 42  | GET    | `/ventas/carrito/:usuarioId`                        | JWT                                      | 200       | 🏬     |
+| 43  | POST   | `/ventas/carrito/:usuarioId/checkout`               | JWT                                      | 201       | 🏬     |
+| 44  | POST   | `/ventas/carrito/:usuarioId/items`                  | JWT                                      | 201       | 🏬     |
+| 45  | DELETE | `/ventas/carrito/:usuarioId/items/:varianteId`      | JWT                                      | 200       | 🏬     |
+| 46  | PATCH  | `/ventas/carrito/:usuarioId/items/:varianteId`      | JWT                                      | 200       | 🏬     |
+| 47  | GET    | `/ventas/mias`                                      | JWT                                      | 200       | 🏬     |
+| 48  | POST   | `/ventas/presenciales`                              | ADMIN, CAJERO                            | 201       | 🏬     |
+| 49  | GET    | `/reservas`                                         | ADMIN, ENCARGADO_SUCURSAL, CAJERO        | 200       | 🏬     |
+| 50  | POST   | `/reservas`                                         | JWT                                      | 201       | 🏬     |
+| 51  | GET    | `/reservas/:id`                                     | JWT                                      | 200       | 🏬     |
+| 52  | PATCH  | `/reservas/:id/cancelar`                            | JWT                                      | 200       | 🏬     |
+| 53  | PATCH  | `/reservas/:id/estado`                              | ADMIN, ENCARGADO_SUCURSAL, CAJERO        | 200       | 🏬     |
+| 54  | GET    | `/reservas/mias`                                    | JWT                                      | 200       | 🏬     |
+| 55  | GET    | `/reservas/mias/cupo`                               | JWT                                      | 200       | 🏬     |
+| 56  | GET    | `/promociones/cupones`                              | ADMIN                                    | 200       | 🏬     |
+| 57  | POST   | `/promociones/cupones`                              | ADMIN                                    | 201       | 🏬     |
+| 58  | GET    | `/promociones/cupones/:id`                          | ADMIN                                    | 200       | 🏬     |
+| 59  | PATCH  | `/promociones/cupones/:id/estado`                   | ADMIN                                    | 200       | 🏬     |
+| 60  | POST   | `/promociones/cupones/validar`                      | Público · IP 30/5 min                    | 201       | 🏬     |
+| 61  | POST   | `/pagos/:pagoId/confirmar`                          | ADMIN, CAJERO                            | 200       | 🏬     |
+| 62  | POST   | `/pagos/expirar-vencidas`                           | ADMIN                                    | 200       | 🏬     |
+| 63  | GET    | `/pagos/pendientes`                                 | ADMIN, CAJERO                            | 200       | 🏬     |
+| 64  | GET    | `/pagos/qr/:pagoId`                                 | JWT                                      | 200       | 🏬     |
+| 65  | POST   | `/pagos/qr/aviso`                                   | Público                                  | 200       | 🧭     |
+| 66  | POST   | `/pagos/ventas/:ventaId/cancelar`                   | JWT                                      | 204       | 🏬     |
+| 67  | POST   | `/pagos/ventas/:ventaId/manual`                     | JWT                                      | 201       | 🏬     |
+| 68  | POST   | `/pagos/ventas/:ventaId/qr`                         | JWT                                      | 201       | 🏬     |
+| 69  | POST   | `/pagos/ventas/:ventaId/sesion`                     | JWT                                      | 201       | 🏬     |
+| 70  | POST   | `/pagos/webhook`                                    | Público                                  | 200       | 🧭     |
+| 71  | GET    | `/wayra/cobros/:token`                              | Público                                  | 200       | 🧭     |
+| 72  | POST   | `/wayra/cobros/:token/pagar`                        | Público                                  | 200       | 🧭     |
+| 73  | POST   | `/probador/token`                                   | Público                                  | 201       | 🧭     |
+| 74  | GET    | `/ia/interacciones`                                 | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
+| 75  | POST   | `/ia/reportes`                                      | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200       | 🏬     |
+| 76  | POST   | `/ia/reportes/consulta`                             | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200       | 🏬     |
+| 77  | POST   | `/ia/reportes/hibrido`                              | ADMIN, ENCARGADO_SUCURSAL · IP 20/10 min | 200       | 🏬     |
+| 78  | GET    | `/saas/estadisticas`                                | Público                                  | 200       | 🧭 ⏸   |
+| 79  | GET    | `/saas/mi-marca`                                    | ADMIN                                    | 200       | 🏬 ⏸   |
+| 80  | PUT    | `/saas/mi-marca`                                    | ADMIN                                    | 200       | 🏬     |
+| 81  | POST   | `/saas/mi-marca/restablecer`                        | ADMIN                                    | 200       | 🏬     |
+| 82  | GET    | `/saas/mi-suscripcion`                              | ADMIN                                    | 200       | 🏬 ⏸   |
+| 83  | PATCH  | `/saas/mi-suscripcion/plan`                         | ADMIN                                    | 200       | 🏬 ⏸   |
+| 84  | GET    | `/saas/planes`                                      | Público                                  | 200       | 🧭 ⏸   |
+| 85  | GET    | `/saas/plataforma/actividad`                        | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 86  | GET    | `/saas/plataforma/dashboard`                        | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 87  | GET    | `/saas/plataforma/inquilinos`                       | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 88  | GET    | `/saas/plataforma/inquilinos/:id`                   | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 89  | PATCH  | `/saas/plataforma/inquilinos/:id/estado`            | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 90  | POST   | `/saas/plataforma/inquilinos/:id/extender`          | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 91  | POST   | `/saas/plataforma/inquilinos/:id/marca/restablecer` | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 92  | GET    | `/saas/plataforma/inquilinos/:id/metricas`          | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 93  | PATCH  | `/saas/plataforma/inquilinos/:id/plan`              | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 94  | GET    | `/saas/plataforma/planes`                           | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 95  | POST   | `/saas/plataforma/planes`                           | DUENO_PLATAFORMA                         | 201       | 🧭     |
+| 96  | PATCH  | `/saas/plataforma/planes/:id`                       | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 97  | GET    | `/saas/plataforma/resumen`                          | DUENO_PLATAFORMA                         | 200       | 🧭     |
+| 98  | GET    | `/saas/tiendas`                                     | Público                                  | 200       | 🧭 ⏸   |
+| 99  | POST   | `/saas/tiendas`                                     | Público · IP 5/h                         | 201       | 🧭 ⏸   |
+| 100 | GET    | `/saas/tiendas/:slug`                               | Público                                  | 200       | 🧭 ⏸   |
+| 101 | GET    | `/saas/tiendas/disponibilidad`                      | Público                                  | 200       | 🧭 ⏸   |
+| 102 | GET    | `/pagos/pasarelas`                                  | Público / Tenant opcional                | 200       | 🧭     |
+| 103 | POST   | `/saas/mi-suscripcion/cobro`                        | ADMIN                                    | 201       | 🏬 ⏸   |
+| 104 | GET    | `/saas/mi-suscripcion/cobro/:cobroId/estado`        | ADMIN                                    | 200       | 🏬 ⏸   |
+| 105 | POST   | `/saas/mi-suscripcion/cobro/:cobroId/simular-pago`  | ADMIN                                    | 200       | 🏬 ⏸   |
+| 106 | POST   | `/ia/reportes/exportar-excel`                       | ADMIN, ENCARGADO_SUCURSAL · IP 30/5 min  | 200       | 🏬     |
+| 107 | GET    | `/dashboard/ejecutivo`                              | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
+| 108 | GET    | `/dashboard/operativo`                              | ADMIN, ENCARGADO_SUCURSAL, CAJERO        | 200       | 🏬     |
+| 109 | GET    | `/ml/kpis/demanda`                                  | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
+| 110 | GET    | `/ml/kpis/no-show`                                  | ADMIN, ENCARGADO_SUCURSAL, CAJERO        | 200       | 🏬     |
+| 111 | GET    | `/ml/kpis/rfm`                                      | ADMIN                                    | 200       | 🏬     |
+| 112 | GET    | `/ml/kpis/anomalias`                                | ADMIN                                    | 200       | 🏬     |
+| 113 | GET    | `/ml/modelos/metricas`                              | ADMIN, ENCARGADO_SUCURSAL                | 200       | 🏬     |
 
 ## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 
@@ -362,7 +363,7 @@ salvo que un módulo necesite queries muy custom (ahí sí, un `repository/` con
    por rol: `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles('ADMIN')` sobre el método.
 8. **🏢 Toda consulta lleva `soloTenant()` (Fase 1 SaaS).** Toda lectura/update/delete sobre una
    entidad con tenant: `where: soloTenant({...})`; QueryBuilder y SQL crudo: `AND <alias>.tenant_id =
-   :tenantId` con `tenantActual()`; inserts por QB pasan `tenantId` explícito. Las únicas lecturas sin
+:tenantId` con `tenantActual()`; inserts por QB pasan `tenantId` explícito. Las únicas lecturas sin
    tenant llevan el comentario `// sin-tenant: <motivo>` en la MISMA línea (barridas, webhooks, JwtStrategy,
    login de plataforma) o son tablas globales (`ciudades`, `saas`). Auditoría: §3.5 de la spec
    (`grep -rn "where:" --include='*.service.ts' src/modules | grep -v soloTenant | grep -v sin-tenant`).
@@ -571,14 +572,14 @@ credenciales/API key reales), y sin desviarse de la arquitectura/patrones ya aco
     `CoreSecurityModule` nuevo (`@Global()`, registra `PassportModule` una sola vez, se importa
     en `AppModule`) — no hace falta re-importar `PassportModule` en cada módulo de negocio.
   - Patrón de "dueño de su propio recurso" (no es un chequeo de rol): `assertOwnUser(usuarioId,
-    user)` en `core/security/assert-own-user.ts`, usa `ForbiddenException` de Nest. Se comparte
+user)` en `core/security/assert-own-user.ts`, usa `ForbiddenException` de Nest. Se comparte
     entre `CarritosController` y `VentasController` (carrito propio, checkout propio).
   - `POST /ventas/presenciales` ahora exige rol `ADMIN`/`CAJERO` y **ya no confía en un
     `cajeroId` del body** — se toma de `@CurrentUser()` (el JWT).
 - **`modules/seguridad` ganó `UsuariosController`/`UsuariosService` (RF02):** `GET
-  /usuarios` (listado, solo `ADMIN`), `PATCH /:id/rol` (valida que `CAJERO`/
+/usuarios` (listado, solo `ADMIN`), `PATCH /:id/rol` (valida que `CAJERO`/
   `ENCARGADO_SUCURSAL` traigan `sucursalId`, si no 409 `OperacionInvalidaException`), `PATCH
-  /:id/estado` (activar/desactivar cuenta — combinado con la revalidación de `is_active` que ya
+/:id/estado` (activar/desactivar cuenta — combinado con la revalidación de `is_active` que ya
   hacía `JwtStrategy`, desactivar a alguien le invalida la sesión en el siguiente request).
 - **`modules/reservas/` nuevo (RF09-12), sigue el mismo patrón de módulo que `ventas`:**
   - `Reserva` (`clienteId`/`sucursalId` como columnas planas, no relación — mismo criterio que
@@ -651,10 +652,10 @@ concatenado en una query.
 - **Un `ENCARGADO_SUCURSAL` queda acotado a su propia sucursal desde el servidor**, no desde lo
   que el modelo entienda: `IaService.forzarAlcance` pisa `ficha.filtros.sucursalId` con la
   `sucursalId` del JWT antes de correr el motor, sea cual sea lo que pidió la pregunta. Si esa
-  cuenta no tiene sucursal asignada, no se deja el filtro vacío (eso abriría *todas* las
+  cuenta no tiene sucursal asignada, no se deja el filtro vacío (eso abriría _todas_ las
   sucursales) — se corta con `SinSucursalAsignadaException`, **403**.
 - **Sin `IA_API_KEY` el endpoint de ficha manual sigue funcionando.** `POST
-  /ia/reportes/consulta` (`IaService.consultar`) no toca al proveedor de IA en ningún punto:
+/ia/reportes/consulta` (`IaService.consultar`) no toca al proveedor de IA en ningún punto:
   es la vía que usan las pruebas y permite probar el motor completo (catálogo + SQL
   parametrizado + comparación de periodos) sin modelo y sin red. Solo `POST /ia/reportes`
   (`IaService.preguntar`, el camino con lenguaje natural) exige la key — si falta, devuelve
@@ -678,7 +679,7 @@ concatenado en una query.
 - **Verificado contra el modelo real (2026-09-22):** con una `IA_API_KEY` real de DeepSeek,
   `extraerFicha` y `narrar` se probaron de punta a punta por primera vez — "¿Cuánto vendí
   este mes por sucursal?" devolvió la ficha exacta `{"metrica":"ingresos","agruparPor":
-  "sucursal"}`, y `narrar` con datos de ejemplo devolvió un resumen correcto sin inventar
+"sucursal"}`, y `narrar` con datos de ejemplo devolvió un resumen correcto sin inventar
   números. El dictado por voz (`feat(reportes): dictado por voz con la Web Speech API`)
   sigue sin probarse en un navegador real. Lo que ya estaba verificado de punta a punta
   (178 unitarias + e2e en verde tras el cambio de proveedor, ver sección de verificación) es
@@ -693,7 +694,7 @@ Decisión del usuario: reemplazar `GeminiProveedor` por `DeepSeekProveedor` — 
 - **Diferencia real que importó para `extraerFicha`:** Gemini soporta forzar un JSON Schema
   del lado del servidor (`responseSchema`) — el modelo devuelve esa forma o falla. DeepSeek
   **no tiene equivalente**: `response_format: {type: 'json_object'}` solo garantiza JSON
-  *válido*, no una forma en particular. Sin nada más, el modelo podía devolver cualquier
+  _válido_, no una forma en particular. Sin nada más, el modelo podía devolver cualquier
   JSON, no necesariamente los campos de la ficha (`metrica`, `agruparPor`, etc.). Se agregó
   `describirFormatoSalida()` en `esquema-ficha.ts` — describe `ESQUEMA_FICHA` en texto plano
   dentro de la misma instrucción que ya recorre el catálogo — para compensar. La validación
@@ -714,6 +715,7 @@ Decisión del usuario: reemplazar `GeminiProveedor` por `DeepSeekProveedor` — 
 ### 🚀 Motor Analítico Híbrido: Multi-Tool Agent + DuckDB In-Process (2026-11-04)
 
 Evolución del módulo `ia` para soportar **consultas complejas de múltiples pasos** y **simulaciones predictivas What-If**, manteniendo 0% de riesgo de SQL Injection y cero contenedores nuevos en Docker:
+
 - **`DuckDbService` (`service/duckdb.service.ts`):** Motor OLAP in-memory embebido mediante `@duckdb/node-api` corriendo en el propio proceso de NestJS. Configurado con `SET max_memory = '256MB'` y `threads = 2` para proteger la RAM física del host. Expone `proyectarWhatIf` para calcular variaciones sobre datos agregados sin bloquear ni mutar PostgreSQL.
 - **`IaAgenteService` (`service/ia-agente.service.ts`) & `ia-tools.catalog.ts`:** Bucle agéntico multi-paso (hasta 3 turnos) usando Function Calling nativo de DeepSeek (`tools`/`tool_calls`). Herramientas disponibles:
   1. `consultar_metricas`: delega al catálogo semántico y `MotorConsultaService`. Soporta las 10 dimensiones (`producto`, `categoria`, `sucursal`, `proveedor`, `canal`, `estado`, `cliente`, `dia`, `mes`, `ninguno`), `limite` (1..100), `orden` (`desc`/`asc`) y filtros (`desde`, `hasta`, `sucursalId`, `categoriaId`, `canal`). Resuelve consultas tipo "Top 5 productos más vendidos" sin restricciones artificiales.
@@ -747,7 +749,7 @@ Lo más valioso para quien toque `catalogo-metricas.ts` después:
   resta el descuento) — sumar las filas de un reporte por categoría da más que el total del
   período, exactamente por los descuentos. No es un defecto: el descuento vive en la
   cabecera de la venta y atribuirlo a una línea exigiría un prorrateo que el negocio nunca
-  declaró. Fijado en la e2e *"el ingreso por categoria es BRUTO"*.
+  declaró. Fijado en la e2e _"el ingreso por categoria es BRUTO"_.
 - **`ordenes_compra.items` es `jsonb`, no una tabla.** `unidades_pedidas`/`unidades_recibidas`
   necesitan `CROSS JOIN LATERAL jsonb_array_elements(oc.items) AS it(item)` y castear
   `(it.item->>'cantidadPedida')::int` a mano — no hay `orden_compra_items` que joinear.
@@ -803,7 +805,7 @@ solo veían el canal presencial. `pagos` cierra ese circuito.
   ningún pago; `PAGOS_MINUTOS_VENCIMIENTO_MANUAL`, 1440, para QR/efectivo), y el reloj arranca en
   el intento de pago más reciente. Un valor vacío/inválido en la variable cae al default.
 - **`main.ts` necesita recibir el cuerpo crudo** (`NestFactory.create(AppModule, { rawBody:
-  true })`) o la firma del webhook no valida nunca — Stripe firma sobre los bytes exactos, y si
+true })`) o la firma del webhook no valida nunca — Stripe firma sobre los bytes exactos, y si
   el framework los parsea antes, `req.rawBody` llega vacío. **Hay una prueba que vigila
   justo esa línea** (`test/bootstrap.e2e-spec.ts`): lee `main.ts` de archivo y busca
   `rawBody:true` sin espacios, porque ningún otro `.e2e-spec` arranca la app por `bootstrap()`
@@ -846,7 +848,7 @@ tendría con un proveedor real:
   externo** (llama en proceso al mismo método que atiende `/pagos/qr/aviso`). Reemplazarlo por
   un proveedor real no toca `CobroQrService`.
 - **Concurrencia (revisión 2026-10-26):** la aprobación es un `UPDATE ... WHERE estado =
-  'PENDIENTE'` dentro de la transacción; si afecta 0 filas el aviso no acredita. Dos pagos
+'PENDIENTE'` dentro de la transacción; si afecta 0 filas el aviso no acredita. Dos pagos
   simultáneos del mismo QR → uno solo pasa (probado en `test/pagos.e2e-spec.ts` contra
   Postgres). El `catch` solo trata como "venta no pagable" a `OperacionInvalidaException` /
   `RecursoNoEncontradoException`; cualquier otro error se propaga. La barrida de vencidas
@@ -886,6 +888,7 @@ y los toques chicos a `ventas`/`promociones`/`seguridad`/`core` que trajeron) co
 reglas de este documento, y corregir lo que no las respetara — no dar por sentado que sí.
 
 **Resultado: el backend no tenía violaciones reales.** Se revisó puntualmente:
+
 - **Desacoplo entre módulos (regla 1):** los únicos cruces son `pagos → VentasService` (en
   `expiracion.service.ts` y `pagos.service.ts`) — service exportado, no entidad ni
   repositorio directo, exactamente el patrón ya bendecido en este documento (el mismo que
@@ -1025,6 +1028,7 @@ npm run test:e2e   # e2e — requiere Postgres corriendo (levanta AppModule comp
 ```
 
 **Credenciales de desarrollo por defecto** (ver `.env.example` / `../.env`):
+
 - PostgreSQL: user `mirroria`, password `mirroria_password123` (o el `POSTGRES_PASSWORD` de `../.env`), db `mirroria_db`, puerto host `5435`
 - `JWT_SECRET`: **obligatorio, ≥ 32 caracteres, sin valor por defecto** (`openssl rand -hex 32`); el viejo `dev_secret_change_me` ya no existe
 - `PLATAFORMA_EMAIL` / `PLATAFORMA_PASSWORD`: crean la cuenta `DUENO_PLATAFORMA` al arrancar (sin ellas, solo un warn)
@@ -1133,7 +1137,7 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
     demás pendientes (`rechazarOtrosPendientes`); `confirmarManual` → 409 si la venta ya está
     PAGADA, y también rechaza los demás. `iniciarTarjeta`: 409 si total 0; 409 si la sesión
     guardada está `complete` (`Pasarela.recuperarSesion` ahora devuelve `SesionPago | 'completa' |
-    null`); `crearSesion` recibe `expiraEn` (`ExpiracionService.vencimientoTarjeta`) y Stripe lo
+null`); `crearSesion` recibe `expiraEn` (`ExpiracionService.vencimientoTarjeta`) y Stripe lo
     acota a 31 min–23 h (`expires_at`).
   - Verificado contra Postgres real (backend compilado en :3100): 6 checkouts de la última unidad →
     1 venta, stock 0, 1 movimiento; 4 checkouts del mismo carrito → 1 venta; cupón de 1 uso en 4
@@ -1147,7 +1151,7 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
   después de JwtAuthGuard/RolesGuard). El probador usa `LimitadorPorIp` desde su service (10/10 min,
   su propio mensaje 429). `core/` no importa nada de `modules/`.
 - **Reservas:** `create` revisa el cupo dentro de la tx tras `SELECT id FROM usuarios WHERE id=$1
-  FOR UPDATE` (SQL crudo para no importar `Usuario`); `cambiarEstado`/`cancelar`/`completarPorVenta`
+FOR UPDATE` (SQL crudo para no importar `Usuario`); `cambiarEstado`/`cancelar`/`completarPorVenta`
   releen con `pessimistic_write` (`bloquear()`), así el stock reservado no se libera dos veces.
   Prenda inactiva → 409. `GET /reservas?estado=` validado con `ParseEnumPipe` (400).
 - **Usuarios:** `updateRol`/`updateEstado` reciben `user.sub`; 409 si el ADMIN se degrada/desactiva
@@ -1178,4 +1182,3 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
     - `GET /api/v1/ml/kpis/anomalias` y `recientes` (ADMIN)
     - `GET /api/v1/ml/modelos/metricas` (ADMIN, ENCARGADO_SUCURSAL)
 - **Tests unitarios:** `ml.service.spec.ts` y `ml.controller.spec.ts` (100% pasando en Vitest).
-

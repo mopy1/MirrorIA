@@ -24,14 +24,14 @@ export function WidgetNoshowAgenda({ data, isLoading }: { data?: NoShowAgendaRes
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CalendarCheck className="size-5 text-primary" weight="duotone" />
-            <CardTitle className="text-base font-semibold">M2: Probabilidad de No-Show en Citas de Hoy</CardTitle>
+            <CardTitle className="text-base font-semibold">Probabilidad de Asistencia a Citas</CardTitle>
           </div>
           <Badge variant="outline" className="text-xs">
             {data?.alertas_criticas_count ?? 0} citas de alto riesgo
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Tasa no-show proyectada: <b className="text-foreground">{data?.tasa_no_show_esperada_pct ?? 0}%</b> | Modelo: Regresión Logística L2 Calibrada
+          Inasistencia estimada: <b className="text-foreground">{data?.tasa_no_show_esperada_pct ?? 0}%</b> · Permite reconfirmar a clientas con riesgo
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 pt-1">

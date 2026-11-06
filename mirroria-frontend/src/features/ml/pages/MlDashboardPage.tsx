@@ -42,11 +42,8 @@ export function MlDashboardPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-foreground font-heading">
-                  Predicciones & Machine Learning (Fase 6)
+                  Predicciones & Machine Learning
                 </h1>
-                <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-[10px]">
-                  SI2 KPIs
-                </Badge>
                 {esFallback && (
                   <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px]">
                     Modo Heurístico
@@ -54,25 +51,25 @@ export function MlDashboardPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Modelos predictivos enlazados directamente a quiebres de stock, inasistencia, retención CLV y prevención de fraude.
+                Proyecciones inteligentes de demanda, asistencia a probador, valor de clientas y control de caja.
               </p>
             </div>
           </div>
         </div>
         <Button size="sm" variant="outline" onClick={recargarTodo} disabled={cargando} className="gap-1.5 text-xs self-start sm:self-auto">
           <ArrowClockwise className={`size-3.5 ${cargando ? "animate-spin" : ""}`} />
-          <span>Actualizar Modelos</span>
+          <span>Actualizar</span>
         </Button>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full max-w-3xl">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 w-full max-w-4xl">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="demanda">M1 Demanda</TabsTrigger>
-          <TabsTrigger value="noshow">M2 No-Show</TabsTrigger>
-          <TabsTrigger value="rfm">M3 RFM</TabsTrigger>
-          <TabsTrigger value="auditoria">M4 Auditoría</TabsTrigger>
-          <TabsTrigger value="cientifico">Rigor Científico</TabsTrigger>
+          <TabsTrigger value="demanda">Demanda</TabsTrigger>
+          <TabsTrigger value="noshow">Citas & No-Show</TabsTrigger>
+          <TabsTrigger value="rfm">Clientas RFM</TabsTrigger>
+          <TabsTrigger value="auditoria">Auditoría POS</TabsTrigger>
+          <TabsTrigger value="cientifico">Validación</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">

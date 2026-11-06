@@ -35,14 +35,14 @@ export function WidgetRfmSegmentos({ data, isLoading }: { data?: RfmSegmentosRes
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UsersThree className="size-5 text-primary" weight="duotone" />
-            <CardTitle className="text-base font-semibold">M3: Segmentación RFM (K-Means K=4)</CardTitle>
+            <CardTitle className="text-base font-semibold">Segmentación de Clientas (RFM)</CardTitle>
           </div>
           <Badge variant="outline" className="text-xs">
             {data?.total_clientas ?? 0} clientas
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Retención proyectada: <b className="text-foreground">{data?.tasa_retencion_estimada_pct ?? 0}%</b> | CLV Promedio:{" "}
+          Retención estimada: <b className="text-foreground">{data?.tasa_retencion_estimada_pct ?? 0}%</b> · Valor promedio de clienta (CLV):{" "}
           <b className="text-foreground">Bs {data?.clv_promedio_bs?.toLocaleString() ?? 0}</b>
         </CardDescription>
       </CardHeader>

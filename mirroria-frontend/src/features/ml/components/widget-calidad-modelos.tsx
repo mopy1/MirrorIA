@@ -49,7 +49,7 @@ export function WidgetCalidadModelos({ data, isLoading }: { data?: MetricasModel
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <GraduationCap className="size-5 text-primary" weight="duotone" />
-            <CardTitle className="text-base font-semibold">Validación Científica & Citas Académicas (SI2)</CardTitle>
+            <CardTitle className="text-base font-semibold">Validación Científica & Citas Académicas</CardTitle>
           </div>
           <div className="flex items-center gap-1.5">
             <Badge variant="outline" className="text-[10px] font-mono border-primary/30 bg-primary/10 text-primary gap-1">
@@ -61,7 +61,7 @@ export function WidgetCalidadModelos({ data, isLoading }: { data?: MetricasModel
           </div>
         </div>
         <CardDescription className="text-xs">
-          Protocolo formal de rigor matemático: evaluación sobre holdout set 20% determinista
+          Evaluación empírica sobre dataset de prueba (seed=42) con métricas de rendimiento y autores canónicos
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2.5 pt-1">

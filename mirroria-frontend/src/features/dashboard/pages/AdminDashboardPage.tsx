@@ -52,7 +52,7 @@ export function AdminDashboardPage() {
               className="gap-1.5 text-xs"
             >
               <ChartLineUp className="size-3.5" weight="bold" />
-              Vista Ejecutiva BI
+              Visión General
             </Button>
             <Button
               size="xs"
@@ -61,7 +61,7 @@ export function AdminDashboardPage() {
               className="gap-1.5 text-xs"
             >
               <Desktop className="size-3.5" weight="bold" />
-              Inspección POS
+              Punto de Venta
             </Button>
           </div>
         </div>

@@ -16,7 +16,7 @@ export function WidgetAlertasStock({ alertas, isLoading }: WidgetAlertasStockPro
 
   if (isLoading) {
     return (
-      <Card className="h-96 p-4 space-y-3">
+      <Card className="h-[460px] p-4 space-y-3">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-14 w-full" />
         <Skeleton className="h-14 w-full" />
@@ -28,7 +28,7 @@ export function WidgetAlertasStock({ alertas, isLoading }: WidgetAlertasStockPro
   const sinAlertas = !alertas || alertas.length === 0
 
   return (
-    <Card className="h-96 flex flex-col">
+    <Card className="h-[460px] flex flex-col">
       <CardHeader className="pb-3 border-b border-border/60">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

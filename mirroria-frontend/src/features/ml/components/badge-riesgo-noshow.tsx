@@ -45,7 +45,7 @@ export function BadgeRiesgoNoShow({
   return (
     <Badge
       variant="outline"
-      className={`inline-flex items-center gap-1 border-rose-500/30 bg-rose-500/10 text-rose-600 font-semibold animate-pulse ${className}`}
+      className={`inline-flex items-center gap-1 border-rose-500/30 bg-rose-500/10 text-rose-600 font-semibold ${className}`}
     >
       <WarningOctagon className="size-3" weight="fill" />
       <span>{clasificacion === "ALTO_RIESGO" ? "Alto Riesgo" : "Alto"} {mostrarPorcentaje ? `(${pct}%)` : "> 60%"}</span>

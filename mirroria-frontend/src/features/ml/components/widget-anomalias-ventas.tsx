@@ -7,7 +7,7 @@ import type { AnomaliasVentasResponse, NivelRiesgoAnomalia } from "../types/ml.t
 const RIESGO_MAP: Record<NivelRiesgoAnomalia, { label: string; cls: string; icon: typeof CheckCircle }> = {
   NORMAL: { label: "Normal", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30", icon: CheckCircle },
   MODERADO: { label: "Sospechoso", cls: "bg-amber-500/10 text-amber-600 border-amber-500/30", icon: Warning },
-  CRITICO: { label: "Crítico / Fraude", cls: "bg-rose-500/15 text-rose-600 border-rose-500/30 animate-pulse", icon: WarningOctagon },
+  CRITICO: { label: "Atípica / Revisar", cls: "bg-rose-500/10 text-rose-600 border-rose-500/30", icon: WarningOctagon },
 }
 
 export function WidgetAnomaliasVentas({ data, isLoading }: { data?: AnomaliasVentasResponse | null; isLoading?: boolean }) {
@@ -29,15 +29,15 @@ export function WidgetAnomaliasVentas({ data, isLoading }: { data?: AnomaliasVen
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldWarning className="size-5 text-primary" weight="duotone" />
-            <CardTitle className="text-base font-semibold">M4: Detección de Anomalías POS (Isolation Forest)</CardTitle>
+            <CardTitle className="text-base font-semibold">Auditoría de Ventas POS</CardTitle>
           </div>
           <Badge variant="outline" className="text-xs">
             {data?.anomalias_detectadas ?? 0} atípicas / {data?.total_analizadas ?? 0}
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Tasa anomalías: <b className="text-foreground">{data?.tasa_anomalias_pct ?? 0}%</b> | Monto auditado en riesgo:{" "}
-          <b className="text-rose-600 font-semibold">Bs {montoBs}</b>
+          Tasa atípica: <b className="text-foreground">{data?.tasa_anomalias_pct ?? 0}%</b> · Importe auditado en observación:{" "}
+          <b className="text-foreground font-semibold">Bs {montoBs}</b>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 pt-1">

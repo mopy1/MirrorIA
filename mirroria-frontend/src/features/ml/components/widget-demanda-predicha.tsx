@@ -36,7 +36,7 @@ export function WidgetDemandaPredicha({ data, isLoading }: { data?: DemandaMlRes
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendUp className="size-5 text-primary" weight="duotone" />
-            <CardTitle className="text-base font-semibold">M1: Demanda Proyectada (30 Días)</CardTitle>
+            <CardTitle className="text-base font-semibold">Demanda Proyectada (30 días)</CardTitle>
           </div>
           {data?.fallback && (
             <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">
@@ -63,7 +63,7 @@ export function WidgetDemandaPredicha({ data, isLoading }: { data?: DemandaMlRes
         </div>
         <div className="space-y-2 border-t border-border/60 pt-3">
           <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-            <ArrowClockwise className="size-3.5 text-primary" /> Sugerencia de Reabastecimiento a Proveedor
+            <ArrowClockwise className="size-3.5 text-primary" /> Sugerencia de reabastecimiento
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {items.slice(0, 4).map((p) => {

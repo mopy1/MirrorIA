@@ -26,8 +26,8 @@ export function KpiGridOperativo({ kpis, isLoading }: KpiGridOperativoProps) {
         title="Cobros Pendientes"
         value={kpis ? `${kpis.cobrosPendientes.cantidad} en espera` : "0"}
         subtitle={kpis ? `Total estimado: Bs ${kpis.cobrosPendientes.montoEstimadoBs.toFixed(2)}` : undefined}
-        badgeText={kpis && kpis.cobrosPendientes.cantidad > 0 ? "Atención" : undefined}
-        badgeVariant="destructive"
+        badgeText={kpis && kpis.cobrosPendientes.cantidad > 0 ? "Por cobrar" : undefined}
+        badgeVariant="secondary"
         icon={ClockCountdown}
         isLoading={isLoading}
         onClick={() => navigate("/admin/cobros")}
