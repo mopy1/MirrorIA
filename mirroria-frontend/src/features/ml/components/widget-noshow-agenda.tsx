@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAuth } from "@/hooks/useAuth"
 import { BadgeRiesgoNoShow } from "./badge-riesgo-noshow"
 import type { NoShowAgendaResponse } from "../types/ml.types"
 
 export function WidgetNoshowAgenda({ data, isLoading }: { data?: NoShowAgendaResponse | null; isLoading?: boolean }) {
+  const { user } = useAuth()
+  const boutiqueNombre = user?.tenant?.nombre || "nuestra boutique"
   if (isLoading) {
     return (
       <Card className="p-4 space-y-3">
@@ -44,7 +47,7 @@ export function WidgetNoshowAgenda({ data, isLoading }: { data?: NoShowAgendaRes
             {items.map((it) => {
               const tel = it.cliente_telefono?.replace(/\D/g, "")
               const waUrl = tel
-                ? `https://wa.me/591${tel}?text=${encodeURIComponent(`Hola ${it.cliente_nombre ?? ""}, te saludamos de Tiendaria para reconfirmar tu cita de probador hoy a las ${it.hora_prevista ?? ""}.`)}`
+                ? `https://wa.me/591${tel}?text=${encodeURIComponent(`Hola ${it.cliente_nombre ?? ""}, te saludamos de ${boutiqueNombre} para reconfirmar tu cita de probador hoy a las ${it.hora_prevista ?? ""}.`)}`
                 : null
 
               return (

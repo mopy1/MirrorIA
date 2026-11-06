@@ -14,10 +14,12 @@ import {
   ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, MlDashboardPage, ProbadorPage, ProveedoresAdminPage,
   ReportesAdminPage, ReservasAdminPage, SucursalesAdminPage, SuscripcionAdminPage, UsuariosAdminPage, VentasAdminPage,
 } from "./lazy-pages"
+import { TiendaAdminRedirect } from "./TiendaAdminRedirect"
 
 // Rutas de la tienda, RELATIVAS a /t/:slug (Regla 1.B.3: puro path+componente;
 // la única variación es `protected`, que pide sesión de ESTA tienda).
 export const TIENDA_ROUTES: { path: string; Component: ComponentType; protected?: boolean }[] = [
+  { path: "admin", Component: TiendaAdminRedirect },
   { path: "tienda", Component: ProductListPage },
   { path: "tienda/producto/:id", Component: ProductDetailPage },
   { path: "sucursales", Component: BranchesPage },

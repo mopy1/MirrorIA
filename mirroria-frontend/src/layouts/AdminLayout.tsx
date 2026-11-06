@@ -13,6 +13,7 @@ import { LogoTienda } from "@/components/marca/logo-tienda"
 import { useTemaAdmin } from "./useTemaAdmin"
 import { useMiSuscripcion } from "@/features/subscription/hooks/useMiSuscripcion"
 import { AdminAvisos } from "./admin-avisos"
+import { SelectorTiendaAdmin } from "./selector-tienda-admin"
 
 const ADMIN_TITLES: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
@@ -87,8 +88,8 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
       <main className="flex-1 min-w-0 flex flex-col overflow-y-auto bg-muted/15">
         {/* Desktop Topbar Header */}
         <header className="hidden lg:flex sticky top-0 z-30 h-16 shrink-0 items-center justify-between border-b border-border/60 bg-card/85 px-8 backdrop-blur-md">
-          <div className="flex items-center gap-2.5 text-sm">
-            <span className="text-muted-foreground">{tiendaNombre}</span>
+          <div className="flex items-center gap-2 text-sm">
+            <SelectorTiendaAdmin />
             <span className="text-muted-foreground/50">/</span>
             <span className="font-medium text-foreground">{currentTitle}</span>
           </div>
