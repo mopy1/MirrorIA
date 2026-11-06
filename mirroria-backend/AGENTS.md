@@ -66,6 +66,7 @@ test/                           # e2e: app, bootstrap (vigila rawBody:true), pag
 | `probador` | — | `POST /probador/token`: token efímero de Decart (5 min, `lucy-vton-3.5`); 503 sin `DECART_API_KEY`; 10 tokens/10 min por IP. |
 | `bi` | — (SQL analítico sobre `ventas`, `venta_items`, `pagos`, `inventario_sucursal`, `reservas`) | Fase 5: Dashboards especializados por rol. `GET /dashboard/ejecutivo` (ADMIN, ENCARGADO_SUCURSAL con visibilidad de su sucursal): salud financiera, deltas % simétricos, rotación percha, conversión probador→caja, gráficos Recharts con días rellenados a 0, pasarelas, top prendas/proveedores inmunes a fan-out, cuota plan SaaS (`UsoPlanService`). `GET /dashboard/operativo` (ADMIN, ENCARGADO_SUCURSAL, CAJERO): corte hoy en `America/La_Paz`, facturación, cobros pendientes, agenda de clientas con citas y alertas de stock crítico ≤ 2 o agotado. |
 | `ia` | `interacciones_ia` | Reportes por lenguaje natural (CU24 = caso de uso 24). DeepSeek extrae una **ficha** y el motor (`catalogo-metricas.ts`: 23 métricas en 8 dominios) arma SQL **parametrizado** (el modelo nunca escribe SQL) y DeepSeek narra. `/ia/reportes/hibrido`: agente multi-paso (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if` en DuckDB `:memory:` 256 MB). Encargado forzado a su sucursal. Sin `IA_API_KEY`: 503 salvo `/ia/reportes/consulta` (ficha manual). |
+| `ml` | — (Microservicio `mirroria-ml` en :8002 vía HTTP con fallback heurístico) | Fase 6: Machine Learning Orientado a KPIs de Negocio. M1 Demanda (`RandomForestRegressor`), M2 No-Show (`LogisticRegression` L2 calibrado con semáforo), M3 RFM (`KMeans(K=4)` + `StandardScaler`), M4 Anomalías (`IsolationForest(contamination=0.03)`). Endpoints 109 a 113. |
 | `saas` | `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma` (globales) | Ver §5. |
 
 **Patrón de dependencias entre módulos** (siempre por *service exportado*, nunca entidad): `catalogo → proveedores`,
@@ -257,6 +258,11 @@ clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **
 | 106 | POST | `/ia/reportes/exportar-excel` | ADMIN, ENCARGADO_SUCURSAL · IP 30/5 min | 200 | 🏬 |
 | 107 | GET | `/dashboard/ejecutivo` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
 | 108 | GET | `/dashboard/operativo` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
+| 109 | GET | `/ml/kpis/demanda` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+| 110 | GET | `/ml/kpis/no-show` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
+| 111 | GET | `/ml/kpis/rfm` | ADMIN | 200 | 🏬 |
+| 112 | GET | `/ml/kpis/anomalias` | ADMIN | 200 | 🏬 |
+| 113 | GET | `/ml/modelos/metricas` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
 
 ## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 
@@ -1152,3 +1158,24 @@ todo se calcula con las tablas existentes. **No se tocaron los plazos de pago QR
 - **IA:** `fetch` a DeepSeek con `AbortSignal.timeout(20000)` → `IaSinRespuestaException` (504).
 - **Tests:** `jwt.strategy.spec`, `usuarios.service.spec`, `reservas.service.spec`,
   `global-exception.filter.spec`, `limite-por-ip.spec`.
+
+## 🤖 Fase 6: Machine Learning Orientado a KPIs de Negocio (2026-11-06)
+
+- **Microservicio `mirroria-ml/` (Python 3.12 + FastAPI + scikit-learn en `:8002`):**
+  - Contenedor Docker `mirroria_ml` con política `restart: "no"`.
+  - Dataset sintético reproducible determinista (`numpy.random.seed(42)`, $N = 10.000$).
+  - M1: `RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)` $\to$ Demanda y Reabastecimiento.
+  - M2: `LogisticRegression(class_weight='balanced', random_state=42)` $\to$ No-Show en Reservas con Semáforo.
+  - M3: `StandardScaler` + `KMeans(n_clusters=4, random_state=42)` $\to$ Segmentación RFM (VIPs, Potenciales, En Riesgo, Ocasionales).
+  - M4: `IsolationForest(contamination=0.03, random_state=42)` $\to$ Detección de Transacciones Anómalas.
+  - Artefactos guardados en `mirroria-ml/models/` (`.joblib` y `metrics.json`).
+- **Módulo NestJS `modules/ml/`:**
+  - `MlService`: cliente HTTP con timeout de 3.000 ms y fallback heurístico automático en memoria (`fallback: true`). Multi-tenant inquebrantable vía `tenantActual()`.
+  - `MlController`:
+    - `GET /api/v1/ml/kpis/demanda` (ADMIN, ENCARGADO_SUCURSAL)
+    - `GET /api/v1/ml/kpis/no-show` y `agenda-hoy` (ADMIN, ENCARGADO_SUCURSAL, CAJERO)
+    - `GET /api/v1/ml/kpis/rfm` y `segmentos` (ADMIN)
+    - `GET /api/v1/ml/kpis/anomalias` y `recientes` (ADMIN)
+    - `GET /api/v1/ml/modelos/metricas` (ADMIN, ENCARGADO_SUCURSAL)
+- **Tests unitarios:** `ml.service.spec.ts` y `ml.controller.spec.ts` (100% pasando en Vitest).
+

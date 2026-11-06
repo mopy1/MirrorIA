@@ -38,6 +38,7 @@ services:
       # (JWT_SECRET, STRIPE_*, IA_*, PAGOS_*) vienen tal cual del .env.
       DB_HOST: postgres-db
       DB_PORT: 5432
+      ML_SERVICE_URL: http://mirroria-ml:8002
     ports:
       # Solo localhost del host: el tráfico externo real entra por nginx
       # (mirroria-frontend, puerto 80) y le llega acá dentro de la propia
@@ -62,6 +63,22 @@ services:
       - "80:80"
     depends_on:
       - mirroria-backend
+
+  # 🤖 Microservicio Machine Learning — Python 3.12 + FastAPI + scikit-learn
+  mirroria-ml:
+    build: ./mirroria-ml
+    container_name: mirroria_ml
+    restart: "no"
+    ports:
+      - "127.0.0.1:8002:8002"
+    environment:
+      - PORT=8002
+      - ENVIRONMENT=production
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8002/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mirroria_pgdata:

@@ -1,5 +1,5 @@
 import {
-  ArrowSquareOut, CalendarBlank, ChartBar, CreditCard, Money, Package, PaintBrush,
+  ArrowSquareOut, Brain, CalendarBlank, ChartBar, CreditCard, Money, Package, PaintBrush,
   Sparkle, SquaresFour, Storefront, Ticket, Truck, Users, Warehouse, type Icon,
 } from "@phosphor-icons/react"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
@@ -66,6 +66,13 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
         label: "Reportes IA",
         href: "/admin/reportes",
         icon: Sparkle,
+        badge: "IA",
+        roles: ["ADMIN", "ENCARGADO_SUCURSAL"],
+      },
+      {
+        label: "Predicciones ML",
+        href: "/admin/ml",
+        icon: Brain,
         badge: "IA",
         roles: ["ADMIN", "ENCARGADO_SUCURSAL"],
       },

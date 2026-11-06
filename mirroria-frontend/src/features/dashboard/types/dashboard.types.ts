@@ -174,6 +174,7 @@ export interface ReservaHoyItemDto {
   cliente: ClienteReservaDto
   prendas: PrendaReservaDto[]
   minutosParaCita: number
+  probabilidadNoShow?: number
 }
 
 export interface AlertaStockItemDto {

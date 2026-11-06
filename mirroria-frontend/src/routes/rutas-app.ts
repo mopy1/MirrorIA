@@ -11,7 +11,7 @@ import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import {
-  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, ProbadorPage, ProveedoresAdminPage,
+  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, MlDashboardPage, ProbadorPage, ProveedoresAdminPage,
   ReportesAdminPage, ReservasAdminPage, SucursalesAdminPage, SuscripcionAdminPage, UsuariosAdminPage, VentasAdminPage,
 } from "./lazy-pages"
 
@@ -60,6 +60,7 @@ export const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRole
   { path: "reservas", Component: ReservasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"] },
   { path: "cobros", Component: CobrosAdminPage, allowedRoles: ["ADMIN", "CAJERO"] },
   { path: "reportes", Component: ReportesAdminPage },
+  { path: "ml", Component: MlDashboardPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
 ]
 
 export const ROLES_STAFF: UsuarioRole[] = ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"]

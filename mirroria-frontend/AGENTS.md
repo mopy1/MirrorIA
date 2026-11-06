@@ -524,6 +524,23 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   - Accesos rápidos operativos POS (`accesos-directos-pos.tsx`).
 - Componentes < 120 líneas, 100% `@phosphor-icons/react`, zero páginas huérfanas (`ADMIN_NAV_GROUPS` item #1).
 
+### `features/ml/` ↔ backend `ml` (Fase 6, CU41-44, Machine Learning Orientado a KPIs de Negocio)
+- Punto de entrada en `/admin/ml` (`MlDashboardPage`), registrado en `STAFF_ROUTES` (`ADMIN` y `ENCARGADO_SUCURSAL`) y en `ADMIN_NAV_GROUPS` (grupo "Ventas y Promociones" con icono `Brain` y badge "IA").
+- **M1: Demanda Predicha a 30 Días (Supervisado - Regresión)**:
+  - `widget-demanda-predicha.tsx`: Tarjeta con gráfico comparativo Recharts (Demanda Proyectada vs Stock Real), KPIs de tasa de quiebre de stock y rotación esperada, y sugerencia accionable de reabastecimiento al proveedor con stock de seguridad (buffer 20%).
+- **M2: Riesgo de No-Show en Agenda POS (Supervisado - Clasificación)**:
+  - `badge-riesgo-noshow.tsx`: Semáforo interactivo Verde (< 30%), Amarillo (30-60%) y Rojo (> 60%).
+  - `widget-noshow-agenda.tsx`: Agenda de citas del día evaluadas con Regresión Logística L2, factores explicativos de riesgo y botón de reconfirmación directa vía WhatsApp para reservas críticas.
+  - Integrado de forma operativa en `widget-reservas-hoy.tsx` del Dashboard POS para alertar inmediatamente al personal de caja.
+- **M3: Segmentación RFM (No Supervisado - Clustering)**:
+  - `widget-rfm-segmentos.tsx`: Distribución de los 4 clústeres de clientas (VIPs/Leales, Nuevas Promesas, En Riesgo/Dormidas, Ocasionales/Outlet) mediante Donut/PieChart Recharts, con métricas de retención, CLV promedio y estrategias de marketing recomendadas.
+- **M4: Auditoría de Ventas Anómalas (No Supervisado - Isolation Forest)**:
+  - `widget-anomalias-ventas.tsx`: Auditoría de tickets POS con score de atipicidad, badges de criticidad y desglose de motivos sospechosos (descuentos manuales excesivos, transacciones en horarios atípicos, importes extraños).
+- **Rigor Científico y Ficha de Modelos (SI2)**:
+  - `widget-calidad-modelos.tsx`: Validación formal sobre holdout set determinista (`seed=42`, N=10.000) con métricas de rigor (R²: 0.884, MAE: 2.14, RMSE: 3.08, ROC-AUC: 0.892, F1: 0.826, Silueta: 0.582, Contaminación: 3%) y citas canónicas (Breiman 2001, Cox 1958, MacQueen 1967, Liu 2008).
+- **Hooks y API**: `useDemandaMl`, `useNoShowAgenda`, `useRfmSegmentos`, `useAnomaliasVentas`, `useModelosMetricas` en `useMlKpis.ts`, cliente tipado en `mlApi.ts`.
+- Componentes < 120 líneas de código, uso exclusivo de `@phosphor-icons/react`, soporte de fallback heurístico transparente y cero páginas huérfanas.
+
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/
   colores), `ProveedoresAdminPage`, `SucursalesAdminPage` (sucursales/ciudades),

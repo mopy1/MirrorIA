@@ -26,7 +26,7 @@ Documentación en el vault de Obsidian (`/mnt/c/Users/lmc/Documents/Obsidian`):
 U/2-2026/SI2/
 ├── Parcial2/                     # 2.º parcial (vigente)
 │   ├── Enunciado.md · Plan_Parcial2.md (estado por fase)
-│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md · Fase2_Spec_Pasarelas.md · Fase3_Spec_Offline_Idempotencia.md · Fase4_Spec_Reportes_Dinamicos_Excel.md · Fase5_Spec_BI_Dashboards.md   # specs implementadas
+│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md · Fase2_Spec_Pasarelas.md · Fase3_Spec_Offline_Idempotencia.md · Fase4_Spec_Reportes_Dinamicos_Excel.md · Fase5_Spec_BI_Dashboards.md · Fase6_Spec_MachineLearning_KPIs.md   # specs implementadas
 │   └── Documentacion/            # capítulos del PDF (00_Indice.md, 01_*, 02_*, betaICONIX.md)
 └── Parcial1/
     ├── App/                      # notas VIVAS de la app: Endpoints, Database (DBML), Backend, Frontend,
@@ -42,6 +42,7 @@ U/2-2026/SI2/
 |---|---|---|---|
 | Base de datos | PostgreSQL 16 (`pgcrypto`) | `127.0.0.1:5435` → 5432 | `mirroria_postgres` (volumen `mirroria_pgdata`) |
 | Backend | NestJS 12, Node 24, TypeScript ESM, TypeORM 1.x | `127.0.0.1:3000` (`/api/v1`, Swagger `/api/docs` fuera de prod) | `mirroria_backend` |
+| Machine Learning | Python 3.12, FastAPI, scikit-learn, pandas, joblib | `127.0.0.1:8002` (FastAPI interno / proxy en backend) | `mirroria_ml` |
 | Frontend | React 19, Vite, Tailwind v4, shadcn/ui (Base UI), Phosphor | `5174` en dev · `80` en Docker (Nginx + proxy `/api/`) | `mirroria_frontend` |
 | Móvil | React Native / Expo SDK 57 — **congelada**, se rehará (Expo + SQLite) | `8081` | — |
 | Despliegue | Azure VM (`https://mirroria.duckdns.org`), `scripts/deploy-azure.sh` | 443 | override `docker-compose.prod.yml` |
@@ -68,8 +69,10 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   ├── sql/fase1b-marca.sql     # Azure: inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
 │   ├── sql/renombre-tiendaria.sql  # Azure: tienda demo "MirrorIA"/mirroria → "Tiendaria"/tiendaria (idempotente)
 │   └── qa/                      # QA contra la API real: reglas 21, mostrador 14, aislamiento 84, marca 37 (ver su README)
-├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 108 rutas)
-│   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 13 módulos de negocio (incluye bi)
+├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 113 rutas)
+│   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 14 módulos de negocio (incluye bi y ml)
+├── mirroria-ml/                 # Python 3.12 + FastAPI + scikit-learn — ver mirroria-ml/AGENTS.md (puerto 8002)
+│   └── {app,dataset,models,scripts,tests}/ # 4 modelos M1-M4 entrenados con seed=42 y atados a KPIs
 ├── mirroria-frontend/           # React — ver mirroria-frontend/AGENTS.md (rutas, guards, features)
 │   └── src/{features,components,layouts,routes,lib,context,hooks,types}/
 └── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
@@ -103,6 +106,7 @@ Tiendas locales: `tiendaria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 
 | `reservations` | `/t/:slug/reservas` + botón en la ficha | `reservas` → `/reservas/*` |
 | `fitting` | `/t/:slug/probador[/:productoId]` | `probador` → `/probador/token` |
 | `dashboard` | `/admin/dashboard` (redirección `/admin`) | `bi` → `/dashboard/*` (Fase 5: ejecutivo y operativo POS) |
+| `ml` | `/admin/ml` | `ml` → `/ml/*` (Fase 6: demanda, no-show, RFM, anomalías) |
 | `reports` | `/admin/reportes` | `ia` → `/ia/*` |
 | `admin`, `inventory`, `promotions`, `providers` | `/admin/{catalogo,proveedores,sucursales,cupones,usuarios,inventario,ventas,reservas,cobros}` | `catalogo`, `proveedores`, `sucursales`, `promociones`, `seguridad/usuarios`, `inventario`, `ventas`, `reservas`, `pagos` |
 

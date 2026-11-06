@@ -1,0 +1,58 @@
+{
+  "fecha_evaluacion": "2026-11-06T11:13:55.655430+00:00",
+  "semilla_reproducible": 42,
+  "dataset_size_total": 10000,
+  "modelos": {
+    "M1_demanda_random_forest": {
+      "tipo": "Supervisado (Regresión)",
+      "algoritmo": "RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)",
+      "cita_academica": "Breiman, L. (2001). Random Forests. Machine Learning, 45(1), 5-32.",
+      "metricas": {
+        "r2_score": 0.9566,
+        "mae": 1.91,
+        "rmse": 2.47
+      },
+      "kpi_asociado": "Quiebres de Stock (Stockout Rate) y Rotación de Inventario"
+    },
+    "M2_noshow_logistic_regression": {
+      "tipo": "Supervisado (Clasificación)",
+      "algoritmo": "LogisticRegression(penalty='l2', C=1.0, class_weight='balanced', random_state=42)",
+      "cita_academica": "Cox, D. R. (1958). The Regression Analysis of Binary Sequences. JRSS-B, 20(2), 215-232.",
+      "metricas": {
+        "roc_auc": 0.7978,
+        "f1_score": 0.744,
+        "precision": 0.7817,
+        "recall": 0.7098,
+        "matriz_confusion": {
+          "tn": 658,
+          "fp": 222,
+          "fn": 325,
+          "tp": 795
+        }
+      },
+      "kpi_asociado": "Tasa de No-Show y Conversión de Reserva a Venta"
+    },
+    "M3_rfm_kmeans": {
+      "tipo": "No Supervisado (Clustering)",
+      "algoritmo": "KMeans(n_clusters=4, init='k-means++', random_state=42)",
+      "cita_academica": "MacQueen, J. (1967). Some Methods for classification and Analysis of Multivariate Observations. 5th Berkeley Symposium, 1, 281-297.",
+      "metricas": {
+        "silhouette_score": 0.6823,
+        "inercia_wcss": 509.67
+      },
+      "kpi_asociado": "Tasa de Retención de Clientas y Valor de Vida (CLV)"
+    },
+    "M4_anomalias_isolation_forest": {
+      "tipo": "No Supervisado (Detección de Anomalías)",
+      "algoritmo": "IsolationForest(contamination=0.03, n_estimators=100, random_state=42)",
+      "cita_academica": "Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008). Isolation Forest. IEEE ICDM, 413-422.",
+      "metricas": {
+        "tasa_contaminacion_esperada": 0.03,
+        "anomalias_identificadas_test": 300,
+        "score_medio_normales": 0.1573,
+        "score_medio_anomalos": -0.0498
+      },
+      "kpi_asociado": "Reducción de Merma, Fraude y Errores de Caja POS"
+    }
+  }
+}

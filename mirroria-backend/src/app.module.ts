@@ -20,6 +20,7 @@ import { SucursalesModule } from './modules/sucursales/sucursales.module.js';
 import { VentasModule } from './modules/ventas/ventas.module.js';
 import { IdempotenciaModule } from './core/security/idempotencia/idempotencia.module.js';
 import { BiModule } from './modules/bi/bi.module.js';
+import { MlModule } from './modules/ml/ml.module.js';
 
 @Module({
   imports: [
@@ -51,6 +52,8 @@ import { BiModule } from './modules/bi/bi.module.js';
     IdempotenciaModule,
     // BI y Dashboards especializados por rol (Fase 5).
     BiModule,
+    // Machine Learning orientados a KPIs de Negocio (Fase 6).
+    MlModule,
   ],
   controllers: [AppController],
   providers: [AppService],

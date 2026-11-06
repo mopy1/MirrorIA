@@ -1,0 +1,26 @@
+[project]
+name = "mirroria-ml"
+version = "0.1.0"
+description = "Microservicio de Machine Learning Científico Orientado a KPIs de Negocio para MirrorIA"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "scikit-learn>=1.5.0",
+    "pandas>=2.2.0",
+    "numpy>=2.1.0",
+    "joblib>=1.4.0",
+    "scipy>=1.14.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

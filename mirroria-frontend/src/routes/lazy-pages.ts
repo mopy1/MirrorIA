@@ -74,3 +74,9 @@ export const PlataformaLoginPage = diferida(
   () => import("@/features/auth/pages/PlataformaLoginPage"),
   "PlataformaLoginPage",
 )
+
+// Fase 6: Machine Learning Orientado a KPIs de Negocio
+export const MlDashboardPage = diferida(
+  () => import("@/features/ml/pages/MlDashboardPage"),
+  "MlDashboardPage",
+)

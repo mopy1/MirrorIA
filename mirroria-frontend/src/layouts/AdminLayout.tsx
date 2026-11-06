@@ -26,6 +26,7 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/apariencia": "Apariencia",
   "/admin/suscripcion/activar": "Activar plan",
   "/admin/suscripcion": "Plan y suscripción",
+  "/admin/ml": "Predicciones & Machine Learning",
 }
 
 /** Layout de `/admin/*` (ruta padre con <Outlet/>: no se remonta al navegar). */
