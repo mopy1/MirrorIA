@@ -11,11 +11,11 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 6 Rediseño Total: Navbar Storefront & ML Operate Mode Anti-Slop)**.
+> **Actualizado: 2026-11-06 (Fase 6 Interactivad Total en Dashboard & ML Gerencial Humanizado)**.
 > Las secciones 2 y 3 describen lo que existe hoy en `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`,
-> `src/features/*` y `src/layouts/site-header/*`. Tests: **190** en 32 suites (`npx vitest run`).
-> Navbar refinada con 3 zonas limpias (Logo, Enlaces con dropdown y microbadge IA, y Acciones compactas con modal de búsqueda y menú avatar).
-> Panel `/admin/ml` en Operate Mode asimétrico con franja métrica continua (KPI Ribbon), sin tarjetas anidadas y ficha técnica formal.
+> `src/features/*` y `src/layouts/site-header/*`. Tests: **198** en 34 suites (`npx vitest run`).
+> - Dashboard: filtros 100% interactivos por período (`hoy`, `7d`, `30d`, `mes_actual`, `mes_anterior`, `personalizado` con selector de fechas) y por sucursal (`SelectorSucursal`).
+> - ML: experiencia gerencial con textos comprensibles (sin lenguaje crudo de desarrollador en anomalías POS), controles de horizonte temporal y sucursal interactivos, y Validación Académica trasladada a una Ficha Técnica modal y secundaria sin estorbar la operativa diaria.
 
 ---
 
