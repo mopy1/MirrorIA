@@ -3,10 +3,15 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ReasoningSteps } from "./reasoning-steps/reasoning-steps"
 import { ReportChart } from "./report-chart"
-import { TablaReporte } from "./tabla-reporte"
+import { TablaDinamicaReporte } from "./tabla-dinamica-reporte"
 import type { Reporte } from "../types/reports.types"
 
-export function ReporteResultado({ reporte }: { reporte: Reporte }) {
+interface Props {
+  reporte: Reporte
+  onPivoteChange?: (dimension: string) => void
+}
+
+export function ReporteResultado({ reporte, onPivoteChange }: Props) {
   const tieneFilas = reporte.filas && reporte.filas.length > 0
 
   return (
@@ -42,7 +47,7 @@ export function ReporteResultado({ reporte }: { reporte: Reporte }) {
         {tieneFilas ? (
           <>
             <ReportChart reporte={reporte} />
-            <TablaReporte reporte={reporte} />
+            <TablaDinamicaReporte reporte={reporte} onPivoteChange={onPivoteChange} />
           </>
         ) : (
           <div className="rounded-lg border border-dashed border-border p-4 text-center">

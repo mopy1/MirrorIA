@@ -1,37 +1,11 @@
 import { useState } from "react"
 import { ApiError } from "@/lib/api"
 import { reportsApi } from "../api/reportsApi"
-import { respuestaMeta, tituloDesdeTexto } from "../lib/reportes-chat.utils"
+import { mapHibridoAReporte, respuestaMeta, tituloDesdeTexto } from "../lib/reportes-chat.utils"
 import type { ChatMessage, ReportTab } from "../types/chat.types"
-import type { ReporteHibridoResponse } from "../types/reports-hybrid.types"
 import type { Reporte } from "../types/reports.types"
 
 const TAB_RESUMEN: ReportTab = { id: "resumen", tipo: "resumen", titulo: "Resumen" }
-
-function mapHibridoAReporte(h: ReporteHibridoResponse): Reporte {
-  return {
-    ficha: {
-      metrica: h.metrica || (h.esSimulacion ? "simulacion" : "hibrido"),
-      agruparPor: "hibrido",
-      filtros: {},
-      orden: "desc",
-      limite: h.filas.length,
-    },
-    filas: h.filas.map((f, i) => ({
-      clave: String(i),
-      etiqueta: f.etiqueta,
-      valor: f.valor,
-      valorProyectado: f.valorProyectado,
-      valorOriginal: f.valorOriginal,
-      detalles: f.detalles,
-    })),
-    comparacion: null,
-    narrativa: h.narrativa,
-    pasosEjecutados: h.pasosEjecutados,
-    esSimulacion: h.esSimulacion,
-    tipoGraficoSugerido: h.tipoGraficoSugerido,
-  }
-}
 
 export function useReportesChat() {
   const [mensajes, setMensajes] = useState<ChatMessage[]>([])
@@ -74,18 +48,22 @@ export function useReportesChat() {
     } catch (e) {
       setTabs((prev) => prev.filter((t) => t.id !== tabId))
       setTabActivaId((actual) => (actual === tabId ? "resumen" : actual))
-      if (e instanceof ApiError && e.status === 422) {
-        agregarMensaje({ rol: "asistente", texto: e.message, tono: "aclaracion" })
-      } else {
-        agregarMensaje({
-          rol: "asistente",
-          texto: e instanceof ApiError ? e.message : "No se pudo generar el reporte.",
-          tono: "error",
-        })
-      }
+      const msg = e instanceof ApiError ? e.message : "No se pudo generar el reporte."
+      agregarMensaje({ rol: "asistente", texto: msg, tono: e instanceof ApiError && e.status === 422 ? "aclaracion" : "error" })
     } finally {
       setCargando(false)
     }
+  }
+
+  function abrirTabConReporte(reporte: Reporte, titulo: string): string {
+    const tabId = crypto.randomUUID()
+    setTabs((prev) => [...prev, { id: tabId, tipo: "reporte", titulo, reporte, cargando: false }])
+    setTabActivaId(tabId)
+    return tabId
+  }
+
+  function actualizarReporteTab(id: string, nuevoReporte: Reporte) {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, reporte: nuevoReporte } : t)))
   }
 
   function cerrarTab(id: string) {
@@ -98,5 +76,16 @@ export function useReportesChat() {
     if (tabs.some((t) => t.id === id)) setTabActivaId(id)
   }
 
-  return { mensajes, tabs, tabActivaId, setTabActivaId, enviarPregunta, cerrarTab, abrirTab, cargando }
+  return {
+    mensajes,
+    tabs,
+    tabActivaId,
+    setTabActivaId,
+    enviarPregunta,
+    abrirTabConReporte,
+    actualizarReporteTab,
+    cerrarTab,
+    abrirTab,
+    cargando,
+  }
 }

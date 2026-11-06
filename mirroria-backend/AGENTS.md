@@ -13,8 +13,8 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real**), TypeORM 1.x + PostgreSQL 16 (`s
 sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request), `class-validator`, `bcrypt`, Swagger
 (`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
 QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
-*what-if*). **105 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
-Tests: **404 unitarios** en 48 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
+*what-if*), `exceljs` (exportación corporativa .xlsx). **106 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
+Tests: **425 unitarios** en 50 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
 > **ESM puro** (`"type": "module"`, `module/moduleResolution: nodenext`): todo import **relativo** dentro de `src/`
@@ -253,6 +253,7 @@ clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **
 | 103 | POST | `/saas/mi-suscripcion/cobro` | ADMIN | 201 | 🏬 ⏸ |
 | 104 | GET | `/saas/mi-suscripcion/cobro/:cobroId/estado` | ADMIN | 200 | 🏬 ⏸ |
 | 105 | POST | `/saas/mi-suscripcion/cobro/:cobroId/simular-pago` | ADMIN | 200 | 🏬 ⏸ |
+| 106 | POST | `/ia/reportes/exportar-excel` | ADMIN, ENCARGADO_SUCURSAL · IP 30/5 min | 200 | 🏬 |
 
 ## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 

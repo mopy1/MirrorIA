@@ -13,7 +13,13 @@ import { CATALOGO_METRICAS, TIPOS_MOVIMIENTO, type NombreFiltro } from './catalo
  * perfectamente valida con un error confuso. Normalizar acá es mas confiable
  * que pedirselo al modelo en el prompt (un LLM no sigue una regla de casing al
  * 100% de las veces; el codigo si). */
-const FILTROS_ENUM_MAYUSCULA = new Set(['estado', 'canal', 'tipoMovimiento']);
+const FILTROS_ENUM_MAYUSCULA = new Set([
+  'estado',
+  'canal',
+  'tipoMovimiento',
+  'metodoPago',
+  'proveedorPago',
+]);
 
 /** Mismo valor que el default de `FichaConsultaDto.limite`, pero aplicado aca: el
  * del DTO no corre cuando la ficha trae `limite: null` explicito. */
@@ -96,7 +102,7 @@ export class MotorConsultaService {
       }
 
       params.push(valorNormalizado);
-      condiciones.push(plantilla.replace('$', `$${params.length}`));
+      condiciones.push(plantilla.replaceAll('$', `$${params.length}`));
     }
 
     // 2. Estado por defecto: solo si la ficha no pidio uno. `== null` por el mismo

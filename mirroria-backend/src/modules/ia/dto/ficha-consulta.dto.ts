@@ -8,6 +8,7 @@ import { type Dimension, type Metrica, METRICAS } from '../service/catalogo-metr
 const DIMENSIONES: Dimension[] = [
   'sucursal', 'categoria', 'producto', 'canal', 'estado',
   'cliente', 'cupon', 'proveedor', 'tipo_movimiento', 'dia', 'mes', 'ninguno',
+  'rol', 'metodo_pago', 'proveedor_pago',
 ];
 
 export class FiltrosDto {
@@ -22,6 +23,16 @@ export class FiltrosDto {
   /** Validado contra el dominio de la metrica en el motor, no aca. */
   @ApiPropertyOptional() @IsOptional() @IsString() estado?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() tipoMovimiento?: string;
+
+  @ApiPropertyOptional({ enum: ['TARJETA', 'QR', 'EFECTIVO'] })
+  @IsOptional()
+  @IsString()
+  metodoPago?: string;
+
+  @ApiPropertyOptional({ enum: ['STRIPE', 'WAYRA', 'MANUAL'] })
+  @IsOptional()
+  @IsString()
+  proveedorPago?: string;
 }
 
 export class RangoDto {

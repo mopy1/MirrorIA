@@ -27,14 +27,14 @@
 | 1 — SaaS multi-tenant | ✅ cerrada, commit `d6d05f6` |
 | 1b — Identidad de la plataforma (entonces "Tiendaria"): marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
 | 2 — Pasarelas enchufables | ✅ cerrada, commit `b4eaa0a` (registro centralizado, adaptadores Stripe y Wayra funcionales, stubs 503 para PayPal y QR Bancario, nueva tabla `cobros_suscripcion`). |
-| 3 — Offline/PWA, idempotencia y conflictos | ✅ cerrada (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria). |
-| **4 — Reportes dinámicos (+ Excel)** | ⏭️ **la siguiente**. Filtros, filas, columnas y agrupación dinámica sobre CU24/IA, exportación a `.xlsx` y métricas cruzadas. |
-| 5 — BI: dashboards por rol | pendiente |
+| 3 — Offline/PWA, idempotencia y conflictos | ✅ cerrada, commit `48b1e54` (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria). |
+| 4 — Reportes dinámicos (+ Excel) | ✅ cerrada (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en vivo; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`). |
+| **5 — BI: dashboards por rol** | ⏭️ **la siguiente**. Dashboards diferenciados para el cliente (dueño de tienda: ingresos, rotación, top prendas) y vendedor (cajera: ventas del día, cobros pendientes, stock crítico). |
 | 6 — Machine Learning (servicio Python aparte) | pendiente |
-| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 a 04; índice en `Parcial2/Documentacion/00_Indice.md`) |
+| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 a 05; índice en `Parcial2/Documentacion/00_Indice.md`) |
 
-Números verificados: **105 rutas** HTTP, **30 tablas**, **404** tests unitarios backend (48 archivos),
-**140** tests frontend (25 archivos), e2e backend 62/62.
+Números verificados: **106 rutas** HTTP, **30 tablas**, **425** tests unitarios backend (50 archivos),
+**159** tests frontend (28 archivos), e2e backend 62/62.
 
 ## 3. Orden de lectura
 
@@ -53,7 +53,7 @@ Números verificados: **105 rutas** HTTP, **30 tablas**, **404** tests unitarios
 cd /home/lmc/projects/MirrorIA
 docker compose up -d --build --force-recreate   # mirroria_postgres :5435 · mirroria_backend :3000 · mirroria_frontend :80
 # o en dev: docker compose up -d postgres-db ; (cd mirroria-backend && npm run start:dev) ; (cd mirroria-frontend && npm run dev)  → web :5174
-docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 105
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 106
 curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos                  # toda ruta de negocio necesita la tienda
 ```
 
@@ -70,9 +70,9 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 404 unit (48 archivos)
+cd mirroria-backend && npx vitest run          # 425 unit (50 archivos)
 cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
-cd mirroria-frontend && npx vitest run         # 140 (25 archivos)
+cd mirroria-frontend && npx vitest run         # 159 (28 archivos)
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
 python3 scripts/qa/qa_reglas.py      # 21  · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
 ```

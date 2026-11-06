@@ -14,6 +14,7 @@ export const ESQUEMA_FICHA = {
       enum: [
         'sucursal', 'categoria', 'producto', 'canal', 'estado',
         'cliente', 'cupon', 'proveedor', 'tipo_movimiento', 'dia', 'mes', 'ninguno',
+        'rol', 'metodo_pago', 'proveedor_pago',
       ],
     },
     filtros: {
@@ -24,6 +25,8 @@ export const ESQUEMA_FICHA = {
         canal: { type: 'string' },
         estado: { type: 'string' },
         tipoMovimiento: { type: 'string' },
+        metodoPago: { type: 'string' },
+        proveedorPago: { type: 'string' },
       },
     },
     campoFecha: { type: 'string', enum: ['creacion', 'prevista'] },
@@ -100,8 +103,9 @@ function describirFormatoSalida(): string[] {
       'antes ni despues, nada de bloques ```) con estos campos:',
     '- metrica (string, una de las de arriba, obligatorio)',
     '- agruparPor (string, obligatorio): sucursal | categoria | producto | canal | ' +
-      'estado | cliente | cupon | proveedor | tipo_movimiento | dia | mes | ninguno',
-    '- filtros (objeto, opcional): { desde?, hasta?, canal?, estado?, tipoMovimiento? }',
+      'estado | cliente | cupon | proveedor | tipo_movimiento | dia | mes | ninguno | ' +
+      'rol | metodo_pago | proveedor_pago',
+    '- filtros (objeto, opcional): { desde?, hasta?, canal?, estado?, tipoMovimiento?, metodoPago?, proveedorPago? }',
     '- campoFecha (string, opcional): creacion | prevista',
     '- compararCon (objeto, opcional): { desde, hasta }',
     '- orden (string, opcional): asc | desc',

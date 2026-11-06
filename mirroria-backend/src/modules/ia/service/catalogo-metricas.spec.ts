@@ -98,3 +98,65 @@ describe('metricas de kardex', () => {
     expect(CATALOGO_METRICAS.movimientos_unidades.filtroEstadoPorDefecto).toBeNull();
   });
 });
+
+describe('Fase 4: dimensiones y filtros analíticos avanzados', () => {
+  it('ingresos, cantidad_ventas, ticket_promedio y descuentos admiten metodo_pago y proveedor_pago', () => {
+    for (const m of ['ingresos', 'cantidad_ventas', 'ticket_promedio', 'descuentos'] as const) {
+      const dims = CATALOGO_METRICAS[m].dimensiones;
+      expect(dims.metodo_pago, `metodo_pago en ${m}`).toBeDefined();
+      expect(dims.proveedor_pago, `proveedor_pago en ${m}`).toBeDefined();
+      expect(dims.metodo_pago?.joins).toEqual([
+        "LEFT JOIN pagos pg ON pg.venta_id = v.id AND pg.estado = 'APROBADO'",
+      ]);
+      expect(dims.metodo_pago?.grupo).toContain("CASE WHEN v.canal = 'PRESENCIAL' THEN 'EFECTIVO'");
+      expect(dims.proveedor_pago?.grupo).toContain("CASE WHEN v.canal = 'PRESENCIAL' THEN 'MANUAL'");
+    }
+  });
+
+  it('ingresos agrupado por proveedor define correctamente los 4 JOINs y seleccionAlterna', () => {
+    const dim = CATALOGO_METRICAS.ingresos.dimensiones.proveedor;
+    expect(dim).toBeDefined();
+    expect(dim?.grupo).toBe('pr.id');
+    expect(dim?.etiqueta).toBe('pr.razon_social');
+    expect(dim?.joins).toHaveLength(4);
+    expect(dim?.joins).toEqual([
+      'JOIN venta_items vi ON vi.venta_id = v.id',
+      'JOIN variantes_producto vp ON vp.id = vi.variante_id JOIN productos p ON p.id = vp.producto_id',
+      'JOIN colecciones col ON col.id = p.coleccion_id',
+      'JOIN proveedores pr ON pr.id = col.proveedor_id',
+    ]);
+    expect(dim?.seleccionAlterna).toBe('COALESCE(SUM(vi.subtotal_cents), 0)');
+  });
+
+  it('unidades agrupado por proveedor agrega con los JOINs desde variantes', () => {
+    const dim = CATALOGO_METRICAS.unidades.dimensiones.proveedor;
+    expect(dim).toBeDefined();
+    expect(dim?.grupo).toBe('pr.id');
+    expect(dim?.etiqueta).toBe('pr.razon_social');
+    expect(dim?.joins).toEqual([
+      'JOIN variantes_producto vp ON vp.id = vi.variante_id JOIN productos p ON p.id = vp.producto_id',
+      'JOIN colecciones col ON col.id = p.coleccion_id',
+      'JOIN proveedores pr ON pr.id = col.proveedor_id',
+    ]);
+  });
+
+  it('filtros de metodoPago, proveedorPago y proveedorId en ventas', () => {
+    const f = CATALOGO_METRICAS.ingresos.filtros;
+    expect(f.metodoPago).toBeDefined();
+    expect(f.metodoPago).toContain('EXISTS (SELECT 1 FROM pagos fpg');
+    expect(f.metodoPago).toContain("v.canal = 'PRESENCIAL' AND $ = 'EFECTIVO'");
+
+    expect(f.proveedorPago).toBeDefined();
+    expect(f.proveedorPago).toContain('EXISTS (SELECT 1 FROM pagos fpg');
+    expect(f.proveedorPago).toContain("v.canal = 'PRESENCIAL' AND $ = 'MANUAL'");
+
+    expect(f.proveedorId).toBeDefined();
+    expect(f.proveedorId).toContain('fcol.proveedor_id = $');
+  });
+
+  it('unidades incluye filtro proveedorId sobre variantes_producto', () => {
+    const f = CATALOGO_METRICAS.unidades.filtros;
+    expect(f.proveedorId).toBeDefined();
+    expect(f.proveedorId).toContain('fcol.proveedor_id = $');
+  });
+});

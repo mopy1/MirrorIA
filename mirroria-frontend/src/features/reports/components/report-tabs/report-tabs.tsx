@@ -2,23 +2,31 @@ import { X } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { reportsApi } from "../../api/reportsApi"
+import type { ReportTab } from "../../types/chat.types"
+import type { Reporte } from "../../types/reports.types"
 import { ReporteResultado } from "../reporte-resultado"
 import { ResumenReportes } from "../resumen-reportes"
-import type { ReportTab } from "../../types/chat.types"
 
 interface ReportTabsProps {
   tabs: ReportTab[]
   activaId: string
   onActivar: (id: string) => void
   onCerrar: (id: string) => void
+  onActualizarReporte?: (tabId: string, nuevoReporte: Reporte) => void
 }
 
-/** Área principal: un tab por reporte, más el "Resumen" fijo — mismo criterio
- * que un editor de código (tabs de documentos abiertos). El botón de cerrar
- * vive en el contenido, no en el trigger: `TabsTrigger` de Base UI ya
- * renderiza un `<button>`, y anidar otro botón adentro (para la "x") es HTML
- * inválido y rompe el foco por teclado. */
-export function ReportTabs({ tabs, activaId, onActivar, onCerrar }: ReportTabsProps) {
+export function ReportTabs({ tabs, activaId, onActivar, onCerrar, onActualizarReporte }: ReportTabsProps) {
+  async function handlePivote(tabId: string, reporteActual: Reporte, nuevaDimension: string) {
+    try {
+      const ficha = { ...reporteActual.ficha, agruparPor: nuevaDimension }
+      const res = await reportsApi.consultar(ficha)
+      onActualizarReporte?.(tabId, res)
+    } catch {
+      // Si la combinación no es válida, no muta la tab
+    }
+  }
+
   return (
     <Tabs value={activaId} onValueChange={(v) => onActivar(v as string)} className="h-full">
       <TabsList className="w-full justify-start overflow-x-auto">
@@ -56,7 +64,10 @@ export function ReportTabs({ tabs, activaId, onActivar, onCerrar }: ReportTabsPr
                 <Skeleton className="h-40 w-full" />
               </div>
             ) : (
-              <ReporteResultado reporte={tab.reporte} />
+              <ReporteResultado
+                reporte={tab.reporte}
+                onPivoteChange={(nuevaDim) => handlePivote(tab.id, tab.reporte!, nuevaDim)}
+              />
             )}
           </TabsContent>
         ))}

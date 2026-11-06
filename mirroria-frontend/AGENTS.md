@@ -11,8 +11,8 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 3 Modo Offline, PWA, Idempotencia y Manejo de Conflictos)**. Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **140** en 25 archivos
+> **Actualizado: 2026-11-06 (Fase 4 Reportes Dinámicos, Tabla Pivote, Métricas Cruzadas y Exportación a Excel)**. Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **159** en 28 archivos
 > (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
 
 ---
@@ -497,15 +497,18 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `panel-guiado.tsx`, `tira-de-prendas.tsx`, `respaldo-sin-camara.tsx`.
 - `pages/ProbadorPage.tsx` (thin). Público, no requiere cuenta.
 
-### `features/reports/` ↔ backend `ia` (CU24, reportes por lenguaje natural y análisis híbrido)
+### `features/reports/` ↔ backend `ia` (CU24/CU51-53, reportes dinámicos, tabla pivote y exportación Excel)
 - `api/reportsApi.ts`: `preguntar` (`POST /ia/reportes`, 503 sin clave de IA), `preguntarHibrido`
-  (`POST /ia/reportes/hibrido`, agente multi-paso con DuckDB), `consultar` (`POST /ia/reportes/consulta`).
+  (`POST /ia/reportes/hibrido`, agente multi-paso con DuckDB), `consultar` (`POST /ia/reportes/consulta`),
+  `exportarExcel` (`POST /ia/reportes/exportar-excel`, Blob binario con X-Tenant y Auth), `descargarExcel` (helper de descarga automática).
 - `types/`: `reports.types.ts`, `reports-hybrid.types.ts` (`ReporteHibridoResponse` con `metrica` y `tipoGraficoSugerido`, `PasoEjecutado`, `FilaReporteHibrido`).
-- `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos + mapeo inteligente de métrica para formateo automático en Bolivianos),
-  `useDictado` (Web Speech API).
-- `components/`: `chat-panel/` (con `ReasoningSteps` en las respuestas del asistente), `report-tabs/`,
-  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + badge de "Escenario Simulado DuckDB" + gráfico + tabla + manejo seguro de cero filas), `report-chart.tsx` (Recharts con selección dinámica priorizando `tipoGraficoSugerido` y delegación a `WhatIfChart`),
-  `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
+- `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos + `abrirTabConReporte` + `actualizarReporteTab`),
+  `useTablaDinamica` (filtrado en caliente, ordenación multi-columna, exportación Excel y repivoteo), `useDictado` (Web Speech API), `useTecladoDictado` (atajo barra espaciadora).
+- `lib/`: `tabla-dinamica.utils.ts` (`filtrarFilas`, `ordenarFilas` + tests), `reportes-chat.utils.ts` (`mapHibridoAReporte`, `respuestaMeta`, `tituloDesdeTexto`), `report-value.utils.ts`, `report-chart.utils.ts`.
+- `components/`: `chat-panel/` (con `ReasoningSteps` en las respuestas del asistente), `report-tabs/` (soporta `onActualizarReporte` ante repivoteo rápido),
+  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + badge de "Escenario Simulado DuckDB" + gráfico + tabla dinámica), `report-chart.tsx` (Recharts con selección dinámica priorizando `tipoGraficoSugerido` y delegación a `WhatIfChart`),
+  `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-dinamica-reporte.tsx` (tabla interactiva con cabeceras ordenables), `tabla-dinamica-toolbar.tsx` (filtro en caliente, selector rápido de dimensión y exportación a Excel), `tabla-dinamica-totales.tsx` (fila de totales dinámicos con variación ponderada),
+  `constructor-reporte/` (`constructor-reporte-dialog.tsx`, `constructor-reporte-campos.tsx`, `constructor-reporte.data.ts` + tests: constructor manual sin coste de LLM con atajos de rangos temporales), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
 
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/

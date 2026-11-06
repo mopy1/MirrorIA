@@ -352,6 +352,70 @@ describe('MotorConsultaService', () => {
     });
   });
 
+  describe('Fase 4: métricas cruzadas de pagos y proveedores', () => {
+    it('agrupa por metodo_pago joineando pagos aprobados y aplicando fallback', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'metodo_pago' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain("LEFT JOIN pagos pg ON pg.venta_id = v.id AND pg.estado = 'APROBADO'");
+      expect(sql).toContain("CASE WHEN v.canal = 'PRESENCIAL' THEN 'EFECTIVO'");
+      expect(sql).toContain('COALESCE(SUM(v.total_cents), 0)');
+    });
+
+    it('agrupa por proveedor_pago joineando pagos aprobados', async () => {
+      await service.ejecutar(ficha({ metrica: 'cantidad_ventas', agruparPor: 'proveedor_pago' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain("LEFT JOIN pagos pg ON pg.venta_id = v.id AND pg.estado = 'APROBADO'");
+      expect(sql).toContain("CASE WHEN v.canal = 'PRESENCIAL' THEN 'MANUAL'");
+    });
+
+    it('ingresos por proveedor suma subtotal_cents de lineas y joinea catalogo', async () => {
+      await service.ejecutar(ficha({ metrica: 'ingresos', agruparPor: 'proveedor' }));
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('JOIN venta_items vi ON vi.venta_id = v.id');
+      expect(sql).toContain('JOIN colecciones col ON col.id = p.coleccion_id');
+      expect(sql).toContain('JOIN proveedores pr ON pr.id = col.proveedor_id');
+      expect(sql).toContain('COALESCE(SUM(vi.subtotal_cents), 0)');
+      expect(sql).toContain('pr.razon_social');
+    });
+
+    it('filtro metodoPago normaliza a mayúsculas y sustituye todos los parámetros en la plantilla', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { metodoPago: 'tarjeta' } }),
+      );
+      const sql = sqlDeLaLlamada();
+      const params = paramsDeLaLlamada();
+      expect(params).toContain('TARJETA');
+      expect(params).not.toContain('tarjeta');
+      // Ambos $ deben haber sido reemplazados por el mismo $index
+      expect(sql).toContain('fpg.metodo = $2');
+      expect(sql).toContain("$2 = 'EFECTIVO'");
+      expect(sql).not.toContain("$ = 'EFECTIVO'");
+    });
+
+    it('filtro proveedorPago normaliza a mayúsculas y sustituye todos los parámetros en la plantilla', async () => {
+      await service.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { proveedorPago: 'stripe' } }),
+      );
+      const sql = sqlDeLaLlamada();
+      const params = paramsDeLaLlamada();
+      expect(params).toContain('STRIPE');
+      expect(sql).toContain('fpg.proveedor_pago = $2');
+      expect(sql).toContain("$2 = 'MANUAL'");
+      expect(sql).not.toContain("$ = 'MANUAL'");
+    });
+
+    it('filtro proveedorId en ventas usa subconsulta EXISTS sin duplicar cabeceras', async () => {
+      const provId = '00000000-0000-0000-0000-000000000001';
+      await service.ejecutar(
+        ficha({ metrica: 'ingresos', agruparPor: 'ninguno', filtros: { proveedorId: provId } }),
+      );
+      const sql = sqlDeLaLlamada();
+      expect(sql).toContain('EXISTS (SELECT 1 FROM venta_items fvi');
+      expect(sql).toContain('fcol.proveedor_id = $2');
+      expect(paramsDeLaLlamada()).toContain(provId);
+    });
+  });
+
   describe('aislamiento por tienda (Fase 1 SaaS)', () => {
     it('toda metrica del catalogo tiene alias en su tabla raiz', () => {
       for (const [nombre, def] of Object.entries(CATALOGO_METRICAS)) {

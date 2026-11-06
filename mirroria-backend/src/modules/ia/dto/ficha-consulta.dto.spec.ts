@@ -62,4 +62,21 @@ describe('FichaConsultaDto', () => {
     expect(ficha.orden).toBe('desc');
     expect(ficha.limite).toBe(20);
   });
+
+  it('acepta las nuevas dimensiones y filtros de pagos de Fase 4', () => {
+    expect(
+      validar({
+        metrica: 'ingresos',
+        agruparPor: 'metodo_pago',
+        filtros: { metodoPago: 'QR', proveedorPago: 'WAYRA' },
+      }),
+    ).toHaveLength(0);
+
+    expect(
+      validar({
+        metrica: 'ingresos',
+        agruparPor: 'proveedor_pago',
+      }),
+    ).toHaveLength(0);
+  });
 });

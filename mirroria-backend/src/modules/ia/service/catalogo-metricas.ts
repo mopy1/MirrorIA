@@ -19,11 +19,15 @@ export type Metrica =
 export type Dimension =
   | 'sucursal' | 'categoria' | 'producto' | 'canal' | 'estado'
   | 'cliente' | 'cupon' | 'proveedor' | 'tipo_movimiento' | 'dia' | 'mes' | 'ninguno'
-  | 'rol';
+  | 'rol'
+  | 'metodo_pago'
+  | 'proveedor_pago';
 
 export type NombreFiltro =
   | 'sucursalId' | 'categoriaId' | 'productoId' | 'clienteId' | 'proveedorId'
-  | 'canal' | 'estado' | 'tipoMovimiento';
+  | 'canal' | 'estado' | 'tipoMovimiento'
+  | 'metodoPago'
+  | 'proveedorPago';
 
 /** Como alcanzar y etiquetar una dimension desde una metrica concreta. */
 export interface DimensionSpec {
@@ -98,6 +102,28 @@ const JOIN_PRODUCTO_DESDE_VI =
 /** inventario_sucursal -> variantes -> productos. */
 const JOIN_PRODUCTO_DESDE_INV =
   'JOIN variantes_producto vp ON vp.id = i.variante_id JOIN productos p ON p.id = vp.producto_id';
+
+/** Vinculación a pagos aprobados para análisis de método y proveedor de cobro. */
+const JOIN_PAGOS_APROBADOS =
+  "LEFT JOIN pagos pg ON pg.venta_id = v.id AND pg.estado = 'APROBADO'";
+
+/** Expresión segura para método de pago con fallback de ventas presenciales de caja. */
+const EXPR_METODO_PAGO =
+  "COALESCE(pg.metodo, CASE WHEN v.canal = 'PRESENCIAL' THEN 'EFECTIVO' ELSE 'DESCONOCIDO' END)";
+
+/** Expresión segura para proveedor de cobro con fallback de cobro manual de caja. */
+const EXPR_PROVEEDOR_PAGO =
+  "COALESCE(pg.proveedor_pago, CASE WHEN v.canal = 'PRESENCIAL' THEN 'MANUAL' ELSE 'DESCONOCIDO' END)";
+
+const JOIN_COLECCION_DESDE_P = 'JOIN colecciones col ON col.id = p.coleccion_id';
+const JOIN_PROVEEDOR_DESDE_COL = 'JOIN proveedores pr ON pr.id = col.proveedor_id';
+
+const JOINS_PROVEEDOR_DESDE_VENTAS = [
+  JOIN_VENTA_ITEMS,
+  JOIN_PRODUCTO_DESDE_VI,
+  JOIN_COLECCION_DESDE_P,
+  JOIN_PROVEEDOR_DESDE_COL,
+];
 
 const DIM_NINGUNO: DimensionSpec = { grupo: "'total'", etiqueta: "'Total'", joins: [] };
 
@@ -211,6 +237,17 @@ function dimensionesDeVentas(): Partial<Record<Dimension, DimensionSpec>> {
       etiqueta: 'u.full_name',
       joins: ['JOIN usuarios u ON u.id = v.cliente_id'],
     },
+    // === DIMENSIONES FASE 4: PAGOS ===
+    metodo_pago: {
+      grupo: EXPR_METODO_PAGO,
+      etiqueta: EXPR_METODO_PAGO,
+      joins: [JOIN_PAGOS_APROBADOS],
+    },
+    proveedor_pago: {
+      grupo: EXPR_PROVEEDOR_PAGO,
+      etiqueta: EXPR_PROVEEDOR_PAGO,
+      joins: [JOIN_PAGOS_APROBADOS],
+    },
   };
 }
 
@@ -240,6 +277,13 @@ function dimensionesDeIngresos(): Partial<Record<Dimension, DimensionSpec>> {
       grupo: 'p.id',
       etiqueta: 'p.titulo',
       joins: [JOIN_VENTA_ITEMS, JOIN_PRODUCTO_DESDE_VI],
+      seleccionAlterna: INGRESO_DE_LINEAS,
+    },
+    // === MÉTRICA CRUZADA PROVEEDOR EN INGRESOS ===
+    proveedor: {
+      grupo: 'pr.id',
+      etiqueta: 'pr.razon_social',
+      joins: JOINS_PROVEEDOR_DESDE_VENTAS,
       seleccionAlterna: INGRESO_DE_LINEAS,
     },
   };
@@ -397,11 +441,29 @@ function definicionCupones(seleccion: string): DefinicionMetrica {
   };
 }
 
+const VENTA_CON_PROVEEDOR =
+  'EXISTS (SELECT 1 FROM venta_items fvi' +
+  ' JOIN variantes_producto fvp ON fvp.id = fvi.variante_id' +
+  ' JOIN productos fp ON fp.id = fvp.producto_id' +
+  ' JOIN colecciones fcol ON fcol.id = fp.coleccion_id' +
+  ' WHERE fvi.venta_id = v.id AND fcol.proveedor_id = $)';
+
+const FILTRO_METODO_PAGO =
+  '((EXISTS (SELECT 1 FROM pagos fpg WHERE fpg.venta_id = v.id AND fpg.estado = \'APROBADO\' AND fpg.metodo = $))' +
+  ' OR (v.canal = \'PRESENCIAL\' AND $ = \'EFECTIVO\'))';
+
+const FILTRO_PROVEEDOR_PAGO =
+  '((EXISTS (SELECT 1 FROM pagos fpg WHERE fpg.venta_id = v.id AND fpg.estado = \'APROBADO\' AND fpg.proveedor_pago = $))' +
+  ' OR (v.canal = \'PRESENCIAL\' AND $ = \'MANUAL\'))';
+
 const FILTROS_VENTAS: Partial<Record<NombreFiltro, string>> = {
   sucursalId: 'v.sucursal_id = $',
   canal: 'v.canal = $',
   estado: 'v.estado = $',
   clienteId: 'v.cliente_id = $',
+  proveedorId: VENTA_CON_PROVEEDOR,
+  metodoPago: FILTRO_METODO_PAGO,
+  proveedorPago: FILTRO_PROVEEDOR_PAGO,
 };
 
 /**
@@ -432,6 +494,10 @@ const FILTROS_UNIDADES: Partial<Record<NombreFiltro, string>> = {
   ...FILTROS_VENTAS,
   categoriaId: `vi.variante_id IN ${VARIANTES_DE_CATEGORIA}`,
   productoId: `vi.variante_id IN ${VARIANTES_DE_PRODUCTO}`,
+  proveedorId:
+    'vi.variante_id IN (SELECT fvp.id FROM variantes_producto fvp' +
+    ' JOIN productos fp ON fp.id = fvp.producto_id' +
+    ' JOIN colecciones fcol ON fcol.id = fp.coleccion_id WHERE fcol.proveedor_id = $)',
 };
 
 export const ESTADOS_ORDEN = [
@@ -547,6 +613,11 @@ export const CATALOGO_METRICAS: Record<Metrica, DefinicionMetrica> = {
         joins: [JOIN_PRODUCTO_DESDE_VI, 'JOIN categorias c ON c.id = p.categoria_id'],
       },
       producto: { grupo: 'p.id', etiqueta: 'p.titulo', joins: [JOIN_PRODUCTO_DESDE_VI] },
+      proveedor: {
+        grupo: 'pr.id',
+        etiqueta: 'pr.razon_social',
+        joins: [JOIN_PRODUCTO_DESDE_VI, JOIN_COLECCION_DESDE_P, JOIN_PROVEEDOR_DESDE_COL],
+      },
     },
     estadoValido: ESTADOS_VENTA,
     filtroEstadoPorDefecto: "v.estado = 'PAGADA'",
