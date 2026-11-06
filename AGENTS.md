@@ -3,7 +3,7 @@
 > **Si sos una IA nueva en este proyecto, leé [`HANDOFF.md`](./HANDOFF.md) primero** (estado, reglas del usuario,
 > decisiones tomadas y trampas). Este archivo es el mapa técnico del monorepo.
 >
-> Actualizado: 2026-11-05 · commit `f91938c` · rama única `main`.
+> Actualizado: 2026-11-06 (Fase 6b) · rama única `main`.
 
 ## 1. Qué es
 
@@ -138,7 +138,7 @@ docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -
 
 # Tests
 cd mirroria-backend && npx vitest run                # 466 unit (56 suites) · npm run test:e2e → 62 (usa la BD local)
-cd mirroria-frontend && npx vitest run               # 198 unit (34 suites)
+cd mirroria-frontend && npx vitest run               # 293 unit (52 suites)
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
 python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
@@ -166,6 +166,8 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-06 — Fase 4:** Reportes dinámicos, tabla pivote, métricas cruzadas y exportación a Excel (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en caliente; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`, 106 rutas, 30 tablas, 425 tests back, 159 tests front).
 - **2026-11-06 — Fase 5:** BI y Dashboards diferenciados (Ejecutivo ADMIN con KPIs de facturación, ticket promedio, rotación y conversión, y Operativo POS con agenda cronológica de reservas, cobros pendientes y alertas de quiebre de stock por sucursal).
 - **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de anomalías POS en caja; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets POS, 198 tests en frontend, 466 en backend).
+
+- **2026-11-06 — Fase 6b:** Rediseño UX/UI del panel admin para un gerente sin tecnicismos (solo frontend): menú lateral en acordeón (Inicio · Ventas · Productos · Análisis · Mi negocio, contraíble a íconos), Dashboard BI ("Resumen del negocio" con resumen en palabras y "Hoy en la tienda"), Predicciones ("Qué hacer esta semana", jerga técnica solo en "¿Cómo se calcula?") y Reportes con IA (markdown renderizado con `react-markdown`, lienzo con conclusión, cifras clave, barras con nombres completos, chat con conclusión corta + "Reporte listo"). Spec: vault `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. 293 tests front (52 suites).
 
 ## 9. Dónde está cada cosa
 

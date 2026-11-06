@@ -174,8 +174,13 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
 - Tienda: `components/marca/logo-tienda-actual.tsx` (su logo o monograma + nombre, nunca el wordmark de
   MirrorIA); subrayado del ítem activo y contador del carrito con `bg-brand-accent`; footer con eslogan,
   "sobre nosotras", redes cargadas e `InsigniaPlataforma` ("Hecho con MirrorIA" → `/`, se quita con Cadena).
-- Admin: grupo **"Mi tienda"** (`admin-sidebar.data.ts`): Ver mi tienda · **Apariencia** (ADMIN) · Plan y
-  suscripción (ADMIN, badge de días en TRIAL); cabecera con el logo/monograma de la tienda y plan; pie
+- Admin (Fase 6b, 2026-11-06): menú en **acordeón** (`admin-sidebar.data.ts`): Inicio (suelto) · **Ventas** (Ventas, Cobros por
+  confirmar, Reservas, Cupones) · **Productos** (Catálogo, Inventario, Proveedores) · **Análisis** (Reportes con IA, Predicciones) ·
+  **Mi negocio** (Sucursales, Equipo y permisos, Apariencia, Plan y suscripción con badge de días en TRIAL). Varios grupos abiertos,
+  el de la ruta activa se abre solo, punto indicador en grupos cerrados; abiertos y modo **contraído a íconos** (`lg+`, con
+  Tooltip) persistidos en `localStorage` (`admin-sidebar-use-acordeon.ts`, `admin-sidebar-use-colapsado.ts`, lógica pura en
+  `admin-sidebar-logica.ts` + tests, incluido el de cero páginas huérfanas contra `ADMIN_ROUTES`/`STAFF_ROUTES`). Títulos de la
+  barra superior derivados de los labels (`tituloAdmin()`). Pie: avatar + nombre + rol con menú (Ver mi tienda, Cerrar sesión) y
   "Funciona con MirrorIA". `layouts/useTemaAdmin.ts` aplica el tema parcial y escucha
   `mirroria:marca-actualizada` (lo emite Apariencia al guardar). `admin-avisos.tsx`: verde de bienvenida
   (link "Cargar mi primera prenda"; el alta cae en `/admin/apariencia`), ámbar ≤ 3 días y rojo con "Activar plan".
@@ -189,7 +194,7 @@ cacheaba, tras un despliegue pedía chunks con hash viejo → 404 → página en
 - Footer de tienda (`site-footer.data.ts`, paths relativos que `ruta()` convierte a `/t/<slug>/…`): Catálogo,
   Vestidor virtual (probador), Sucursales, Reservas, Contacto (`#contacto`). Sin columna Legal.
 - Hero y feature-highlights enlazan a `ruta("/tienda")` y `ruta("/probador")`; la ficha enlaza a `ruta("/probador/:id")`.
-- Sidebar admin (`admin-sidebar-content.tsx`): filtra ítems por `roles` (mismos del router) y
+- Sidebar admin (`admin-sidebar-logica.ts`): filtra ítems por `roles` (mismos del router) y
   oculta los grupos vacíos.
 - `/wayra/pagar/:token` no tiene link interno a propósito: se llega escaneando el QR.
 
@@ -505,47 +510,46 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `exportarExcel` (`POST /ia/reportes/exportar-excel`, Blob binario con X-Tenant y Auth), `descargarExcel` (helper de descarga automática).
 - `types/`: `reports.types.ts`, `reports-hybrid.types.ts` (`ReporteHibridoResponse` con `metrica` y `tipoGraficoSugerido`, `PasoEjecutado`, `FilaReporteHibrido`).
 - `hooks/`: `useReportesIniciales` (tarjetas en paralelo), `useReportesChat` (conversación con `preguntarHibrido` + pasos agénticos + `abrirTabConReporte` + `actualizarReporteTab`),
-  `useTablaDinamica` (filtrado en caliente, ordenación multi-columna, exportación Excel y repivoteo), `useDictado` (Web Speech API), `useTecladoDictado` (atajo barra espaciadora).
-- `lib/`: `tabla-dinamica.utils.ts` (`filtrarFilas`, `ordenarFilas` + tests), `reportes-chat.utils.ts` (`mapHibridoAReporte`, `respuestaMeta`, `tituloDesdeTexto`), `report-value.utils.ts`, `report-chart.utils.ts`.
+  `useTablaDinamica` (búsqueda sin tildes y orden por columna), `useExportarExcel` (exportación con error en texto), `useDictado` (Web Speech API), `useTecladoDictado` (atajo barra espaciadora).
+- `lib/`: `tabla-dinamica.utils.ts` (`filtrarFilas`, `ordenarFilas` + tests), `reportes-chat.utils.ts` (`mapHibridoAReporte`, `respuestaMeta`, `tituloDesdeTexto`), `report-value.utils.ts` (+ `formatearPromedio`, `formatearPorcentaje` "27 %"), `report-chart.utils.ts` (`elegirFormaGrafico`: barras/línea/comparación/simulación, `tituloGrafico`), `report-metricas.ts` (nombres humanos de métricas/dimensiones, dimensión y métrica reales del híbrido desde `pasosEjecutados`, opciones válidas de "Ver por"), `report-etiquetas.ts` (fechas ISO y estados en MAYÚSCULAS → palabras), y del lienzo (todas con tests): `lienzo-reporte.ts` (`prepararLienzo`), `lienzo-cifras.ts`, `lienzo-pasos.ts`, `lienzo-sugerencias.ts`, `lienzo-texto.ts`.
 - `components/`: `chat-panel/` (con `ReasoningSteps` en las respuestas del asistente), `report-tabs/` (soporta `onActualizarReporte` ante repivoteo rápido),
-  `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + badge de "Escenario Simulado DuckDB" + gráfico + tabla dinámica), `report-chart.tsx` (Recharts con selección dinámica priorizando `tipoGraficoSugerido` y delegación a `WhatIfChart`),
-  `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-dinamica-reporte.tsx` (tabla interactiva con cabeceras ordenables), `tabla-dinamica-toolbar.tsx` (filtro en caliente, selector rápido de dimensión y exportación a Excel), `tabla-dinamica-totales.tsx` (fila de totales dinámicos con variación ponderada),
-  `constructor-reporte/` (`constructor-reporte-dialog.tsx`, `constructor-reporte-campos.tsx`, `constructor-reporte.data.ts` + tests: constructor manual sin coste de LLM con atajos de rangos temporales), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
+  `reporte-resultado.tsx` (**lienzo del reporte**, una superficie con secciones: encabezado con Exportar a Excel/Copiar resumen/Cerrar → Conclusión → Cifras clave → gráfico → Análisis de la IA → Datos → "Cómo se armó este reporte" → Seguir preguntando),
+  `lienzo/` (`encabezado-reporte`, `acciones-reporte`, `aviso-simulacion`, `conclusion-reporte`, `cifras-clave`, `seccion-lienzo`, `barras-ranking` y `barras-comparadas` (HTML, nombre completo + valor), `grafico-linea` (Recharts, alto fijo), `leyenda-series`, `datos-vacios`, `seguir-preguntando`, `reporte-cargando` + `etapas-progreso`, `reporte-error`),
+  `report-chart.tsx` (despacha la forma; también lo usa el Resumen), `what-if-chart/what-if-chart.tsx` (hoy vs. escenario simulado), `reasoning-steps/` (`<details>` colapsado, pasos en lenguaje humano),
+  `tabla-dinamica-reporte.tsx` + `-cabecera` (orden con `aria-sort`) + `-toolbar` (buscar y "Ver por" solo con dimensiones válidas) + `-totales`,
+  `constructor-reporte/` (`constructor-reporte-dialog.tsx`, `constructor-reporte-campos.tsx`, `constructor-reporte.data.ts` + tests: constructor manual sin coste de LLM con atajos de rangos temporales), `resumen-reportes.tsx`.
 
-### `features/dashboard/` ↔ backend `bi` (Fase 5, CU39-40, BI y Dashboards por Rol)
-- Punto de entrada en `/admin/dashboard` (redirección index de `/admin`).
-- **Dashboard Ejecutivo BI (`ADMIN`)**:
-  - Filtros temporales y de sucursales (`filtros-dashboard-ejecutivo.tsx`).
-  - Tarjetas KPI con deltas simétricos (`kpi-grid-ejecutivo.tsx`): Ingresos, Ticket Promedio, Rotación de Inventario, Conversión Reservas a Ventas, Clientes Activos.
-  - Gráficos Recharts: Tendencia de ingresos (`grafico-tendencia-ingresos.tsx`), Cuota de pasarelas Stripe/Wayra QR/Efectivo (`grafico-distribucion-pagos.tsx`), Top 5 Prendas (`grafico-top-prendas.tsx`), Top Proveedores (`grafico-top-proveedores.tsx`).
-  - Consumo del Plan SaaS (`widget-limites-plan.tsx`) con barras de progreso contra límites de suscripción.
-- **Dashboard Operativo POS (`CAJERO` y `ENCARGADO_SUCURSAL`)**:
-  - Tarjetas de turno (`kpi-grid-operativo.tsx`): Ventas del día, Tickets emitidos, Cobros pendientes, Reservas de hoy.
-  - Agenda cronológica de citas del día con botón "Atender en tienda" en 1 clic (`widget-reservas-hoy.tsx`).
-  - Alertas de stock crítico ($\le 2$) y agotado ($0$) en la sucursal asignada (`widget-alertas-stock.tsx`).
-  - Accesos rápidos operativos POS (`accesos-directos-pos.tsx`).
-- Componentes < 120 líneas, 100% `@phosphor-icons/react`, zero páginas huérfanas (`ADMIN_NAV_GROUPS` item #1).
+### `features/dashboard/` ↔ backend `bi` (Fase 5 + 6b: tablero en lenguaje de gerente)
+- `/admin/dashboard` (redirección index de `/admin`), título **Inicio**. `AdminDashboardPage` solo orquesta (`useDashboardPage`).
+  ADMIN ve pestañas **Resumen del negocio** / **Hoy en la tienda** (`?modo=tienda`; `?modo=operativo` sigue andando);
+  CAJERO/ENCARGADO ven solo "Hoy en la tienda".
+- **Resumen del negocio** (`components/ejecutivo/`): `barra-filtros` (período + sucursal + actualizar) y frase del rango comparado;
+  `resumen-negocio` (usa `ResumenNarrativo` común: conclusión en palabras + "Qué mirar" con links, frases en `lib/resumen-negocio.ts`);
+  `franja-kpis` (Lo que vendiste · Gasto promedio por compra · Clientas que compraron · Qué tan rápido se vende tu stock · Reservas
+  que terminaron en compra, cada uno con `AyudaTermino`; variación en palabras y "Sin ventas en el período anterior" en vez de +100 %);
+  `grafico-ingresos-dia` + `grafico-ingresos-area` (barras por día, Recharts con ancho medido por `useAnchoContenedor`, sin
+  `ResponsiveContainer`; mejor día resaltado; tabla "Ver los números de cada día"); `rankings-ventas` (prendas y proveedores como
+  barras HTML), `como-te-pagan` (Efectivo / Tarjeta / QR, `lib/metodos-pago.ts`), `uso-plan`.
+- **Hoy en la tienda** (`components/operativo/`): `numeros-del-dia`, `accesos-directos` (por rol), `agenda-citas` + `cita-fila`
+  (estados en palabras, "Ya llegó" con `useMarcarLlegada`, reconfirmar por WhatsApp), `stock-por-agotarse`.
+- `components/shared/`: `seccion` (superficie única + vacío útil), `bloque-error` (Reintentar), `kpi-item`, `lista-barras`,
+  `etiqueta-tono`, `encabezado-dashboard`, `boton-actualizar`, `selector-sucursal`.
+- Pendiente de backend: `GET /dashboard/operativo` no envía `probabilidadNoShow`, por eso "¿Vendrá?" casi nunca aparece en la agenda.
 
-### `features/ml/` ↔ backend `ml` (Fase 6, CU41-44, Machine Learning Gerencial Humanizado y Sin Pestañas Apiladas)
-- Punto de entrada en `/admin/ml` (`MlDashboardPage`), registrado en `STAFF_ROUTES` (`ADMIN` y `ENCARGADO_SUCURSAL`) y en `ADMIN_NAV_GROUPS` (grupo "Ventas y Promociones" con icono `Brain` y badge "IA").
-- **Arquitectura de Barra Unificada (`ml-toolbar.tsx`)**:
-  - Elimina la redundancia y apilamiento ("UI lasagna") de pestañas. Un único riel coordinado que integra:
-    - Izquierda: Segmented control accesible (`role="tab"`) para alternar entre "Vista General" (Bento Grid completo), "Demanda", "No-Show", "Clientas" y "Auditoría".
-    - Derecha: Selector de horizonte temporal interactivo [ 7 días | 15 días | 30 días | 60 días ] con `<CalendarBlank />` y selector de sucursal con `<Storefront />`.
-- **Cabecera Ejecutiva (`ml-header.tsx`)**:
-  - Muestra el estado del microservicio FastAPI en vivo (`FastAPI :8002` o badge heurístico), botón de refresco y acceso a la "Ficha Técnica SI2" en modal dialog (`ml-ficha-tecnica-dialog.tsx`), aislando el rigor metodológico para no saturar al gerente.
-- **M1: Demanda Proyectada & Reabastecimiento (`demanda/`)**:
-  - `ml-demanda-chart.tsx` y `ml-demanda-table.tsx`: Nombres de prendas humanizados mediante `formatearNombrePrenda` ("Vestido Seda", "Blusa Lino", etc., sin IDs crudos de BD), comparación de stock vs demanda proyectada, nivel de riesgo y sugerencia de compra inmediata.
-- **M2: Guardián de Probador & Riesgo de No-Show (`noshow/`)**:
-  - `ml-noshow-panel.tsx`, `ml-noshow-item.tsx` y `badge-riesgo-noshow.tsx`: Semáforo de criticidad y confirmación preventiva de citas por WhatsApp.
-- **M3: Segmentación RFM & Playbook Comercial (`rfm/`)**:
-  - `ml-rfm-section.tsx`, `ml-rfm-donut.tsx` y `ml-rfm-playbook.tsx`: Clústeres de clientas (VIPs/Leales, Nuevas Promesas, En Riesgo/Dormidas, Ocasionales/Outlet) con conteo gramatical pulido ("1 clienta") y estrategias comerciales de retención.
-- **M4: Auditoría POS & Detección de Anomalías (`anomalias/`)**:
-  - `ml-anomalias-section.tsx`, `ml-anomalias-feed.tsx` e `ml-anomalias-item.tsx`: Nombres legibles ("Ticket #101", "Ticket #102"), motivos claros (descuento manual excesivo, transacción fuera de horario) y filtro por nivel de sospecha.
-- **Rigor Metodológico Aislado (`cientifico/`)**:
-  - `ml-ficha-tecnica-dialog.tsx`, `ml-validacion-cientifica.tsx` y `ml-modelo-card.tsx`: Diálogo modal responsive (`sm:max-w-4xl`) con citas canónicas formales (Breiman 2001, Cox 1958, MacQueen 1967, Liu 2008) y métricas empíricas del holdout set reproducible (`seed=42`, N=10.000).
-- **Hooks y API**: `useDemandaMl`, `useNoShowAgenda`, `useRfmSegmentos`, `useAnomaliasVentas`, `useModelosMetricas` en `useMlKpis.ts`, cliente tipado en `mlApi.ts`.
-- **Regla Estricta Anti-Líneas**: 100% de los archivos de `src/features/ml/` tienen estrictamente < 120 líneas de código y utilizan exclusivamente `@phosphor-icons/react`.
+### `features/ml/` ↔ backend `ml` (Fase 6 + 6b: Predicciones en lenguaje de gerente)
+- `/admin/ml` (`MlDashboardPage`, página fina), en `STAFF_ROUTES` (`ADMIN`, `ENCARGADO_SUCURSAL`). Título **Predicciones**.
+- Pestañas (`lib/ml-tabs.ts` + `useTabPredicciones`, `useSearchParams`): Resumen (sin `?tab=`) · Qué reponer (`demanda`) ·
+  Citas en riesgo (`noshow`) · Tus clientas (`rfm`) · Ventas para revisar (`auditoria`). Horizonte 7/15/30/60 y sucursal en la misma barra (`predicciones-barra.tsx`).
+- `components/`: `predicciones-encabezado` (bajada, aviso si `fallback`, botón "¿Cómo se calcula?"), `resumen/` (Qué hacer esta semana,
+  4 KPIs con `AyudaTermino`, vista resumen), `reponer/` (tenés vs. vas a vender con barras HTML, riesgo en palabras, "alcanza para ~N días"),
+  `citas/` ("¿Vendrá?" + motivo + acción + WhatsApp), `clientas/` (Fieles · Nuevas con potencial · Dejaron de comprar · Compran en ofertas),
+  `ventas/` (Normal / "Inusual, revisar" con motivo), `comun/` (sección, estado-pill, error/vacío/esqueleto),
+  `cientifico/` (`ficha-tecnica-sheet` = único lugar con jerga: KPIs crudos, algoritmos, métricas y citas SI2).
+- `badge-riesgo-noshow.tsx` lo usa también el dashboard: Seguro / Puede faltar / Probable que falte (cortes 35/65 %).
+- `lib/` (lógica pura con tests): `ml-acciones` (hasta 4 acciones priorizadas), `ml-kpis`, `ml-lenguaje` (traducciones), `ml-demanda`,
+  `ml-clientas`, `ml-anomalias.utils`, `ml-ficha`, `ml.utils` (nombres de prenda/venta sin UUIDs).
+- Hooks: `usePrediccionesMl` (agrega los 5 hooks de datos + recarga), `useNombresPrendas` (cruza ids con `/catalogo/productos`),
+  `useSucursalesActivas`, `useTabPredicciones`. Cliente tipado en `api/mlApi.ts`. Sin Recharts.
 
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/
@@ -595,7 +599,7 @@ inexistente (ficha de prenda).
    `success`; mostrar el `message` real del backend (`ApiError`).
 7. **Dinero en centavos hasta el render:** siempre `formatMoney()` de `lib/money.ts`.
 8. **Roles:** cada ruta nueva de staff declara los mismos roles que el `@Roles(...)` del
-   controller del backend, en `App.tsx` **y** en `admin-sidebar-content.tsx`.
+   controller del backend, en `App.tsx` **y** en `admin-sidebar.data.ts`.
 9. **`Select` de Base UI:** `SelectValue` con `children` como función de lookup
    (`(id) => opciones.find(...)?.label ?? placeholder`) y `value={x ?? ""}` desde el primer
    render; nunca `<SelectValue placeholder="..." />` auto-cerrado si el value no es el label.

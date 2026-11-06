@@ -1,6 +1,6 @@
 # HANDOFF — punto de entrada para una IA nueva
 
-> Actualizado: 2026-11-05, commit `f91938c` (rama `main`). Si el código cambió después, el código manda:
+> Actualizado: 2026-11-06, Fase 6b (rama `main`). Si el código cambió después, el código manda:
 > verificá con los comandos de la sección 4 y corregí este archivo.
 
 ## 1. Qué es esto (en 6 líneas)
@@ -31,10 +31,11 @@
 | 4 — Reportes dinámicos (+ Excel) | ✅ cerrada, commit `bafea4c` (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en vivo; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`). |
 | 5 — BI: dashboards por rol | ✅ cerrada, commit `b8a6263` (`BiModule`, `GET /dashboard/ejecutivo` y `GET /dashboard/operativo`; experiencia diferenciada en `/admin/dashboard`: consola ejecutiva para `ADMIN` con KPIs, deltas simétricos, rotación, conversión, Recharts de tendencia, pasarelas, top prendas y top proveedores; y consola operativa POS para `CAJERO`/`ENCARGADO` con agenda cronológica de reservas, atención en 1 clic y alertas de stock crítico $\le 2$). |
 | 6 — Machine Learning por KPIs | ✅ cerrada (`mirroria-ml/` con FastAPI :8002 y scikit-learn; dataset sintético `seed=42`, $N=10.000$; 4 modelos: M1 Demanda Random Forest, M2 No-Show Regresión Logística, M3 RFM KMeans, M4 Anomalías Isolation Forest; `MlModule` en NestJS con fallback resiliente `X-ML-Fallback: true`; vistas en `/admin/ml` y reservas POS; 6 pytest + 466 tests back + 190 front). |
+| 6b — Rediseño UX/UI del admin (gerente sin tecnicismos) | ✅ cerrada (solo frontend): menú lateral en acordeón, Dashboard BI (Resumen del negocio / Hoy en la tienda), Predicciones en lenguaje de negocio (técnico tras "¿Cómo se calcula?") y Reportes con IA (markdown renderizado, lienzo de informe, chat con conclusión corta). Spec `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. |
 | **7 — Documento ICONIX + UML 2.5 → PDF** | ⏭️ **la siguiente**. Capítulos 01 a 07; modelo de dominio, casos de uso, robustez, secuencia, clases y componentes para la entrega final. |
 
 Números verificados: **113 rutas** HTTP, **30 tablas**, **466** tests unitarios backend (56 archivos),
-**190** tests frontend (32 archivos), 6 tests pytest en ML, e2e backend 62/62.
+**293** tests frontend (52 archivos), 6 tests pytest en ML, e2e backend 62/62.
 
 ## 3. Orden de lectura
 
@@ -70,9 +71,9 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 425 unit (50 archivos)
+cd mirroria-backend && npx vitest run          # 466 unit (56 archivos)
 cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
-cd mirroria-frontend && npx vitest run         # 159 (28 archivos)
+cd mirroria-frontend && npx vitest run         # 293 (52 archivos)
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
 python3 scripts/qa/qa_reglas.py      # 21  · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
 ```
@@ -128,6 +129,11 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
   cuando diga que va a desplegar.** Los despliegues los corre él (`bash scripts/deploy-azure.sh`).
 
 ## 8. Pendientes conocidos (no bloquean)
+
+- Fase 6b (backend, no tocado): `GET /dashboard/operativo` no envía `probabilidadNoShow` ("¿Vendrá?" casi no aparece); `/ml/kpis/demanda`
+  no trae el nombre de la prenda (el front lo cruza con el catálogo); el prompt de la IA de reportes a veces usa jerga ("ETL") o "$";
+  al repivotear un reporte híbrido se pierden sus fechas y no trae narrativa; "Clientas que compraron" da 0 con ventas presenciales sin clienta.
+- Dev: si Vite muestra algo "sin estilo" tras crear muchos archivos, reiniciarlo (Tailwind dejó de generar clases; el build de prod está bien).
 
 - P3 de la auditoría 1b: texto muted "Elegí tienda y horario…" de Tiendaria con contraste 4.35:1; el título de pestaña del
   admin dice "MirrorIA" (no el nombre de la tienda); en el paso 2 del alta la vista previa no es sticky.
