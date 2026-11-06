@@ -9,18 +9,28 @@ import { WidgetLimitesPlan } from "./widget-limites-plan"
 
 interface DashboardEjecutivoViewProps {
   periodo: PeriodoDashboard
+  fechaInicio?: string
+  fechaFin?: string
   sucursalId?: string
   onPeriodoChange: (p: PeriodoDashboard) => void
+  onFechaInicioChange?: (f?: string) => void
+  onFechaFinChange?: (f?: string) => void
   onSucursalChange: (s?: string) => void
+  onRefrescar?: () => void
   data?: DashboardEjecutivoDto | null
   isLoading?: boolean
 }
 
 export function DashboardEjecutivoView({
   periodo,
+  fechaInicio,
+  fechaFin,
   sucursalId,
   onPeriodoChange,
+  onFechaInicioChange,
+  onFechaFinChange,
   onSucursalChange,
+  onRefrescar,
   data,
   isLoading,
 }: DashboardEjecutivoViewProps) {
@@ -37,9 +47,15 @@ export function DashboardEjecutivoView({
         </div>
         <FiltrosDashboardEjecutivo
           periodo={periodo}
+          fechaInicio={fechaInicio}
+          fechaFin={fechaFin}
           sucursalId={sucursalId}
+          isLoading={isLoading}
           onPeriodoChange={onPeriodoChange}
+          onFechaInicioChange={onFechaInicioChange}
+          onFechaFinChange={onFechaFinChange}
           onSucursalChange={onSucursalChange}
+          onRefrescar={onRefrescar}
         />
       </div>
 

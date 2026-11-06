@@ -11,7 +11,7 @@ interface MlDemandaSectionProps {
   isLoading?: boolean
 }
 
-/** Sector principal (65%): Demanda Proyectada y Reabastecimiento Crítico (Operate Mode). */
+/** Sector principal: Demanda Proyectada y Reabastecimiento Crítico. */
 export function MlDemandaSection({ data, isLoading }: MlDemandaSectionProps) {
   if (isLoading) {
     return (
@@ -24,7 +24,10 @@ export function MlDemandaSection({ data, isLoading }: MlDemandaSectionProps) {
   }
 
   const items = data?.predicciones ?? []
-  const quiebresCriticos = items.filter((it) => it.riesgo_quiebre === "CRITICO" || it.riesgo_quiebre === "ALTO").length
+  const quiebresCriticos = items.filter(
+    (it) => it.riesgo_quiebre === "CRITICO" || it.riesgo_quiebre === "ALTO",
+  ).length
+  const dias = data?.horizonte_dias ?? 30
 
   return (
     <Card className="flex flex-col shadow-xs">
@@ -39,12 +42,15 @@ export function MlDemandaSection({ data, isLoading }: MlDemandaSectionProps) {
                 Demanda Proyectada & Reabastecimiento
               </CardTitle>
               <CardDescription className="text-xs">
-                Proyección a 30 días calculada mediante Random Forest Regressor (Breiman 2001).
+                Proyección para los próximos {dias} días con plan inteligente de inventario y reposición.
               </CardDescription>
             </div>
           </div>
           {quiebresCriticos > 0 && (
-            <Badge variant="outline" className="gap-1 border-rose-500/30 bg-rose-500/10 text-rose-600 text-[11px] font-medium">
+            <Badge
+              variant="outline"
+              className="gap-1 border-rose-500/30 bg-rose-500/10 text-rose-600 text-[11px] font-medium"
+            >
               <WarningDiamond className="size-3.5" weight="fill" />
               <span>{quiebresCriticos} prendas en riesgo de quiebre</span>
             </Badge>

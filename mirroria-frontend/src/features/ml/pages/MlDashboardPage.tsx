@@ -8,23 +8,26 @@ import {
   useRfmSegmentos,
 } from "../hooks/useMlKpis"
 import { MlHeader } from "../components/ml-header"
+import { MlFiltros } from "../components/ml-filtros"
 import { MlKpiRibbon } from "../components/ml-kpi-ribbon"
 import { MlDemandaSection } from "../components/demanda/ml-demanda-section"
 import { MlNoshowPanel } from "../components/noshow/ml-noshow-panel"
 import { MlRfmSection } from "../components/rfm/ml-rfm-section"
 import { MlAnomaliasSection } from "../components/anomalias/ml-anomalias-section"
 import { MlValidacionCientifica } from "../components/cientifico/ml-validacion-cientifica"
+import { MlFichaTecnicaDialog } from "../components/cientifico/ml-ficha-tecnica-dialog"
 
-/**
- * Panel de Machine Learning Operativo (Operate Mode).
- * Arquitectura asimétrica de alto impacto y anti-slop visual.
- */
+/** Panel de Machine Learning Operativo (Operate Mode). */
 export function MlDashboardPage() {
   const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get("tab") || "overview")
-  const demanda = useDemandaMl({ dias: 30 })
-  const noShow = useNoShowAgenda()
+  const [dias, setDias] = useState<number>(30)
+  const [sucursalId, setSucursalId] = useState<string | undefined>(undefined)
+  const [fichaAbierta, setFichaAbierta] = useState<boolean>(false)
+
+  const demanda = useDemandaMl({ dias, sucursalId })
+  const noShow = useNoShowAgenda({ sucursalId })
   const rfm = useRfmSegmentos()
-  const anomalias = useAnomaliasVentas()
+  const anomalias = useAnomaliasVentas({ sucursalId })
   const metricas = useModelosMetricas()
 
   const cargando = demanda.isLoading || noShow.isLoading || rfm.isLoading || anomalias.isLoading || metricas.isLoading
@@ -36,7 +39,21 @@ export function MlDashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-      <MlHeader esFallback={esFallback} cargando={cargando} onActualizar={recargarTodo} />
+      <MlHeader
+        esFallback={esFallback}
+        cargando={cargando}
+        onActualizar={recargarTodo}
+        onAbrirFichaTecnica={() => setFichaAbierta(true)}
+      />
+
+      <MlFiltros
+        dias={dias}
+        onDiasChange={setDias}
+        sucursalId={sucursalId}
+        onSucursalChange={setSucursalId}
+        disabled={cargando}
+      />
+
       <MlKpiRibbon demanda={demanda.data} noShow={noShow.data} rfm={rfm.data} anomalias={anomalias.data} />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
@@ -46,7 +63,7 @@ export function MlDashboardPage() {
           <TabsTrigger value="noshow">No-Show</TabsTrigger>
           <TabsTrigger value="rfm">Clientas</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoría</TabsTrigger>
-          <TabsTrigger value="cientifico">Ciencia</TabsTrigger>
+          <TabsTrigger value="metodologia">Ficha Técnica</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -62,7 +79,6 @@ export function MlDashboardPage() {
             <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />
             <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />
           </div>
-          <MlValidacionCientifica data={metricas.data} isLoading={metricas.isLoading} />
         </TabsContent>
 
         <TabsContent value="demanda" className="space-y-6">
@@ -77,10 +93,17 @@ export function MlDashboardPage() {
         <TabsContent value="auditoria" className="space-y-6">
           <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />
         </TabsContent>
-        <TabsContent value="cientifico" className="space-y-6">
+        <TabsContent value="metodologia" className="space-y-6">
           <MlValidacionCientifica data={metricas.data} isLoading={metricas.isLoading} />
         </TabsContent>
       </Tabs>
+
+      <MlFichaTecnicaDialog
+        abierto={fichaAbierta}
+        onOpenChange={setFichaAbierta}
+        data={metricas.data}
+        isLoading={metricas.isLoading}
+      />
     </div>
   )
 }

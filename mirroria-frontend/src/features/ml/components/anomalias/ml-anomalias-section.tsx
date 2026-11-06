@@ -36,7 +36,8 @@ export function MlAnomaliasSection({ data, isLoading }: MlAnomaliasSectionProps)
                 Auditoría POS & Detección de Anomalías
               </CardTitle>
               <CardDescription className="text-xs">
-                Contaminación esperada: ν=0.03 · Monto observado: <b className="text-foreground font-mono">Bs {montoBs}</b>
+                Supervisión continua en caja · Total observado en riesgo:{" "}
+                <b className="text-foreground font-mono">Bs {montoBs}</b>
               </CardDescription>
             </div>
           </div>

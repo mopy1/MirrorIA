@@ -7,18 +7,17 @@ export interface UseDashboardEjecutivoOptions extends FiltroDashboardEjecutivo {
 }
 
 export function useDashboardEjecutivo(options: UseDashboardEjecutivoOptions = {}) {
-  const {
-    periodo: initialPeriodo = "30d",
-    fechaInicio: initialFechaInicio,
-    fechaFin: initialFechaFin,
-    sucursalId: initialSucursalId,
-    enabled = true,
-  } = options
+  const { enabled = true } = options
 
-  const [periodo, setPeriodo] = useState<PeriodoDashboard>(initialPeriodo)
-  const [fechaInicio, setFechaInicio] = useState<string | undefined>(initialFechaInicio)
-  const [fechaFin, setFechaFin] = useState<string | undefined>(initialFechaFin)
-  const [sucursalId, setSucursalId] = useState<string | undefined>(initialSucursalId)
+  const [intPeriodo, setIntPeriodo] = useState<PeriodoDashboard>(options.periodo ?? "30d")
+  const [intFechaInicio, setIntFechaInicio] = useState<string | undefined>(options.fechaInicio)
+  const [intFechaFin, setIntFechaFin] = useState<string | undefined>(options.fechaFin)
+  const [intSucursalId, setIntSucursalId] = useState<string | undefined>(options.sucursalId)
+
+  const periodo = options.periodo !== undefined ? options.periodo : intPeriodo
+  const fechaInicio = "fechaInicio" in options ? options.fechaInicio : intFechaInicio
+  const fechaFin = "fechaFin" in options ? options.fechaFin : intFechaFin
+  const sucursalId = "sucursalId" in options ? options.sucursalId : intSucursalId
 
   const [data, setData] = useState<DashboardEjecutivoDto | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(enabled)
@@ -26,13 +25,14 @@ export function useDashboardEjecutivo(options: UseDashboardEjecutivoOptions = {}
 
   const cargar = useCallback(async () => {
     if (!enabled) return
+    if (periodo === "personalizado" && (!fechaInicio || !fechaFin)) return
     setIsLoading(true)
     setError(null)
     try {
       const res = await getDashboardEjecutivo({
         periodo,
-        fechaInicio,
-        fechaFin,
+        fechaInicio: periodo === "personalizado" ? fechaInicio : undefined,
+        fechaFin: periodo === "personalizado" ? fechaFin : undefined,
         sucursalId: sucursalId || undefined,
       })
       setData(res)
@@ -52,13 +52,13 @@ export function useDashboardEjecutivo(options: UseDashboardEjecutivoOptions = {}
     isLoading,
     error,
     periodo,
-    setPeriodo,
+    setPeriodo: setIntPeriodo,
     fechaInicio,
-    setFechaInicio,
+    setFechaInicio: setIntFechaInicio,
     fechaFin,
-    setFechaFin,
+    setFechaFin: setIntFechaFin,
     sucursalId,
-    setSucursalId,
+    setSucursalId: setIntSucursalId,
     recargar: cargar,
     reload: cargar,
   }

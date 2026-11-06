@@ -34,10 +34,11 @@ export function MlRfmSection({ data, isLoading }: MlRfmSectionProps) {
             </div>
             <div>
               <CardTitle className="text-base font-semibold text-foreground">
-                Segmentación RFM & Playbook
+                Segmentación RFM & Playbook Comercial
               </CardTitle>
               <CardDescription className="text-xs">
-                Clustering no supervisado K-Means (K=4) con CLV proyectado: <b className="text-foreground font-mono">Bs {clvBs}</b>
+                Fidelización y retención por comportamiento de compra · CLV promedio:{" "}
+                <b className="text-foreground font-mono">Bs {clvBs}</b>
               </CardDescription>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { Brain, ArrowClockwise, Database } from "@phosphor-icons/react"
+import { Brain, ArrowClockwise, GraduationCap } from "@phosphor-icons/react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -6,10 +6,16 @@ interface MlHeaderProps {
   esFallback?: boolean
   cargando?: boolean
   onActualizar: () => void
+  onAbrirFichaTecnica?: () => void
 }
 
-/** Cabecera del panel de ML con monitor de inferencia (FastAPI 8002) y refresco. */
-export function MlHeader({ esFallback, cargando, onActualizar }: MlHeaderProps) {
+/** Cabecera ejecutiva del módulo ML orientada a Gerente Comercial y Director de Tienda. */
+export function MlHeader({
+  esFallback,
+  cargando,
+  onActualizar,
+  onAbrirFichaTecnica,
+}: MlHeaderProps) {
   return (
     <div className="flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
@@ -22,7 +28,10 @@ export function MlHeader({ esFallback, cargando, onActualizar }: MlHeaderProps) 
               Predicciones & Machine Learning
             </h1>
             {esFallback ? (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-mono">
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-mono"
+              >
                 ▲ Modo Heurístico (Fallback Activo)
               </Badge>
             ) : (
@@ -33,16 +42,24 @@ export function MlHeader({ esFallback, cargando, onActualizar }: MlHeaderProps) 
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Proyecciones inteligentes de demanda, asistencia a probador, valor de clientas y control de caja.
+            Proyecciones comerciales de demanda, asistencia a probador, fidelización y control POS.
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 self-start sm:self-auto">
-        <Badge variant="outline" className="hidden text-[10px] text-muted-foreground sm:inline-flex items-center gap-1">
-          <Database className="size-3 text-muted-foreground/80" />
-          <span>N=10.000 · seed=42</span>
-        </Badge>
+      <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+        {onAbrirFichaTecnica && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onAbrirFichaTecnica}
+            className="gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground shadow-xs"
+            title="Abrir respaldo académico y citas bibliográficas (SI2)"
+          >
+            <GraduationCap className="size-4 text-primary" weight="duotone" />
+            <span>Ficha Técnica Metodológica</span>
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"

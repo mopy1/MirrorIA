@@ -11,7 +11,7 @@ interface MlNoshowPanelProps {
   isLoading?: boolean
 }
 
-/** Panel lateral (35%): Guardián de Probador y Prevención de No-Show en tiempo real. */
+/** Panel lateral: Guardián de Probador y Prevención de No-Show en tiempo real. */
 export function MlNoshowPanel({ data, isLoading }: MlNoshowPanelProps) {
   const { user } = useAuth()
   const boutiqueNombre = user?.tenant?.nombre || "nuestra boutique"
@@ -42,13 +42,17 @@ export function MlNoshowPanel({ data, isLoading }: MlNoshowPanelProps) {
                 Guardián de Probador
               </CardTitle>
               <CardDescription className="text-xs">
-                Citas de hoy evaluadas por Cox (1958).
+                Supervisión de citas de hoy y confirmación proactiva vía WhatsApp.
               </CardDescription>
             </div>
           </div>
           <Badge
             variant="outline"
-            className={`text-[10px] font-mono ${alertasCriticas > 0 ? "border-amber-500/40 bg-amber-500/10 text-amber-600" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"}`}
+            className={`text-[10px] font-mono ${
+              alertasCriticas > 0
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+            }`}
           >
             {alertasCriticas} en riesgo
           </Badge>

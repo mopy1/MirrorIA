@@ -1,10 +1,12 @@
 import type { ReactNode } from "react"
-import { Storefront } from "@phosphor-icons/react"
+import { ArrowsClockwise, Storefront } from "@phosphor-icons/react"
+import { Button } from "@/components/ui/button"
 import type { DashboardOperativoDto } from "../../types/dashboard.types"
 import { AccesosDirectosPos } from "./accesos-directos-pos"
 import { KpiGridOperativo } from "./kpi-grid-operativo"
 import { WidgetAlertasStock } from "./widget-alertas-stock"
 import { WidgetReservasHoy } from "./widget-reservas-hoy"
+import { cn } from "cn"
 
 interface DashboardOperativoViewProps {
   data?: DashboardOperativoDto | null
@@ -38,7 +40,22 @@ export function DashboardOperativoView({
             Métricas de caja en vivo, clientas con cita para probarse y stock crítico de mostrador.
           </p>
         </div>
-        {sucursalSelector}
+        <div className="flex items-center gap-2">
+          {sucursalSelector}
+          {onRecargar && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRecargar}
+              disabled={isLoading}
+              className="h-7 gap-1.5 px-2.5 text-xs font-medium shadow-xs"
+              title="Actualizar turno"
+            >
+              <ArrowsClockwise className={cn("size-3.5", isLoading && "animate-spin")} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <AccesosDirectosPos />

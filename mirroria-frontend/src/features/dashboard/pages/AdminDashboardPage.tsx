@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
 import { DashboardEjecutivoView } from "../components/ejecutivo/dashboard-ejecutivo-view"
 import { DashboardOperativoView } from "../components/operativo/dashboard-operativo-view"
+import { SelectorSucursal } from "../components/shared/selector-sucursal"
 import { useDashboardEjecutivo } from "../hooks/useDashboardEjecutivo"
 import { useDashboardOperativo } from "../hooks/useDashboardOperativo"
 import type { PeriodoDashboard } from "../types/dashboard.types"
@@ -18,6 +19,8 @@ export function AdminDashboardPage() {
     searchParams.get("modo") === "operativo" ? "operativo" : "ejecutivo",
   )
   const [periodo, setPeriodo] = useState<PeriodoDashboard>("30d")
+  const [fechaInicio, setFechaInicio] = useState<string | undefined>()
+  const [fechaFin, setFechaFin] = useState<string | undefined>()
   const [sucursalId, setSucursalId] = useState<string | undefined>()
 
   const esVistaEjecutiva = esAdmin && modoAdmin === "ejecutivo"
@@ -25,8 +28,11 @@ export function AdminDashboardPage() {
   const {
     data: dataEjecutiva,
     isLoading: loadingEjecutivo,
+    recargar: recargarEjecutivo,
   } = useDashboardEjecutivo({
     periodo,
+    fechaInicio,
+    fechaFin,
     sucursalId,
     enabled: esVistaEjecutiva,
   })
@@ -70,9 +76,14 @@ export function AdminDashboardPage() {
       {esVistaEjecutiva ? (
         <DashboardEjecutivoView
           periodo={periodo}
+          fechaInicio={fechaInicio}
+          fechaFin={fechaFin}
           sucursalId={sucursalId}
           onPeriodoChange={setPeriodo}
+          onFechaInicioChange={setFechaInicio}
+          onFechaFinChange={setFechaFin}
           onSucursalChange={setSucursalId}
+          onRefrescar={recargarEjecutivo}
           data={dataEjecutiva}
           isLoading={loadingEjecutivo}
         />
@@ -81,6 +92,15 @@ export function AdminDashboardPage() {
           data={dataOperativa}
           isLoading={loadingOperativo}
           onRecargar={recargarOperativo}
+          sucursalSelector={
+            esAdmin ? (
+              <SelectorSucursal
+                sucursalId={sucursalId}
+                onSucursalChange={setSucursalId}
+                labelTodas="Todas las sucursales"
+              />
+            ) : undefined
+          }
         />
       )}
     </div>

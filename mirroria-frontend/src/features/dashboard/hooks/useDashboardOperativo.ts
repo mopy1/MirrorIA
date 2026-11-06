@@ -7,8 +7,11 @@ export interface UseDashboardOperativoOptions extends FiltroDashboardOperativo {
 }
 
 export function useDashboardOperativo(options: UseDashboardOperativoOptions = {}) {
-  const { sucursalId: initialSucursalId, enabled = true } = options
-  const [sucursalId, setSucursalId] = useState<string | undefined>(initialSucursalId)
+  const { enabled = true } = options
+
+  const [intSucursalId, setIntSucursalId] = useState<string | undefined>(options.sucursalId)
+  const sucursalId = "sucursalId" in options ? options.sucursalId : intSucursalId
+
   const [data, setData] = useState<DashboardOperativoDto | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(enabled)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +39,7 @@ export function useDashboardOperativo(options: UseDashboardOperativoOptions = {}
     isLoading,
     error,
     sucursalId,
-    setSucursalId,
+    setSucursalId: setIntSucursalId,
     recargar: cargar,
     reload: cargar,
   }

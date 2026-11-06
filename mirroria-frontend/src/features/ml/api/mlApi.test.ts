@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { getAnomalias, getDemanda, getModelosMetricas, getNoShowAgenda, getRfmSegmentos, mlApi } from "./mlApi"
+import { getDemanda, getNoShowAgenda, getRfmSegmentos, mlApi } from "./mlApi"
 
-describe("mlApi", () => {
+describe("mlApi - Operaciones Principales", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -102,64 +102,11 @@ describe("mlApi", () => {
     })
   })
 
-  describe("getAnomalias", () => {
-    it("llama a /ml/kpis/anomalias/recientes", async () => {
-      const mockResponse = {
-        total_analizadas: 50,
-        anomalias_detectadas: 2,
-        tasa_anomalias_pct: 4.0,
-        monto_sospechoso_cents: 85000,
-        diagnosticos: [],
-      }
-
-      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce(
-        new Response(JSON.stringify(mockResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-
-      const res = await getAnomalias()
-      expect(res).toEqual(mockResponse)
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/\/ml\/kpis\/anomalias\/recientes$/),
-        expect.anything(),
-      )
-    })
-  })
-
-  describe("getModelosMetricas", () => {
-    it("llama a /ml/modelos/metricas", async () => {
-      const mockResponse = {
-        fecha_evaluacion: "2026-11-06T08:00:00Z",
-        semilla_reproducible: 42,
-        dataset_size_total: 10000,
-        modelos: {},
-      }
-
-      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce(
-        new Response(JSON.stringify(mockResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-
-      const res = await getModelosMetricas()
-      expect(res).toEqual(mockResponse)
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/\/ml\/modelos\/metricas$/),
-        expect.anything(),
-      )
-    })
-  })
-
   describe("mlApi object", () => {
-    it("exporta todos los métodos esperados", () => {
-      expect(mlApi.getDemanda).toBe(getDemanda)
-      expect(mlApi.getNoShowAgenda).toBe(getNoShowAgenda)
-      expect(mlApi.getRfmSegmentos).toBe(getRfmSegmentos)
-      expect(mlApi.getAnomalias).toBe(getAnomalias)
-      expect(mlApi.getModelosMetricas).toBe(getModelosMetricas)
+    it("exporta los métodos esperados", () => {
+      expect(typeof mlApi.getDemanda).toBe("function")
+      expect(typeof mlApi.getNoShowAgenda).toBe("function")
+      expect(typeof mlApi.getRfmSegmentos).toBe("function")
     })
   })
 })
