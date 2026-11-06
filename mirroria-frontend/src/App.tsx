@@ -61,7 +61,7 @@ function App() {
           <Route path="/wayra/pagar/:token" element={<WayraPagoPage />} />
 
           <Route path="/admin" element={<StaffRoute allowedRoles={ROLES_STAFF}><AdminLayout /></StaffRoute>}>
-            <Route index element={<Navigate to="/admin/catalogo" replace />} />
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
             {ADMIN_ROUTES.map(({ path, Component }) => (
               <Route key={path} path={path} element={<AdminRoute><Component /></AdminRoute>} />
             ))}

@@ -28,13 +28,13 @@
 | 1b — Identidad de la plataforma (entonces "Tiendaria"): marca por tienda + panel de plataforma | ✅ cerrada, commit `f91938c` |
 | 2 — Pasarelas enchufables | ✅ cerrada, commit `b4eaa0a` (registro centralizado, adaptadores Stripe y Wayra funcionales, stubs 503 para PayPal y QR Bancario, nueva tabla `cobros_suscripcion`). |
 | 3 — Offline/PWA, idempotencia y conflictos | ✅ cerrada, commit `48b1e54` (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria). |
-| 4 — Reportes dinámicos (+ Excel) | ✅ cerrada (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en vivo; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`). |
-| **5 — BI: dashboards por rol** | ⏭️ **la siguiente**. Dashboards diferenciados para el cliente (dueño de tienda: ingresos, rotación, top prendas) y vendedor (cajera: ventas del día, cobros pendientes, stock crítico). |
-| 6 — Machine Learning (servicio Python aparte) | pendiente |
-| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 a 05; índice en `Parcial2/Documentacion/00_Indice.md`) |
+| 4 — Reportes dinámicos (+ Excel) | ✅ cerrada, commit `bafea4c` (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en vivo; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`). |
+| 5 — BI: dashboards por rol | ✅ cerrada (`BiModule`, `GET /dashboard/ejecutivo` y `GET /dashboard/operativo`; experiencia diferenciada en `/admin/dashboard`: consola ejecutiva para `ADMIN` con KPIs, deltas simétricos, rotación, conversión, Recharts de tendencia, pasarelas, top prendas y top proveedores; y consola operativa POS para `CAJERO`/`ENCARGADO` con agenda cronológica de reservas, atención en 1 clic y alertas de stock crítico $\le 2$). |
+| **6 — Machine Learning por KPIs** | ⏭️ **la siguiente**. Contenedor liviano `mirroria_ml` (FastAPI + scikit-learn + pandas), modelos de demanda (Random Forest), no-show (regresión logística) y segmentación RFM (K-means). |
+| 7 — Documento ICONIX + UML 2.5 → PDF | pendiente (capítulos 01 a 06; índice en `Parcial2/Documentacion/00_Indice.md`) |
 
-Números verificados: **106 rutas** HTTP, **30 tablas**, **425** tests unitarios backend (50 archivos),
-**159** tests frontend (28 archivos), e2e backend 62/62.
+Números verificados: **108 rutas** HTTP, **30 tablas**, **453** tests unitarios backend (54 archivos),
+**174** tests frontend (30 archivos), e2e backend 62/62.
 
 ## 3. Orden de lectura
 

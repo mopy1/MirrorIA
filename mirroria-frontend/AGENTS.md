@@ -11,8 +11,8 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 4 Reportes Dinámicos, Tabla Pivote, Métricas Cruzadas y Exportación a Excel)**. Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **159** en 28 archivos
+> **Actualizado: 2026-11-06 (Fase 5 BI y Dashboards Especializados por Rol)**. Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **174** en 30 archivos
 > (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
 
 ---
@@ -509,6 +509,20 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `reporte-resultado.tsx` (narrativa + `ReasoningSteps` + badge de "Escenario Simulado DuckDB" + gráfico + tabla dinámica), `report-chart.tsx` (Recharts con selección dinámica priorizando `tipoGraficoSugerido` y delegación a `WhatIfChart`),
   `what-if-chart/what-if-chart.tsx` (barras comparativas Real vs Proyectado), `tabla-dinamica-reporte.tsx` (tabla interactiva con cabeceras ordenables), `tabla-dinamica-toolbar.tsx` (filtro en caliente, selector rápido de dimensión y exportación a Excel), `tabla-dinamica-totales.tsx` (fila de totales dinámicos con variación ponderada),
   `constructor-reporte/` (`constructor-reporte-dialog.tsx`, `constructor-reporte-campos.tsx`, `constructor-reporte.data.ts` + tests: constructor manual sin coste de LLM con atajos de rangos temporales), `tabla-reporte.tsx`, `resumen-reportes.tsx`.
+
+### `features/dashboard/` ↔ backend `bi` (Fase 5, CU39-40, BI y Dashboards por Rol)
+- Punto de entrada en `/admin/dashboard` (redirección index de `/admin`).
+- **Dashboard Ejecutivo BI (`ADMIN`)**:
+  - Filtros temporales y de sucursales (`filtros-dashboard-ejecutivo.tsx`).
+  - Tarjetas KPI con deltas simétricos (`kpi-grid-ejecutivo.tsx`): Ingresos, Ticket Promedio, Rotación de Inventario, Conversión Reservas a Ventas, Clientes Activos.
+  - Gráficos Recharts: Tendencia de ingresos (`grafico-tendencia-ingresos.tsx`), Cuota de pasarelas Stripe/Wayra QR/Efectivo (`grafico-distribucion-pagos.tsx`), Top 5 Prendas (`grafico-top-prendas.tsx`), Top Proveedores (`grafico-top-proveedores.tsx`).
+  - Consumo del Plan SaaS (`widget-limites-plan.tsx`) con barras de progreso contra límites de suscripción.
+- **Dashboard Operativo POS (`CAJERO` y `ENCARGADO_SUCURSAL`)**:
+  - Tarjetas de turno (`kpi-grid-operativo.tsx`): Ventas del día, Tickets emitidos, Cobros pendientes, Reservas de hoy.
+  - Agenda cronológica de citas del día con botón "Atender en tienda" en 1 clic (`widget-reservas-hoy.tsx`).
+  - Alertas de stock crítico ($\le 2$) y agotado ($0$) en la sucursal asignada (`widget-alertas-stock.tsx`).
+  - Accesos rápidos operativos POS (`accesos-directos-pos.tsx`).
+- Componentes < 120 líneas, 100% `@phosphor-icons/react`, zero páginas huérfanas (`ADMIN_NAV_GROUPS` item #1).
 
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/

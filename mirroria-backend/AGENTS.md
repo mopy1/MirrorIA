@@ -45,7 +45,7 @@ src/
 │                               # global-exception.filter (shape { status, message, timestamp }; Postgres 23505→409, 22P02→400)
 └── modules/                    # un módulo por subdominio: controller/ dto/ entities/ exception/ service/ (+ security/ en seguridad)
     ├── seguridad/  catalogo/  proveedores/  sucursales/  inventario/  ventas/
-    ├── reservas/   promociones/  pagos/  ia/  probador/
+    ├── reservas/   promociones/  pagos/  ia/  probador/  bi/
     └── saas/                   # planes, inquilinos, suscripciones, marca, bitácora, panel de plataforma, TenantInterceptor
 test/                           # e2e: app, bootstrap (vigila rawBody:true), pagos, ia, motor-consulta + setup-tenant.e2e.ts
 ```
@@ -64,6 +64,7 @@ test/                           # e2e: app, bootstrap (vigila rawBody:true), pag
 | `promociones` | `cupones` | Cupones `PORCENTAJE`/`MONTO_FIJO` con vigencia, usos máximos y monto mínimo; validación pública (30/5 min por IP); consumo/liberación atómicos dentro de la venta. Código único por tienda. |
 | `pagos` | `pagos` | **Tarjeta** Stripe (sesión alojada; el webhook firmado es la única autoridad), **QR** dinámico con el banco simulado **Wayra** (aviso firmado HMAC; `/wayra/*` es la "app del banco"), **efectivo** (lo confirma ADMIN/CAJERO de la sucursal). Idempotencia por `event_id` único. Barrida de impagas cada 5 min (30 min tarjeta / 24 h QR-efectivo). Pago sobre venta cancelada → marcado para reembolso. |
 | `probador` | — | `POST /probador/token`: token efímero de Decart (5 min, `lucy-vton-3.5`); 503 sin `DECART_API_KEY`; 10 tokens/10 min por IP. |
+| `bi` | — (SQL analítico sobre `ventas`, `venta_items`, `pagos`, `inventario_sucursal`, `reservas`) | Fase 5: Dashboards especializados por rol. `GET /dashboard/ejecutivo` (ADMIN, ENCARGADO_SUCURSAL con visibilidad de su sucursal): salud financiera, deltas % simétricos, rotación percha, conversión probador→caja, gráficos Recharts con días rellenados a 0, pasarelas, top prendas/proveedores inmunes a fan-out, cuota plan SaaS (`UsoPlanService`). `GET /dashboard/operativo` (ADMIN, ENCARGADO_SUCURSAL, CAJERO): corte hoy en `America/La_Paz`, facturación, cobros pendientes, agenda de clientas con citas y alertas de stock crítico ≤ 2 o agotado. |
 | `ia` | `interacciones_ia` | Reportes por lenguaje natural (CU24 = caso de uso 24). DeepSeek extrae una **ficha** y el motor (`catalogo-metricas.ts`: 23 métricas en 8 dominios) arma SQL **parametrizado** (el modelo nunca escribe SQL) y DeepSeek narra. `/ia/reportes/hibrido`: agente multi-paso (`consultar_metricas`, `consultar_proveedores_stock`, `simular_what_if` en DuckDB `:memory:` 256 MB). Encargado forzado a su sucursal. Sin `IA_API_KEY`: 503 salvo `/ia/reportes/consulta` (ficha manual). |
 | `saas` | `planes`, `inquilinos`, `suscripciones`, `inquilino_marca`, `eventos_plataforma` (globales) | Ver §5. |
 
@@ -254,6 +255,8 @@ clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **
 | 104 | GET | `/saas/mi-suscripcion/cobro/:cobroId/estado` | ADMIN | 200 | 🏬 ⏸ |
 | 105 | POST | `/saas/mi-suscripcion/cobro/:cobroId/simular-pago` | ADMIN | 200 | 🏬 ⏸ |
 | 106 | POST | `/ia/reportes/exportar-excel` | ADMIN, ENCARGADO_SUCURSAL · IP 30/5 min | 200 | 🏬 |
+| 107 | GET | `/dashboard/ejecutivo` | ADMIN, ENCARGADO_SUCURSAL | 200 | 🏬 |
+| 108 | GET | `/dashboard/operativo` | ADMIN, ENCARGADO_SUCURSAL, CAJERO | 200 | 🏬 |
 
 ## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 

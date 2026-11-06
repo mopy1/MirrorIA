@@ -83,6 +83,6 @@ import { TenantInterceptor } from './tenancy/tenant.interceptor.js';
     EstadisticasService,
     { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
   ],
-  exports: [SuscripcionesService, CobrosSuscripcionService],
+  exports: [SuscripcionesService, CobrosSuscripcionService, UsoPlanService, MiSuscripcionService],
 })
 export class SaasModule {}

@@ -8,6 +8,10 @@ function diferida<M, K extends keyof M>(cargar: () => Promise<M>, nombre: K) {
   return lazy(async () => ({ default: (await cargar())[nombre] as ComponentType }))
 }
 
+export const DashboardAdminPage = diferida(
+  () => import("@/features/dashboard/pages/AdminDashboardPage"),
+  "DashboardAdminPage",
+)
 export const CatalogoAdminPage = diferida(() => import("@/features/admin/pages/CatalogoAdminPage"), "CatalogoAdminPage")
 export const CobrosAdminPage = diferida(() => import("@/features/admin/pages/CobrosAdminPage"), "CobrosAdminPage")
 export const CuponesAdminPage = diferida(() => import("@/features/admin/pages/CuponesAdminPage"), "CuponesAdminPage")

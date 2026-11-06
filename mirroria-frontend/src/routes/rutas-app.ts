@@ -11,7 +11,7 @@ import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import {
-  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, InventarioAdminPage, ProbadorPage, ProveedoresAdminPage,
+  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, ProbadorPage, ProveedoresAdminPage,
   ReportesAdminPage, ReservasAdminPage, SucursalesAdminPage, SuscripcionAdminPage, UsuariosAdminPage, VentasAdminPage,
 } from "./lazy-pages"
 
@@ -54,6 +54,7 @@ export const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
 // Operación de sucursal: cada ruta habilita los roles que el backend YA exige
 // en su controller. Sin `allowedRoles`, StaffRoute cae en su default (reportes).
 export const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRoles?: UsuarioRole[] }[] = [
+  { path: "dashboard", Component: DashboardAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"] },
   { path: "inventario", Component: InventarioAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
   { path: "ventas", Component: VentasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
   { path: "reservas", Component: ReservasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"] },

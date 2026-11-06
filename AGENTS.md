@@ -26,7 +26,7 @@ Documentación en el vault de Obsidian (`/mnt/c/Users/lmc/Documents/Obsidian`):
 U/2-2026/SI2/
 ├── Parcial2/                     # 2.º parcial (vigente)
 │   ├── Enunciado.md · Plan_Parcial2.md (estado por fase)
-│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md · Fase2_Spec_Pasarelas.md · Fase3_Spec_Offline_Idempotencia.md · Fase4_Spec_Reportes_Dinamicos_Excel.md   # specs implementadas
+│   ├── Fase1_Spec_MultiTenant.md · Fase1b_Spec_Personalizacion_Tiendaria.md · Fase2_Spec_Pasarelas.md · Fase3_Spec_Offline_Idempotencia.md · Fase4_Spec_Reportes_Dinamicos_Excel.md · Fase5_Spec_BI_Dashboards.md   # specs implementadas
 │   └── Documentacion/            # capítulos del PDF (00_Indice.md, 01_*, 02_*, betaICONIX.md)
 └── Parcial1/
     ├── App/                      # notas VIVAS de la app: Endpoints, Database (DBML), Backend, Frontend,

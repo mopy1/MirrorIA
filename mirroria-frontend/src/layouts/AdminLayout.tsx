@@ -15,6 +15,7 @@ import { useMiSuscripcion } from "@/features/subscription/hooks/useMiSuscripcion
 import { AdminAvisos } from "./admin-avisos"
 
 const ADMIN_TITLES: Record<string, string> = {
+  "/admin/dashboard": "Dashboard",
   "/admin/catalogo": "Catálogo",
   "/admin/inventario": "Inventario & Stock",
   "/admin/ventas": "Ventas",

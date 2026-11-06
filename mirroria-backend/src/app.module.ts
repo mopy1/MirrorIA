@@ -19,6 +19,7 @@ import { SeguridadModule } from './modules/seguridad/seguridad.module.js';
 import { SucursalesModule } from './modules/sucursales/sucursales.module.js';
 import { VentasModule } from './modules/ventas/ventas.module.js';
 import { IdempotenciaModule } from './core/security/idempotencia/idempotencia.module.js';
+import { BiModule } from './modules/bi/bi.module.js';
 
 @Module({
   imports: [
@@ -48,6 +49,8 @@ import { IdempotenciaModule } from './core/security/idempotencia/idempotencia.mo
     SaasModule,
     // Idempotencia y control concurrente (Fase 3): registra IdempotenciaInterceptor global.
     IdempotenciaModule,
+    // BI y Dashboards especializados por rol (Fase 5).
+    BiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
