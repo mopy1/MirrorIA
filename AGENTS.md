@@ -68,8 +68,8 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   ├── sql/fase1b-marca.sql     # Azure: inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
 │   ├── sql/renombre-tiendaria.sql  # Azure: tienda demo "MirrorIA"/mirroria → "Tiendaria"/tiendaria (idempotente)
 │   └── qa/                      # QA contra la API real: reglas 21, mostrador 14, aislamiento 84, marca 37 (ver su README)
-├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 101 rutas)
-│   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 12 módulos de negocio
+├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 108 rutas)
+│   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 13 módulos de negocio (incluye bi)
 ├── mirroria-frontend/           # React — ver mirroria-frontend/AGENTS.md (rutas, guards, features)
 │   └── src/{features,components,layouts,routes,lib,context,hooks,types}/
 └── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
@@ -102,6 +102,7 @@ Tiendas locales: `tiendaria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 
 | `payments`, `wayra` | `/t/:slug/pago/*`, `/wayra/pagar/:token` | `pagos` → `/pagos/*`, `/wayra/*` |
 | `reservations` | `/t/:slug/reservas` + botón en la ficha | `reservas` → `/reservas/*` |
 | `fitting` | `/t/:slug/probador[/:productoId]` | `probador` → `/probador/token` |
+| `dashboard` | `/admin/dashboard` (redirección `/admin`) | `bi` → `/dashboard/*` (Fase 5: ejecutivo y operativo POS) |
 | `reports` | `/admin/reportes` | `ia` → `/ia/*` |
 | `admin`, `inventory`, `promotions`, `providers` | `/admin/{catalogo,proveedores,sucursales,cupones,usuarios,inventario,ventas,reservas,cobros}` | `catalogo`, `proveedores`, `sucursales`, `promociones`, `seguridad/usuarios`, `inventario`, `ventas`, `reservas`, `pagos` |
 
