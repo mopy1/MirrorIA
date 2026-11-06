@@ -137,8 +137,8 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos
 docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 106 rutas
 
 # Tests
-cd mirroria-backend && npx vitest run                # 425 unit (50 archivos) · npm run test:e2e → 62 (usa la BD local)
-cd mirroria-frontend && npx vitest run               # 159 (28 archivos)
+cd mirroria-backend && npx vitest run                # 466 unit (56 suites) · npm run test:e2e → 62 (usa la BD local)
+cd mirroria-frontend && npx vitest run               # 198 unit (34 suites)
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
 python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
@@ -164,6 +164,8 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-05 — Fase 2 (`b4eaa0a`):** Pasarelas enchufables (`RegistroPasarelasService`, adaptadores Stripe y Wayra QR unificados para checkout y suscripciones, stubs 503 para PayPal y QR Bancario, cobros de suscripción B2B en `/admin/suscripcion/activar`, tabla `cobros_suscripcion`, 105 rutas, 29 tablas, 385 tests back, 127 tests front).
 - **2026-11-06 — Fase 3 (`48b1e54`):** Offline, PWA, Idempotencia y Conflictos (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria, 105 rutas, 30 tablas, 404 tests back, 140 tests front).
 - **2026-11-06 — Fase 4:** Reportes dinámicos, tabla pivote, métricas cruzadas y exportación a Excel (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en caliente; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`, 106 rutas, 30 tablas, 425 tests back, 159 tests front).
+- **2026-11-06 — Fase 5:** BI y Dashboards diferenciados (Ejecutivo ADMIN con KPIs de facturación, ticket promedio, rotación y conversión, y Operativo POS con agenda cronológica de reservas, cobros pendientes y alertas de quiebre de stock por sucursal).
+- **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de anomalías POS en caja; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets POS, 198 tests en frontend, 466 en backend).
 
 ## 9. Dónde está cada cosa
 
