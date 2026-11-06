@@ -1,11 +1,12 @@
 export interface NavItem {
   label: string
   href: string
+  badge?: string
 }
 
-// "Categorías" no está acá: se arma en vivo desde useCategorias() dentro del
-// header, no es una lista estática.
+/** Enlaces centrales de navegación de la tienda boutique. */
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Tienda", href: "/tienda" },
+  { label: "Colección", href: "/tienda" },
+  { label: "Probador IA", href: "/probador", badge: "IA" },
   { label: "Sucursales", href: "/sucursales" },
 ]

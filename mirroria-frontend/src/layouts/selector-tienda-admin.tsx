@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -66,9 +67,11 @@ export function SelectorTiendaAdmin() {
         }
       />
       <DropdownMenuContent align="start" className="w-56 text-xs">
-        <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
-          Cambiar panel de administración:
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+            Cambiar panel de administración:
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         {TIENDAS_DEMO.map((t) => {
           const esActiva = t.slug === currentSlug
