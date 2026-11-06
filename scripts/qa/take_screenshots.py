@@ -116,11 +116,14 @@ def main():
         time.sleep(1)
         page.screenshot(path=f"{CAPTURAS_DIR}/04_ml_tab_anomalias.png", full_page=True)
 
-        print("4e. Capturando pestaña Ciencia (Validación Científica)...")
-        tab_ciencia = page.locator('button[role="tab"]:has-text("Ciencia")')
-        tab_ciencia.click()
-        time.sleep(1)
-        page.screenshot(path=f"{CAPTURAS_DIR}/04_ml_tab_validacion_cientifica.png", full_page=True)
+        print("4e. Capturando modal de Ficha Técnica (Validación Científica)...")
+        btn_ficha = page.locator('button:has-text("Ficha")')
+        if btn_ficha.count() > 0:
+            btn_ficha.first.click()
+            time.sleep(1)
+            page.screenshot(path=f"{CAPTURAS_DIR}/04_ml_tab_validacion_cientifica.png", full_page=True)
+            page.keyboard.press("Escape")
+            time.sleep(0.5)
 
         browser.close()
         print("¡Todas las capturas se guardaron exitosamente en:", CAPTURAS_DIR)

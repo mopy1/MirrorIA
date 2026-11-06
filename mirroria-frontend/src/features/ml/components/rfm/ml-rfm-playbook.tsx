@@ -70,7 +70,7 @@ export function MlRfmPlaybook({ distribucion = {} }: MlRfmPlaybookProps) {
               <div className="flex items-center justify-between gap-1">
                 <span className="font-semibold text-foreground">{cfg.label}</span>
                 <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-                  {count} clientas
+                  {count} {count === 1 ? "clienta" : "clientas"}
                 </span>
               </div>
               <p className="truncate text-[10px] text-muted-foreground">

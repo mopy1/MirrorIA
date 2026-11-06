@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   useAnomaliasVentas,
   useDemandaMl,
@@ -8,18 +7,23 @@ import {
   useRfmSegmentos,
 } from "../hooks/useMlKpis"
 import { MlHeader } from "../components/ml-header"
-import { MlFiltros } from "../components/ml-filtros"
+import { MlToolbar, type MlVistaTab } from "../components/ml-toolbar"
 import { MlKpiRibbon } from "../components/ml-kpi-ribbon"
 import { MlDemandaSection } from "../components/demanda/ml-demanda-section"
 import { MlNoshowPanel } from "../components/noshow/ml-noshow-panel"
 import { MlRfmSection } from "../components/rfm/ml-rfm-section"
 import { MlAnomaliasSection } from "../components/anomalias/ml-anomalias-section"
-import { MlValidacionCientifica } from "../components/cientifico/ml-validacion-cientifica"
 import { MlFichaTecnicaDialog } from "../components/cientifico/ml-ficha-tecnica-dialog"
 
-/** Panel de Machine Learning Operativo (Operate Mode). */
+/** Panel ejecutivo de Machine Learning: vista unificada y navegación sin pestañas apiladas. */
 export function MlDashboardPage() {
-  const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get("tab") || "overview")
+  const [vista, setVista] = useState<MlVistaTab>(() => {
+    const param = new URLSearchParams(window.location.search).get("tab")
+    if (param === "demanda" || param === "noshow" || param === "rfm" || param === "auditoria") {
+      return param
+    }
+    return "overview"
+  })
   const [dias, setDias] = useState<number>(30)
   const [sucursalId, setSucursalId] = useState<string | undefined>(undefined)
   const [fichaAbierta, setFichaAbierta] = useState<boolean>(false)
@@ -46,7 +50,9 @@ export function MlDashboardPage() {
         onAbrirFichaTecnica={() => setFichaAbierta(true)}
       />
 
-      <MlFiltros
+      <MlToolbar
+        vista={vista}
+        onVistaChange={setVista}
         dias={dias}
         onDiasChange={setDias}
         sucursalId={sucursalId}
@@ -56,17 +62,8 @@ export function MlDashboardPage() {
 
       <MlKpiRibbon demanda={demanda.data} noShow={noShow.data} rfm={rfm.data} anomalias={anomalias.data} />
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-3 sm:grid-cols-6 text-xs">
-          <TabsTrigger value="overview">Operate</TabsTrigger>
-          <TabsTrigger value="demanda">Demanda</TabsTrigger>
-          <TabsTrigger value="noshow">No-Show</TabsTrigger>
-          <TabsTrigger value="rfm">Clientas</TabsTrigger>
-          <TabsTrigger value="auditoria">Auditoría</TabsTrigger>
-          <TabsTrigger value="metodologia">Ficha Técnica</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
+      {vista === "overview" && (
+        <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
             <div className="lg:col-span-8">
               <MlDemandaSection data={demanda.data} isLoading={demanda.isLoading} />
@@ -79,24 +76,13 @@ export function MlDashboardPage() {
             <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />
             <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="demanda" className="space-y-6">
-          <MlDemandaSection data={demanda.data} isLoading={demanda.isLoading} />
-        </TabsContent>
-        <TabsContent value="noshow" className="space-y-6">
-          <MlNoshowPanel data={noShow.data} isLoading={noShow.isLoading} />
-        </TabsContent>
-        <TabsContent value="rfm" className="space-y-6">
-          <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />
-        </TabsContent>
-        <TabsContent value="auditoria" className="space-y-6">
-          <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />
-        </TabsContent>
-        <TabsContent value="metodologia" className="space-y-6">
-          <MlValidacionCientifica data={metricas.data} isLoading={metricas.isLoading} />
-        </TabsContent>
-      </Tabs>
+      {vista === "demanda" && <MlDemandaSection data={demanda.data} isLoading={demanda.isLoading} />}
+      {vista === "noshow" && <MlNoshowPanel data={noShow.data} isLoading={noShow.isLoading} />}
+      {vista === "rfm" && <MlRfmSection data={rfm.data} isLoading={rfm.isLoading} />}
+      {vista === "auditoria" && <MlAnomaliasSection data={anomalias.data} isLoading={anomalias.isLoading} />}
 
       <MlFichaTecnicaDialog
         abierto={fichaAbierta}

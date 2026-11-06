@@ -9,7 +9,7 @@ interface MlHeaderProps {
   onAbrirFichaTecnica?: () => void
 }
 
-/** Cabecera ejecutiva del módulo ML orientada a Gerente Comercial y Director de Tienda. */
+/** Cabecera ejecutiva: identidad del módulo, estado del microservicio FastAPI y acciones. */
 export function MlHeader({
   esFallback,
   cargando,
@@ -17,7 +17,7 @@ export function MlHeader({
   onAbrirFichaTecnica,
 }: MlHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-5">
       <div className="flex items-start gap-3">
         <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5 text-primary shadow-xs">
           <Brain className="size-6" weight="duotone" />
@@ -28,11 +28,8 @@ export function MlHeader({
               Predicciones & Machine Learning
             </h1>
             {esFallback ? (
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-mono"
-              >
-                ▲ Modo Heurístico (Fallback Activo)
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-mono">
+                ▲ Modo Heurístico
               </Badge>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-600 font-mono">
@@ -42,7 +39,7 @@ export function MlHeader({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Proyecciones comerciales de demanda, asistencia a probador, fidelización y control POS.
+            Inteligencia predictiva para optimizar compras, rotación de probador y seguridad en caja.
           </p>
         </div>
       </div>
@@ -54,10 +51,10 @@ export function MlHeader({
             variant="outline"
             onClick={onAbrirFichaTecnica}
             className="gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground shadow-xs"
-            title="Abrir respaldo académico y citas bibliográficas (SI2)"
+            title="Abrir respaldo metodológico y citas bibliográficas (SI2)"
           >
             <GraduationCap className="size-4 text-primary" weight="duotone" />
-            <span>Ficha Técnica Metodológica</span>
+            <span>Ficha Técnica SI2</span>
           </Button>
         )}
         <Button

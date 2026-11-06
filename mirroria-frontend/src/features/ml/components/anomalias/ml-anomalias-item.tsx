@@ -1,5 +1,6 @@
 import { CheckCircle, Warning, WarningOctagon } from "@phosphor-icons/react"
 import { Badge } from "@/components/ui/badge"
+import { formatearNombreTicket } from "../../lib/ml.utils"
 import type { ItemDiagnosticoAnomalia, NivelRiesgoAnomalia } from "../../types/ml.types"
 import { humanizarAnomalia } from "../../lib/ml-anomalias.utils"
 
@@ -39,7 +40,8 @@ export function MlAnomaliasItem({ diagnostico }: MlAnomaliasItemProps) {
     <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-card/60 p-2.5 text-xs transition-colors hover:bg-muted/30">
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono font-semibold text-foreground">{diagnostico.venta_id}</span>
+          <span className="font-semibold text-foreground">{formatearNombreTicket(diagnostico.venta_id)}</span>
+          <span className="font-mono text-[10px] text-muted-foreground">({diagnostico.venta_id})</span>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
             {diagnostico.metodo_pago ?? "POS"}
           </span>

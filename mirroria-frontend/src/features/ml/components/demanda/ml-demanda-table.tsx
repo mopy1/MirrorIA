@@ -2,6 +2,7 @@ import { ShoppingCart, Check } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { formatearNombrePrenda } from "../../lib/ml.utils"
 import type { ItemPrediccionDemanda, RiesgoQuiebre } from "../../types/ml.types"
 
 const BADGE_MAP: Record<RiesgoQuiebre, { cls: string; label: string }> = {
@@ -33,7 +34,7 @@ export function MlDemandaTable({ items }: MlDemandaTableProps) {
           <tr>
             <th className="py-2.5 px-3">Prenda</th>
             <th className="py-2.5 px-3 text-center">Stock</th>
-            <th className="py-2.5 px-3 text-center">Demanda 30d</th>
+            <th className="py-2.5 px-3 text-center">Demanda prevista</th>
             <th className="py-2.5 px-3 text-center">Riesgo</th>
             <th className="py-2.5 px-3 text-right">Sugerencia</th>
             <th className="py-2.5 px-3 text-center">Acción</th>
@@ -47,8 +48,8 @@ export function MlDemandaTable({ items }: MlDemandaTableProps) {
             return (
               <tr key={p.producto_id} className="transition-colors hover:bg-muted/20">
                 <td className="py-2.5 px-3 font-medium text-foreground">
-                  <div className="truncate max-w-[160px]">{p.nombre || p.producto_id}</div>
-                  {p.categoria && <span className="text-[10px] text-muted-foreground">{p.categoria}</span>}
+                  <div className="truncate max-w-[180px]">{formatearNombrePrenda(p.producto_id, p.nombre)}</div>
+                  <span className="text-[10px] text-muted-foreground font-mono">{p.categoria || p.producto_id}</span>
                 </td>
                 <td className="py-2.5 px-3 text-center font-mono">{p.stock_actual}</td>
                 <td className="py-2.5 px-3 text-center font-mono font-semibold">{Math.round(p.demanda_proyectada_unidades)}</td>

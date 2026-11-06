@@ -28,30 +28,30 @@ export function MlKpiRibbon({ demanda, noShow, rfm, anomalias }: MlKpiRibbonProp
   return (
     <div className="grid grid-cols-2 divide-y divide-border/60 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm sm:grid-cols-4 sm:divide-x sm:divide-y-0 shadow-xs">
       <MlKpiCell
-        label="Riesgo Quiebre (M1)"
+        label="Riesgo de Quiebre"
         value={`${quiebrePct}%`}
-        context={`Rotación: ${rotacion}x`}
+        context={`Rotación prevista: ${rotacion}x`}
         icon={TrendUp}
         trend={quiebrePct > 15 ? "negative" : "positive"}
       />
       <MlKpiCell
-        label="No-Show Probador (M2)"
+        label="Inasistencia a Citas"
         value={`${noShowPct}%`}
         context={`${alertasCriticas} críticas hoy`}
         icon={CalendarCheck}
         trend={alertasCriticas > 0 ? "warning" : "positive"}
       />
       <MlKpiCell
-        label="Retención Clientas (M3)"
+        label="Retención de Clientas"
         value={`${retencionPct}%`}
         context={`CLV: Bs ${clvProm.toLocaleString()}`}
         icon={UsersThree}
         trend="positive"
       />
       <MlKpiCell
-        label="Ventas Atípicas POS (M4)"
+        label="Ventas en Observación"
         value={`${anomaliaPct}%`}
-        context={`Bs ${montoObs} en obs.`}
+        context={`Bs ${montoObs} en riesgo`}
         icon={ShieldWarning}
         trend={anomaliaPct > 5 ? "negative" : "neutral"}
       />

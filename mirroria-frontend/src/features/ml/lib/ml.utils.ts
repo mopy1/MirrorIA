@@ -61,3 +61,17 @@ export function obtenerInfoClusterRfm(segmento: ClusterRfmTipo): {
       return { nombre: "Ocasionales / Outlet", color: "#64748b", prioridad: 4 }
   }
 }
+
+/** Convierte IDs crudos como 'prod_vestido_seda_01' a nombres ejecutivos legibles como 'Vestido Seda'. */
+export function formatearNombrePrenda(id: string, nombre?: string): string {
+  if (nombre && !nombre.startsWith("prod_")) return nombre
+  const limpio = id.replace(/^prod_/, "").replace(/_\d+$/, "").replace(/_/g, " ")
+  return limpio.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+}
+
+/** Convierte IDs de transacción crudos como 'vta_pos_susp_102' a 'Ticket #102'. */
+export function formatearNombreTicket(ventaId: string): string {
+  const match = ventaId.match(/(\d+)$/)
+  return match ? `Ticket #${match[1]}` : `Ticket ${ventaId}`
+}
+

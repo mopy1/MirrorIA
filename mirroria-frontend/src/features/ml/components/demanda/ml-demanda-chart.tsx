@@ -1,4 +1,5 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts"
+import { formatearNombrePrenda } from "../../lib/ml.utils"
 import type { ItemPrediccionDemanda } from "../../types/ml.types"
 
 interface MlDemandaChartProps {
@@ -8,7 +9,7 @@ interface MlDemandaChartProps {
 /** Gráfico Recharts estilizado de demanda esperada vs stock para las prendas principales. */
 export function MlDemandaChart({ items }: MlDemandaChartProps) {
   const chartData = items.slice(0, 6).map((it) => ({
-    nombre: it.nombre ? it.nombre.slice(0, 16) : it.producto_id.replace("prod_", "").slice(0, 12),
+    nombre: formatearNombrePrenda(it.producto_id, it.nombre),
     Demanda: Math.round(it.demanda_proyectada_unidades),
     Stock: it.stock_actual,
     reponer: it.reabastecimiento_sugerido,

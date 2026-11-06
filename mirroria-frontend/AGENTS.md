@@ -526,22 +526,26 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   - Accesos rápidos operativos POS (`accesos-directos-pos.tsx`).
 - Componentes < 120 líneas, 100% `@phosphor-icons/react`, zero páginas huérfanas (`ADMIN_NAV_GROUPS` item #1).
 
-### `features/ml/` ↔ backend `ml` (Fase 6, CU41-44, Machine Learning Orientado a KPIs de Negocio)
+### `features/ml/` ↔ backend `ml` (Fase 6, CU41-44, Machine Learning Gerencial Humanizado y Sin Pestañas Apiladas)
 - Punto de entrada en `/admin/ml` (`MlDashboardPage`), registrado en `STAFF_ROUTES` (`ADMIN` y `ENCARGADO_SUCURSAL`) y en `ADMIN_NAV_GROUPS` (grupo "Ventas y Promociones" con icono `Brain` y badge "IA").
-- **M1: Demanda Predicha a 30 Días (Supervisado - Regresión)**:
-  - `widget-demanda-predicha.tsx`: Tarjeta con gráfico comparativo Recharts (Demanda Proyectada vs Stock Real), KPIs de tasa de quiebre de stock y rotación esperada, y sugerencia accionable de reabastecimiento al proveedor con stock de seguridad (buffer 20%).
-- **M2: Riesgo de No-Show en Agenda POS (Supervisado - Clasificación)**:
-  - `badge-riesgo-noshow.tsx`: Semáforo interactivo Verde (< 30%), Amarillo (30-60%) y Rojo (> 60%).
-  - `widget-noshow-agenda.tsx`: Agenda de citas del día evaluadas con Regresión Logística L2, factores explicativos de riesgo y botón de reconfirmación directa vía WhatsApp para reservas críticas.
-  - Integrado de forma operativa en `widget-reservas-hoy.tsx` del Dashboard POS para alertar inmediatamente al personal de caja.
-- **M3: Segmentación RFM (No Supervisado - Clustering)**:
-  - `widget-rfm-segmentos.tsx`: Distribución de los 4 clústeres de clientas (VIPs/Leales, Nuevas Promesas, En Riesgo/Dormidas, Ocasionales/Outlet) mediante Donut/PieChart Recharts, con métricas de retención, CLV promedio y estrategias de marketing recomendadas.
-- **M4: Auditoría de Ventas Anómalas (No Supervisado - Isolation Forest)**:
-  - `widget-anomalias-ventas.tsx`: Auditoría de tickets POS con score de atipicidad, badges de criticidad y desglose de motivos sospechosos (descuentos manuales excesivos, transacciones en horarios atípicos, importes extraños).
-- **Rigor Científico y Ficha de Modelos (SI2)**:
-  - `widget-calidad-modelos.tsx`: Validación formal sobre holdout set determinista (`seed=42`, N=10.000) con métricas de rigor (R²: 0.884, MAE: 2.14, RMSE: 3.08, ROC-AUC: 0.892, F1: 0.826, Silueta: 0.582, Contaminación: 3%) y citas canónicas (Breiman 2001, Cox 1958, MacQueen 1967, Liu 2008).
+- **Arquitectura de Barra Unificada (`ml-toolbar.tsx`)**:
+  - Elimina la redundancia y apilamiento ("UI lasagna") de pestañas. Un único riel coordinado que integra:
+    - Izquierda: Segmented control accesible (`role="tab"`) para alternar entre "Vista General" (Bento Grid completo), "Demanda", "No-Show", "Clientas" y "Auditoría".
+    - Derecha: Selector de horizonte temporal interactivo [ 7 días | 15 días | 30 días | 60 días ] con `<CalendarBlank />` y selector de sucursal con `<Storefront />`.
+- **Cabecera Ejecutiva (`ml-header.tsx`)**:
+  - Muestra el estado del microservicio FastAPI en vivo (`FastAPI :8002` o badge heurístico), botón de refresco y acceso a la "Ficha Técnica SI2" en modal dialog (`ml-ficha-tecnica-dialog.tsx`), aislando el rigor metodológico para no saturar al gerente.
+- **M1: Demanda Proyectada & Reabastecimiento (`demanda/`)**:
+  - `ml-demanda-chart.tsx` y `ml-demanda-table.tsx`: Nombres de prendas humanizados mediante `formatearNombrePrenda` ("Vestido Seda", "Blusa Lino", etc., sin IDs crudos de BD), comparación de stock vs demanda proyectada, nivel de riesgo y sugerencia de compra inmediata.
+- **M2: Guardián de Probador & Riesgo de No-Show (`noshow/`)**:
+  - `ml-noshow-panel.tsx`, `ml-noshow-item.tsx` y `badge-riesgo-noshow.tsx`: Semáforo de criticidad y confirmación preventiva de citas por WhatsApp.
+- **M3: Segmentación RFM & Playbook Comercial (`rfm/`)**:
+  - `ml-rfm-section.tsx`, `ml-rfm-donut.tsx` y `ml-rfm-playbook.tsx`: Clústeres de clientas (VIPs/Leales, Nuevas Promesas, En Riesgo/Dormidas, Ocasionales/Outlet) con conteo gramatical pulido ("1 clienta") y estrategias comerciales de retención.
+- **M4: Auditoría POS & Detección de Anomalías (`anomalias/`)**:
+  - `ml-anomalias-section.tsx`, `ml-anomalias-feed.tsx` e `ml-anomalias-item.tsx`: Nombres legibles ("Ticket #101", "Ticket #102"), motivos claros (descuento manual excesivo, transacción fuera de horario) y filtro por nivel de sospecha.
+- **Rigor Metodológico Aislado (`cientifico/`)**:
+  - `ml-ficha-tecnica-dialog.tsx`, `ml-validacion-cientifica.tsx` y `ml-modelo-card.tsx`: Diálogo modal responsive (`sm:max-w-4xl`) con citas canónicas formales (Breiman 2001, Cox 1958, MacQueen 1967, Liu 2008) y métricas empíricas del holdout set reproducible (`seed=42`, N=10.000).
 - **Hooks y API**: `useDemandaMl`, `useNoShowAgenda`, `useRfmSegmentos`, `useAnomaliasVentas`, `useModelosMetricas` en `useMlKpis.ts`, cliente tipado en `mlApi.ts`.
-- Componentes < 120 líneas de código, uso exclusivo de `@phosphor-icons/react`, soporte de fallback heurístico transparente y cero páginas huérfanas.
+- **Regla Estricta Anti-Líneas**: 100% de los archivos de `src/features/ml/` tienen estrictamente < 120 líneas de código y utilizan exclusivamente `@phosphor-icons/react`.
 
 ### `features/admin/` (panel interno)
 - `pages/`: `CatalogoAdminPage` (tabs productos/categorías/colecciones/temporadas/tallas/
