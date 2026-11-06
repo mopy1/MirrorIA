@@ -11,9 +11,11 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 6 Machine Learning & Selector Multi-Tenant en Admin)**. Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **190** en 32 archivos
-> (`npx vitest run`). El panel `/admin` cuenta con `SelectorTiendaAdmin` en cabecera para alternar entre boutiques demo y redirección amigable `/t/:slug/admin`.
+> **Actualizado: 2026-11-06 (Fase 6 Rediseño Total: Navbar Storefront & ML Operate Mode Anti-Slop)**.
+> Las secciones 2 y 3 describen lo que existe hoy en `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`,
+> `src/features/*` y `src/layouts/site-header/*`. Tests: **190** en 32 suites (`npx vitest run`).
+> Navbar refinada con 3 zonas limpias (Logo, Enlaces con dropdown y microbadge IA, y Acciones compactas con modal de búsqueda y menú avatar).
+> Panel `/admin/ml` en Operate Mode asimétrico con franja métrica continua (KPI Ribbon), sin tarjetas anidadas y ficha técnica formal.
 
 ---
 
