@@ -11,9 +11,9 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 5 BI y Dashboards Especializados por Rol)**. Las secciones 2 y 3 describen lo que existe hoy en
-> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **174** en 30 archivos
-> (`npx vitest run`). El historial de sesiones está condensado en la sección 6.
+> **Actualizado: 2026-11-06 (Fase 6 Machine Learning & Selector Multi-Tenant en Admin)**. Las secciones 2 y 3 describen lo que existe hoy en
+> `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`, `src/features/*` y `src/lib/offline/*`. Tests: **190** en 32 archivos
+> (`npx vitest run`). El panel `/admin` cuenta con `SelectorTiendaAdmin` en cabecera para alternar entre boutiques demo y redirección amigable `/t/:slug/admin`.
 
 ---
 
