@@ -44,7 +44,7 @@ U/2-2026/SI2/
 | Backend | NestJS 12, Node 24, TypeScript ESM, TypeORM 1.x | `127.0.0.1:3000` (`/api/v1`, Swagger `/api/docs` fuera de prod) | `mirroria_backend` |
 | Machine Learning | Python 3.12, FastAPI, scikit-learn, pandas, joblib | `127.0.0.1:8002` (FastAPI interno / proxy en backend) | `mirroria_ml` |
 | Frontend | React 19, Vite, Tailwind v4, shadcn/ui (Base UI), Phosphor | `5174` en dev · `80` en Docker (Nginx + proxy `/api/`) | `mirroria_frontend` |
-| Móvil | React Native / Expo SDK 57 — **congelada**, se rehará (Expo + SQLite) | `8081` | — |
+| Móvil | React Native / Expo + SQLite — **en construcción desde cero** (2026-11-07) | `8081` | — |
 | Despliegue | Azure VM (`https://mirroria.duckdns.org`), `scripts/deploy-azure.sh` | 443 | override `docker-compose.prod.yml` |
 
 Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, password en `.env` de la raíz
@@ -77,7 +77,7 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   └── {app,dataset,models,scripts,tests}/ # 4 modelos M1-M4 entrenados con seed=42 y atados a KPIs
 ├── mirroria-frontend/           # React — ver mirroria-frontend/AGENTS.md (rutas, guards, features)
 │   └── src/{features,components,layouts,routes,lib,context,hooks,types}/
-└── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
+└── mirroria-mobile/             # 🚧 se rehace DESDE CERO (2026-11-07): la app vieja se borró; plan en vault Parcial2/Plan_Movil.md
 ```
 
 ## 4. MirrorIA (plataforma) vs. las tiendas

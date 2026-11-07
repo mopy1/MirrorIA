@@ -625,8 +625,7 @@ inexistente (ficha de prenda).
   admin es "MirrorIA"; en el paso 2 del alta la vista previa no es sticky. En `/t/tiendaria/login` el panel de foto dice
   "Tiendaria / Tiendaria".
 - **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens cada 10 min por IP.
-- **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend se optimizan como si no
-  existiera.
+- **App móvil:** la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`).
 
 ---
 

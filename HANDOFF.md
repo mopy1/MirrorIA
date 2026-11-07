@@ -42,7 +42,7 @@ Números verificados: **113 rutas** HTTP, **30 tablas**, **466** tests unitarios
 1. Este archivo.
 2. `AGENTS.md` (raíz): árbol del monorepo, puertos, comandos, mapa front ↔ back.
 3. El `AGENTS.md` del paquete que vas a tocar: `mirroria-backend/AGENTS.md` (módulos y tabla de las 101 rutas)
-   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). `mirroria-mobile/` está congelada: no la toques.
+   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). Móvil: la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`).
 4. En el vault: `U/2-2026/SI2/Parcial2/Plan_Parcial2.md` y la spec de la fase en curso
    (`Fase1_Spec_MultiTenant.md`, `Fase1b_Spec_Personalizacion_Tiendaria.md` son el modelo a seguir).
 5. Contratos y datos: vault `U/2-2026/SI2/Parcial1/App/` (`Endpoints.md`, `Database.md`, `Reglas_de_Negocio.md`,
@@ -97,13 +97,13 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - **Documentación viva:** endpoint nuevo o cambiado → vault `U/2-2026/SI2/Parcial1/App/Endpoints.md`; error complejo resuelto →
   `.../App/Troubleshooting.md` (Síntoma, Causa, Solución); actualizar el `AGENTS.md` afectado; luego sincronizar Qdrant:
   `/home/lmc/vault-brain/.venv/bin/python /home/lmc/vault-brain/sync_vault.py --sync`.
-- Git: **una sola rama, `main`**; commits y push a `main` permitidos cuando el usuario lo pide.
+- Git: `main` es la rama estable; **la app móvil se trabaja en la rama `feat/app-movil`** (creada 2026-11-07 para no chocar con cambios del compañero en `main`). Commits y push cuando el usuario lo pide.
 
 ## 6. Decisiones tomadas (no re-discutir)
 
 - Multi-tenant con **BD compartida + `tenant_id`** (los otros dos enfoques solo se comparan en la doc).
 - Tienda pública por ruta `/t/<slug>`; el "cliente" del SaaS es el dueño de la tienda (ADMIN del inquilino).
-- Móvil: **Expo + SQLite**, la app actual (`mirroria-mobile/`) está **congelada**; en este parcial el móvil solo se diseña.
+- Móvil: **Expo + SQLite**; la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Una app con modo Mostrador (vendedora, offline) y modo Clienta.
 - **Decart** (`lucy-vton-3.5`) es el único probador virtual; el AR viejo se borró.
 - **Sin POS** (punto de venta): la tienda física tiene su caja; la web solo confirma efectivo (`/admin/cobros`) y
   resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` existe sin pantalla.

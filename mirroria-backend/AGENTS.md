@@ -4,8 +4,8 @@ Fuente de verdad técnica del backend. Actualizado 2026-11-05 (commit `f91938c`)
 `../HANDOFF.md` y `../AGENTS.md`. Contrato completo de cada ruta (request/response JSON): vault
 `U/2-2026/SI2/Parcial1/App/Endpoints.md`. Esquema y DBML de las 28 tablas: vault `U/2-2026/SI2/Parcial1/App/Database.md`.
 
-> La app móvil (`../mirroria-mobile/`) está congelada (2026-11-04): este backend se optimiza para la web y sus
-> contratos pueden romperla. El único probador virtual es Decart (`modules/probador`).
+> **App móvil:** la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Los contratos del backend son la referencia; la app nueva se adapta a ellos.
+> El único probador virtual es Decart (`modules/probador`).
 
 ## 1. Stack
 
