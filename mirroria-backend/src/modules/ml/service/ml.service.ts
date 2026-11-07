@@ -744,7 +744,7 @@ export class MlService {
           algoritmo: 'IsolationForest(contamination=0.03, n_estimators=100, random_state=42)',
           cita_academica: 'Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008). Isolation Forest. IEEE ICDM, 413-422.',
           metricas: { tasa_contaminacion_esperada: 0.03, anomalias_identificadas_test: 300, score_medio_normales: 0.1573, score_medio_anomalos: -0.0498 },
-          kpi_asociado: 'Reducción de Merma, Fraude y Errores de Caja POS',
+          kpi_asociado: 'Reducción de Merma, Fraude y Errores en Cobros de Caja',
         },
       },
       fallback: true,

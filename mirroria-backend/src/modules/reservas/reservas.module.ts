@@ -17,8 +17,8 @@ import { ReservasService } from './service/reservas.service.js';
   ],
   controllers: [ReservasController],
   providers: [ReservasService],
-  // Exportado para que ventas complete una reserva al registrar la venta
-  // presencial que la concreta (ver VentasService.registrarPresencial).
+  // Exportado para que ventas arme la compra desde la reserva y la complete
+  // al aprobarse el pago (ver VentasService.comprarReserva / marcarPagada).
   exports: [ReservasService],
 })
 export class ReservasModule {}

@@ -29,7 +29,9 @@ describe('DashboardEjecutivoService (Métricas estratégicas y BI multi-tenant)'
 
       // Totales período actual vs anterior
       if (sql.includes('ticket_promedio_cents')) {
-        if (params[1] instanceof Date && params[1].toISOString().includes('2026-10-08')) {
+        // Período actual (desde hace ~30 días) vs anterior (~60): sin fecha fija,
+        // que hacía fallar el test pasado el día en que se escribió.
+        if (params[1] instanceof Date && params[1].getTime() > Date.now() - 45 * 86_400_000) {
           return [{ ingresos_cents: 1285000, cantidad_ventas: 72, ticket_promedio_cents: 17847 }];
         }
         return [{ ingresos_cents: 1140000, cantidad_ventas: 69, ticket_promedio_cents: 16500 }];

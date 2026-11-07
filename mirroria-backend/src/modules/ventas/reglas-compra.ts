@@ -3,7 +3,7 @@
  * digital descuenta stock al hacer checkout y queda PENDIENTE hasta que se
  * paga (o vence, ver `pagos/service/expiracion.service.ts`): sin topes, una
  * cuenta podía dejar tomado el stock entero con compras que nunca iba a pagar.
- * No afectan la venta presencial (el cajero ya cobró).
+ * La compra desde la reserva no los aplica: el stock ya está apartado.
  */
 export const REGLAS_COMPRA = {
   /** Unidades de una misma talla/color por compra online (y en el carrito). */

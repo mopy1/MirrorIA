@@ -65,9 +65,8 @@ export class ReservasController {
   }
 
   // Consulta de staff, por sucursal/estado (RF: encargado "consultar reservas").
-  // CAJERO tambien la necesita: es quien busca la reserva cuando la clienta
-  // llega a probarse/retirar en el mostrador, antes de cobrar la venta
-  // presencial que la cierra (ver completarPorVenta en el service).
+  // CAJERO tambien la necesita: es quien marca a la clienta EN_TIENDA cuando
+  // llega a probarse y luego confirma el cobro de la compra que la cierra.
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
@@ -104,7 +103,7 @@ export class ReservasController {
   }
 
   // Staff: confirmar, marcar en tienda, cancelar por la tienda, expirar, no-show.
-  // "Cliente llego" (EN_TIENDA) es tipicamente el propio CAJERO al mostrador.
+  // "Cliente llegó" (EN_TIENDA) lo marca el personal de la sucursal.
   @Patch(':id/estado')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')

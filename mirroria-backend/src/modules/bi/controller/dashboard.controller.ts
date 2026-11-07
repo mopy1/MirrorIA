@@ -46,7 +46,7 @@ export class DashboardController {
   @ApiBearerAuth()
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL', 'CAJERO')
   @ApiOperation({
-    summary: 'Dashboard Operativo POS (Facturación hoy, pendientes, reservas del día y stock crítico)',
+    summary: 'Dashboard Operativo de la sucursal (ventas de hoy, cobros pendientes en caja, reservas del día y stock crítico)',
   })
   obtenerOperativo(
     @Query() filtro: FiltroDashboardOperativoDto,

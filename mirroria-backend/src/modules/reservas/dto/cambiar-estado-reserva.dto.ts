@@ -1,7 +1,7 @@
 import { IsIn } from 'class-validator';
 
 // COMPLETADA no está acá a propósito: solo se llega ahí automáticamente
-// cuando una venta presencial referencia la reserva (ver ReservasService.
+// cuando se aprueba el pago de la compra desde la reserva (ver ReservasService.
 // completarPorVenta) — nunca por una transición manual.
 const ESTADOS_TRANSICION_MANUAL = [
   'CONFIRMADA',

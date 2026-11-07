@@ -4,6 +4,7 @@ import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 export enum CanalVenta {
   WEB = 'WEB',
   MOVIL = 'MOVIL',
+  // Solo ventas históricas: ningún endpoint la crea desde 2026-11-07 (sin POS).
   PRESENCIAL = 'PRESENCIAL',
 }
 
@@ -19,8 +20,8 @@ export enum EstadoVenta {
 @Entity('ventas')
 export class Venta extends TenantBaseEntity {
   // Todas las FK de esta entidad son cross-módulo -> columnas simples, mismo
-  // criterio que el resto del proyecto. cliente_id/cajero_id nullable porque
-  // una venta presencial puede no identificar al cliente, y una venta
+  // criterio que el resto del proyecto. cliente_id/cajero_id nullable por las
+  // ventas PRESENCIAL históricas (sin clienta identificada); una venta
   // digital no tiene cajero.
   @Column({ name: 'cliente_id', type: 'uuid', nullable: true })
   clienteId!: string | null;

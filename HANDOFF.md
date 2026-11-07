@@ -71,11 +71,11 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 466 unit (56 archivos)
+cd mirroria-backend && npx vitest run          # 483 unit (60 archivos)
 cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
 cd mirroria-frontend && npx vitest run         # 293 (52 archivos)
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
-python3 scripts/qa/qa_reglas.py      # 21  · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
+python3 scripts/qa/qa_reglas.py      # 21  · qa_compra_reserva.py 26 · qa_aislamiento.py 84 · qa_marca.py 37
 ```
 
 Los e2e y los scripts de `scripts/qa/` **ensucian la BD local** (crean tiendas, usuarias, ventas, stock).
@@ -105,8 +105,9 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - Tienda pública por ruta `/t/<slug>`; el "cliente" del SaaS es el dueño de la tienda (ADMIN del inquilino).
 - Móvil: **Expo + SQLite**; la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Una app con modo Mostrador (vendedora, offline) y modo Clienta.
 - **Decart** (`lucy-vton-3.5`) es el único probador virtual; el AR viejo se borró.
-- **Sin POS** (punto de venta): la tienda física tiene su caja; la web solo confirma efectivo (`/admin/cobros`) y
-  resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` existe sin pantalla.
+- **Sin POS** (punto de venta), por seguridad: la tienda física tiene su caja; solo la cajera (`CAJERO`), en la web, confirma el efectivo
+  (`/admin/cobros`) y el personal resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` se **borró** el 2026-11-07: la clienta
+  en tienda compra lo reservado con `POST /ventas/desde-reserva/:reservaId` (venta `PENDIENTE`; al pagarse, la reserva pasa a `COMPLETADA`).
 - Machine Learning en un **servicio Python aparte** (`mirroria-ml`, FastAPI + scikit-learn), consumido por el backend.
 - Se mantiene el monolito modular; los microservicios se documentan como camino futuro.
 - IA de reportes: DeepSeek arma una "ficha" y el motor corre SQL parametrizado (el modelo nunca escribe SQL).

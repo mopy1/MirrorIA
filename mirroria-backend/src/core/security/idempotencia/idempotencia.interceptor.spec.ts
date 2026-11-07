@@ -26,8 +26,8 @@ function crearContexto(opts: FakeHttpOpts = {}) {
   const req = {
     headers,
     method: opts.method ?? 'POST',
-    url: opts.url ?? '/api/v1/ventas/presencial',
-    path: opts.url ?? '/api/v1/ventas/presencial',
+    url: opts.url ?? '/api/v1/ventas/carrito/u1/checkout',
+    path: opts.url ?? '/api/v1/ventas/carrito/u1/checkout',
     body: opts.body ?? {},
     user: opts.user ?? { tenantId: tenantActual() },
   };
@@ -114,7 +114,7 @@ describe('IdempotenciaInterceptor', () => {
     expect(mockService.registrarIntento).toHaveBeenCalledWith({
       tenantId: tenantActual(),
       clave: 'uuid-key-1',
-      ruta: '/api/v1/ventas/presencial',
+      ruta: '/api/v1/ventas/carrito/u1/checkout',
       metodo: 'POST',
       hashCuerpo: hash,
     });
@@ -196,9 +196,9 @@ describe('IdempotenciaInterceptor', () => {
       driverError: { code: '23505' },
     });
 
-    await expect(interceptor.intercept(ctx, next)).rejects.toThrow(
-      ConflictException,
-    );
+    await expect(interceptor.intercept(ctx, next)).rejects.toMatchObject({
+      response: { codigo: 'IDEMPOTENCIA_EN_CURSO' },
+    });
     expect(next.handle).not.toHaveBeenCalled();
   });
 
@@ -219,9 +219,12 @@ describe('IdempotenciaInterceptor', () => {
     } as unknown as Idempotencia);
     vi.mocked(mockService.validarHash).mockReturnValueOnce(true);
 
-    await expect(interceptor.intercept(ctx, next)).rejects.toThrow(
-      ConflictException,
-    );
+    const error = await interceptor.intercept(ctx, next).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ConflictException);
+    // H4: el cliente lo distingue por código, no por el texto.
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      codigo: 'IDEMPOTENCIA_EN_CURSO',
+    });
     expect(next.handle).not.toHaveBeenCalled();
   });
 

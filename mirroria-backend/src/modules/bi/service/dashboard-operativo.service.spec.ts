@@ -7,7 +7,7 @@ import { correrConContexto } from '../../../core/tenancy/tenant-context.js';
 import { DashboardOperativoService } from './dashboard-operativo.service.js';
 import { PeriodosService } from './periodos.service.js';
 
-describe('DashboardOperativoService (Cockpit POS en piso de venta)', () => {
+describe('DashboardOperativoService (Hoy en la tienda: reservas, cobros y stock)', () => {
   const tenantFijo = '11111111-1111-4111-a111-111111111111';
   const sucursalCentralId = 'suc-central-001';
   const consultasEjecutadas: Array<{ sql: string; params: unknown[] }> = [];

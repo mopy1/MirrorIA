@@ -19,6 +19,14 @@ import { IdempotenciaService } from './idempotencia.service.js';
 
 const METODOS_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+// H4: `codigo` para que web y móvil distingan este 409 (reintentar más tarde)
+// del de stock (`STOCK_AGOTADO_CONFLICTO`) sin leer el texto.
+const enCurso = () =>
+  new ConflictException({
+    message: 'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
+    codigo: 'IDEMPOTENCIA_EN_CURSO',
+  });
+
 @Injectable()
 export class IdempotenciaInterceptor implements NestInterceptor {
   constructor(private readonly idempotenciaService: IdempotenciaService) {}
@@ -80,9 +88,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
       }
 
       if (existente.estado === EstadoIdempotencia.EN_PROCESO) {
-        throw new ConflictException(
-          'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-        );
+        throw enCurso();
       }
 
       if (existente.estado === EstadoIdempotencia.COMPLETADO) {
@@ -119,9 +125,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           (err as { code?: string; driverError?: { code?: string } })?.driverError
             ?.code ?? (err as { code?: string })?.code;
         if (pgCode === '23505') {
-          throw new ConflictException(
-            'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-          );
+          throw enCurso();
         }
         throw err;
       }

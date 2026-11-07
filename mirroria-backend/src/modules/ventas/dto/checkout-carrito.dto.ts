@@ -4,8 +4,8 @@ export class CheckoutCarritoDto {
   @IsUUID()
   sucursalId!: string;
 
-  // Solo digital acá — PRESENCIAL usa el endpoint dedicado del cajero
-  // (POST /ventas/presenciales), que no pasa por un carrito.
+  // Solo digital: ningún endpoint crea ventas PRESENCIAL (sin POS; el valor
+  // queda en el enum por las ventas históricas).
   @IsIn(['WEB', 'MOVIL'])
   canal!: 'WEB' | 'MOVIL';
 

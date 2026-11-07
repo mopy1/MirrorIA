@@ -143,7 +143,7 @@ cd mirroria-backend && npx vitest run                # 466 unit (56 suites) · n
 cd mirroria-frontend && npx vitest run               # 293 unit (52 suites)
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
-python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
+python3 scripts/qa/qa_reglas.py     # 21 · qa_compra_reserva.py 26 · qa_aislamiento.py 84 · qa_marca.py 37
 
 # Tiendas demo (contra una API con las tablas 1b)
 PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.mjs --api http://localhost:3000/api/v1

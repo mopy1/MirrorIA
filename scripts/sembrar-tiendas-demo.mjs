@@ -6,7 +6,8 @@
  *   node scripts/sembrar-tiendas-demo.mjs [--api http://localhost:3000/api/v1]
  *
  * Por tienda: alta (POST /saas/tiendas) → la plataforma le pone plan Cadena (marca completa)
- * → PUT /saas/mi-marca → 6 prendas con stock → 2 clientas → 4 ventas presenciales (PAGADA),
+ * → PUT /saas/mi-marca → 6 prendas con stock → 2 clientas → 4 compras online pagadas en efectivo
+ * (checkout + confirmación del cobro en caja; sin POS),
  * para que el directorio y el panel de plataforma muestren datos reales.
  *
  * IDEMPOTENTE: si la tienda existe entra con su dueña; no duplica prendas, clientas ni ventas
@@ -169,27 +170,34 @@ async function sembrarPrendas(t, sesion) {
   return sucursales[0].id
 }
 
+// Sin POS: cada venta sigue el flujo legítimo — la clienta arma el carrito, hace
+// checkout y elige efectivo en caja; la dueña (ADMIN, como la cajera) confirma el cobro.
 async function sembrarVentas(t, sesion, sucursalId) {
   const o = { token: sesion.token, tienda: t.slug }
   if ((await exigir('GET', '/ventas', null, o)).length > 0) return console.log(`  ${t.slug}: ya tiene ventas`)
   const clientas = []
   for (const [fullName, email] of t.clientas) {
-    const r = await pedir('POST', '/seguridad/auth/register', { fullName, email, password: CLAVE_DEMO }, { tienda: t.slug })
-    if (r.status === 201) clientas.push(r.cuerpo.usuario.id)
+    let r = await pedir('POST', '/seguridad/auth/register', { fullName, email, password: CLAVE_DEMO }, { tienda: t.slug })
+    if (r.status !== 201) r = await pedir('POST', '/seguridad/auth/login', { email, password: CLAVE_DEMO }, { tienda: t.slug })
+    if (r.status < 400) clientas.push({ id: r.cuerpo.usuario.id, token: r.cuerpo.accessToken })
   }
-  const productos = await exigir('GET', '/catalogo/productos', null, o)
-  const variantes = []
-  for (const p of productos) {
-    const d = await exigir('GET', `/catalogo/productos/${p.id}`, null, o)
-    variantes.push(...(d.variantes ?? []).map((v) => v.id))
-  }
+  if (!clientas.length) return console.log(`  ${t.slug}: sin clientas, no se siembran ventas`)
+  const productos = await exigir('GET', '/catalogo/productos?conVariantes=true', null, o)
+  const variantes = productos.flatMap((p) => (p.variantes ?? []).map((v) => v.id))
   const planVentas = [[0, 1], [3, 7], [5], [9, 12]]
+  let pagadas = 0
   for (const [n, idx] of planVentas.entries()) {
     const items = idx.filter((i) => variantes[i]).map((i) => ({ varianteId: variantes[i], cantidad: 1 }))
     if (!items.length) continue
-    await exigir('POST', '/ventas/presenciales', { sucursalId, clienteId: clientas[n % clientas.length], items }, o)
+    const c = clientas[n % clientas.length]
+    const oc = { token: c.token, tienda: t.slug }
+    for (const it of items) await exigir('POST', `/ventas/carrito/${c.id}/items`, it, oc)
+    const venta = await exigir('POST', `/ventas/carrito/${c.id}/checkout`, { sucursalId, canal: 'WEB' }, oc)
+    const cobro = await exigir('POST', `/pagos/ventas/${venta.id}/manual`, { metodo: 'EFECTIVO' }, oc)
+    await exigir('POST', `/pagos/${cobro.pagoId}/confirmar`, null, o)
+    pagadas++
   }
-  console.log(`  ${t.slug}: ${planVentas.length} ventas presenciales, ${clientas.length} clientas`)
+  console.log(`  ${t.slug}: ${pagadas} ventas pagadas en efectivo (checkout + confirmación en caja), ${clientas.length} clientas`)
 }
 
 async function main() {
