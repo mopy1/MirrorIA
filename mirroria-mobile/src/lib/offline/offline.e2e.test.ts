@@ -55,8 +55,8 @@ describe.runIf(QA)('dos teléfonos compran la última unidad sin internet', () =
     const ra = await sincronizar(a.db, { tienda, usuarioId: a.usuarioId, enviar: enviarCon(a.token) });
     const rb = await sincronizar(b.db, { tienda, usuarioId: b.usuarioId, enviar: enviarCon(b.token) });
 
-    expect(ra).toEqual({ enviadas: 1, compensadas: 0 });
-    expect(rb).toEqual({ enviadas: 0, compensadas: 1 });
+    expect(ra).toEqual({ enviadas: 1, compensadas: 0, rechazadas: 0 });
+    expect(rb).toEqual({ enviadas: 0, compensadas: 1, rechazadas: 0 });
     expect(await listarCarrito(b.db, { tienda, usuarioId: b.usuarioId })).toEqual([{ varianteId, cantidad: 1 }]);
     expect(await tieneCambiosLocales(b.db, { tienda, usuarioId: b.usuarioId })).toBe(true);
 

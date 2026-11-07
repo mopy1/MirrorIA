@@ -44,6 +44,8 @@ export function Sincronizador() {
               'Una prenda se agotó',
               'Mientras estabas sin conexión otra persona se llevó la última unidad. No se te cobró y las prendas volvieron a tu carrito.',
             ),
+          alRechazo: (_op, mensaje) =>
+            Alert.alert('No se pudo completar tu compra', `${mensaje} Las prendas volvieron a tu carrito.`),
         });
       } finally {
         enCurso.current = false;

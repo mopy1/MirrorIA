@@ -7,6 +7,7 @@ const API_URL = import.meta.env?.VITE_API_URL ?? 'http://localhost:3000/api/v1'
 export const EVENTO_CONFLICTO_STOCK = 'mirroria:conflicto-stock'
 export const EVENTO_OUTBOX_ACTUALIZADO = 'mirroria:outbox-actualizado'
 export const EVENTO_ESTADO_RED = 'mirroria:estado-red'
+export const EVENTO_OPERACION_RECHAZADA = 'mirroria:operacion-rechazada'
 
 export interface EncolarOperacionParams {
   tenantId: string
@@ -19,9 +20,18 @@ export interface EncolarOperacionParams {
 
 const REINTENTO_MS = 30_000
 
-/** Sin respuesta definitiva del servidor la operación sigue viva: la clave evita duplicarla. */
-function debeReintentarse(status: number): boolean {
-  return status === 401 || status === 408 || status === 409 || status === 429 || status >= 500
+/**
+ * Sin respuesta definitiva la operación sigue viva y la clave evita duplicarla:
+ * caída, sesión vencida, la misma clave aún en curso, o la tienda suspendida
+ * (al reactivarse, la venta ya cobrada tiene que entrar). Todo lo demás es un
+ * rechazo de negocio: se avisa y la cola sigue.
+ */
+function debeReintentarse(status: number, codigo?: unknown): boolean {
+  return (
+    status === 401 || status === 408 || status === 429 || status >= 500 ||
+    (status === 409 && codigo === 'IDEMPOTENCIA_EN_CURSO') ||
+    (status === 403 && codigo === 'TIENDA_NO_DISPONIBLE')
+  )
 }
 
 export class OutboxManager {
@@ -133,7 +143,7 @@ export class OutboxManager {
                   new CustomEvent(EVENTO_CONFLICTO_STOCK, { detail: errorBody.detalles ?? errorBody })
                 )
               }
-            } else if (debeReintentarse(res.status)) {
+            } else if (debeReintentarse(res.status, errorBody?.codigo)) {
               await actualizarOutbox(op.id, {
                 estado: 'PENDIENTE',
                 reintentos: op.reintentos + 1,
@@ -142,11 +152,13 @@ export class OutboxManager {
               })
               break // FIFO: las siguientes esperan a esta
             } else {
-              await actualizarOutbox(op.id, {
-                estado: 'FALLIDO',
-                codigoRespuesta: res.status,
-                error: (errorBody.message as string) || res.statusText,
-              })
+              const mensaje = (errorBody.message as string) || res.statusText
+              await actualizarOutbox(op.id, { estado: 'FALLIDO', codigoRespuesta: res.status, error: mensaje })
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent(EVENTO_OPERACION_RECHAZADA, { detail: { tipo: op.tipo, mensaje, payload: op.payload } }),
+                )
+              }
             }
           }
         } catch (netErr) {

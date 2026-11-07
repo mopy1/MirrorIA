@@ -18,6 +18,11 @@ import { calcularHashPeticion } from './idempotencia.hash.js';
 import { IdempotenciaService } from './idempotencia.service.js';
 
 const METODOS_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+/** Con `codigo` la cola sabe que debe reintentar y no dar la operación por rechazada. */
+const EN_CURSO = {
+  message: 'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
+  codigo: 'IDEMPOTENCIA_EN_CURSO',
+};
 
 @Injectable()
 export class IdempotenciaInterceptor implements NestInterceptor {
@@ -84,9 +89,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         existente.estado === EstadoIdempotencia.EN_PROCESO &&
         !this.idempotenciaService.estaAtascado(existente)
       ) {
-        throw new ConflictException(
-          'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-        );
+        throw new ConflictException(EN_CURSO);
       }
 
       if (existente.estado === EstadoIdempotencia.COMPLETADO) {
@@ -111,9 +114,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         existente.estado,
       );
       if (!retomado) {
-        throw new ConflictException(
-          'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-        );
+        throw new ConflictException(EN_CURSO);
       }
       registro = retomado;
     } else {
@@ -130,9 +131,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           (err as { code?: string; driverError?: { code?: string } })?.driverError
             ?.code ?? (err as { code?: string })?.code;
         if (pgCode === '23505') {
-          throw new ConflictException(
-            'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-          );
+          throw new ConflictException(EN_CURSO);
         }
         throw err;
       }

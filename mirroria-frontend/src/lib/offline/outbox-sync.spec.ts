@@ -46,9 +46,34 @@ describe('sincronizacion de la cola', () => {
     expect(await estadoDe('a1')).toBe('PENDIENTE')
   })
 
-  it('otro proceso con la misma clave en curso (409 comun) se reintenta', async () => {
+  it('otro proceso con la misma clave en curso se reintenta', async () => {
     await guardarEnOutbox(op('a1'))
-    vi.stubGlobal('fetch', responde(409, { message: 'operación en curso' }))
+    vi.stubGlobal('fetch', responde(409, { message: 'operación en curso', codigo: 'IDEMPOTENCIA_EN_CURSO' }))
+    await new OutboxManager().procesarCola()
+    expect(await estadoDe('a1')).toBe('PENDIENTE')
+  })
+
+  it('un 409 de negocio no traba la cola: se rechaza, se avisa y sigue la siguiente', async () => {
+    await guardarEnOutbox(op('a1'))
+    await guardarEnOutbox(op('a2'))
+    const avisos: unknown[] = []
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      dispatchEvent: (e: CustomEvent) => { if (e.type === 'mirroria:operacion-rechazada') avisos.push(e.detail); return true },
+    })
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: 'No podés llevar más de 3' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 201 })))
+    await new OutboxManager().procesarCola()
+    vi.unstubAllGlobals()
+    expect(await estadoDe('a1')).toBe('FALLIDO')
+    expect(await estadoDe('a2')).toBe('SINCRONIZADO')
+    expect(avisos).toEqual([expect.objectContaining({ mensaje: 'No podés llevar más de 3' })])
+  })
+
+  it('una tienda suspendida no pierde la venta: espera a que se reactive', async () => {
+    await guardarEnOutbox(op('a1'))
+    vi.stubGlobal('fetch', responde(403, { codigo: 'TIENDA_NO_DISPONIBLE' }))
     await new OutboxManager().procesarCola()
     expect(await estadoDe('a1')).toBe('PENDIENTE')
   })

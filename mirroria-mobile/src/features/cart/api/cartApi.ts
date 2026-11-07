@@ -14,6 +14,16 @@ import type {
 } from '../types/cart.types';
 
 const sinRed = (e: unknown) => e instanceof ApiError && e.status === 0;
+/** El mismo tope que aplica el servidor: sin red no se puede dejar pasar más. */
+const MAX_UNIDADES = 3;
+
+async function agregarConTope(db: Awaited<ReturnType<typeof baseLocal>>, d: { tienda: string; usuarioId: string }, item: CarritoItem) {
+  const actual = (await listarCarrito(db, d)).find((i) => i.varianteId === item.varianteId)?.cantidad ?? 0;
+  if (actual + item.cantidad > MAX_UNIDADES) {
+    throw new ApiError(409, `Podés llevar hasta ${MAX_UNIDADES} unidades de la misma talla y color por compra`);
+  }
+  return agregarAlCarrito(db, d, item);
+}
 const respuestaLocal = (usuarioId: string, items: CarritoItem[]): CarritoResponseDto => ({ id: 'local', usuarioId, items });
 
 export type ResultadoCompra = { encolada: false; venta: VentaResponseDto } | { encolada: true };
@@ -49,7 +59,7 @@ export const cartApi = {
     const db = await baseLocal();
     const d = { tienda: tiendaActual(), usuarioId };
     if (await tieneCambiosLocales(db, d)) {
-      return cambiarLocal(usuarioId, (x) => agregarAlCarrito(db, x, { varianteId, cantidad }));
+      return cambiarLocal(usuarioId, (x) => agregarConTope(db, x, { varianteId, cantidad }));
     }
     try {
       return await apiFetch<CarritoResponseDto>(`/ventas/carrito/${usuarioId}/items`, {
@@ -58,7 +68,7 @@ export const cartApi = {
       });
     } catch (e) {
       if (!sinRed(e)) throw e;
-      return cambiarLocal(usuarioId, (x) => agregarAlCarrito(db, x, { varianteId, cantidad }));
+      return cambiarLocal(usuarioId, (x) => agregarConTope(db, x, { varianteId, cantidad }));
     }
   },
 

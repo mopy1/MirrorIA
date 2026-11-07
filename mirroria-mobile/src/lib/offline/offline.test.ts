@@ -116,19 +116,47 @@ describe('offline en SQLite', () => {
         alConflicto,
         enviar: responde({ status: 409, body: { codigo: 'STOCK_AGOTADO_CONFLICTO', detalles: { titulo: 'x' } } }, { status: 201, body: {} }),
       });
-      expect(r).toEqual({ enviadas: 1, compensadas: 1 });
+      expect(r).toEqual({ enviadas: 1, compensadas: 1, rechazadas: 0 });
       expect(alConflicto.mock.calls[0][1]).toEqual({ titulo: 'x' });
       expect(await listarCarrito(db, ANA)).toEqual([{ varianteId: 'ultima', cantidad: 1 }]);
     });
 
-    it('un 500, un 401 y un 409 común quedan pendientes', async () => {
-      for (const status of [500, 401, 409]) {
+    it('un 500, un 401, una clave en curso y una tienda suspendida quedan pendientes', async () => {
+      const casos: RespuestaEnvio[] = [
+        { status: 500, body: {} },
+        { status: 401, body: {} },
+        { status: 409, body: { codigo: 'IDEMPOTENCIA_EN_CURSO' } },
+        { status: 403, body: { codigo: 'TIENDA_NO_DISPONIBLE' } },
+      ];
+      for (const caso of casos) {
         const local = baseEnMemoria();
         await prepararBase(local);
         await encolar(local, ANA, ...op('a', 1));
-        await sincronizar(local, { ...ANA, enviar: responde({ status, body: {} }) });
+        await sincronizar(local, { ...ANA, enviar: responde(caso) });
         expect(await pendientes(local, ANA)).toHaveLength(1);
       }
+    });
+
+    it('un rechazo de negocio no traba la cola: devuelve las prendas, avisa y sigue', async () => {
+      await encolar(db, ANA, ...op('a', 1, [{ varianteId: 'v4', cantidad: 4 }]));
+      await encolar(db, ANA, ...op('b', 2));
+      const alRechazo = vi.fn();
+      const r = await sincronizar(db, {
+        ...ANA,
+        alRechazo,
+        enviar: responde({ status: 409, body: { message: 'Hasta 3 unidades' } }, { status: 201, body: {} }),
+      });
+      expect(r).toEqual({ enviadas: 1, compensadas: 0, rechazadas: 1 });
+      expect(alRechazo.mock.calls[0][1]).toBe('Hasta 3 unidades');
+      expect(await listarCarrito(db, ANA)).toEqual([{ varianteId: 'v4', cantidad: 4 }]);
+    });
+
+    it('una prenda borrada (404) tampoco se pierde en silencio', async () => {
+      await encolar(db, ANA, ...op('a', 1, [{ varianteId: 'borrada', cantidad: 1 }]));
+      const alRechazo = vi.fn();
+      await sincronizar(db, { ...ANA, alRechazo, enviar: responde({ status: 404, body: { message: 'No existe' } }) });
+      expect(alRechazo).toHaveBeenCalled();
+      expect(await listarCarrito(db, ANA)).toEqual([{ varianteId: 'borrada', cantidad: 1 }]);
     });
 
     it('una validación rechazada no se reintenta para siempre', async () => {
