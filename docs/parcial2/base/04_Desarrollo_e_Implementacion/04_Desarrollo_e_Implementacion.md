@@ -36,10 +36,11 @@ Para la evolución, modelado e implementación de la plataforma SaaS multi-tenan
   * **FastAPI:** Microframework web asíncrono en Python que expone endpoints REST en puerto `8002` (contenedor `mirroria_ml`, 68 MB de RAM) para inferencia analítica en tiempo real.
   * **Scikit-Learn, Pandas y Joblib:** Bibliotecas estadísticas empleadas para entrenar de forma reproducible ($N=10.000$, semilla fija `seed=42`) los cuatro modelos: Random Forest (M1), Regresión Logística L2 (M2), K-Means (M3) e Isolation Forest (M4).
 * **Movilidad y Persistencia Embebida: React Native / Expo SDK 57**
-  * Entorno multiplataforma para el diseño del cliente móvil nativo con **SQLite** (`expo-sqlite`) como réplica espejo del catálogo e inventario local, y `@react-native-community/netinfo` para la detección de conectividad.
+  * Cliente móvil nativo con **SQLite** (`expo-sqlite`) para el catálogo, el carrito y la cola de compras, y `@react-native-community/netinfo` para detectar la reconexión y sincronizar.
 * **Servicios e Integraciones Externas:**
-  * **Stripe Checkout:** Pasarela de pagos internacionales para tarjetas de crédito/débito con verificación de webhooks firmados (`Stripe-Signature`).
-  * **Banco Simulado Wayra (QR):** Servicio financiero nacional que emite códigos QR dinámicos y callbacks firmados mediante HMAC-SHA256 con idempotencia por `event_id`.
+  * **PayPal (Orders v2, REST):** Pasarela internacional en sandbox. Aprobar la orden no cobra: el servidor la captura al volver la clienta (`POST /pagos/ventas/:id/confirmar-tarjeta`, `/saas/mi-suscripcion/cobro/:id/confirmar`) y acepta avisos firmados en `/saas/webhooks/paypal`.
+  * **Stripe Checkout:** Pasarela de pagos internacionales para tarjetas de crédito/débito con verificación de webhooks firmados (`Stripe-Signature`) y confirmación con Stripe al regreso; cobra en USD convirtiendo con `TIPO_CAMBIO_BOB_USD`.
+  * **Banco Simulado Wayra (QR):** Banco simulado (alternativa a la API de un banco real, no accesible para el proyecto) que emite códigos QR dinámicos y callbacks firmados mediante HMAC-SHA256 con idempotencia por `event_id`.
   * **Decart AI (`lucy-vton-3.5`):** Motor generativo en la nube para el probador virtual en tiempo real consumido a través de tokens efímeros seguros de 5 minutos.
   * **DeepSeek LLM & DuckDB:** Modelo de lenguaje para extracción analítica de lenguaje natural y motor in-process DuckDB (`:memory:`) para simulaciones *What-If*.
   * **ExcelJS:** Motor de generación de libros de cálculo nativos en formato `.xlsx` con formato contable institucional `"Bs" #,##0.00`.
@@ -50,7 +51,7 @@ Para la evolución, modelado e implementación de la plataforma SaaS multi-tenan
 
 * **Mermaid & Mermaid CLI (`@mermaid-js/mermaid-cli` v12.2.0):** Herramienta de diagramación declarativa como código utilizada para modelar los diagramas de clases, robustez BCE, secuencias UML 2.5 y diagramas C4, compilándolos de forma nativa a imágenes PNG de alta resolución.
 * **Docker & Docker Compose:** Entorno de contenedores para orquestar la suite de servicios (`mirroria_postgres`, `mirroria_backend`, `mirroria_frontend` y `mirroria_ml`) con políticas `restart: "no"` para cuidar la memoria RAM en WSL3.
-* **Vitest & Oxlint:** Suite de pruebas ultrarrápida (466 pruebas en backend y 293 en frontend) y linter de alto rendimiento.
+* **Vitest & Oxlint:** Suite de pruebas ultrarrápida (555 pruebas en backend, 345 en frontend y 18 en móvil) y linter de alto rendimiento.
 * **Git & GitHub:** Control de versiones distribuido bajo estrategia de rama única `main` para trazabilidad de código.
 
 ---
@@ -491,7 +492,7 @@ La implementación del sistema se organiza de forma estricta en torno a los **ci
 
 La comunicación y cohesión entre los diferentes subsistemas se rige por contratos estrictos:
 1. **Frontend $\leftrightarrow$ Backend Central (NestJS):** Comunicación REST JSON sobre HTTP/S en `/api/v1/*`. Las peticiones inyectan obligatoriamente el contexto mediante la cabecera `X-Tenant: <slug>` o el token Bearer JWT con el `tenantId` verificado contra la base de datos.
-2. **Backend NestJS $\leftrightarrow$ Microservicio Python ML:** Llamadas HTTP internas síncronas hacia `http://mirroria-ml:8002/predict/*` con un tiempo de espera límite estricto (*timeout*) de **3.000 ms** gestionado mediante `AbortController`. Ante caídas o sobrecargas, el interceptor conmuta de forma transparente al cálculo heurístico matemático de respaldo.
+2. **Backend NestJS $\leftrightarrow$ Microservicio Python ML:** Llamadas HTTP internas síncronas hacia `http://mirroria-ml:8002/predict/*` con un tiempo de espera límite estricto (*timeout*) de **1.500 ms** gestionado mediante `AbortController`. Ante caídas o sobrecargas, el interceptor conmuta de forma transparente al cálculo heurístico matemático de respaldo.
 3. **Backend NestJS $\leftrightarrow$ Pasarelas de Pago:**
    - **Stripe:** Creación de sesiones alojadas mediante el SDK oficial y recepción de webhooks en `POST /api/v1/pagos/webhook` con validación obligatoria de la firma criptográfica `Stripe-Signature`.
    - **Banco Wayra:** Generación de códigos QR con payload estructurado y recepción de avisos bancarios en `POST /api/v1/pagos/qr/aviso` con verificación estricta de firma **HMAC-SHA256** mediante `crypto.timingSafeEqual`.
