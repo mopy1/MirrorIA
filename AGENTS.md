@@ -60,7 +60,9 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 ├── docker-compose.prod.yml      # override SOLO para la VM (nginx.prod.conf + Let's Encrypt en :443)
 ├── db/init/001-extensions.sql   # CREATE EXTENSION pgcrypto en el primer arranque del volumen
 ├── .env / .env.example          # POSTGRES_PASSWORD
-├── docs/superpowers/            # specs y registros de decisiones de `ia` (CU24) y `pagos` (RF19), 2026-09-21 (históricos)
+├── docs/
+│   ├── parcial2/                # Documentación formal Parcial 2 (ICONIX, 17 CUs Omnicanal, DDL 30 tablas, PDF, DOCX, diagramas PNG)
+│   └── superpowers/            # specs y registros de decisiones de `ia` (CU24) y `pagos` (RF19), 2026-09-21 (históricos)
 ├── scripts/
 │   ├── deploy-azure.sh          # despliegue a la VM por git bundle + scp (lo corre el usuario)
 │   ├── sembrar-catalogo.mjs + catalogo-demo.mjs   # catálogo demo idempotente contra la API
@@ -168,6 +170,7 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de anomalías POS en caja; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets POS, 198 tests en frontend, 466 en backend).
 
 - **2026-11-06 — Fase 6b:** Rediseño UX/UI del panel admin para un gerente sin tecnicismos (solo frontend): menú lateral en acordeón (Inicio · Ventas · Productos · Análisis · Mi negocio, contraíble a íconos), Dashboard BI ("Resumen del negocio" con resumen en palabras y "Hoy en la tienda"), Predicciones ("Qué hacer esta semana", jerga técnica solo en "¿Cómo se calcula?") y Reportes con IA (markdown renderizado con `react-markdown`, lienzo con conclusión, cifras clave, barras con nombres completos, chat con conclusión corta + "Reporte listo"). Spec: vault `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. 293 tests front (52 suites).
+- **2026-11-07 — Documentación Parcial 2 (ICONIX & Omnicanal):** Especificación completa para SI2 Parcial 2 siguiendo guía de grupo #22 (Capítulos I al VII, 17 CUs Omnicanal unificados Web PWA + Móvil Expo, DDL SQL 30 tablas, 15 diagramas PNG alta resolución, compilador autónomo `compilar.py`, documento compilado en PDF de 66 páginas y DOCX Word editable en `docs/parcial2/`).
 
 ## 9. Dónde está cada cosa
 
@@ -175,4 +178,5 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - Contrato de cada ruta: vault `Parcial1/App/Endpoints.md`. Esquema + DBML + cuentas locales: `Parcial1/App/Database.md`.
 - Despliegue y **checklist obligatorio del próximo despliegue**: vault `Parcial1/App/Despliegue_Azure.md`.
 - Errores resueltos: vault `Parcial1/App/Troubleshooting.md`.
+- Documentación Parcial 2 (ICONIX, 17 CUs Omnicanal, 30 tablas, PDF, DOCX): `docs/parcial2/` y vault `U/2-2026/SI2/Parcial2/Documentacion/`.
 - GitHub `mopy1/MirrorIA`: una sola rama `main`; push permitido cuando el usuario lo pide.
