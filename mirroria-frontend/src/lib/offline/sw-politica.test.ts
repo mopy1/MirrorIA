@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 interface Politica {
+  tiendaDe(url: string, cabecera: string | null): string | null
   esCacheable(url: string, tienda: string | null): boolean
   claveCache(url: string, tienda: string): string
   sigueVigente(guardadoEn: number, ahora: number): boolean
@@ -34,6 +35,17 @@ describe('politica de cache del Service Worker', () => {
     const url = `${API}/catalogo/productos?categoria=1`
     expect(p.claveCache(url, 'luna')).not.toBe(p.claveCache(url, 'sol'))
     expect(new URL(p.claveCache(url, 'luna')).searchParams.get('categoria')).toBe('1')
+  })
+
+  it('la ficha publica de la tienda se guarda: sin ella la tienda no abre sin red', () => {
+    const url = `${API}/saas/tiendas/luna`
+    expect(p.tiendaDe(url, null)).toBe('luna')
+    expect(p.esCacheable(url, p.tiendaDe(url, null))).toBe(true)
+  })
+
+  it('la cabecera manda sobre la URL, y la disponibilidad de un slug no se guarda', () => {
+    expect(p.tiendaDe(`${API}/catalogo/productos`, 'sol')).toBe('sol')
+    expect(p.esCacheable(`${API}/saas/tiendas/disponibilidad?slug=x`, p.tiendaDe(`${API}/saas/tiendas/disponibilidad?slug=x`, null))).toBe(false)
   })
 
   it('lo guardado vence a los 7 dias', () => {

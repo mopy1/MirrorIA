@@ -10,7 +10,8 @@
 importScripts('/sw-politica.js');
 
 // v2: la v1 guardaba por URL y mezclaba tiendas y datos privados.
-const CACHE_NAME = 'mirroria-app-shell-v2';
+// ignoreVary: el servidor manda Vary: Origin y los scripts de modulo no coincidian con lo guardado.
+const CACHE_NAME = 'mirroria-app-shell-v4';
 const CACHE_API = 'mirroria-api-v1';
 const PRECACHE_ASSETS = [
   '/',
@@ -20,10 +21,16 @@ const PRECACHE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Todo el build, no solo el index: si no, una recarga sin red tras la primera
+  // visita dejaba la página en blanco (los chunks no estaban guardados).
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(async (cache) => {
+        await cache.addAll(PRECACHE_ASSETS);
+        const lista = await fetch('/precache.json').then((r) => (r.ok ? r.json() : []), () => []);
+        await Promise.all(lista.map((ruta) => cache.add(ruta).catch(() => {})));
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -58,7 +65,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).catch(async () => {
         const cache = await caches.open(CACHE_NAME);
-        const shell = await cache.match('/index.html');
+        const shell = await cache.match('/index.html', { ignoreVary: true });
         return shell || Response.error();
       })
     );
@@ -72,7 +79,7 @@ self.addEventListener('fetch', (event) => {
 
   if (esAssetEstatico && url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
+      caches.match(request, { ignoreVary: true }).then((cachedResponse) => {
         if (cachedResponse) {
           return cachedResponse;
         }
@@ -91,7 +98,7 @@ self.addEventListener('fetch', (event) => {
   // API: lo público de cada tienda se guarda para seguir viéndolo sin red; lo
   // privado va siempre a la red y nunca toca el disco.
   if (url.pathname.startsWith('/api/')) {
-    const tienda = request.headers.get('x-tenant');
+    const tienda = self.swPolitica.tiendaDe(request.url, request.headers.get('x-tenant'));
     if (!self.swPolitica.esCacheable(request.url, tienda)) {
       return;
     }
@@ -110,7 +117,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(async () => {
           const cache = await caches.open(CACHE_API);
-          const guardada = await cache.match(clave);
+          const guardada = await cache.match(clave, { ignoreVary: true });
           const guardadoEn = Number(guardada?.headers.get('x-sw-guardado-en') ?? 0);
           return guardada && self.swPolitica.sigueVigente(guardadoEn, Date.now())
             ? guardada
@@ -122,6 +129,6 @@ self.addEventListener('fetch', (event) => {
 
   // Default: Network con fallback a cache
   event.respondWith(
-    fetch(request).catch(() => caches.match(request).then((r) => r || Response.error()))
+    fetch(request).catch(() => caches.match(request, { ignoreVary: true }).then((r) => r || Response.error()))
   );
 });
