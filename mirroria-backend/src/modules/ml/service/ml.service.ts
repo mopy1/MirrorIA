@@ -26,6 +26,62 @@ import type {
   MetricasModelosMlResponseDto,
 } from '../dto/metricas-ml.dto.js';
 
+interface PrendaDb {
+  producto_id: string;
+  producto_nombre: string;
+  categoria: string;
+  precio_cents: number;
+  stock_actual: number;
+  vendidas_7d: number;
+}
+
+interface ReservaDb {
+  reserva_id: string;
+  hora_prevista: string;
+  hora_cita: number;
+  dia_semana_iso: number;
+  fecha_hora_prevista: string | Date;
+  createdAt: string | Date;
+  cliente_nombre: string;
+  prendas_count: number;
+  previas: number;
+  asistidas: number;
+}
+
+interface ClientaDb {
+  clienta_id: string;
+  cliente_nombre: string;
+  recency_dias: number;
+  frequency_compras: number;
+  monetary_cents: number | string;
+}
+
+interface VentaDb {
+  venta_id: string;
+  monto_total_cents: number | string;
+  descuento_cents: number | string;
+  hora_venta: number;
+  metodo_pago: string;
+  cantidad_items: number;
+}
+
+/** Sin historial se usa la asistencia media del dataset de entrenamiento. */
+const ASISTENCIA_SIN_HISTORIAL = 0.78;
+
+function rasgosDeReserva(r: ReservaDb) {
+  const diffMs = Math.max(0, new Date(r.fecha_hora_prevista).getTime() - new Date(r.createdAt).getTime());
+  return {
+    reserva_id: r.reserva_id,
+    dias_anticipacion: Math.min(30, Math.round(diffMs / 86400000)),
+    hora_cita: r.hora_cita,
+    dia_semana: r.dia_semana_iso - 1, // el modelo usa 0 = lunes
+    prendas_apartadas_count: r.prendas_count || 1,
+    reservas_previas_total: r.previas,
+    tasa_asistencia_historica: r.previas > 0 ? r.asistidas / r.previas : ASISTENCIA_SIN_HISTORIAL,
+    es_fin_de_semana: r.dia_semana_iso >= 6,
+  };
+}
+
 @Injectable()
 export class MlService {
   private readonly logger = new Logger(MlService.name);
@@ -101,68 +157,47 @@ export class MlService {
       if (propia) sucursalId = propia;
     }
 
-    // 1. Consultar catálogo y stock en PostgreSQL
-    let prendasDb: Array<{
-      producto_id: string;
-      producto_nombre: string;
-      categoria: string;
-      precio_cents: number;
-      stock_actual: number;
-    }> = [];
+    // 1. Catálogo, stock y ventas reales de la última semana. Sin try/catch a
+    // propósito: tragarse un error de SQL mostraba datos inventados como reales.
+    const prendasDb = (await this.dataSource.query(
+      `SELECT
+        p.id::text AS producto_id,
+        p.titulo AS producto_nombre,
+        COALESCE(c.nombre, 'VESTIDOS') AS categoria,
+        p.precio_cents::int AS precio_cents,
+        COALESCE((
+          SELECT SUM(inv.cantidad_disponible)
+          FROM inventario_sucursal inv
+          JOIN variantes_producto vp ON vp.id = inv.variante_id
+          WHERE vp.producto_id = p.id AND inv.tenant_id = $1
+            AND ($2::uuid IS NULL OR inv.sucursal_id = $2::uuid)
+        ), 0)::int AS stock_actual,
+        COALESCE((
+          SELECT SUM(vi.cantidad)
+          FROM venta_items vi
+          JOIN ventas v ON v.id = vi.venta_id
+          JOIN variantes_producto vp ON vp.id = vi.variante_id
+          WHERE vp.producto_id = p.id AND v.tenant_id = $1
+            AND v.estado IN ('PAGADA', 'ENTREGADA')
+            AND v."createdAt" >= NOW() - INTERVAL '7 days'
+            AND ($2::uuid IS NULL OR v.sucursal_id = $2::uuid)
+        ), 0)::int AS vendidas_7d
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      WHERE p.tenant_id = $1 AND p.activo = true
+      ORDER BY stock_actual ASC, vendidas_7d DESC
+      LIMIT 50;`,
+      [tenantId, sucursalId ?? null],
+    )) as PrendaDb[];
 
-    try {
-      prendasDb = (await this.dataSource.query(
-        `SELECT 
-          p.id AS producto_id,
-          p.nombre AS producto_nombre,
-          COALESCE(c.nombre, 'VESTIDOS') AS categoria,
-          COALESCE(p.precio_cents, 28000)::int AS precio_cents,
-          COALESCE(SUM(inv.cantidad_disponible), 0)::int AS stock_actual
-        FROM productos p
-        LEFT JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN variantes_producto vp ON vp.producto_id = p.id
-        LEFT JOIN inventario_sucursal inv ON inv.variante_id = vp.id AND inv.tenant_id = $1
-        WHERE p.tenant_id = $1 AND p.activo = true
-        GROUP BY p.id, p.nombre, c.nombre, p.precio_cents
-        LIMIT 25;`,
-        [tenantId],
-      )) as any;
-    } catch (e) {
-      this.logger.warn(`Error leyendo inventario de PostgreSQL: ${e}`);
-    }
-
-    // Si la BD no tiene productos aún, suministrar catálogo semilla representativo
-    if (!prendasDb || prendasDb.length === 0) {
-      prendasDb = [
-        {
-          producto_id: 'prod_vestido_seda_01',
-          producto_nombre: 'Vestido de Seda Floral Tiendaria',
-          categoria: 'VESTIDOS',
-          precio_cents: 35000,
-          stock_actual: 4,
-        },
-        {
-          producto_id: 'prod_blusa_lino_02',
-          producto_nombre: 'Blusa de Lino Manga Abullonada',
-          categoria: 'BLUSAS',
-          precio_cents: 19500,
-          stock_actual: 12,
-        },
-        {
-          producto_id: 'prod_pantalon_palazzo_03',
-          producto_nombre: 'Pantalón Palazzo Tiro Alto',
-          categoria: 'PANTALONES',
-          precio_cents: 28000,
-          stock_actual: 2,
-        },
-        {
-          producto_id: 'prod_blazer_estructurado_04',
-          producto_nombre: 'Blazer Estructurado Crepé',
-          categoria: 'VESTIDOS',
-          precio_cents: 49000,
-          stock_actual: 1,
-        },
-      ];
+    if (prendasDb.length === 0) {
+      return {
+        horizonte_dias: horizonteDias,
+        total_items_evaluados: 0,
+        predicciones: [],
+        kpis_resumen: { quiebre_stock_rate_pct: 0, rotacion_proyectada: 0 },
+        fallback: false,
+      };
     }
 
     const payload = {
@@ -171,12 +206,12 @@ export class MlService {
       prendas: prendasDb.map((p) => ({
         producto_id: p.producto_id,
         categoria: p.categoria.toUpperCase(),
-        sucursal_id: sucursalId ?? 'suc_equipetrol',
+        sucursal_id: sucursalId ?? 'todas',
         precio_cents: p.precio_cents,
         descuento_pct: 0.0,
-        es_temporada_alta: false,
+        es_temporada_alta: [4, 8, 11].includes(new Date().getMonth()),
         stock_actual: p.stock_actual,
-        demanda_historica_lag7: 5.0,
+        demanda_historica_lag7: p.vendidas_7d,
       })),
     };
 
@@ -191,7 +226,11 @@ export class MlService {
       return {
         horizonte_dias: mlResponse.horizonte_dias,
         total_items_evaluados: mlResponse.total_items_evaluados,
-        predicciones: mlResponse.predicciones,
+        predicciones: mlResponse.predicciones.map((item: ItemPrediccionDemandaDto, idx: number) => ({
+          ...item,
+          nombre: prendasDb[idx]?.producto_nombre,
+          categoria: prendasDb[idx]?.categoria,
+        })),
         kpis_resumen: mlResponse.kpis_resumen,
         fallback: false,
       };
@@ -205,7 +244,8 @@ export class MlService {
     let stockTotal = 0;
 
     const predicciones: ItemPrediccionDemandaDto[] = prendasDb.map((p) => {
-      const dem = Math.round((14.5 + (p.stock_actual % 5) * 2.2) * scale * 10) / 10;
+      // Sin el modelo se proyecta el ritmo real de la última semana.
+      const dem = Math.round((p.vendidas_7d / 7) * 30 * scale * 10) / 10;
       demandaTotal += dem;
       stockTotal += p.stock_actual;
 
@@ -225,6 +265,8 @@ export class MlService {
 
       return {
         producto_id: p.producto_id,
+        nombre: p.producto_nombre,
+        categoria: p.categoria,
         demanda_proyectada_unidades: dem,
         stock_actual: p.stock_actual,
         reabastecimiento_sugerido: reposicion,
@@ -263,88 +305,38 @@ export class MlService {
       if (propia) sucursalId = propia;
     }
 
-    // 1. Obtener reservas agendadas en PostgreSQL
-    let reservasDb: Array<{
-      reserva_id: string;
-      hora_prevista: string;
-      fecha_hora_prevista: string | Date;
-      createdAt: string | Date;
-      cliente_nombre: string;
-      prendas_count: number;
-    }> = [];
+    // 1. Reservas agendadas, con el historial real de asistencia de cada clienta.
+    const reservasDb = (await this.dataSource.query(
+      `SELECT
+        r.id::text AS reserva_id,
+        TO_CHAR(r.fecha_hora_prevista AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz', 'HH24:MI') AS hora_prevista,
+        EXTRACT(HOUR FROM r.fecha_hora_prevista AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz')::int AS hora_cita,
+        EXTRACT(ISODOW FROM r.fecha_hora_prevista AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz')::int AS dia_semana_iso,
+        r.fecha_hora_prevista,
+        r."createdAt",
+        COALESCE(u.full_name, 'Clienta Registrada') AS cliente_nombre,
+        (SELECT COUNT(*)::int FROM reserva_items ri WHERE ri.reserva_id = r.id) AS prendas_count,
+        (SELECT COUNT(*)::int FROM reservas h WHERE h.cliente_id = r.cliente_id AND h.tenant_id = $1
+          AND h.estado IN ('COMPLETADA', 'NO_SHOW')) AS previas,
+        (SELECT COUNT(*)::int FROM reservas h WHERE h.cliente_id = r.cliente_id AND h.tenant_id = $1
+          AND h.estado = 'COMPLETADA') AS asistidas
+      FROM reservas r
+      LEFT JOIN usuarios u ON r.cliente_id = u.id
+      WHERE r.tenant_id = $1
+        AND ($2::uuid IS NULL OR r.sucursal_id = $2::uuid)
+        AND r.estado IN ('PENDIENTE', 'CONFIRMADA', 'EN_TIENDA')
+      ORDER BY r.fecha_hora_prevista ASC
+      LIMIT 15;`,
+      [tenantId, sucursalId ?? null],
+    )) as ReservaDb[];
 
-    try {
-      reservasDb = (await this.dataSource.query(
-        `SELECT 
-          r.id::text AS reserva_id,
-          TO_CHAR(r.fecha_hora_prevista AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz', 'HH24:MI') AS hora_prevista,
-          r.fecha_hora_prevista,
-          r."createdAt",
-          COALESCE(u.full_name, 'Clienta Registrada') AS cliente_nombre,
-          (SELECT COUNT(*)::int FROM reserva_items ri WHERE ri.reserva_id = r.id) AS prendas_count
-        FROM reservas r
-        LEFT JOIN usuarios u ON r.cliente_id = u.id
-        WHERE r.tenant_id = $1
-          AND ($2::uuid IS NULL OR r.sucursal_id = $2::uuid)
-          AND r.estado IN ('PENDIENTE', 'CONFIRMADA', 'EN_TIENDA')
-        ORDER BY r.fecha_hora_prevista ASC
-        LIMIT 15;`,
-        [tenantId, sucursalId ?? null],
-      )) as any;
-    } catch (e) {
-      this.logger.warn(`Error consultando reservas de PostgreSQL: ${e}`);
-    }
-
-    // Si no hay reservas registradas, sembrar muestra operativa del día
-    if (!reservasDb || reservasDb.length === 0) {
-      reservasDb = [
-        {
-          reserva_id: 'res_cita_hoy_01',
-          hora_prevista: '11:00',
-          fecha_hora_prevista: new Date(),
-          createdAt: new Date(Date.now() - 9 * 86400000), // Hace 9 días
-          cliente_nombre: 'Valeria Morales',
-          prendas_count: 4,
-        },
-        {
-          reserva_id: 'res_cita_hoy_02',
-          hora_prevista: '15:30',
-          fecha_hora_prevista: new Date(),
-          createdAt: new Date(Date.now() - 1 * 86400000), // Hace 1 día
-          cliente_nombre: 'Carolina Méndez',
-          prendas_count: 2,
-        },
-        {
-          reserva_id: 'res_cita_hoy_03',
-          hora_prevista: '17:00',
-          fecha_hora_prevista: new Date(),
-          createdAt: new Date(Date.now() - 4 * 86400000), // Hace 4 días
-          cliente_nombre: 'Mariana Zalles',
-          prendas_count: 3,
-        },
-      ];
+    if (reservasDb.length === 0) {
+      return { evaluaciones: [], tasa_no_show_esperada_pct: 0, alertas_criticas_count: 0, fallback: false };
     }
 
     const payload = {
       tenant_id: tenantId,
-      reservas: reservasDb.map((r) => {
-        const diffMs = Math.max(0, new Date(r.fecha_hora_prevista).getTime() - new Date(r.createdAt).getTime());
-        const diasAnticipacion = Math.min(30, Math.round(diffMs / 86400000));
-        const dateObj = new Date(r.fecha_hora_prevista);
-        const diaSemana = dateObj.getDay();
-        const horaCita = dateObj.getHours() || 15;
-
-        return {
-          reserva_id: r.reserva_id,
-          dias_anticipacion: diasAnticipacion,
-          hora_cita: horaCita,
-          dia_semana: diaSemana,
-          prendas_apartadas_count: r.prendas_count || 1,
-          reservas_previas_total: diasAnticipacion > 7 ? 0 : 3,
-          tasa_asistencia_historica: diasAnticipacion > 7 ? 0.50 : 0.85,
-          es_fin_de_semana: diaSemana === 0 || diaSemana === 6,
-        };
-      }),
+      reservas: reservasDb.map(rasgosDeReserva),
     };
 
     // 2. Inferencia en microservicio
@@ -376,8 +368,10 @@ export class MlService {
 
     // 3. Fallback Heurístico en memoria
     this.logger.warn('Microservicio ML offline: calculando no-show heurístico');
-    const evalsHeuristic: ItemEvaluacionNoShowDto[] = reservasDb.map((r, idx) => {
-      const prob = idx === 0 ? 0.74 : (idx === 1 ? 0.18 : 0.42);
+    const evalsHeuristic: ItemEvaluacionNoShowDto[] = reservasDb.map((r) => {
+      const rasgos = rasgosDeReserva(r);
+      const prob =
+        Math.round(Math.min(0.95, 0.1 + rasgos.dias_anticipacion * 0.02 + (1 - rasgos.tasa_asistencia_historica) * 0.6) * 100) / 100;
       const semaforo = prob >= 0.65 ? 'ROJO' : prob >= 0.35 ? 'AMARILLO' : 'VERDE';
       const clasificacion = prob >= 0.65 ? 'ALTO_RIESGO' : prob >= 0.35 ? 'RIESGO_MEDIO' : 'BAJO_RIESGO';
       const accion = prob >= 0.65 ? 'CONFIRMAR_WHATSAPP_PRIORITARIO' : prob >= 0.35 ? 'MONITOREAR' : 'ASISTIRA_NORMAL';
@@ -397,7 +391,8 @@ export class MlService {
 
     return {
       evaluaciones: evalsHeuristic,
-      tasa_no_show_esperada_pct: 44.7,
+      tasa_no_show_esperada_pct:
+        Math.round((evalsHeuristic.reduce((a, e) => a + e.probabilidad_no_show, 0) / evalsHeuristic.length) * 1000) / 10,
       alertas_criticas_count: evalsHeuristic.filter((e) => e.color_semaforo === 'ROJO').length,
       fallback: true,
     };
@@ -410,65 +405,32 @@ export class MlService {
     const tenantId = tenantActual();
 
     // 1. Agrupar compras de clientas en PostgreSQL
-    let clientasDb: Array<{
-      clienta_id: string;
-      cliente_nombre: string;
-      recency_dias: number;
-      frequency_compras: number;
-      monetary_cents: number;
-    }> = [];
+    const clientasDb = (await this.dataSource.query(
+      `SELECT
+        u.id::text AS clienta_id,
+        COALESCE(u.full_name, 'Clienta') AS cliente_nombre,
+        COALESCE(EXTRACT(DAY FROM (NOW() - MAX(v."createdAt")))::int, 45) AS recency_dias,
+        COUNT(v.id)::int AS frequency_compras,
+        COALESCE(SUM(v.total_cents), 0)::bigint AS monetary_cents
+      FROM usuarios u
+      INNER JOIN ventas v ON v.cliente_id = u.id AND v.tenant_id = u.tenant_id
+      WHERE u.tenant_id = $1 AND v.estado IN ('PAGADA', 'ENTREGADA')
+      GROUP BY u.id, u.full_name
+      HAVING COUNT(v.id) > 0
+      ORDER BY monetary_cents DESC
+      LIMIT 200;`,
+      [tenantId],
+    )) as ClientaDb[];
 
-    try {
-      clientasDb = (await this.dataSource.query(
-        `SELECT 
-          u.id::text AS clienta_id,
-          COALESCE(u.full_name, 'Clienta Tiendaria') AS cliente_nombre,
-          COALESCE(EXTRACT(DAY FROM (NOW() - MAX(v."createdAt")))::int, 45) AS recency_dias,
-          COUNT(v.id)::int AS frequency_compras,
-          COALESCE(SUM(v.total_cents), 0)::bigint AS monetary_cents
-        FROM usuarios u
-        INNER JOIN ventas v ON v.cliente_id = u.id AND v.tenant_id = u.tenant_id
-        WHERE u.tenant_id = $1 AND v.estado IN ('PAGADA', 'ENTREGADA')
-        GROUP BY u.id, u.full_name
-        HAVING COUNT(v.id) > 0
-        LIMIT 60;`,
-        [tenantId],
-      )) as any;
-    } catch (e) {
-      this.logger.warn(`Error calculando RFM desde PostgreSQL: ${e}`);
-    }
-
-    if (!clientasDb || clientasDb.length < 3) {
-      clientasDb = [
-        {
-          clienta_id: 'cli_maria_suarez',
-          cliente_nombre: 'María Suárez (VIP)',
-          recency_dias: 12,
-          frequency_compras: 8,
-          monetary_cents: 480000,
-        },
-        {
-          clienta_id: 'cli_camila_roca',
-          cliente_nombre: 'Camila Roca (Promesa)',
-          recency_dias: 8,
-          frequency_compras: 2,
-          monetary_cents: 140000,
-        },
-        {
-          clienta_id: 'cli_lucia_vargas',
-          cliente_nombre: 'Lucía Vargas (En Riesgo)',
-          recency_dias: 140,
-          frequency_compras: 5,
-          monetary_cents: 310000,
-        },
-        {
-          clienta_id: 'cli_daniela_paz',
-          cliente_nombre: 'Daniela Paz (Ocasional)',
-          recency_dias: 195,
-          frequency_compras: 1,
-          monetary_cents: 29000,
-        },
-      ];
+    if (clientasDb.length === 0) {
+      return {
+        total_clientas: 0,
+        distribucion_clusters: {},
+        clientas_clasificadas: [],
+        tasa_retencion_estimada_pct: 0,
+        clv_promedio_bs: 0,
+        fallback: false,
+      };
     }
 
     const payload = {
@@ -491,6 +453,9 @@ export class MlService {
     if (mlResponse && mlResponse.clientas_clasificadas) {
       const clasif = mlResponse.clientas_clasificadas.map((item: any, idx: number) => ({
         ...item,
+        recency_dias: clientasDb[idx]?.recency_dias,
+        frequency_compras: clientasDb[idx]?.frequency_compras,
+        monetary_cents: Number(clientasDb[idx]?.monetary_cents ?? 0),
         cliente_nombre: clientasDb[idx]?.cliente_nombre ?? 'Clienta',
       }));
 
@@ -516,7 +481,7 @@ export class MlService {
       let clId = 3;
       let est = 'Campaña de liquidación de temporada';
 
-      if (c.monetary_cents > 350000 && c.frequency_compras >= 6) {
+      if (Number(c.monetary_cents) > 350000 && c.frequency_compras >= 6) {
         seg = 'VIPS_LEALES';
         clId = 0;
         est = 'Acceso prioritario y atención personalizada en probador';
@@ -524,7 +489,7 @@ export class MlService {
         seg = 'POTENCIALES_NUEVAS';
         clId = 1;
         est = 'Campaña de bienvenida con cupón de 2da compra';
-      } else if (c.recency_dias > 80 && c.monetary_cents > 150000) {
+      } else if (c.recency_dias > 80 && Number(c.monetary_cents) > 150000) {
         seg = 'EN_RIESGO_DORMIDAS';
         clId = 2;
         est = "Campaña de rescate 'Te extrañamos en Tiendaria'";
@@ -538,22 +503,24 @@ export class MlService {
         monetary_cents: Number(c.monetary_cents),
         cluster_id: clId,
         segmento: seg,
-        clv_estimado_bs: Math.round((c.monetary_cents / 100) * 1.3),
+        clv_estimado_bs: Math.round((Number(c.monetary_cents) / 100) * 1.3),
         estrategia_sugerida: est,
       };
     });
 
+    const distribucion = clasifHeuristic.reduce<Record<string, number>>((acc, c) => {
+      acc[c.segmento] = (acc[c.segmento] ?? 0) + 1;
+      return acc;
+    }, {});
+
     return {
       total_clientas: clasifHeuristic.length,
-      distribucion_clusters: {
-        VIPS_LEALES: 1,
-        POTENCIALES_NUEVAS: 1,
-        EN_RIESGO_DORMIDAS: 1,
-        OCASIONALES_OUTLET: 1,
-      },
+      distribucion_clusters: distribucion,
       clientas_clasificadas: clasifHeuristic,
-      tasa_retencion_estimada_pct: 68.5,
-      clv_promedio_bs: 3250.0,
+      tasa_retencion_estimada_pct:
+        Math.round((((distribucion.VIPS_LEALES ?? 0) + (distribucion.POTENCIALES_NUEVAS ?? 0)) / clasifHeuristic.length) * 1000) / 10,
+      clv_promedio_bs:
+        Math.round((clasifHeuristic.reduce((a, c) => a + c.clv_estimado_bs, 0) / clasifHeuristic.length) * 10) / 10,
       fallback: true,
     };
   }
@@ -564,62 +531,35 @@ export class MlService {
   async obtenerKpisAnomalias(_user: JwtPayload): Promise<AnomaliasMlResponseDto> {
     const tenantId = tenantActual();
 
-    // 1. Consultar últimas 30 ventas en PostgreSQL
-    let ventasDb: Array<{
-      venta_id: string;
-      monto_total_cents: number;
-      descuento_cents: number;
-      hora_venta: number;
-      metodo_pago: string;
-      cantidad_items: number;
-    }> = [];
+    // 1. Últimas ventas, con el medio de pago real (vive en `pagos`, no en `ventas`).
+    const ventasDb = (await this.dataSource.query(
+      `SELECT
+        v.id::text AS venta_id,
+        v.total_cents::bigint AS monto_total_cents,
+        COALESCE(v.descuento_cents, 0)::bigint AS descuento_cents,
+        EXTRACT(HOUR FROM (v."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz'))::int AS hora_venta,
+        COALESCE((
+          SELECT CASE p.metodo WHEN 'QR' THEN 'WAYRA_QR' ELSE p.metodo END
+          FROM pagos p WHERE p.venta_id = v.id AND p.tenant_id = $1 AND p.estado = 'APROBADO'
+          LIMIT 1
+        ), 'EFECTIVO') AS metodo_pago,
+        (SELECT COALESCE(SUM(vi.cantidad), 0)::int FROM venta_items vi WHERE vi.venta_id = v.id) AS cantidad_items
+      FROM ventas v
+      WHERE v.tenant_id = $1 AND v.estado <> 'CANCELADA'
+      ORDER BY v."createdAt" DESC
+      LIMIT 100;`,
+      [tenantId],
+    )) as VentaDb[];
 
-    try {
-      ventasDb = (await this.dataSource.query(
-        `SELECT 
-          v.id::text AS venta_id,
-          v.total_cents::bigint AS monto_total_cents,
-          COALESCE(v.descuento_cents, 0)::bigint AS descuento_cents,
-          COALESCE(EXTRACT(HOUR FROM (v."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'America/La_Paz'))::int, 15) AS hora_venta,
-          COALESCE(v.metodo_pago, 'WAYRA_QR') AS metodo_pago,
-          COALESCE((SELECT COUNT(*)::int FROM venta_items vi WHERE vi.venta_id = v.id), 2) AS cantidad_items
-        FROM ventas v
-        WHERE v.tenant_id = $1
-        ORDER BY v."createdAt" DESC
-        LIMIT 30;`,
-        [tenantId],
-      )) as any;
-    } catch (e) {
-      this.logger.warn(`Error consultando ventas para anomalías: ${e}`);
-    }
-
-    if (!ventasDb || ventasDb.length < 2) {
-      ventasDb = [
-        {
-          venta_id: 'vta_pos_reg_101',
-          monto_total_cents: 85000,
-          descuento_cents: 5000,
-          hora_venta: 16,
-          metodo_pago: 'WAYRA_QR',
-          cantidad_items: 2,
-        },
-        {
-          venta_id: 'vta_pos_susp_102',
-          monto_total_cents: 1400,
-          descuento_cents: 48000,
-          hora_venta: 2,
-          metodo_pago: 'EFECTIVO',
-          cantidad_items: 7,
-        },
-        {
-          venta_id: 'vta_pos_reg_103',
-          monto_total_cents: 120000,
-          descuento_cents: 10000,
-          hora_venta: 18,
-          metodo_pago: 'STRIPE',
-          cantidad_items: 3,
-        },
-      ];
+    if (ventasDb.length === 0) {
+      return {
+        total_analizadas: 0,
+        anomalias_detectadas: 0,
+        tasa_anomalias_pct: 0,
+        monto_sospechoso_cents: 0,
+        diagnosticos: [],
+        fallback: false,
+      };
     }
 
     const payload = {
@@ -631,7 +571,7 @@ export class MlService {
           venta_id: v.venta_id,
           monto_total_cents: Number(v.monto_total_cents),
           cantidad_items: v.cantidad_items || 1,
-          hora_venta: v.hora_venta || 15,
+          hora_venta: v.hora_venta,
           descuento_cents: Number(v.descuento_cents),
           ratio_descuento: Math.round(ratio * 1000) / 1000,
           metodo_pago: v.metodo_pago || 'WAYRA_QR',
@@ -658,7 +598,7 @@ export class MlService {
       const anomCount = diag.filter((d: any) => d.es_anomalo).length;
       const sospechoso = diag
         .filter((d: any) => d.es_anomalo)
-        .reduce((acc: number, curr: any) => acc + (curr.monto_total_cents || 0), 0);
+        .reduce((acc: number, curr: any) => acc + Number(curr.monto_total_cents || 0), 0);
 
       return {
         total_analizadas: diag.length,
@@ -693,7 +633,9 @@ export class MlService {
       total_analizadas: diagHeuristic.length,
       anomalias_detectadas: totalAnom,
       tasa_anomalias_pct: Math.round((totalAnom / diagHeuristic.length) * 1000) / 10,
-      monto_sospechoso_cents: 49400,
+      monto_sospechoso_cents: diagHeuristic
+        .filter((d) => d.es_anomalo)
+        .reduce((a, d) => a + Number(d.monto_total_cents ?? 0), 0),
       diagnosticos: diagHeuristic,
       fallback: true,
     };

@@ -17,6 +17,7 @@ describe('MlService (Integración de Machine Learning y Fallback Heurístico)', 
             categoria: 'VESTIDOS',
             precio_cents: 35000,
             stock_actual: 3,
+            vendidas_7d: 7,
           },
         ];
       }
@@ -29,6 +30,10 @@ describe('MlService (Integración de Machine Learning y Fallback Heurístico)', 
             createdAt: new Date(Date.now() - 5 * 86400000),
             cliente_nombre: 'Luciana Morales',
             prendas_count: 3,
+            hora_cita: 16,
+            dia_semana_iso: 2,
+            previas: 2,
+            asistidas: 1,
           },
         ];
       }
