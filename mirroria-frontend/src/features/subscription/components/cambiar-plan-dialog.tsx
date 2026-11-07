@@ -16,16 +16,19 @@ interface CambiarPlanDialogProps {
   onOpenChange: (open: boolean) => void
   actual: string
   onCambiado: (nuevo: MiSuscripcionDto) => void
+  /** Fuera de la prueba el cambio se paga: en vez de cambiar, manda a cobrar el plan elegido. */
+  onElegirParaPagar?: (planCodigo: string) => void
 }
 
-/** Cambio de plan durante la prueba (sin cobro). El 409 de uso > límites se muestra tal cual.
+/** Cambio de plan: gratis durante la prueba, con cobro después. El 409 de uso > límites se muestra tal cual.
  * El padre lo remonta al abrir (`key`), así arranca con el plan actual y sin error. */
-export function CambiarPlanDialog({ open, onOpenChange, actual, onCambiado }: CambiarPlanDialogProps) {
+export function CambiarPlanDialog({ open, onOpenChange, actual, onCambiado, onElegirParaPagar }: CambiarPlanDialogProps) {
   const planes = useResourceList(suscripcionApi.getPlanes)
   const [elegido, setElegido] = useState(actual)
   const { cambiar, isLoading, error } = useCambiarPlan(onCambiado)
 
   async function confirmar() {
+    if (onElegirParaPagar) return onElegirParaPagar(elegido)
     if (await cambiar(elegido)) onOpenChange(false)
   }
 
@@ -34,7 +37,11 @@ export function CambiarPlanDialog({ open, onOpenChange, actual, onCambiado }: Ca
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Cambiar de plan</DialogTitle>
-          <DialogDescription>Durante la prueba gratis podés cambiar de plan las veces que quieras.</DialogDescription>
+          <DialogDescription>
+            {onElegirParaPagar
+              ? "El plan nuevo se activa al pagarlo y suma un mes a tu vigencia."
+              : "Durante la prueba gratis podés cambiar de plan las veces que quieras."}
+          </DialogDescription>
         </DialogHeader>
         <div role="radiogroup" className="grid gap-2">
           {planes.isLoading && <p className="text-sm text-muted-foreground">Cargando planes...</p>}
@@ -74,7 +81,7 @@ export function CambiarPlanDialog({ open, onOpenChange, actual, onCambiado }: Ca
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={confirmar} disabled={isLoading || elegido === actual} className="gap-2">
             {isLoading && <CircleNotch className="size-4 animate-spin" />}
-            {isLoading ? "Cambiando..." : "Confirmar cambio"}
+            {isLoading ? "Cambiando..." : onElegirParaPagar ? "Ir a pagar" : "Confirmar cambio"}
           </Button>
         </DialogFooter>
       </DialogContent>

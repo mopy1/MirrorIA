@@ -23,7 +23,7 @@ function suscripcion(estado: EstadoSuscripcion, finEnDias: number, extra: Partia
 
 describe('SuscripcionesService', () => {
   let repo: Record<string, ReturnType<typeof vi.fn>>;
-  let planes: { porCodigo: ReturnType<typeof vi.fn> };
+  let planes: { porCodigo: ReturnType<typeof vi.fn>; porId: ReturnType<typeof vi.fn> };
   let uso: { calcular: ReturnType<typeof vi.fn> };
   let resolver: { invalidar: ReturnType<typeof vi.fn> };
   let eventos: { registrar: ReturnType<typeof vi.fn> };
@@ -37,7 +37,7 @@ describe('SuscripcionesService', () => {
       create: vi.fn((x) => x),
       update: vi.fn().mockResolvedValue({ affected: 2 }),
     };
-    planes = { porCodigo: vi.fn().mockResolvedValue(CRECIMIENTO) };
+    planes = { porCodigo: vi.fn().mockResolvedValue(CRECIMIENTO), porId: vi.fn().mockResolvedValue(CRECIMIENTO) };
     uso = { calcular: vi.fn().mockResolvedValue({ sucursales: 1, productos: 10, usuariosStaff: 1 }) };
     resolver = { invalidar: vi.fn() };
     eventos = { registrar: vi.fn().mockResolvedValue(undefined) };
@@ -132,6 +132,47 @@ describe('SuscripcionesService', () => {
       expect(repo.create).toHaveBeenCalled();
       expect(s).toMatchObject({ estado: EstadoSuscripcion.ACTIVA, plan: BASICO, proveedorPago: 'WAYRA' });
       expect(resolver.invalidar).toHaveBeenCalledWith('i1');
+    });
+
+    it('el plan pagado reemplaza al actual: pagar Crecimiento da Crecimiento', async () => {
+      repo.findOne.mockResolvedValueOnce(suscripcion(EstadoSuscripcion.ACTIVA, 10));
+      const s = await service.activarPorPago('i1', { ...pago, planId: 'p2' });
+      expect(s.plan).toBe(CRECIMIENTO);
+      expect(s.precioCents).toBe(24900);
+      expect(eventos.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({ tipo: 'PLAN_CAMBIADO', detalle: 'Básico → Crecimiento' }),
+        undefined,
+      );
+    });
+
+    it('tambien al salir de la prueba', async () => {
+      repo.findOne.mockResolvedValueOnce(suscripcion(EstadoSuscripcion.TRIAL, 3));
+      const s = await service.activarPorPago('i1', { ...pago, planId: 'p2' });
+      expect(s).toMatchObject({ estado: EstadoSuscripcion.ACTIVA, plan: CRECIMIENTO });
+    });
+
+    it('y al reactivar una tienda vencida', async () => {
+      repo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(suscripcion(EstadoSuscripcion.VENCIDA, -5));
+      const s = await service.activarPorPago('i1', { ...pago, planId: 'p2' });
+      expect(s).toMatchObject({ plan: CRECIMIENTO, precioCents: 24900 });
+    });
+
+    it('pagar el mismo plan no lo busca ni registra cambio', async () => {
+      repo.findOne.mockResolvedValueOnce(suscripcion(EstadoSuscripcion.ACTIVA, 10));
+      await service.activarPorPago('i1', { ...pago, planId: 'p1' });
+      expect(planes.porId).not.toHaveBeenCalled();
+      expect(eventos.registrar).not.toHaveBeenCalledWith(expect.objectContaining({ tipo: 'PLAN_CAMBIADO' }), undefined);
+    });
+  });
+
+  describe('asegurarUsoEnPlan', () => {
+    it('rechaza un plan que no alcanza para lo que la tienda ya usa', async () => {
+      uso.calcular.mockResolvedValue({ sucursales: 2, productos: 10, usuariosStaff: 1 });
+      await expect(service.asegurarUsoEnPlan('i1', BASICO as never)).rejects.toThrow(UsoSuperaPlanException);
+    });
+
+    it('acepta un plan que alcanza', async () => {
+      await expect(service.asegurarUsoEnPlan('i1', CRECIMIENTO as never)).resolves.toBeUndefined();
     });
   });
 });

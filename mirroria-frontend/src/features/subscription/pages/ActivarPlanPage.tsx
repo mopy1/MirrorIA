@@ -1,25 +1,32 @@
 import { ArrowClockwise, ArrowLeft, WarningCircle } from "@phosphor-icons/react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { PasarelaId } from "@/features/payments/types/pasarelas.types"
+import { useResourceList } from "@/hooks/useResourceList"
+import { suscripcionApi } from "../api/suscripcionApi"
 import { CobroQrDialog } from "../components/cobro-qr-dialog"
 import { PasarelasSuscripcion } from "../components/pasarelas-suscripcion"
 import { ResumenActivacion } from "../components/resumen-activacion"
 import { useCobroSuscripcion } from "../hooks/useCobroSuscripcion"
 import { useMiSuscripcion } from "../hooks/useMiSuscripcion"
+import { planACobrar } from "../lib/plan-a-cobrar"
 
 /** `/admin/suscripcion/activar` (ADMIN): checkout de la suscripción SaaS con pasarelas enchufables. */
 export function ActivarPlanPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const planes = useResourceList(suscripcionApi.getPlanes)
   const { data, isLoading: loadingSuscripcion, error: errorSuscripcion, reload } = useMiSuscripcion()
   const { cobroActual, iniciar, limpiarCobro, isLoading: loadingCobro, error: errorCobro } = useCobroSuscripcion()
 
+  const plan = data && planACobrar(planes.items, searchParams.get("plan"), data.plan)
+
   async function handleSeleccionarPasarela(pasarelaId: PasarelaId) {
-    if (!data) return
+    if (!data || !plan) return
     if (pasarelaId === "WAYRA" || pasarelaId === "STRIPE" || pasarelaId === "PAYPAL") {
-      await iniciar({ pasarela: pasarelaId, planCodigo: data.plan.codigo })
+      await iniciar({ pasarela: pasarelaId, planCodigo: plan.codigo })
     }
   }
 
@@ -45,9 +52,9 @@ export function ActivarPlanPage() {
           <AlertAction><Button size="sm" variant="outline" onClick={reload} className="gap-1.5"><ArrowClockwise /> Reintentar</Button></AlertAction>
         </Alert>
       )}
-      {data && !loadingSuscripcion && (
+      {data && plan && !loadingSuscripcion && (
         <>
-          <ResumenActivacion data={data} />
+          <ResumenActivacion plan={plan} suscripcion={data.suscripcion} />
           {errorCobro && (
             <Alert variant="destructive">
               <WarningCircle weight="fill" />

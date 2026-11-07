@@ -10,9 +10,8 @@ import type { MiSuscripcionDto } from "../types/suscripcion.types"
 type Moneda = "BOB" | "USD"
 
 /** Qué se activa: plan, precio mensual en Bs o USD y qué incluye. */
-export function ResumenActivacion({ data }: { data: MiSuscripcionDto }) {
+export function ResumenActivacion({ plan, suscripcion }: Pick<MiSuscripcionDto, "plan" | "suscripcion">) {
   const [moneda, setMoneda] = useState<Moneda>("BOB")
-  const { plan, suscripcion } = data
   const precio = moneda === "BOB" ? formatMoney(plan.precioMensualCents) : formatUsd(plan.precioMensualUsdCents)
   return (
     <section className="rounded-xl border border-border/60 bg-card p-6">

@@ -45,6 +45,12 @@ export class PlanesService {
     return planes.map(planADto);
   }
 
+  async porId(id: string): Promise<Plan> {
+    const plan = await this.planRepository.findOne({ where: { id } });
+    if (!plan) throw new RecursoNoEncontradoException('Plan', id);
+    return plan;
+  }
+
   /** 404 si no existe (o si está inactivo y se pide uno ofrecible). */
   async porCodigo(codigo: string, exigirActivo: boolean): Promise<Plan> {
     const plan = await this.planRepository.findOne({ where: { codigo: codigo.trim().toLowerCase() } });

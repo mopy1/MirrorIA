@@ -119,15 +119,7 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     if (!ESTADOS_VIGENTES.includes(estado)) throw new SinSuscripcionVigenteException();
 
     const plan = await this.planes.porCodigo(planCodigo, desdeLaTienda);
-    const uso = await this.usoPlan.calcular(inquilinoId);
-    const excesos: Array<[number, number | null, string]> = [
-      [uso.sucursales, plan.maxSucursales, 'sucursales'],
-      [uso.productos, plan.maxProductos, 'productos activos'],
-      [uso.usuariosStaff, plan.maxUsuariosStaff, 'usuarios del equipo'],
-    ];
-    for (const [n, max, recurso] of excesos) {
-      if (max !== null && n > max) throw new UsoSuperaPlanException(n, recurso, plan.nombre);
-    }
+    await this.asegurarUsoEnPlan(inquilinoId, plan);
     const antes = actual.plan.nombre;
     actual.plan = plan;
     actual.precioCents = plan.precioMensualCents;
@@ -137,6 +129,19 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
       inquilinoId, tipo: 'PLAN_CAMBIADO', detalle: `${antes} → ${plan.nombre}`,
       actorId, actorRol: desdeLaTienda ? 'TIENDA' : 'PLATAFORMA',
     });
+  }
+
+  /** 409 si lo que la tienda ya usa no entra en ese plan. */
+  async asegurarUsoEnPlan(inquilinoId: string, plan: Plan): Promise<void> {
+    const uso = await this.usoPlan.calcular(inquilinoId);
+    const excesos: Array<[number, number | null, string]> = [
+      [uso.sucursales, plan.maxSucursales, 'sucursales'],
+      [uso.productos, plan.maxProductos, 'productos activos'],
+      [uso.usuariosStaff, plan.maxUsuariosStaff, 'usuarios del equipo'],
+    ];
+    for (const [n, max, recurso] of excesos) {
+      if (max !== null && n > max) throw new UsoSuperaPlanException(n, recurso, plan.nombre);
+    }
   }
 
   /**
@@ -162,13 +167,13 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * HOOK DE LA FASE 2 (ningún controller lo llama todavía): acredita un pago de la
-   * suscripción. TRIAL → ACTIVA por 1 mes desde hoy; ACTIVA → fin += 1 mes; sin
-   * vigente → fila ACTIVA nueva con el plan de la última.
+   * Acredita un pago de la suscripción. TRIAL → ACTIVA por 1 mes desde hoy;
+   * ACTIVA → fin += 1 mes; sin vigente → fila ACTIVA nueva con el plan de la
+   * última. Con `planId`, la tienda queda en el plan que pagó.
    */
   async activarPorPago(
     inquilinoId: string,
-    pago: { proveedor: string; referencia: string; montoCents: number },
+    pago: { proveedor: string; referencia: string; montoCents: number; planId?: string },
     manager?: EntityManager,
   ): Promise<Suscripcion> {
     const repo = manager ? manager.getRepository(Suscripcion) : this.repo;
@@ -205,11 +210,21 @@ export class SuscripcionesService implements OnModuleInit, OnModuleDestroy {
     }
     fila.proveedorPago = pago.proveedor;
     fila.referenciaPago = pago.referencia;
+    const planAnterior = fila.plan;
+    if (pago.planId && pago.planId !== planAnterior.id) {
+      fila.plan = await this.planes.porId(pago.planId);
+      fila.precioCents = fila.plan.precioMensualCents;
+    }
     const guardada = await repo.save(fila);
     this.resolver.invalidar(inquilinoId);
     await this.eventos.registrar({
       inquilinoId, tipo: 'PAGO_REGISTRADO', detalle: `${pago.proveedor} ${pago.referencia}`, actorRol: 'SISTEMA',
     }, manager);
+    if (fila.plan !== planAnterior) {
+      await this.eventos.registrar({
+        inquilinoId, tipo: 'PLAN_CAMBIADO', detalle: `${planAnterior.nombre} → ${fila.plan.nombre}`, actorRol: 'SISTEMA',
+      }, manager);
+    }
     return guardada;
   }
 }

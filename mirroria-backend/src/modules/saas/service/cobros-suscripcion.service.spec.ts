@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
 import type { DataSource, Repository } from 'typeorm';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { PasarelaNoConfiguradaException } from '../../pagos/exception/pasarela-no-configurada.exception.js';
 import type { RegistroPasarelasService } from '../../pagos/service/pasarela/registro-pasarelas.service.js';
@@ -15,7 +16,11 @@ describe('CobrosSuscripcionService', () => {
   let dataSource: { transaction: ReturnType<typeof vi.fn> };
   let inquilinos: { detalle: ReturnType<typeof vi.fn> };
   let planes: { porCodigo: ReturnType<typeof vi.fn> };
-  let suscripciones: { ultima: ReturnType<typeof vi.fn>; activarPorPago: ReturnType<typeof vi.fn> };
+  let suscripciones: {
+    ultima: ReturnType<typeof vi.fn>;
+    activarPorPago: ReturnType<typeof vi.fn>;
+    asegurarUsoEnPlan: ReturnType<typeof vi.fn>;
+  };
   let registroPasarelas: { asegurarDisponible: ReturnType<typeof vi.fn>; obtener: ReturnType<typeof vi.fn> };
   let config: { get: ReturnType<typeof vi.fn> };
   let service: CobrosSuscripcionService;
@@ -52,6 +57,7 @@ describe('CobrosSuscripcionService', () => {
     suscripciones = {
       ultima: vi.fn().mockResolvedValue({ plan: PLAN_BASICO }),
       activarPorPago: vi.fn().mockResolvedValue({ id: 'susc-activa' }),
+      asegurarUsoEnPlan: vi.fn().mockResolvedValue(undefined),
     };
 
     registroPasarelas = {
@@ -298,7 +304,68 @@ describe('CobrosSuscripcionService', () => {
       expect(suscripciones.activarPorPago).toHaveBeenCalledWith(
         'inq-1',
         expect.objectContaining({ proveedor: 'WAYRA', montoCents: 9900 }),
+        expect.anything(),
       );
+    });
+
+    const pendiente = (proveedorPago: string) => ({
+      id: 'cobro-sim', inquilinoId: 'inq-1', proveedorPago, montoCents: 9900, estado: 'PENDIENTE', updatedAt: new Date(),
+    });
+
+    it('en produccion no existe: nadie activa una tienda sin pagar', async () => {
+      config.get.mockImplementation((k: string) => (k === 'NODE_ENV' ? 'production' : undefined));
+      repo.findOne.mockResolvedValue(pendiente('WAYRA'));
+
+      await expect(service.simularPago('inq-1', 'cobro-sim')).rejects.toThrow(ForbiddenActionException);
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('una pasarela real no se simula, ni en desarrollo', async () => {
+      repo.findOne.mockResolvedValue(pendiente('STRIPE'));
+      await expect(service.simularPago('inq-1', 'cobro-sim')).rejects.toThrow(ForbiddenActionException);
+      repo.findOne.mockResolvedValue(pendiente('PAYPAL'));
+      await expect(service.simularPago('inq-1', 'cobro-sim')).rejects.toThrow(ForbiddenActionException);
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('dos clics a la vez acreditan un solo mes', async () => {
+      repo.findOne.mockImplementation(async () => pendiente('WAYRA'));
+      repo.update.mockResolvedValueOnce({ affected: 1 }).mockResolvedValueOnce({ affected: 0 });
+
+      await Promise.all([service.simularPago('inq-1', 'cobro-sim'), service.simularPago('inq-1', 'cobro-sim')]);
+
+      expect(suscripciones.activarPorPago).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('El plan que se paga', () => {
+    it('acredita con el plan del cobro, no con el que tenia la tienda', async () => {
+      repo.findOne.mockResolvedValue({
+        id: 'c1', inquilinoId: 'inq-1', planId: 'plan-2', proveedorPago: 'STRIPE', montoCents: 19900,
+        estado: 'PENDIENTE', referenciaExterna: 'cs_1',
+      });
+
+      await service.acreditarPorReferencia('cs_1', 'evt_1');
+
+      expect(suscripciones.activarPorPago).toHaveBeenCalledWith(
+        'inq-1',
+        expect.objectContaining({ planId: 'plan-2' }),
+        expect.anything(),
+      );
+    });
+
+    it('no deja pagar un plan que no alcanza para lo que la tienda usa', async () => {
+      suscripciones.asegurarUsoEnPlan.mockRejectedValue(new Error('uso supera el plan'));
+      const iniciar = vi.fn();
+      registroPasarelas.asegurarDisponible.mockReturnValue({
+        metadata: { tipo: 'QR', monedas: ['BOB'] },
+        iniciarCobro: iniciar,
+      });
+
+      await expect(
+        service.iniciarCobro('inq-1', { pasarela: 'WAYRA', planCodigo: 'profesional' }),
+      ).rejects.toThrow('uso supera el plan');
+      expect(iniciar).not.toHaveBeenCalled();
     });
   });
 

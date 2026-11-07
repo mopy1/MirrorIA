@@ -4,6 +4,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
+import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import type { AvisoPagoQr } from '../../pagos/service/qr/aviso-pago-qr.js';
 import type { PasarelaId } from '../../pagos/service/pasarela/pasarela.interface.js';
@@ -51,6 +52,7 @@ export class CobrosSuscripcionService {
     let plan: Plan;
     if (dto.planCodigo) {
       plan = await this.planes.porCodigo(dto.planCodigo, true);
+      await this.suscripciones.asegurarUsoEnPlan(inquilinoId, plan);
     } else {
       const ultima = await this.suscripciones.ultima(inquilinoId);
       plan = ultima.plan;
@@ -232,7 +234,7 @@ export class CobrosSuscripcionService {
       if (affected !== 1) return;
       await this.suscripciones.activarPorPago(
         cobro.inquilinoId,
-        { proveedor: cobro.proveedorPago, referencia, montoCents: cobro.montoCents },
+        { proveedor: cobro.proveedorPago, referencia, montoCents: cobro.montoCents, planId: cobro.planId },
         manager,
       );
     });
@@ -321,11 +323,17 @@ export class CobrosSuscripcionService {
     inquilinoId: string,
     cobroId: string,
   ): Promise<EstadoCobroSuscripcionResponseDto> {
+    if (this.config.get<string>('NODE_ENV') === 'production') {
+      throw new ForbiddenActionException('El pago simulado no existe en producción.');
+    }
     const cobro = await this.repo.findOne({
       where: { id: cobroId, inquilinoId },
     });
     if (!cobro) {
       throw new RecursoNoEncontradoException('Cobro de suscripción', cobroId);
+    }
+    if (cobro.proveedorPago !== 'WAYRA') {
+      throw new ForbiddenActionException('Solo el banco simulado Wayra admite pago simulado.');
     }
     if (cobro.estado === 'APROBADO') {
       return {
@@ -336,14 +344,8 @@ export class CobrosSuscripcionService {
       };
     }
 
-    cobro.estado = 'APROBADO';
-    await this.repo.save(cobro);
-
-    await this.suscripciones.activarPorPago(inquilinoId, {
-      proveedor: cobro.proveedorPago,
-      referencia: `sim_${randomUUID().slice(0, 8)}`,
-      montoCents: cobro.montoCents,
-    });
+    const referencia = `sim_${randomUUID().slice(0, 8)}`;
+    await this.aprobarUnaVez(cobro, `simulado:${referencia}`, referencia);
 
     return {
       cobroId,
