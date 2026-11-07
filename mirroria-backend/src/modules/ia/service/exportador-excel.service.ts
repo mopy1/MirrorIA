@@ -12,7 +12,7 @@ import { ReporteResponseDto, type ComparacionDto } from '../dto/reporte-response
 import { MotorConsultaService, type FilaReporte } from './motor-consulta.service.js';
 import { CATALOGO_METRICAS } from './catalogo-metricas.js';
 
-const METRICAS_MONETARIAS = new Set([
+export const METRICAS_MONETARIAS = new Set([
   'ingresos',
   'ticket_promedio',
   'descuentos',
@@ -23,7 +23,7 @@ const FORMATO_MONEDA_BS = '"Bs" #,##0.00;[Red]-"Bs" #,##0.00;"Bs" 0.00';
 const FORMATO_ENTERO = '#,##0';
 const FORMATO_PORCENTAJE = '+0.0%;-0.0%;0.0%';
 
-interface ParametrosWorkbook {
+export interface ParametrosWorkbook {
   ficha: FichaConsultaDto;
   filas: FilaReporte[];
   comparacion?: ComparacionDto | null;
@@ -69,6 +69,15 @@ export class ExportadorExcelService {
     usuarioNombre: string,
     user?: JwtPayload,
   ): Promise<Buffer> {
+    return this.construirWorkbook(await this.prepararDatos(dto, usuarioNombre, user));
+  }
+
+  /** Lo que comparten Excel y PDF: alcance de sucursal, tienda y filas. */
+  async prepararDatos(
+    dto: ExportarReporteDto,
+    usuarioNombre: string,
+    user?: JwtPayload,
+  ): Promise<ParametrosWorkbook> {
     const ficha = dto.ficha ?? dto.reporte?.ficha;
     if (!ficha) {
       throw new CombinacionInvalidaException('Debe proporcionar una ficha o un reporte para exportar');
@@ -88,14 +97,14 @@ export class ExportadorExcelService {
     const comparacion: ComparacionDto | null =
       dto.comparacion ?? dto.reporte?.comparacion ?? null;
 
-    return this.construirWorkbook({
+    return {
       ficha,
       filas,
       comparacion,
       titulo: dto.titulo,
       nombreTienda,
       usuarioGenerador: usuarioNombre,
-    });
+    };
   }
 
   private async resolverNombreTienda(nombreExplicito?: string): Promise<string> {
@@ -299,7 +308,7 @@ export class ExportadorExcelService {
     return Buffer.from(buffer);
   }
 
-  private resumirFiltros(ficha: FichaConsultaDto): string {
+  resumirFiltros(ficha: FichaConsultaDto): string {
     const f = ficha.filtros ?? {};
     const partes: string[] = [];
     if (f.desde || f.hasta) partes.push(`Fechas: ${f.desde ?? 'inicio'} a ${f.hasta ?? 'hoy'}`);
