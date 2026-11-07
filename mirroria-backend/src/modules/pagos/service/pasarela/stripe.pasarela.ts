@@ -3,7 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { FirmaWebhookInvalidaException } from '../../exception/firma-webhook-invalida.exception.js';
 import { PasarelaNoConfiguradaException } from '../../exception/pasarela-no-configurada.exception.js';
+import { centavosBobAUsd, tipoCambioBobUsd } from './moneda.js';
 import type {
+  ConfirmacionCobro,
   EventoNotificacionVerificado,
   EventoPago,
   IniciarCobroParams,
@@ -21,19 +23,10 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
   private readonly cliente: Stripe | null;
   private readonly secretoWebhook: string | undefined;
   private readonly moneda: string;
+  private readonly tipoCambio: number;
 
   readonly id: PasarelaId = 'STRIPE';
-  readonly metadata: PasarelaMetadata = {
-    id: 'STRIPE',
-    nombre: 'Stripe (Tarjeta de crédito / débito)',
-    descripcion: 'Pago seguro internacional con tarjeta de crédito o débito mediante Stripe Checkout.',
-    tipo: 'TARJETA',
-    estado: 'DISPONIBLE',
-    soportaCheckout: true,
-    soportaSuscripcion: true,
-    icono: 'credit-card',
-    monedas: ['USD', 'BOB'],
-  };
+  readonly metadata: PasarelaMetadata;
 
   constructor(private readonly config: ConfigService) {
     const clave = config.get<string>('STRIPE_SECRET_KEY');
@@ -41,7 +34,19 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     this.secretoWebhook = config.get<string>('STRIPE_WEBHOOK_SECRET');
     // BOB puede no estar habilitada en una cuenta de prueba; por eso es
     // configurable y cae en usd, que siempre funciona en modo test.
-    this.moneda = config.get<string>('STRIPE_MONEDA') ?? 'usd';
+    this.moneda = (config.get<string>('STRIPE_MONEDA') ?? 'usd').toLowerCase();
+    this.tipoCambio = tipoCambioBobUsd(config);
+    this.metadata = {
+      id: 'STRIPE',
+      nombre: 'Stripe (Tarjeta de crédito / débito)',
+      descripcion: 'Pago seguro internacional con tarjeta de crédito o débito mediante Stripe Checkout.',
+      tipo: 'TARJETA',
+      estado: this.estaConfigurada() ? 'DISPONIBLE' : 'NO_CONFIGURADA',
+      soportaCheckout: true,
+      soportaSuscripcion: true,
+      icono: 'credit-card',
+      monedas: ['USD', 'BOB'],
+    };
   }
 
   estaConfigurada(): boolean {
@@ -52,15 +57,18 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     if (!this.cliente) {
       throw new PasarelaNoConfiguradaException('Stripe no está configurado en este servidor.');
     }
-    const moneda = (params.moneda ?? this.moneda).toLowerCase();
+    const precio = this.precio(params.montoCents, params.montoUsdCents);
     const sesion = await this.cliente.checkout.sessions.create({
       mode: 'payment',
+      // Prendido por defecto en cuentas nuevas: exige tax_code por producto.
+      managed_payments: { enabled: false },
+      // Sin esto Stripe convierte a su propio tipo de cambio y muestra otro precio en Bs.
+      adaptive_pricing: { enabled: false },
       line_items: [
         {
           price_data: {
-            currency: moneda,
+            ...precio,
             product_data: { name: params.descripcion },
-            unit_amount: params.montoCents,
           },
           quantity: 1,
         },
@@ -76,7 +84,41 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
       url: sesion.url ?? params.urlCancelacion,
       token: sesion.id,
       expiraEn: params.expiraEn,
+      montoCobrado: {
+        cents: precio.unit_amount,
+        moneda: precio.currency === 'usd' ? 'USD' : 'BOB',
+      },
     };
+  }
+
+  /** Los montos del sistema son bolivianos: cobrarlos en usd sin convertir multiplica el precio. */
+  private precio(montoCents: number, montoUsdCents?: number): { currency: string; unit_amount: number } {
+    if (this.moneda !== 'usd') {
+      return { currency: this.moneda, unit_amount: montoCents };
+    }
+    return {
+      currency: 'usd',
+      unit_amount: montoUsdCents || centavosBobAUsd(montoCents, this.tipoCambio),
+    };
+  }
+
+  async confirmarCobro(sesionId: string): Promise<ConfirmacionCobro> {
+    if (!this.cliente) return { estado: 'PENDIENTE' };
+    try {
+      const sesion = await this.cliente.checkout.sessions.retrieve(sesionId);
+      if (sesion.payment_status === 'paid') {
+        const intento = sesion.payment_intent;
+        return {
+          estado: 'APROBADO',
+          transaccion: (typeof intento === 'string' ? intento : intento?.id) ?? sesion.id,
+          montoCents: sesion.amount_total ?? undefined,
+        };
+      }
+      return sesion.status === 'expired' ? { estado: 'RECHAZADO' } : { estado: 'PENDIENTE' };
+    } catch (error) {
+      this.logger.warn(`No se pudo consultar la sesion ${sesionId}: ${String(error)}`);
+      return { estado: 'PENDIENTE' };
+    }
   }
 
   async verificarNotificacion(
@@ -101,12 +143,15 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     }
     const sesion = await this.cliente.checkout.sessions.create({
       mode: 'payment',
+      // Prendido por defecto en cuentas nuevas: exige tax_code por producto.
+      managed_payments: { enabled: false },
+      // Sin esto Stripe convierte a su propio tipo de cambio y muestra otro precio en Bs.
+      adaptive_pricing: { enabled: false },
       line_items: [
         {
           price_data: {
-            currency: this.moneda,
+            ...this.precio(params.montoCents),
             product_data: { name: params.descripcion },
-            unit_amount: params.montoCents,
           },
           quantity: 1,
         },

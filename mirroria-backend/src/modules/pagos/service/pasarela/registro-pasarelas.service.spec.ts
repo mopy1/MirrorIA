@@ -30,7 +30,7 @@ describe('RegistroPasarelasService & Pasarelas Enchufables', () => {
     stripe = new PasarelaStripe(config);
     wayra = new WayraPasarela(config);
     manual = new ManualPasarela();
-    paypal = new PaypalPasarela();
+    paypal = new PaypalPasarela(config);
     qrBancario = new QrBancarioPasarela();
 
     service = new RegistroPasarelasService(stripe, wayra, manual, paypal, qrBancario);
@@ -95,7 +95,7 @@ describe('RegistroPasarelasService & Pasarelas Enchufables', () => {
       );
     });
 
-    it('rechaza pasarela en desarrollo (Stub PayPal) con HTTP 503', () => {
+    it('rechaza PayPal sin credenciales con HTTP 503', () => {
       expect(() => service.asegurarDisponible('PAYPAL', 'suscripcion')).toThrow(
         /se encuentra en desarrollo/,
       );
@@ -109,10 +109,10 @@ describe('RegistroPasarelasService & Pasarelas Enchufables', () => {
   });
 
   describe('Comportamiento de Stubs (CU45)', () => {
-    it('PaypalPasarela informa estado EN_DESARROLLO y no está configurada', () => {
-      expect(paypal.metadata.estado).toBe('EN_DESARROLLO');
+    it('PaypalPasarela sin credenciales informa NO_CONFIGURADA', async () => {
+      expect(paypal.metadata.estado).toBe('NO_CONFIGURADA');
       expect(paypal.estaConfigurada()).toBe(false);
-      expect(() =>
+      await expect(
         paypal.iniciarCobro({
           montoCents: 1000,
           moneda: 'USD',
@@ -123,7 +123,7 @@ describe('RegistroPasarelasService & Pasarelas Enchufables', () => {
           urlExito: 'https://exito',
           urlCancelacion: 'https://cancela',
         }),
-      ).toThrow(PasarelaNoConfiguradaException);
+      ).rejects.toThrow(PasarelaNoConfiguradaException);
     });
 
     it('QrBancarioPasarela informa estado EN_DESARROLLO y no está configurada', () => {

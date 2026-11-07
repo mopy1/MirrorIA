@@ -16,7 +16,10 @@ export interface PasarelaMetadata {
 }
 
 export interface IniciarCobroParams {
+  /** Siempre en bolivianos. */
   montoCents: number;
+  /** Precio en dolares fijado por la plataforma; si falta, se convierte. */
+  montoUsdCents?: number;
   moneda: 'BOB' | 'USD';
   descripcion: string;
   referencia: string; // ej. ventaId o cobroSuscripcionId
@@ -36,6 +39,14 @@ export interface IniciarCobroResultado {
   token?: string;          // Token de sesión o transacción
   instrucciones?: string;  // Glosa para efectivo en sucursal
   expiraEn?: Date;
+  /** Lo que la pasarela va a cobrar de verdad, para contrastarlo al confirmar. */
+  montoCobrado?: { cents: number; moneda: 'BOB' | 'USD' };
+}
+
+export interface ConfirmacionCobro {
+  estado: 'APROBADO' | 'PENDIENTE' | 'RECHAZADO';
+  transaccion?: string;
+  montoCents?: number;
 }
 
 export interface EventoNotificacionVerificado {
@@ -55,6 +66,8 @@ export interface IPasarelaProveedor {
     cuerpoCrudo: Buffer,
     cabeceras: Record<string, string>,
   ): Promise<EventoNotificacionVerificado>;
+  /** Le pregunta a la pasarela si el cobro se hizo. El regreso de la clienta no prueba nada. */
+  confirmarCobro?(referenciaExterna: string): Promise<ConfirmacionCobro>;
 }
 
 // -------------------------------------------------------------

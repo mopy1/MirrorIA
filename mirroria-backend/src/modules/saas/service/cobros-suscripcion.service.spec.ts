@@ -16,7 +16,7 @@ describe('CobrosSuscripcionService', () => {
   let inquilinos: { detalle: ReturnType<typeof vi.fn> };
   let planes: { porCodigo: ReturnType<typeof vi.fn> };
   let suscripciones: { ultima: ReturnType<typeof vi.fn>; activarPorPago: ReturnType<typeof vi.fn> };
-  let registroPasarelas: { asegurarDisponible: ReturnType<typeof vi.fn> };
+  let registroPasarelas: { asegurarDisponible: ReturnType<typeof vi.fn>; obtener: ReturnType<typeof vi.fn> };
   let config: { get: ReturnType<typeof vi.fn> };
   let service: CobrosSuscripcionService;
 
@@ -29,6 +29,7 @@ describe('CobrosSuscripcionService', () => {
       create: vi.fn((dto) => ({ ...dto, id: dto.id ?? 'cobro-uuid', createdAt: new Date(), updatedAt: new Date() })),
       save: vi.fn(async (ent) => ent),
       findOne: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue({ affected: 1 }),
     };
 
     dataSource = {
@@ -55,6 +56,7 @@ describe('CobrosSuscripcionService', () => {
 
     registroPasarelas = {
       asegurarDisponible: vi.fn(),
+      obtener: vi.fn(),
     };
 
     config = {
@@ -297,6 +299,163 @@ describe('CobrosSuscripcionService', () => {
         'inq-1',
         expect.objectContaining({ proveedor: 'WAYRA', montoCents: 9900 }),
       );
+    });
+  });
+
+  describe('Confirmar con la pasarela (Stripe y PayPal)', () => {
+    const cobroPendiente = (extra: Record<string, unknown> = {}) => ({
+      id: 'cobro-1',
+      inquilinoId: 'inq-1',
+      proveedorPago: 'PAYPAL',
+      montoCents: 9900,
+      estado: 'PENDIENTE',
+      referenciaExterna: 'ORDEN-1',
+      updatedAt: new Date(),
+      metadata: { montoPasarelaCents: 1500, monedaPasarela: 'USD' },
+      ...extra,
+    });
+    const confirmarCobro = vi.fn();
+    const verificarNotificacion = vi.fn();
+
+    beforeEach(() => {
+      confirmarCobro.mockReset();
+      verificarNotificacion.mockReset();
+      registroPasarelas.obtener.mockReturnValue({ confirmarCobro, verificarNotificacion });
+    });
+
+    it('guarda lo que la pasarela cobra de verdad y le pasa el precio USD del plan', async () => {
+      planes.porCodigo.mockResolvedValue({ ...PLAN_PRO, precioMensualUsdCents: 2900 });
+      const iniciar = vi.fn().mockResolvedValue({
+        modo: 'REDIRECT',
+        url: 'https://paypal/x',
+        token: 'ORDEN-1',
+        montoCobrado: { cents: 2900, moneda: 'USD' },
+      });
+      registroPasarelas.asegurarDisponible.mockReturnValue({
+        metadata: { tipo: 'BILLETERA', monedas: ['USD'] },
+        iniciarCobro: iniciar,
+      });
+
+      await service.iniciarCobro('inq-1', { pasarela: 'PAYPAL', planCodigo: 'profesional' });
+
+      expect(iniciar.mock.calls[0][0]).toMatchObject({ montoCents: 19900, montoUsdCents: 2900 });
+      expect(repo.create.mock.calls[0][0].metadata).toMatchObject({
+        montoPasarelaCents: 2900,
+        monedaPasarela: 'USD',
+      });
+    });
+
+    it('acredita cuando la pasarela confirma el cobro y el monto coincide', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'APROBADO', transaccion: 'CAP-1', montoCents: 1500 });
+
+      await service.confirmarRegreso('inq-1', 'cobro-1');
+
+      expect(confirmarCobro).toHaveBeenCalledWith('ORDEN-1');
+      expect(suscripciones.activarPorPago).toHaveBeenCalledWith(
+        'inq-1',
+        { proveedor: 'PAYPAL', referencia: 'CAP-1', montoCents: 9900 },
+        expect.anything(),
+      );
+    });
+
+    it('volver a la URL de exito sin haber pagado no activa nada', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'PENDIENTE' });
+
+      const r = await service.confirmarRegreso('inq-1', 'cobro-1');
+
+      expect(r.pagado).toBe(false);
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('un monto distinto al esperado no acredita', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'APROBADO', transaccion: 'CAP-1', montoCents: 1 });
+
+      await service.confirmarRegreso('inq-1', 'cobro-1');
+
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('un cobro rechazado por la pasarela queda RECHAZADO', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'RECHAZADO' });
+
+      await service.confirmarRegreso('inq-1', 'cobro-1');
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { id: 'cobro-1', estado: 'PENDIENTE' },
+        { estado: 'RECHAZADO' },
+      );
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('un cobro ya aprobado no vuelve a preguntar ni a acreditar', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente({ estado: 'APROBADO' }));
+
+      const r = await service.confirmarRegreso('inq-1', 'cobro-1');
+
+      expect(r.pagado).toBe(true);
+      expect(confirmarCobro).not.toHaveBeenCalled();
+    });
+
+    it('el cobro de otra tienda da 404', async () => {
+      repo.findOne.mockResolvedValue(null);
+      await expect(service.confirmarRegreso('inq-2', 'cobro-1')).rejects.toThrow(
+        RecursoNoEncontradoException,
+      );
+    });
+
+    it('regreso y webhook a la vez: solo uno acredita el mes', async () => {
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'APROBADO', transaccion: 'CAP-1', montoCents: 1500 });
+      repo.update.mockResolvedValueOnce({ affected: 1 }).mockResolvedValueOnce({ affected: 0 });
+
+      await Promise.all([
+        service.confirmarRegreso('inq-1', 'cobro-1'),
+        service.confirmarRegreso('inq-1', 'cobro-1'),
+      ]);
+
+      expect(suscripciones.activarPorPago).toHaveBeenCalledTimes(1);
+    });
+
+    it('aviso de PayPal verificado: captura y acredita', async () => {
+      verificarNotificacion.mockResolvedValue({
+        id: 'WH-1', tipo: 'PAGO_APROBADO', referenciaExterna: 'ORDEN-1',
+      });
+      repo.findOne.mockResolvedValue(cobroPendiente());
+      confirmarCobro.mockResolvedValue({ estado: 'APROBADO', transaccion: 'CAP-1', montoCents: 1500 });
+
+      const r = await service.procesarAvisoPaypal(Buffer.from('{}'), {});
+
+      expect(r).toEqual({ procesado: true });
+      expect(repo.findOne).toHaveBeenCalledWith({
+        where: { referenciaExterna: 'ORDEN-1', proveedorPago: 'PAYPAL' },
+      });
+      expect(suscripciones.activarPorPago).toHaveBeenCalledTimes(1);
+    });
+
+    it('aviso de otro tipo o de una orden desconocida no acredita', async () => {
+      verificarNotificacion.mockResolvedValue({ id: 'WH-1', tipo: 'OTRO', referenciaExterna: 'X' });
+      await expect(service.procesarAvisoPaypal(Buffer.from('{}'), {})).resolves.toEqual({ procesado: false });
+
+      verificarNotificacion.mockResolvedValue({ id: 'WH-2', tipo: 'PAGO_APROBADO', referenciaExterna: 'X' });
+      repo.findOne.mockResolvedValue(null);
+      await expect(service.procesarAvisoPaypal(Buffer.from('{}'), {})).resolves.toEqual({ procesado: false });
+
+      expect(suscripciones.activarPorPago).not.toHaveBeenCalled();
+    });
+
+    it('avisos repetidos de Wayra a la vez acreditan un solo mes', async () => {
+      const cobro = cobroPendiente({ proveedorPago: 'WAYRA', referenciaExterna: 'tok' });
+      repo.findOne.mockResolvedValue(cobro);
+      repo.update.mockResolvedValueOnce({ affected: 1 }).mockResolvedValue({ affected: 0 });
+      const aviso = { id: 'a', tipo: 'cobro_qr.pagado', token: 'tok', transaccion: 't', montoCents: 9900 };
+
+      await Promise.all([1, 2, 3].map(() => service.acreditarPorAviso(aviso as never)));
+
+      expect(suscripciones.activarPorPago).toHaveBeenCalledTimes(1);
     });
   });
 });

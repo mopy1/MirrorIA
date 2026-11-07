@@ -20,6 +20,10 @@ export const suscripcionApi = {
     }),
   estadoCobro: (cobroId: string) =>
     apiFetch<EstadoCobroSuscripcionResponseDto>(`/saas/mi-suscripcion/cobro/${cobroId}/estado`),
+  confirmarCobro: (cobroId: string) =>
+    apiFetch<EstadoCobroSuscripcionResponseDto>(`/saas/mi-suscripcion/cobro/${cobroId}/confirmar`, {
+      method: "POST",
+    }),
   simularPago: (cobroId: string) =>
     apiFetch<EstadoCobroSuscripcionResponseDto>(`/saas/mi-suscripcion/cobro/${cobroId}/simular-pago`, {
       method: "POST",

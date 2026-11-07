@@ -18,7 +18,7 @@ export function ActivarPlanPage() {
 
   async function handleSeleccionarPasarela(pasarelaId: PasarelaId) {
     if (!data) return
-    if (pasarelaId === "WAYRA" || pasarelaId === "STRIPE") {
+    if (pasarelaId === "WAYRA" || pasarelaId === "STRIPE" || pasarelaId === "PAYPAL") {
       await iniciar({ pasarela: pasarelaId, planCodigo: data.plan.codigo })
     }
   }

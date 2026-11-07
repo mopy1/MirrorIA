@@ -76,3 +76,114 @@ describe('PasarelaStripe — `checkout.session.completed` NO significa cobrado',
     expect(() => pasarela.verificarEvento(CUERPO, FIRMA)).toThrow(FirmaWebhookInvalidaException);
   });
 });
+
+describe('PasarelaStripe — moneda y confirmacion del regreso', () => {
+  const crear = vi.fn();
+  const recuperar = vi.fn();
+
+  function pasarelaReal(valores: Record<string, string> = {}): PasarelaStripe {
+    const todos: Record<string, string> = {
+      STRIPE_SECRET_KEY: 'sk_test_falsa',
+      STRIPE_WEBHOOK_SECRET: 'whsec_falsa',
+      ...valores,
+    };
+    const pasarela = new PasarelaStripe({ get: vi.fn((k: string) => todos[k]) } as unknown as ConfigService);
+    (pasarela as unknown as { cliente: Stripe }).cliente.checkout.sessions = {
+      create: crear,
+      retrieve: recuperar,
+    } as unknown as Stripe['checkout']['sessions'];
+    crear.mockReset().mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' });
+    recuperar.mockReset();
+    return pasarela;
+  }
+
+  const precioEnviado = () => crear.mock.calls[0][0].line_items[0].price_data;
+  const BASE = {
+    descripcion: 'x',
+    referencia: 'r',
+    urlExito: 'http://a/b',
+    urlCancelacion: 'http://a/c',
+  };
+
+  it('una venta de Bs 696 se cobra USD 100, no USD 696', async () => {
+    await pasarelaReal().crearSesion({ ...BASE, montoCents: 69600 });
+    expect(precioEnviado()).toMatchObject({ currency: 'usd', unit_amount: 10000 });
+  });
+
+  it('respeta el tipo de cambio configurado', async () => {
+    await pasarelaReal({ TIPO_CAMBIO_BOB_USD: '10' }).crearSesion({ ...BASE, montoCents: 69600 });
+    expect(precioEnviado()).toMatchObject({ unit_amount: 6960 });
+  });
+
+  it('con STRIPE_MONEDA=bob cobra los bolivianos sin convertir', async () => {
+    await pasarelaReal({ STRIPE_MONEDA: 'bob' }).crearSesion({ ...BASE, montoCents: 69600 });
+    expect(precioEnviado()).toMatchObject({ currency: 'bob', unit_amount: 69600 });
+  });
+
+  it('una suscripcion se cobra con el precio USD del plan', async () => {
+    const r = await pasarelaReal().iniciarCobro({
+      ...BASE,
+      montoCents: 9900,
+      montoUsdCents: 1500,
+      moneda: 'BOB',
+      contexto: 'suscripcion',
+      nombreComercio: 'Luna',
+    });
+    expect(precioEnviado()).toMatchObject({ currency: 'usd', unit_amount: 1500 });
+    expect(r.montoCobrado).toEqual({ cents: 1500, moneda: 'USD' });
+  });
+
+  it('sin claves no se ofrece como disponible', () => {
+    const p = new PasarelaStripe({ get: vi.fn() } as unknown as ConfigService);
+    expect(p.metadata.estado).toBe('NO_CONFIGURADA');
+  });
+
+  it('sesion pagada: aprobado, con el payment_intent y el monto real', async () => {
+    const p = pasarelaReal();
+    recuperar.mockResolvedValue({
+      status: 'complete', payment_status: 'paid', payment_intent: 'pi_1', amount_total: 1500,
+    });
+    await expect(p.confirmarCobro('cs_1')).resolves.toEqual({
+      estado: 'APROBADO', transaccion: 'pi_1', montoCents: 1500,
+    });
+  });
+
+  it('sesion completa pero sin pagar: sigue pendiente', async () => {
+    const p = pasarelaReal();
+    recuperar.mockResolvedValue({ status: 'complete', payment_status: 'unpaid' });
+    await expect(p.confirmarCobro('cs_1')).resolves.toEqual({ estado: 'PENDIENTE' });
+  });
+
+  it('sesion vencida: rechazado', async () => {
+    const p = pasarelaReal();
+    recuperar.mockResolvedValue({ status: 'expired', payment_status: 'unpaid' });
+    await expect(p.confirmarCobro('cs_1')).resolves.toEqual({ estado: 'RECHAZADO' });
+  });
+
+  it('Stripe caido: no se da por pagado', async () => {
+    const p = pasarelaReal();
+    recuperar.mockRejectedValue(new Error('red'));
+    await expect(p.confirmarCobro('cs_1')).resolves.toEqual({ estado: 'PENDIENTE' });
+  });
+});
+
+describe('PasarelaStripe — Managed Payments', () => {
+  it('apaga Managed Payments: las cuentas nuevas lo traen prendido y exige tax_code por producto', async () => {
+    const crear = vi.fn().mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' });
+    const valores: Record<string, string> = { STRIPE_SECRET_KEY: 'sk_test_falsa', STRIPE_WEBHOOK_SECRET: 'whsec_falsa' };
+    const pasarela = new PasarelaStripe({ get: vi.fn((k: string) => valores[k]) } as unknown as ConfigService);
+    (pasarela as unknown as { cliente: Stripe }).cliente.checkout.sessions = {
+      create: crear,
+    } as unknown as Stripe['checkout']['sessions'];
+    const base = { descripcion: 'x', referencia: 'r', urlExito: 'http://a/b', urlCancelacion: 'http://a/c', montoCents: 6960 };
+
+    await pasarela.crearSesion(base);
+    await pasarela.iniciarCobro({ ...base, moneda: 'BOB', contexto: 'suscripcion', nombreComercio: 'Luna' });
+
+    expect(crear.mock.calls[0][0].managed_payments).toEqual({ enabled: false });
+    expect(crear.mock.calls[1][0].managed_payments).toEqual({ enabled: false });
+    // Con esto prendido una clienta en Bolivia veria el plan de Bs 99 como Bs 184.
+    expect(crear.mock.calls[0][0].adaptive_pricing).toEqual({ enabled: false });
+    expect(crear.mock.calls[1][0].adaptive_pricing).toEqual({ enabled: false });
+  });
+});
