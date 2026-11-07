@@ -71,7 +71,7 @@ export function useMostrador() {
   async function vender(lineas: LineaVenta[]): Promise<ResultadoVenta<VentaRegistrada>> {
     const payload = {
       sucursalId: sucursalId ?? "",
-      items: lineas.map((l) => ({ varianteId: l.item.varianteId, cantidad: l.cantidad })),
+      items: lineas.map((l) => ({ varianteId: l.item.varianteId, cantidad: l.cantidad, precioUnitCents: l.item.precioCents })),
     }
     try {
       const r = await registrarVenta(payload, {
@@ -79,7 +79,9 @@ export function useMostrador() {
         enviar: mostradorApi.registrarVenta,
         encolar: (p, clave) =>
           outboxManager.encolarOperacion({
-            tenantId: tienda, tipo: TIPO_VENTA, endpoint: "/ventas/presenciales", payload: { ...p }, idempotencyKey: clave,
+            tenantId: tienda, tipo: TIPO_VENTA, endpoint: "/ventas/presenciales", idempotencyKey: clave,
+            // La caja ya cobró: el servidor respeta ese precio aunque cambie antes de sincronizar.
+            payload: { ...p, vendidaSinConexionEn: new Date().toISOString() },
           }),
         generarClave: () => crypto.randomUUID(),
       })

@@ -29,6 +29,7 @@ export const comprobanteDe = (ventaId: string): string =>
 interface ItemAVender {
   varianteId: string;
   cantidad: number;
+  precioUnitCents?: number;
 }
 
 interface RegistrarVentaParams {
@@ -41,6 +42,8 @@ interface RegistrarVentaParams {
   reservaId?: string | null;
   codigoCupon?: string | null;
   claveIdempotencia?: string | null;
+  /** Venta de caja sin conexión: se registra con el precio cobrado, no con el de ahora. */
+  respetarPrecioCobrado?: boolean;
 }
 
 @Injectable()
@@ -81,6 +84,7 @@ export class VentasService {
       reservaId: dto.reservaId ?? null,
       codigoCupon: dto.codigoCupon ?? null,
       claveIdempotencia: clave ?? null,
+      respetarPrecioCobrado: Boolean(dto.vendidaSinConexionEn),
     });
   }
 
@@ -293,6 +297,9 @@ export class VentasService {
     params: RegistrarVentaParams,
     managerExterno?: EntityManager,
   ): Promise<VentaResponseDto> {
+    // Siempre el mismo orden de bloqueo: dos pedidos con las mismas prendas en
+    // distinto orden se bloqueaban mutuamente (deadlock, 500).
+    params = { ...params, items: [...params.items].sort((a, b) => a.varianteId.localeCompare(b.varianteId)) };
     const variantes = await Promise.all(
       params.items.map((item) => this.productosService.findVarianteById(item.varianteId, managerExterno)),
     );
@@ -318,8 +325,9 @@ export class VentasService {
       }[] = [];
 
       for (let i = 0; i < params.items.length; i++) {
-        const { varianteId, cantidad } = params.items[i];
-        const precioUnitCents = variantes[i].producto.precioCents;
+        const { varianteId, cantidad, precioUnitCents: cobrado } = params.items[i];
+        const precioUnitCents =
+          params.respetarPrecioCobrado && cobrado !== undefined ? cobrado : variantes[i].producto.precioCents;
         const itemSubtotalCents = precioUnitCents * cantidad;
         subtotalCents += itemSubtotalCents;
         itemsAGuardar.push({

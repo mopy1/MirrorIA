@@ -7,6 +7,44 @@ import { EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 
+describe('orden de bloqueo y precio de la venta sin conexion', () => {
+  function servicio(precioActual: number) {
+    const ajustarStock = vi.fn();
+    const ventaRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => ({ ...x, createdAt: new Date() })) };
+    const itemRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => x) };
+    const manager = { getRepository: (e: unknown) => (String(e).includes('VentaItem') ? itemRepo : ventaRepo) };
+    const productos = {
+      findVarianteById: vi.fn(async (id: string) => ({ id, activo: true, producto: { activo: true, precioCents: precioActual, titulo: id } })),
+    };
+    const service = new VentasService(
+      {} as never, {} as never, { transaction: (cb: (m: unknown) => unknown) => cb(manager) } as never,
+      { assertExists: vi.fn() } as never, productos as never, { ajustarStock } as never, {} as never, {} as never, {} as never,
+    );
+    return { service, ajustarStock, itemRepo };
+  }
+
+  it('descuenta el stock siempre en el mismo orden: dos pedidos cruzados no se bloquean entre si', async () => {
+    const { service, ajustarStock } = servicio(100);
+    await service.registrarPresencial({ sucursalId: 's1', items: [{ varianteId: 'b', cantidad: 1 }, { varianteId: 'a', cantidad: 1 }] } as never, 'c1');
+    expect(ajustarStock.mock.calls.map(([p]) => p.varianteId)).toEqual(['a', 'b']);
+  });
+
+  it('una venta de caja hecha sin conexion queda con el precio que se cobro', async () => {
+    const { service, itemRepo } = servicio(25000);
+    await service.registrarPresencial({
+      sucursalId: 's1', vendidaSinConexionEn: '2026-11-07T10:00:00Z',
+      items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 10000 }],
+    } as never, 'c1');
+    expect(itemRepo.create.mock.calls[0][0].precioUnitCents).toBe(10000);
+  });
+
+  it('con conexion manda el precio actual aunque el cliente mande otro', async () => {
+    const { service, itemRepo } = servicio(25000);
+    await service.registrarPresencial({ sucursalId: 's1', items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 1 }] } as never, 'c1');
+    expect(itemRepo.create.mock.calls[0][0].precioUnitCents).toBe(25000);
+  });
+});
+
 describe('ventas con clave de idempotencia', () => {
   it('reintentar tras una caida devuelve la venta ya guardada, no crea otra', async () => {
     const venta = { id: 'v1', estado: 'PAGADA', createdAt: new Date() };

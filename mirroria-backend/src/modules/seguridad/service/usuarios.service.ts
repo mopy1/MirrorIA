@@ -5,7 +5,7 @@ import type { EntityManager } from 'typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { assertDentroDelPlan, bloquearCupoDelPlan } from '../../../core/tenancy/limites-plan.js';
 import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
 import type { UsuarioAdminResponseDto } from '../dto/usuario-admin-response.dto.js';
@@ -55,13 +55,11 @@ export class UsuariosService {
       await this.sucursalesService.assertExists(dto.sucursalId!);
     }
     // Límite del plan: pasar a alguien de clienta a staff suma un usuario del equipo.
-    if (usuario.isActive && !esStaff(usuario.role) && esStaff(dto.role)) {
-      assertDentroDelPlan('usuariosStaff', await this.contarStaffActivo());
-    }
+    const sumaStaff = usuario.isActive && !esStaff(usuario.role) && esStaff(dto.role);
 
     usuario.role = dto.role;
     usuario.sucursalId = necesitaSucursal ? dto.sucursalId! : null;
-    const guardado = await this.usuarioRepository.save(usuario);
+    const guardado = await this.guardarConCupo(usuario, sumaStaff);
     return this.toResponse(guardado);
   }
 
@@ -75,12 +73,21 @@ export class UsuariosService {
       await this.assertNoDejaSinAdmin(usuario, actualId, 'desactivar tu propia cuenta');
     }
     // Reactivar a alguien del equipo vuelve a ocupar un lugar del plan.
-    if (dto.isActive && !usuario.isActive && esStaff(usuario.role)) {
-      assertDentroDelPlan('usuariosStaff', await this.contarStaffActivo());
-    }
+    const sumaStaff = dto.isActive && !usuario.isActive && esStaff(usuario.role);
     usuario.isActive = dto.isActive;
-    const guardado = await this.usuarioRepository.save(usuario);
+    const guardado = await this.guardarConCupo(usuario, sumaStaff);
     return this.toResponse(guardado);
+  }
+
+  /** Con `sumaStaff`, cuenta el cupo del plan dentro de la misma transacción y bloqueado. */
+  private guardarConCupo(usuario: Usuario, sumaStaff: boolean): Promise<Usuario> {
+    return this.usuarioRepository.manager.transaction(async (manager) => {
+      if (sumaStaff) {
+        await bloquearCupoDelPlan(manager, 'usuariosStaff');
+        assertDentroDelPlan('usuariosStaff', await this.contarStaffActivo(manager));
+      }
+      return manager.getRepository(Usuario).save(usuario);
+    });
   }
 
   /** ADMIN de una tienda recién creada (aprovisionamiento, dentro de su transacción y conTenant). */
@@ -141,8 +148,8 @@ export class UsuariosService {
     return new Map(usuarios.map((u) => [u.id, { fullName: u.fullName, email: u.email }]));
   }
 
-  private contarStaffActivo(): Promise<number> {
-    return this.usuarioRepository.count({
+  private contarStaffActivo(manager?: EntityManager): Promise<number> {
+    return (manager ? manager.getRepository(Usuario) : this.usuarioRepository).count({
       where: soloTenant({ role: In(ROLES_STAFF), isActive: true }),
     });
   }

@@ -4,7 +4,7 @@ import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { assertDentroDelPlan, bloquearCupoDelPlan } from '../../../core/tenancy/limites-plan.js';
 import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type {
   ProductoResponseDto,
@@ -38,7 +38,6 @@ export class ProductosService {
   ) {}
 
   async create(dto: CreateProductoDto): Promise<ProductoResponseDto> {
-    assertDentroDelPlan('productos', await this.contarActivos());
     const existente = await this.productoRepository.findOne({
       where: soloTenant({ slug: dto.slug }),
     });
@@ -62,8 +61,11 @@ export class ProductosService {
       throw new RecursoNoEncontradoException('Colección', dto.coleccionId);
     }
 
-    const producto = await this.productoRepository.save(
-      this.productoRepository.create({
+    const producto = await this.productoRepository.manager.transaction(async (manager) => {
+      await bloquearCupoDelPlan(manager, 'productos');
+      const repo = manager.getRepository(Producto);
+      assertDentroDelPlan('productos', await repo.count({ where: soloTenant({ activo: true }) }));
+      return repo.save(repo.create({
         categoria,
         coleccion,
         titulo: dto.titulo,
@@ -76,8 +78,8 @@ export class ProductosService {
           orden: img.orden ?? index,
         })),
         activo: true,
-      }),
-    );
+      }));
+    });
     return this.toResponse(producto, []);
   }
 
@@ -162,12 +164,16 @@ export class ProductosService {
       }));
     }
     // Reactivar una prenda vuelve a ocupar un lugar del plan.
-    if (dto.activo === true && !producto.activo) {
-      assertDentroDelPlan('productos', await this.contarActivos());
-    }
+    const reactiva = dto.activo === true && !producto.activo;
     if (dto.activo !== undefined) producto.activo = dto.activo;
 
-    await this.productoRepository.save(producto);
+    await this.productoRepository.manager.transaction(async (manager) => {
+      if (reactiva) {
+        await bloquearCupoDelPlan(manager, 'productos');
+        assertDentroDelPlan('productos', await manager.getRepository(Producto).count({ where: soloTenant({ activo: true }) }));
+      }
+      await manager.getRepository(Producto).save(producto);
+    });
     return this.findOne(id);
   }
 

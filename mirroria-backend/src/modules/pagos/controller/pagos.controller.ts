@@ -136,6 +136,15 @@ export class PagosController {
     return this.pagosService.iniciarTarjeta(ventaId, user);
   }
 
+  @Post('ventas/:ventaId/confirmar-tarjeta')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Confirmar con Stripe una compra propia al volver de pagar' })
+  confirmarTarjeta(@Param('ventaId') ventaId: string, @CurrentUser() user: JwtPayload): Promise<{ estado: string }> {
+    return this.pagosService.confirmarTarjeta(ventaId, user);
+  }
+
   @Post('ventas/:ventaId/cancelar')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()

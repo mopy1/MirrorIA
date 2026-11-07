@@ -53,12 +53,17 @@ export function RegresoPasarela({ cancelado }: { cancelado: boolean }) {
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         {pendiente && (
           <>
-            <Link to={ruta(`/pago/${venta.id}?metodo=QR`)} className={cn(buttonVariants())}>
-              Pagar con QR
-            </Link>
-            <Link to={ruta(`/pago/${venta.id}`)} className={cn(buttonVariants({ variant: "outline" }))}>
-              Pagar en efectivo
-            </Link>
+            {/* Volviendo de pagar con tarjeta no se ofrece pagar de nuevo por otro medio. */}
+            {cancelado && (
+              <>
+                <Link to={ruta(`/pago/${venta.id}?metodo=QR`)} className={cn(buttonVariants())}>
+                  Pagar con QR
+                </Link>
+                <Link to={ruta(`/pago/${venta.id}`)} className={cn(buttonVariants({ variant: "outline" }))}>
+                  Pagar en efectivo
+                </Link>
+              </>
+            )}
             <Button variant="outline" onClick={reintentar} disabled={isLoading}>
               <ArrowsClockwise data-icon="inline-start" className="size-4" />
               <span>Volver a consultar</span>

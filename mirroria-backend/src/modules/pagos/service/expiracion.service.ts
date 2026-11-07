@@ -1,10 +1,11 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { conTenant, soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
-import { EstadoPago, MetodoPago, Pago } from '../entities/pago.entity.js';
+import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
+import { PASARELA, type Pasarela } from './pasarela/pasarela.interface.js';
 
 const MINUTOS_TARJETA_POR_DEFECTO = 30;
 const MINUTOS_MANUAL_POR_DEFECTO = 1440; // un dia
@@ -54,6 +55,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Pago) private readonly pagoRepository: Repository<Pago>,
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
+    @Inject(PASARELA) private readonly pasarela: Pasarela,
   ) {}
 
   async expirarVencidas(): Promise<number> {
@@ -86,6 +88,16 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       const desde = pago ? pago.createdAt : venta.createdAt;
       const minutosTranscurridos = (ahora - desde.getTime()) / 60_000;
       if (minutosTranscurridos < limiteMin) continue;
+
+      // Una sesión de tarjeta se cierra antes de cancelar. Si no se puede
+      // cerrar es porque la clienta ya pagó (el aviso no llegó, por una caída):
+      // cancelar le devolvía el stock a otra y la dejaba pagando sin venta.
+      if (pago?.proveedorPago === ProveedorPago.STRIPE && pago.referenciaExterna) {
+        if (!(await this.pasarela.cerrarSesion(pago.referenciaExterna))) {
+          this.logger.warn(`Venta ${venta.id}: la sesion ${pago.referenciaExterna} no se pudo cerrar, no se cancela`);
+          continue;
+        }
+      }
 
       try {
         // Barrida global: cada venta se cancela con el tenant de su propia fila.

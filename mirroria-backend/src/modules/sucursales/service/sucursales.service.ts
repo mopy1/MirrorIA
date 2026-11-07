@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { assertDentroDelPlan, bloquearCupoDelPlan } from '../../../core/tenancy/limites-plan.js';
 import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type { CreateSucursalDto } from '../dto/create-sucursal.dto.js';
 import type { SucursalResponseDto } from '../dto/sucursales-response.dto.js';
@@ -19,21 +19,19 @@ export class SucursalesService {
   ) {}
 
   async create(dto: CreateSucursalDto): Promise<SucursalResponseDto> {
-    assertDentroDelPlan(
-      'sucursales',
-      await this.sucursalRepository.count({ where: soloTenant({ activo: true }) }),
-    );
     const ciudad = await this.ciudadesService.findOne(dto.ciudadId);
-
-    const sucursal = await this.sucursalRepository.save(
-      this.sucursalRepository.create({
+    const sucursal = await this.sucursalRepository.manager.transaction(async (manager) => {
+      await bloquearCupoDelPlan(manager, 'sucursales');
+      const repo = manager.getRepository(Sucursal);
+      assertDentroDelPlan('sucursales', await repo.count({ where: soloTenant({ activo: true }) }));
+      return repo.save(repo.create({
         ciudad,
         nombre: dto.nombre,
         direccion: dto.direccion,
         telefono: dto.telefono ?? null,
         activo: true,
-      }),
-    );
+      }));
+    });
     return this.toResponse(sucursal);
   }
 

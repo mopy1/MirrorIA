@@ -196,6 +196,26 @@ export class PagosService {
   }
 
   /**
+   * La clienta vuelve de pagar con tarjeta: se le pregunta a Stripe en vez de
+   * esperar el aviso, que puede tardar o no llegar. Mismo camino de acreditación
+   * que el aviso, así que si llegan los dos se acredita una sola vez.
+   */
+  async confirmarTarjeta(ventaId: string, user: JwtPayload): Promise<{ estado: string }> {
+    const venta = await this.ventasService.findOne(ventaId);
+    assertOwnUser(venta.clienteId ?? '', user);
+    if (venta.estado !== 'PENDIENTE') return { estado: venta.estado };
+    const pago = await this.pagoRepository.findOne({
+      where: soloTenant({ ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.STRIPE }),
+    });
+    if (!pago?.referenciaExterna || !this.pasarela.confirmarCobro) return { estado: venta.estado };
+    const r = await this.pasarela.confirmarCobro(pago.referenciaExterna);
+    if (r.estado === 'APROBADO' && r.transaccion) {
+      await this.acreditarEvento(pago, `confirmado:${r.transaccion}`);
+    }
+    return { estado: (await this.ventasService.findOne(ventaId)).estado };
+  }
+
+  /**
    * "Volver al carrito": la clienta abandona una compra PENDIENTE sin pagar
    * (p. ej. salio de Stripe sin pagar). Se cancela con la misma logica que el
    * vencimiento (stock, cupon y prendas al carrito). Antes de cancelar se

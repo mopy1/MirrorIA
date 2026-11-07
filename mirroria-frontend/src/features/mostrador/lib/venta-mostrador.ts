@@ -18,7 +18,7 @@ export interface LineaVenta {
 
 export interface VentaPayload {
   sucursalId: string
-  items: { varianteId: string; cantidad: number }[]
+  items: { varianteId: string; cantidad: number; precioUnitCents?: number }[]
 }
 
 export function agregarLinea(lineas: LineaVenta[], item: ItemMostrador, disponible: number): LineaVenta[] {

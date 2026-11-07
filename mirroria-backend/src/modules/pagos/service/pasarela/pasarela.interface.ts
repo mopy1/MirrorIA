@@ -104,4 +104,6 @@ export interface Pasarela {
   recuperarSesion(sesionId: string): Promise<SesionPago | 'completa' | null>;
   cerrarSesion(sesionId: string): Promise<boolean>;
   verificarEvento(cuerpoCrudo: Buffer, firma: string): EventoPago;
+  /** Le pregunta a la pasarela si la sesión se pagó: el regreso no depende del aviso. */
+  confirmarCobro?(sesionId: string): Promise<ConfirmacionCobro>;
 }

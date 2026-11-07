@@ -18,6 +18,7 @@ describe('ExpiracionService', () => {
   };
   let config: { get: ReturnType<typeof vi.fn> };
   let service: ExpiracionService;
+  let pasarela: { cerrarSesion: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -32,11 +33,25 @@ describe('ExpiracionService', () => {
       cancelarPorPagoNoCompletado: vi.fn(),
     };
     config = { get: vi.fn().mockReturnValue(undefined) };
+    pasarela = { cerrarSesion: vi.fn().mockResolvedValue(true) };
     service = new ExpiracionService(
       pagoRepo as unknown as Repository<Pago>,
       ventas as unknown as VentasService,
       config as unknown as ConfigService,
+      pasarela as never,
     );
+  });
+
+  it('una tarjeta vencida que Stripe ya cobro NO se cancela: espera al aviso o a la clienta', async () => {
+    ventas.findPendientesMasViejasPrimero.mockResolvedValue([{ id: 'v1', tenantId: 't1', createdAt: new Date(AHORA.getTime() - 60 * 60_000) }]);
+    pagoRepo.find.mockResolvedValue([
+      { ventaId: 'v1', metodo: 'TARJETA', proveedorPago: 'STRIPE', referenciaExterna: 'cs_1', createdAt: new Date(AHORA.getTime() - 60 * 60_000) },
+    ]);
+    pasarela.cerrarSesion.mockResolvedValue(false);
+
+    await expect(service.expirarVencidas()).resolves.toBe(0);
+    expect(pasarela.cerrarSesion).toHaveBeenCalledWith('cs_1');
+    expect(ventas.cancelarPorPagoNoCompletado).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

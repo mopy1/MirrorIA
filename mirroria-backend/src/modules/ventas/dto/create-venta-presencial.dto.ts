@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsInt,
   IsOptional,
   IsPositive,
@@ -17,6 +18,12 @@ export class VentaItemDto {
   @IsInt()
   @IsPositive()
   cantidad!: number;
+
+  /** Solo cuenta en una venta hecha sin conexión: es lo que la caja cobró. */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  precioUnitCents?: number;
 }
 
 export class CreateVentaPresencialDto {
@@ -46,4 +53,9 @@ export class CreateVentaPresencialDto {
   @ValidateNested({ each: true })
   @Type(() => VentaItemDto)
   items!: VentaItemDto[];
+
+  /** Cuándo se vendió sin conexión: la caja ya cobró, se respeta ese precio. */
+  @IsOptional()
+  @IsDateString()
+  vendidaSinConexionEn?: string;
 }
