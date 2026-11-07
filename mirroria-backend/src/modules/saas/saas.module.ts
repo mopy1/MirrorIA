@@ -9,6 +9,7 @@ import { SucursalesModule } from '../sucursales/sucursales.module.js';
 import { EstadisticasController } from './controller/estadisticas.controller.js';
 import { MiMarcaController } from './controller/mi-marca.controller.js';
 import { MiSuscripcionController } from './controller/mi-suscripcion.controller.js';
+import { PaypalWebhookController } from './controller/paypal-webhook.controller.js';
 import { PlanesController } from './controller/planes.controller.js';
 import { PlataformaTiendasController } from './controller/plataforma-tiendas.controller.js';
 import { PlataformaController } from './controller/plataforma.controller.js';
@@ -61,6 +62,7 @@ import { TenantInterceptor } from './tenancy/tenant.interceptor.js';
     TiendasController,
     EstadisticasController,
     MiSuscripcionController,
+    PaypalWebhookController,
     MiMarcaController,
     PlataformaController,
     PlataformaTiendasController,

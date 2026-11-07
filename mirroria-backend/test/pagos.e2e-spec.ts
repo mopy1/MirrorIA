@@ -610,17 +610,6 @@ describe('Fase 2 — Pasarelas Enchufables y Cobros SaaS contra Postgres real', 
     }
   });
 
-  it('POST /api/v1/saas/mi-suscripcion/cobro con PAYPAL responde 503 PasarelaNoConfiguradaException', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/saas/mi-suscripcion/cobro')
-      .set('X-Tenant', 'tiendaria')
-      .set('Authorization', `Bearer ${admin.token}`)
-      .send({ pasarela: 'PAYPAL' })
-      .expect(503);
-
-    expect((res.body as { message: string }).message).toMatch(/PayPal.*desarrollo/i);
-  });
-
   it('POST /api/v1/saas/mi-suscripcion/cobro con QR_BANCARIO responde 503 PasarelaNoConfiguradaException', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/saas/mi-suscripcion/cobro')

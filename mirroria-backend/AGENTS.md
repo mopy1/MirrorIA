@@ -289,7 +289,7 @@ modules/pagos/
     │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, tarjeta internacional, sesión alojada)
     │   ├── wayra.pasarela.ts     # WayraPasarela (DISPONIBLE, QR interoperable nacional)
     │   ├── manual.pasarela.ts    # ManualPasarela (DISPONIBLE, efectivo en sucursal, solo checkout)
-    │   ├── paypal.pasarela.ts    # PaypalPasarela (EN_DESARROLLO, stub HTTP 503)
+    │   ├── paypal.pasarela.ts    # PaypalPasarela (Orders v2 por REST, solo suscripciones; aprobar no cobra, cobra la captura)
     │   ├── qr-bancario.pasarela.ts # QrBancarioPasarela (EN_DESARROLLO, stub HTTP 503)
     │   └── simulada.pasarela.ts  # Solo para tests unitarios
     ├── qr/

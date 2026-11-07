@@ -1,6 +1,6 @@
 import { ArrowClockwise, ArrowsLeftRight, CheckCircle, Info, WarningCircle } from "@phosphor-icons/react"
 import { useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { HistorialSuscripcion } from "@/components/common/HistorialSuscripcion"
 import { UsoPlanMeters } from "@/components/common/UsoPlanMeters"
 import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
@@ -11,12 +11,17 @@ import { PagarSuscripcionCta } from "../components/pagar-suscripcion-cta"
 import { IncluyeMarca } from "../components/incluye-marca"
 import { PlanActualCard } from "../components/plan-actual-card"
 import { useMiSuscripcion } from "../hooks/useMiSuscripcion"
+import { useRegresoCobro } from "../hooks/useRegresoCobro"
+import { rutaDePago } from "../lib/plan-a-cobrar"
+import { avisoDeRegreso } from "../lib/regreso-cobro"
 
 /** `/admin/suscripcion` (solo ADMIN): plan, estado, vigencia, uso vs límites e historial. */
 export function SuscripcionAdminPage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const pagoExitoso = searchParams.get("pago") === "exito" || searchParams.get("exito") === "true"
   const { data, setData, isLoading, error, reload } = useMiSuscripcion()
+  const regreso = useRegresoCobro(searchParams.get("pago"), searchParams.get("cobro"), reload)
+  const aviso = regreso.estado && avisoDeRegreso(regreso.estado)
   const [dialogo, setDialogo] = useState(false)
 
   return (
@@ -26,12 +31,20 @@ export function SuscripcionAdminPage() {
         <p className="mt-1 text-sm text-muted-foreground">Lo que incluye tu plan, cuánto estás usando y hasta cuándo está vigente.</p>
       </div>
 
-      {pagoExitoso && (
-        <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
-          <CheckCircle weight="fill" className="text-emerald-600 dark:text-emerald-400" />
-          <AlertDescription>
-            ¡Tu pago fue acreditado con éxito! Tu suscripción fue renovada y tu tienda continúa activa.
-          </AlertDescription>
+      {aviso && (
+        <Alert
+          variant={aviso.tono === "error" ? "destructive" : "default"}
+          className={aviso.tono === "exito" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : undefined}
+        >
+          {aviso.tono === "exito" && <CheckCircle weight="fill" className="text-emerald-600 dark:text-emerald-400" />}
+          {aviso.tono === "info" && <Info />}
+          {aviso.tono === "error" && <WarningCircle weight="fill" />}
+          <AlertDescription>{aviso.texto}</AlertDescription>
+          {aviso.reintentable && (
+            <AlertAction>
+              <Button size="sm" variant="outline" onClick={regreso.confirmar} className="gap-1.5"><ArrowClockwise /> Revisar de nuevo</Button>
+            </AlertAction>
+          )}
         </Alert>
       )}
 
@@ -52,20 +65,12 @@ export function SuscripcionAdminPage() {
             data={data}
             acciones={
               <>
-                {data.puedeCambiarPlan && (
-                  <Button variant="outline" onClick={() => setDialogo(true)} className="gap-2"><ArrowsLeftRight /> Cambiar plan</Button>
-                )}
+                <Button variant="outline" onClick={() => setDialogo(true)} className="gap-2"><ArrowsLeftRight /> Cambiar plan</Button>
                 <PagarSuscripcionCta />
               </>
             }
           />
           <IncluyeMarca nivel={data.plan.nivelMarca ?? "ESENCIAL"} />
-          {!data.puedeCambiarPlan && (
-            <Alert>
-              <Info />
-              <AlertDescription>El cambio de plan con cobro llega con las pasarelas de pago. Mientras tanto, tu plan sigue igual.</AlertDescription>
-            </Alert>
-          )}
           <section className="space-y-3">
             <h2 className="text-lg font-medium">Uso del plan</h2>
             <UsoPlanMeters uso={data.uso} limites={data.plan.limites} />
@@ -74,7 +79,14 @@ export function SuscripcionAdminPage() {
             <h2 className="text-lg font-medium">Historial</h2>
             <HistorialSuscripcion historial={data.historial} />
           </section>
-          <CambiarPlanDialog key={String(dialogo)} open={dialogo} onOpenChange={setDialogo} actual={data.plan.codigo} onCambiado={setData} />
+          <CambiarPlanDialog
+            key={String(dialogo)}
+            open={dialogo}
+            onOpenChange={setDialogo}
+            actual={data.plan.codigo}
+            onCambiado={setData}
+            onElegirParaPagar={data.puedeCambiarPlan ? undefined : (codigo) => navigate(rutaDePago(codigo))}
+          />
         </>
       )}
     </div>

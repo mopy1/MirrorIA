@@ -75,6 +75,15 @@ export class MiSuscripcionController {
     return this.cobrosSuscripcion.obtenerEstado(tenantActual(), cobroId);
   }
 
+  @Post('cobro/:cobroId/confirmar')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirmar con la pasarela un cobro al volver de pagar (Stripe, PayPal)' })
+  confirmarCobro(
+    @Param('cobroId') cobroId: string,
+  ): Promise<EstadoCobroSuscripcionResponseDto> {
+    return this.cobrosSuscripcion.confirmarRegreso(tenantActual(), cobroId);
+  }
+
   @Post('cobro/:cobroId/simular-pago')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Simular pago de suscripción para desarrollo' })
