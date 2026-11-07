@@ -33,7 +33,7 @@ interface BackendErrorBody {
 
 export type ModoTenant = "auto" | "sesion" | "ninguno"
 
-function slugDeSesion(): string | null {
+export function slugDeSesion(): string | null {
   try {
     const raw = localStorage.getItem(USER_KEY)
     return raw ? ((JSON.parse(raw) as { tenant?: { slug?: string } | null }).tenant?.slug ?? null) : null

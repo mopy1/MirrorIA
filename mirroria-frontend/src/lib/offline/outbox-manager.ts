@@ -1,4 +1,4 @@
-import { cabecerasTenant } from '../api'
+import { cabecerasTenant, slugDeSesion } from '../api'
 import { actualizarOutbox, guardarEnOutbox, listarOutbox } from './idb'
 import type { OperacionOutbox } from './idb.types'
 
@@ -17,6 +17,13 @@ export interface EncolarOperacionParams {
   idempotencyKey?: string
 }
 
+const REINTENTO_MS = 30_000
+
+/** Sin respuesta definitiva del servidor la operación sigue viva: la clave evita duplicarla. */
+function debeReintentarse(status: number): boolean {
+  return status === 401 || status === 408 || status === 409 || status === 429 || status >= 500
+}
+
 export class OutboxManager {
   private sincronizando = false
 
@@ -30,6 +37,12 @@ export class OutboxManager {
         window.dispatchEvent(new CustomEvent(EVENTO_ESTADO_RED, { detail: { online: false } }))
       })
     }
+  }
+
+  /** Retoma lo que quedó de una sesión anterior y reintenta aunque no haya evento `online`. */
+  iniciar(): void {
+    void this.procesarCola().catch(() => {})
+    setInterval(() => void this.procesarCola().catch(() => {}), REINTENTO_MS)
   }
 
   isOnline(): boolean {
@@ -77,7 +90,12 @@ export class OutboxManager {
     this.sincronizando = true
 
     try {
-      const pendientes = await listarOutbox({ estado: 'PENDIENTE' })
+      // SINCRONIZANDO aquí es una pestaña cerrada a mitad de envío. La cola de
+      // otra tienda espera a su sesión: no se manda con este token.
+      const sesion = slugDeSesion()
+      const pendientes = (await listarOutbox()).filter(
+        (o) => (o.estado === 'PENDIENTE' || o.estado === 'SINCRONIZANDO') && (!sesion || o.tenantId === sesion),
+      )
       for (const op of pendientes) {
         await actualizarOutbox(op.id, { estado: 'SINCRONIZANDO' })
         this.notificarCambio()
@@ -115,6 +133,14 @@ export class OutboxManager {
                   new CustomEvent(EVENTO_CONFLICTO_STOCK, { detail: errorBody.detalles ?? errorBody })
                 )
               }
+            } else if (debeReintentarse(res.status)) {
+              await actualizarOutbox(op.id, {
+                estado: 'PENDIENTE',
+                reintentos: op.reintentos + 1,
+                codigoRespuesta: res.status,
+                error: (errorBody.message as string) || res.statusText,
+              })
+              break // FIFO: las siguientes esperan a esta
             } else {
               await actualizarOutbox(op.id, {
                 estado: 'FALLIDO',
