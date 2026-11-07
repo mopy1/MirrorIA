@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested, Max } from 'class-validator';
 
 export class ItemCheckoutDto {
   @IsUUID()
@@ -7,6 +7,7 @@ export class ItemCheckoutDto {
 
   @IsInt()
   @Min(1)
+  @Max(1000)
   cantidad!: number;
 }
 
@@ -27,6 +28,7 @@ export class CheckoutCarritoDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ItemCheckoutDto)
   items?: ItemCheckoutDto[];

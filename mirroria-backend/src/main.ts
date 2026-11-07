@@ -1,3 +1,6 @@
+// Las columnas timestamp no guardan zona: el proceso corre en UTC como la base,
+// si no los vencimientos se corrían 4 horas en una máquina en hora de Bolivia.
+process.env.TZ = 'UTC';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

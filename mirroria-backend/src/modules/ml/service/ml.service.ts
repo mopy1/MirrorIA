@@ -85,13 +85,10 @@ function rasgosDeReserva(r: ReservaDb) {
 @Injectable()
 export class MlService {
   private readonly logger = new Logger(MlService.name);
-  private readonly defaultBaseUrls = [
-    process.env.ML_SERVICE_URL || 'http://mirroria-ml:8002',
-    'http://mirroria-ml:8002',
-    'http://mirroria_ml:8002',
-    'http://127.0.0.1:8002',
-    'http://localhost:8002',
-  ];
+  // Con el servicio caído se probaban 5 direcciones en serie (5,4 s por pantalla).
+  private readonly defaultBaseUrls = process.env.ML_SERVICE_URL
+    ? [process.env.ML_SERVICE_URL]
+    : ['http://mirroria-ml:8002', 'http://127.0.0.1:8002'];
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -110,7 +107,7 @@ export class MlService {
       try {
         const url = `${baseUrl.replace(/\/$/, '')}${endpoint}`;
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
+        const timeout = setTimeout(() => controller.abort(), 1500);
 
         const options: RequestInit = {
           method,

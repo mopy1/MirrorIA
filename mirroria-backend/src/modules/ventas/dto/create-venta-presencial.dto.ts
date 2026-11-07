@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
+  ArrayMaxSize, ArrayMinSize,
   IsArray,
   IsDateString,
   IsInt,
@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   ValidateNested,
+  Max,
 } from 'class-validator';
 
 export class VentaItemDto {
@@ -17,6 +18,7 @@ export class VentaItemDto {
 
   @IsInt()
   @IsPositive()
+  @Max(1000)
   cantidad!: number;
 
   /** Solo cuenta en una venta hecha sin conexión: es lo que la caja cobró. */
@@ -50,6 +52,7 @@ export class CreateVentaPresencialDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => VentaItemDto)
   items!: VentaItemDto[];

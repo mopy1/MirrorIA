@@ -1,5 +1,6 @@
 import {
   type CallHandler,
+  BadRequestException,
   ConflictException,
   type ExecutionContext,
   HttpException,
@@ -50,6 +51,9 @@ export class IdempotenciaInterceptor implements NestInterceptor {
     const clave = rawClave.trim();
     if (clave === '') {
       return next.handle();
+    }
+    if (clave.length > 150) {
+      throw new BadRequestException('Idempotency-Key admite hasta 150 caracteres');
     }
 
     const metodo = req.method ? req.method.toUpperCase() : 'POST';

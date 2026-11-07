@@ -45,6 +45,10 @@ export class MotorConsultaService {
     if (!def) {
       throw new CombinacionInvalidaException(`la metrica "${ficha.metrica}" no existe`);
     }
+    const fechas = ficha.filtros ?? {};
+    if (fechas.desde && fechas.hasta && fechas.desde > fechas.hasta) {
+      throw new CombinacionInvalidaException('la fecha "desde" es posterior a "hasta"');
+    }
     const dim = def.dimensiones[ficha.agruparPor];
     if (!dim) {
       throw new CombinacionInvalidaException(

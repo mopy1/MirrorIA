@@ -36,6 +36,8 @@ const PREFIJO_TRANSACCION = 'wayra:';
 
 /** Lo que el banco necesita saber de un QR para mostrarlo al escanearlo. */
 export interface CobroQrPublico {
+  /** Quién cobra: el banco lo muestra a quien paga. */
+  comercio?: string;
   montoCents: number;
   referencia: string;
   estado: EstadoCobroQr;
@@ -165,7 +167,11 @@ export class CobroQrService {
     const venta = await conTenant({ tenantId: pago.tenantId }, () =>
       this.ventasService.findOne(pago.ventaId),
     );
+    const [tienda] = (await this.pagoRepository.manager.query('SELECT nombre FROM inquilinos WHERE id = $1', [
+      pago.tenantId,
+    ])) as { nombre: string }[];
     return {
+      comercio: tienda?.nombre ?? COMERCIO_QR,
       montoCents: pago.montoCents,
       referencia: referenciaDeVenta(pago.ventaId),
       ...this.estadoPublico(pago, venta.estado),

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
+import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
@@ -35,7 +36,11 @@ export class InventarioController {
     @Query('sucursalId') sucursalId: string,
     @CurrentUser() user: JwtPayload,
   ): Promise<ItemMostradorDto[]> {
-    return this.inventarioSucursalService.catalogoMostrador(sucursalDelStaff(user) ?? sucursalId);
+    const sucursal = sucursalDelStaff(user) ?? sucursalId;
+    if (!sucursal || !/^[0-9a-f-]{36}$/i.test(sucursal)) {
+      throw new OperacionInvalidaException('Indicá la sucursal (sucursalId)');
+    }
+    return this.inventarioSucursalService.catalogoMostrador(sucursal);
   }
 
   // Ajuste manual (mermas, conteos físicos, correcciones) — no pasa por

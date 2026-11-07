@@ -39,7 +39,7 @@ export class IaAgenteService {
       const res = await this.proveedorIa.chatearConTools?.(mensajes, IA_TOOLS);
       if (!res) break;
       if (!res.toolCalls?.length) {
-        narrativa = res.contenido ?? 'Consulta analitica finalizada con exito.';
+        narrativa = res.contenido ?? '';
         break;
       }
       for (const tc of res.toolCalls) {

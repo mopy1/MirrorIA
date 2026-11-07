@@ -91,7 +91,8 @@ export class ExportadorExcelService {
       }
     }
 
-    const nombreTienda = await this.resolverNombreTienda(dto.nombreTienda);
+    // El nombre lo pone el servidor: si no, se podía emitir el reporte a nombre de otra tienda.
+    const nombreTienda = await this.resolverNombreTienda();
     const filas: FilaReporte[] =
       dto.filas ?? dto.reporte?.filas ?? (await this.motorConsulta.ejecutar(ficha));
     const comparacion: ComparacionDto | null =

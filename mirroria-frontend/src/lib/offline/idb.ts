@@ -124,3 +124,21 @@ export async function eliminarDeOutbox(id: string): Promise<boolean> {
     tx.onerror = () => reject(tx.error)
   })
 }
+
+/** Al cerrar sesión: borra el catálogo guardado y las operaciones ya enviadas (con sus respuestas). */
+export async function limpiarDatosOffline(): Promise<void> {
+  const db = await abrirDB()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([STORE_CATALOGO, STORE_OUTBOX], 'readwrite')
+    tx.objectStore(STORE_CATALOGO).clear()
+    const outbox = tx.objectStore(STORE_OUTBOX)
+    const req = outbox.getAll()
+    req.onsuccess = () => {
+      for (const op of req.result as OperacionOutbox[]) {
+        if (op.estado === 'SINCRONIZADO' || op.estado === 'COMPENSADO' || op.estado === 'FALLIDO') outbox.delete(op.id)
+      }
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}

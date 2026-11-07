@@ -52,7 +52,7 @@ export class WayraBancoService {
     this.exigirHabilitado();
     const cobro = await this.cobroQrService.consultarPorToken(token);
     return {
-      comercio: COMERCIO_QR,
+      comercio: cobro.comercio ?? COMERCIO_QR,
       glosa: `Compra ${cobro.referencia}`,
       referencia: cobro.referencia,
       montoCents: cobro.montoCents,
@@ -111,7 +111,7 @@ export class WayraBancoService {
 
     return {
       transaccion: aviso.transaccion,
-      comercio: COMERCIO_QR,
+      comercio: cobro.comercio ?? COMERCIO_QR,
       glosa: `Compra ${cobro.referencia}`,
       referencia: cobro.referencia,
       montoCents: cobro.montoCents,

@@ -74,6 +74,7 @@ export class VentasService {
     await this.sucursalesService.assertExists(dto.sucursalId);
     const previa = await this.ventaPorClave(clave);
     if (previa) return previa;
+    if (dto.clienteId) await this.assertClientaDeLaTienda(dto.clienteId);
     return this.registrarVenta({
       items: dto.items,
       sucursalId: dto.sucursalId,
@@ -86,6 +87,15 @@ export class VentasService {
       claveIdempotencia: clave ?? null,
       respetarPrecioCobrado: Boolean(dto.vendidaSinConexionEn),
     });
+  }
+
+  /** SQL directo: ventas no importa entidades de seguridad (regla 1). */
+  private async assertClientaDeLaTienda(clienteId: string): Promise<void> {
+    const filas: unknown[] = await this.dataSource.query('SELECT 1 FROM usuarios WHERE id = $1 AND tenant_id = $2', [
+      clienteId,
+      tenantActual(),
+    ]);
+    if (filas.length === 0) throw new RecursoNoEncontradoException('Clienta', clienteId);
   }
 
   private async ventaPorClave(clave?: string): Promise<VentaResponseDto | null> {
