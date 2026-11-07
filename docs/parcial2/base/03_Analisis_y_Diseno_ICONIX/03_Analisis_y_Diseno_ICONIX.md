@@ -341,11 +341,11 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph Actores["Actores"]
-        CLI["👗 Clienta / Cajero"]
+        CLI["👗 Clienta (Web PWA o App Móvil)"]
     end
 
     subgraph Fronteras["Fronteras («boundary» Dual)"]
-        UI_WEB["PantallaWebPOS (PWA)"]
+        UI_WEB["PantallaWebTienda (PWA)"]
         UI_MOV["PantallaMovilApp (Expo)"]
     end
 
@@ -362,7 +362,7 @@ flowchart LR
 
     subgraph Backend_Control["Controladores Centrales («control» NestJS)"]
         IDEM_INT["IdempotenciaInterceptor\n(SHA-256)"]
-        CHK_CTL["CheckoutController\n(POST /ventas/checkout)"]
+        CHK_CTL["VentasController\n(POST /ventas/carrito/:usuarioId/checkout)"]
         INV_SRV["InventarioSucursalService"]
     end
 
@@ -373,19 +373,19 @@ flowchart LR
     end
 
     CLI --> UI_WEB & UI_MOV
-    UI_WEB -->|1: Venta offline| SW_MGR
-    UI_MOV -->|1: Venta offline| NET_LST
+    UI_WEB -->|1: Checkout o reserva offline| SW_MGR
+    UI_MOV -->|1: Checkout o reserva offline| NET_LST
     SW_MGR -->|2: Deduccion local y encolar| IDB_LOC
     NET_LST -->|2: Deduccion local y encolar| SQL_LOC
     OUTBOX -->|3: Evento reconexion online| IDB_LOC & SQL_LOC
-    OUTBOX -->|"4: POST /checkout (Idempotency-Key)"| IDEM_INT
+    OUTBOX -->|"4: POST checkout (Idempotency-Key)"| IDEM_INT
     IDEM_INT -->|5: Hash SHA-256| T_IDEM
     IDEM_INT -->|6: Ejecutar venta si es MISS| CHK_CTL
     CHK_CTL -->|7: UPDATE atomico condicionado| INV_SRV
     INV_SRV -->|8: Descontar stock| T_INV
     CHK_CTL -->|9: Insertar venta C-XXXXXXXX| T_VNT
     CHK_CTL -->|"10: 201 Created (X-Cache: MISS)"| OUTBOX
-    OUTBOX -->|11: Marcar SINCRONIZADO| IDB_LOC & SQL_LOC
+    OUTBOX -->|11: Marcar CONFIRMADA| IDB_LOC & SQL_LOC
 ```
 
 ---
@@ -397,11 +397,13 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph Actores["Actores"]
-        U2["👗 Clienta 2 (Offline)"]
+        U1["👗 Clienta A — App Móvil (sincroniza primero)"]
+        U2["👗 Clienta B — Web PWA (sincroniza después)"]
     end
 
     subgraph Fronteras["Fronteras («boundary» Dual)"]
-        UI_PWA["UI_PWA_Checkout"]
+        UI_MOV["PantallaMovilApp (Expo)"]
+        UI_PWA["PantallaWebTienda (PWA)"]
         MODAL_CONF["ModalConflictoStock\n(Frontend)"]
     end
 
@@ -418,14 +420,16 @@ flowchart LR
         T_STOCK[("inventario_sucursal\n(cantidad = 0)")]
     end
 
+    U1 --> UI_MOV
+    UI_MOV -->|"0: Checkout de la última unidad → 201 (stock = 0)"| VNT_CTL
     U2 --> UI_PWA
     UI_PWA -->|1: Sincronizar orden rezagada| OUTBOX_MGR
-    OUTBOX_MGR -->|"2: POST /checkout (Idempotency-Key)"| VNT_CTL
+    OUTBOX_MGR -->|"2: POST checkout (Idempotency-Key)"| VNT_CTL
     VNT_CTL -->|3: Intentar UPDATE condicionado| INV_SRV
     INV_SRV -->|"4: WHERE cantidad >= 1 (0 filas)"| T_STOCK
     INV_SRV -->|"5: Lanza StockInsuficienteException"| VNT_CTL
     VNT_CTL -->|"6: HTTP 409 STOCK_AGOTADO_CONFLICTO"| OUTBOX_MGR
-    OUTBOX_MGR -->|"7: Transicion a COMPENSADO (Rollback local)"| OUTBOX_MGR
+    OUTBOX_MGR -->|"7: Transicion a COMPENSADA (Rollback local)"| OUTBOX_MGR
     OUTBOX_MGR -->|8: Despachar mirroria:conflicto-stock| MODAL_CONF
     MODAL_CONF -->|"9: Desplegar alternativas guiadas"| U2
 ```
@@ -487,8 +491,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor CJ as Cajero POS / Clienta
-    participant UI as UI_POS (PWA / App Móvil)
+    actor CJ as Clienta
+    participant UI as PantallaWebTienda / PantallaMovilApp
     participant LOC as Almacén Local (IndexedDB / SQLite)
     participant OUT as OutboxManager
     participant API as Backend NestJS
@@ -496,15 +500,15 @@ sequenceDiagram
     participant BD as Inventario & Ventas
 
     Note over CJ,LOC: Operación Desconectada (Modo Offline)
-    CJ->>UI: Registra venta presencial de contado (Efectivo)
+    CJ->>UI: Confirma la compra del carrito sin conexión
     UI->>LOC: Genera UUIDv4 + Comprobante provisional LOCAL-<UUID>
     UI->>LOC: Descuenta existencias locales provisionales
     UI->>LOC: Encola en Outbox (estado='PENDIENTE', payload, Idempotency-Key)
-    UI-->>CJ: Notifica: "Venta guardada localmente — pendiente de sincronización"
+    UI-->>CJ: Notifica: "Compra guardada — pendiente de confirmar"
 
     Note over UI,API: Evento de Red 'online' (Reconexión)
     OUT->>LOC: Obtiene lote de operaciones pendientes (FIFO)
-    OUT->>API: POST /api/v1/ventas/checkout (Header: Idempotency-Key: <UUIDv4>)
+    OUT->>API: POST /api/v1/ventas/carrito/:usuarioId/checkout (Header: Idempotency-Key: <UUIDv4>)
     activate API
     API->>IDEM: SELECT * FROM idempotencia WHERE tenant_id = :tId AND clave = :key
     alt Cache HIT (Clave ya procesada previamente)
@@ -515,14 +519,15 @@ sequenceDiagram
         API->>BD: BEGIN TRANSACTION
         API->>BD: UPDATE inventario_sucursal SET disponible = disponible - 1 WHERE disponible >= 1
         BD-->>API: 1 fila afectada (Stock confirmado)
-        API->>BD: INSERT INTO ventas (numero_comprobante='C-XXXXXXXX', estado='PAGADA')
+        API->>BD: INSERT INTO ventas (numero_comprobante='C-XXXXXXXX', estado='PENDIENTE')
         API->>BD: COMMIT TRANSACTION
         API->>IDEM: UPDATE idempotencia SET estado='COMPLETADO', respuesta={...}
         API-->>OUT: HTTP 201 Created (X-Cache-Idempotency: MISS, comprobante: 'C-XXXXXXXX')
     end
     deactivate API
-    OUT->>LOC: Actualiza orden a estado='SINCRONIZADO'
+    OUT->>LOC: Actualiza orden a estado='CONFIRMADA'
     OUT->>UI: Refresca existencias confirmadas del servidor
+    UI-->>CJ: Abre el pago (Stripe, Wayra QR o efectivo en caja, que la cajera confirma en la web)
 ```
 
 ---
@@ -534,30 +539,31 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor CLI as Clienta 2 (Offline diferido)
-    participant UI as UI_Storefront
+    actor CLI as Clienta B (Web PWA, sincroniza después)
+    participant UI as PantallaWebTienda (o PantallaMovilApp)
     participant OUT as OutboxManager
     participant API as VentasController
     participant INV as InventarioSucursalService
     participant BD as inventario_sucursal (PostgreSQL)
     participant MOD as ModalConflictoStock
 
-    OUT->>API: POST /api/v1/ventas/checkout (Idempotency-Key: <UUID>, prendaId: X)
+    Note over CLI,BD: La Clienta A (App Móvil) ya sincronizó su compra de la última unidad: stock = 0
+    OUT->>API: POST /api/v1/ventas/carrito/:usuarioId/checkout (Idempotency-Key: <UUID>)
     activate API
     API->>INV: descontarStock(sucursalId, prendaId, cantidad=1)
     activate INV
     INV->>BD: SELECT * FROM inventario_sucursal WHERE ... FOR UPDATE
     INV->>BD: UPDATE inventario_sucursal SET cantidad = cantidad - 1 WHERE cantidad >= 1
-    BD-->>INV: 0 filas actualizadas (Existencias agotadas previamente por Clienta 1)
+    BD-->>INV: 0 filas actualizadas (Existencias agotadas previamente por la Clienta A)
     INV-->>API: throw StockInsuficienteException('STOCK_AGOTADO_CONFLICTO')
     deactivate INV
     API-->>OUT: HTTP 409 Conflict { codigo: "STOCK_AGOTADO_CONFLICTO", detalles: { alternativas } }
     deactivate API
 
-    OUT->>OUT: Transiciona orden a estado='COMPENSADO' (Rollback local)
+    OUT->>OUT: Transiciona orden a estado='COMPENSADA' (Rollback local)
     OUT->>UI: window.dispatchEvent('mirroria:conflicto-stock', detalles)
     UI->>MOD: Monta diálogo ModalConflictoStock con alternativas
-    MOD-->>CLI: Alerta: "Prenda adquirida por otra clienta. Tu venta fue cancelada sin cargo."
+    MOD-->>CLI: Alerta: "Prenda adquirida por otra clienta. Tu compra fue cancelada sin cargo."
     MOD-->>CLI: Sugiere: "Disponible en Sucursal Equipetrol (1 u.) o en Talla M"
     CLI->>MOD: Selecciona "Retirar en Sucursal Equipetrol"
     MOD->>UI: Reconfigura orden con la alternativa aceptada
@@ -620,13 +626,36 @@ classDiagram
         +onSubmit()
     }
 
-    class PantallaWebPOS {
+    class PantallaWebTienda {
         <<boundary>>
-        -ticketItems: Array
+        -carritoItems: Array
         -modoOffline: Boolean
-        +onAddItem()
-        +onConfirmarVentaContado()
+        +onAgregarAlCarrito()
+        +onConfirmarCompra()
         +sincronizarCola()
+    }
+
+    class PantallaMovilApp {
+        <<boundary>>
+        -carritoItems: Array
+        -modoOffline: Boolean
+        +onConfirmarCompra()
+        +onReservar()
+        +onComprarLoReservado()
+    }
+
+    class NetInfoListener {
+        <<control>>
+        +estaEnLinea(): Boolean
+        +alReconectar(callback)
+    }
+
+    class PantallaConsolaCaja {
+        <<boundary>>
+        -cobrosPendientes: Array
+        -agendaHoy: Array
+        +onConfirmarCobroEfectivo(pagoId)
+        +onMarcarEnTienda(codigoPase)
     }
 
     class ModalConflictoStock {
@@ -653,7 +682,7 @@ classDiagram
     class VentasService {
         <<control>>
         +procesarCheckoutDigital(dto)
-        +registrarVentaPresencial(dto)
+        +comprarDesdeReserva(reservaId)
         +comprobanteDe(ventaId): String
     }
 
@@ -697,7 +726,9 @@ classDiagram
     }
 
     UI_FormularioRegistro ..> VentasService : consume
-    PantallaWebPOS ..> OutboxManager : encola
+    PantallaWebTienda ..> OutboxManager : encola
+    PantallaMovilApp ..> NetInfoListener : escucha red
+    PantallaMovilApp ..> OutboxManager : encola
     OutboxManager ..> IdempotenciaInterceptor : despacha HTTP
     IdempotenciaInterceptor ..> VentasService : autoriza
     VentasService ..> InventarioSucursalService : invoca
@@ -705,7 +736,7 @@ classDiagram
     InventarioSucursalService ..> InventarioSucursalEntity : actualiza
     IdempotenciaInterceptor ..> IdempotenciaEntity : cachea
     InventarioSucursalService ..> ModalConflictoStock : notifica conflicto
-    PantallaWebPOS ..> MlService : consulta
+    PantallaConsolaCaja ..> MlService : consulta semáforo No-Show
 ```
 
 ---
@@ -878,10 +909,15 @@ Siguiendo el principio de **alta fidelidad y correspondencia con el código**, l
    - Inyección dinámica de tokens de diseño en `:root` (logotipo, tipografías, radio de curvatura en botones y colores).
    - Ficha técnica interactiva de prendas con selector de variantes SKU, consulta de existencias por sucursal física e integración con el **Probador Virtual por IA** (Decart `lucy-vton-3.5`).
    - Carrito de compras persistente (`jsonb`) con tope de 3 unidades por variante y flujo de checkout con validación de cupones y pasarelas de pago (Stripe Checkout y Wayra QR dinámico).
-3. **Panel Administrativo y Punto de Venta POS (`/admin/*`):**
+3. **Panel Administrativo de la Tienda (`/admin/*`, solo web; sin punto de venta):**
    - **Personalización de Marca (`/admin/apariencia`):** Paleta interactiva con indicador visual accesible **WCAG 2.1** (alerta ámbar si el ratio es $< 4.5:1$ y botón de ajuste automático en espacio OKLCH).
    - **Consola Ejecutiva de BI (`/admin/dashboard` para ADMIN):** Resumen de ingresos netos con deltas simétricos, ticket promedio, rotación de inventario, tasa de conversión y gráficos de tendencia Recharts.
-   - **Consola Operativa POS (`/admin/dashboard` para Staff):** Corte diario local en `America/La_Paz`, alertas visuales de existencias críticas ($\le 2$ unidades) o agotadas, y agenda de citas de probador con recepción en un clic.
-   - **Operativa Offline PWA:** Banner persistente `⚡ Sin conexión — operando con datos locales`, terminal POS con cobro de contado en efectivo y diálogo interactivo `ModalConflictoStock` con sugerencia guiada de alternativas.
+   - **Consola de Caja (`/admin/dashboard` y `/admin/cobros` para Cajera y Encargado):** Corte diario local en `America/La_Paz`, cobros en efectivo pendientes de verificar (la cajera es el único rol que confirma dinero), alertas visuales de existencias críticas ($\le 2$ unidades) o agotadas, y agenda de citas de probador con llegada a tienda en un clic buscando el Pase de Tienda por su código.
+   - **Operativa Offline de la clienta (PWA):** Banner persistente `⚡ Sin conexión — operando con datos locales`, checkout y reservas encolados como "Pendiente de confirmar" y diálogo interactivo `ModalConflictoStock` con sugerencia guiada de alternativas.
    - **Consola de Predicciones y Machine Learning (`/admin/ml`):** Tarjetas ejecutivas en lenguaje de negocio para reposición a 30 días, semáforo de riesgo de inasistencia (*no-show*), segmentación RFM y panel lateral `FichaTecnicaSheet` con el rigor científico formal ($N=10.000$, `seed=42`).
    - **Reportes con IA y Excel (`/admin/reportes`):** Asistente conversacional en lenguaje natural, tabla dinámica interactiva con repivoteo en vivo y botón de descarga directa de balances contables a formato nativo `.xlsx` (`exceljs`).
+4. **App Móvil de la Clienta (`mirroria-mobile/`, Expo; solo clienta y visitante):**
+   - Selector de tienda con la marca de la plataforma; luego toda la app se pinta con la marca de la tienda elegida (colores, logo, modo claro u oscuro).
+   - Pestañas **Vitrina · Probador · Carrito · Mis cosas**: vitrina offline desde el espejo SQLite con stock por sucursal, escaneo de la etiqueta de una prenda en la tienda física para abrir su ficha, carrito y checkout encolables sin red, pagos (Wayra QR, Stripe, efectivo en caja), reservas con **Pase de Tienda** (QR y código `#XXXXXXXX` que la cajera busca en la web) y **"Comprar lo que reservé"**.
+   - Probador con IA (Decart) reservado como "Próximamente" hasta el *development build*.
+   - El personal (`ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`) no tiene app móvil.

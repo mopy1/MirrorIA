@@ -58,6 +58,6 @@ El sistema integra de forma verificada y automatizada las siguientes fases de de
 3. **Fase 2 — Pasarelas Enchufables:** Arquitectura desacoplada con registro central (`IPasarelaProveedor`), integración Stripe y Wayra QR (nacional), y cobro recurrente B2B de suscripciones SaaS.
 4. **Fase 3 — Operación Offline, Omnicanalidad e Idempotencia:** Web PWA (Service Worker + IndexedDB) y Móvil (Expo + SQLite), cola outbox FIFO, tabla `idempotencia` en backend con SHA-256 y resolución determinista del conflicto de concurrencia `stock = 1` con transacción compensatoria.
 5. **Fase 4 — Reportes Dinámicos y Exportación Excel:** Tabla pivote interactiva con repivoteo en vivo, constructor visual analítico y generación de libros `.xlsx` contables con `exceljs`.
-6. **Fase 5 — Business Intelligence (BI) y Dashboards Diferenciados:** Consola ejecutiva gerencial para `ADMIN` y consola operativa POS de mostrador para `CAJERO`/`ENCARGADO`.
+6. **Fase 5 — Business Intelligence (BI) y Dashboards Diferenciados:** Consola ejecutiva gerencial para `ADMIN` y consola de caja y sucursal para `CAJERO`/`ENCARGADO` (solo web).
 7. **Fase 6 — Machine Learning Operativo (FastAPI :8002):** 4 modelos Scikit-Learn atados a KPIs (Demanda Random Forest, No-Show Regresión Logística, Segmentación RFM K-Means y Detección de Anomalías Isolation Forest).
 8. **Fase 6b — Rediseño UX/UI Gerencial:** Menú lateral en acordeón, humanización de reportes IA y dashboards en lenguaje directivo.

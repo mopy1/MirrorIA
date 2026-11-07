@@ -20,12 +20,12 @@ date: 2026-11-06
 Su arquitectura utiliza un backend desarrollado en **NestJS 12** (Node.js 24, TypeScript ESM) y una base de datos relacional compartida en **PostgreSQL 16**, donde el aislamiento lógico entre boutiques se garantiza mediante la inyección obligatoria del discriminador `tenant_id` en las 21 tablas del dominio transaccional, verificado por interceptores globales (`TenantInterceptor`) y contexto asíncrono (`AsyncLocalStorage`). El acceso a los recursos y la capacidad operativa están regulados por planes comerciales de suscripción (**Básico**, **Crecimiento** y **Cadena**), los cuales gobiernan los límites máximos de sucursales físicas, productos activos en vitrina y personal operativo de staff, así como el nivel de personalización de marca (`ESENCIAL`, `COMPLETA` y `MARCA_BLANCA`).
 
 Para operar de manera continua ante caídas o intermitencias en la conexión a Internet en tiendas físicas y centros comerciales, MirrorIA implementa una arquitectura **Offline-First**:
-1. **Cliente Web:** Funciona como una **Aplicación Web Progresiva (PWA)** desarrollada en **React 19**, utilizando Service Workers para el almacenamiento en caché del App Shell y la base de datos local **IndexedDB** (`mirroria_offline_db`) con un tiempo de vida (TTL) de 7 días para el catálogo y existencias locales. El punto de venta (POS) y la tienda web permiten registrar ventas presenciales de contado y pedidos sin conexión.
-2. **Cliente Móvil:** Diseñado sobre **React Native / Expo SDK 57**, utiliza una base de datos local embebida **SQLite** (`expo-sqlite`) como réplica espejo del catálogo e inventario.
+1. **Cliente Web:** Funciona como una **Aplicación Web Progresiva (PWA)** desarrollada en **React 19**, utilizando Service Workers para el almacenamiento en caché del App Shell y la base de datos local **IndexedDB** (`mirroria_offline_db`) con un tiempo de vida (TTL) de 7 días para el catálogo y existencias locales. La tienda web permite a la clienta seguir comprando (checkout) y reservando sin conexión: las operaciones se encolan y se envían al volver la red. El sistema no tiene punto de venta.
+2. **Cliente Móvil:** Diseñado sobre **React Native / Expo SDK 58**, es **solo para la clienta y el visitante** (vitrina, carrito, pagos, reservas con Pase de Tienda y compra desde reserva) y utiliza una base de datos local embebida **SQLite** (`expo-sqlite`) como réplica espejo del catálogo e inventario y como cola de salida para el checkout y las reservas hechas sin red. El personal de la tienda opera solo en la web.
 
 Todas las operaciones registradas sin conexión se identifican mediante identificadores universales únicos (**UUIDv4**), se encolan en almacenes locales de salida (*outbox*) bajo una política FIFO y se sincronizan de forma asíncrona hacia el backend central mediante la cabecera canónica `Idempotency-Key` respaldada por funciones criptográficas de dispersión (SHA-256). Ante colisiones de concurrencia sobre la última prenda disponible (`stock = 1`), el servidor actúa como autoridad única emitiendo un error tipado HTTP 409 (`STOCK_AGOTADO_CONFLICTO`), ante el cual los clientes ejecutan una **transacción compensatoria** de reversión local y despliegan interfaces interactivas con alternativas inmediatas guiadas.
 
-Asimismo, la plataforma integra una experiencia omnicanal diferenciada: un **probador virtual generativo** basado en inteligencia artificial (Decart `lucy-vton-3.5`) consumido mediante tokens efímeros seguros; consolas de **Business Intelligence (BI)** adaptadas al rol del usuario (**Consola Ejecutiva** para dueños y **Consola Operativa POS** con agenda de citas y alertas de stock crítico para cajeros); un motor de **reportes dinámicos** que interpreta lenguaje natural (texto o voz) mediante DeepSeek LLM sin generar SQL directo, con simulaciones *What-If* en memoria (DuckDB) y exportación nativa a hojas contables `.xlsx` (`exceljs`); y un microservicio independiente de **Machine Learning** en Python FastAPI (puerto `8002`, contenedor `mirroria_ml`) con 4 modelos estadísticos reproducibles ($N=10.000$, `seed=42`) para proyección de demanda, estimación de inasistencia (*no-show*), segmentación RFM y detección preventiva de anomalías transaccionales en caja.
+Asimismo, la plataforma integra una experiencia omnicanal diferenciada: un **probador virtual generativo** basado en inteligencia artificial (Decart `lucy-vton-3.5`) consumido mediante tokens efímeros seguros; consolas de **Business Intelligence (BI)** adaptadas al rol del usuario (**Consola Ejecutiva** para dueños y **Consola de Caja** web con cobros pendientes, agenda de citas y alertas de stock crítico para cajeras y encargados); un motor de **reportes dinámicos** que interpreta lenguaje natural (texto o voz) mediante DeepSeek LLM sin generar SQL directo, con simulaciones *What-If* en memoria (DuckDB) y exportación nativa a hojas contables `.xlsx` (`exceljs`); y un microservicio independiente de **Machine Learning** en Python FastAPI (puerto `8002`, contenedor `mirroria_ml`) con 4 modelos estadísticos reproducibles ($N=10.000$, `seed=42`) para proyección de demanda, estimación de inasistencia (*no-show*), segmentación RFM y detección preventiva de anomalías transaccionales en caja.
 
 ---
 
@@ -38,9 +38,9 @@ En el marco de la metodología ICONIX y la arquitectura SaaS multi-tenant omnica
 * **SuperAdmin (Dueño de la Plataforma SaaS — `DUENO_PLATAFORMA`):** Actor con privilegios globales sobre toda la infraestructura de MirrorIA (`tenant_id = NULL`). Es el responsable de registrar y administrar los planes comerciales de suscripción (Básico, Crecimiento y Cadena), supervisar indicadores clave de desempeño corporativo (MRR, ARR, Churn Rate, GMV y bitácora de eventos), auditar inquilinos, conceder extensiones de períodos de prueba (`TRIAL`), suspender tiendas morosas y restablecer identidades visuales infractoras de oficio. No interviene en la operativa comercial ni en las existencias de ninguna boutique.
 * **Admin (Dueño de Boutique / Tenant Admin — `ADMIN`):** Usuario con máxima jerarquía dentro de su respectiva empresa contratante. Administra la red de sucursales físicas (respetando las cuotas de su plan), da de alta al personal operativo asignándole tienda fija (`CAJERO`, `ENCARGADO_SUCURSAL`), administra el catálogo maestro de prendas multivariante, personaliza la identidad visual corporativa (logo, fuentes, banners, modo claro/oscuro y colores con contraste accesible **WCAG 2.1**), contrata y renueva la suscripción B2B mediante Stripe o Wayra QR, monitorea la Consola Ejecutiva de BI y toma decisiones asistido por Machine Learning y reportes dinámicos.
 * **Encargado de Sucursal (`ENCARGADO_SUCURSAL`):** Usuario responsable del control logístico y comercial en una tienda física asignada (`sucursal_id` forzado en JWT). Administra el inventario local, supervisa el kardex inmutable de movimientos, emite y recepciona órdenes de compra a talleres de confección, efectúa ajustes justificados de existencias (mermas o roturas), gestiona el avance de las citas de probador (`CONFIRMADA`, `EN_TIENDA`) y supervisa la conciliación de conflictos de stock derivados de sincronizaciones offline.
-* **Cajero (`CAJERO`):** Personal operativo asignado al punto de venta (POS) y mostrador físico de la sucursal. Registra ventas directas presenciales con descuento atómico de existencias y emisión de comprobantes `C-XXXXXXXX`, confirma cobros en efectivo de pedidos web y reservas, y opera la Consola Operativa POS del día con corte en huso local `America/La_Paz`, atendiendo citas de clientas en un solo clic y visualizando alertas de prendas en stock crítico ($\le 2$ unidades).
+* **Cajera (`CAJERO`):** Personal de caja de la sucursal, que opera **solo desde la web**. Es el único rol que toca dinero: verifica que la clienta pagó en efectivo en la caja física y marca el cobro como pagado (`/admin/cobros`); no registra ventas (el sistema no tiene punto de venta: toda venta nace de una compra de la clienta). Opera la Consola de Caja del día con corte en huso local `America/La_Paz`, marca la llegada de las clientas citadas (`EN_TIENDA`) buscando su Pase de Tienda por el código y visualiza alertas de prendas en stock crítico ($\le 2$ unidades).
 * **Proveedor:** Entidad externa vinculada a la cadena de suministro textil de una boutique específica. Provee lotes de prendas confeccionadas, materias primas o insumos registrados en el sistema, permitiendo el abastecimiento de mercancía mediante órdenes de compra con control de stock en tránsito. En el alta de cada boutique, el sistema crea automáticamente el proveedor "Producción propia".
-* **Cliente (`CUSTOMER`):** Usuaria final consumidora de la boutique, registrada exclusivamente en el espacio de trabajo de la tienda navegada (`/t/:slug`). Interactúa vía web (PWA) o aplicación móvil nativa (Expo) para explorar catálogos adaptados a la marca, probarse prendas mediante el Probador Virtual por IA (Decart `lucy-vton-3.5`), apartar reservas de prendas para prueba presencial sin pago previo, gestionar su carrito de compras, aplicar cupones de descuento y pagar electrónicamente (tarjeta Stripe o QR interoperable Wayra). En caso de corte de red, puede continuar navegando catálogos cacheados y registrando reservas o compras de forma diferida.
+* **Cliente (`CUSTOMER`):** Usuaria final consumidora de la boutique, registrada exclusivamente en el espacio de trabajo de la tienda navegada (`/t/:slug`). Interactúa vía web (PWA) o aplicación móvil nativa (Expo) para explorar catálogos adaptados a la marca, probarse prendas mediante el Probador Virtual por IA (Decart `lucy-vton-3.5`), apartar reservas de prendas para prueba en tienda sin pago previo (y cerrarlas en la tienda con "Comprar lo que reservé"), gestionar su carrito de compras, aplicar cupones de descuento y pagar electrónicamente (tarjeta Stripe o QR interoperable Wayra). En caso de corte de red, puede continuar navegando catálogos cacheados y registrando reservas o compras de forma diferida.
 
 ---
 
@@ -53,27 +53,27 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **CU02: Administrar Suscripciones, Planes y Moderación SaaS:** Permite al SuperAdmin parametrizar precios y cuotas máximas de recursos de los planes (Básico, Crecimiento y Cadena), auditar el MRR y suspender tiendas morosas; y permite al Admin de la boutique consultar el consumo de recursos de su plan (`UsoPlanService`) y pagar o renovar su suscripción mediante pasarelas B2B (Stripe y Wayra QR).
 * **CU03: Personalizar Identidad Visual de Boutique:** Permite al Admin configurar la marca corporativa de su tienda (logotipo, tipografías, favicon, modo claro/oscuro y paleta cromática), validando forzosamente que el contraste entre el color principal y el fondo de la tienda cumpla el estándar internacional **WCAG 2.1** (ratio de contraste $\ge 4.5:1$).
 
-#### **Módulo 2: Catálogo, Inventario y Puntos de Venta (POS)**
+#### **Módulo 2: Catálogo, Inventario y Cobros**
 * **CU04: Gestionar Catálogo Maestro y Variantes SKU:** Permite al Admin mantener la taxonomía de moda femenina (categorías con slug amigable, temporadas comerciales, colecciones vinculadas a proveedores, tallas ordenadas y colores normalizados con código HEX), publicando prendas maestras con imágenes `jsonb` y combinaciones SKU con precio en centavos (`precioCents`), respetando el límite de prendas activas de su plan.
 * **CU05: Gestionar Inventario, Sucursales y Abastecimiento:** Permite al Admin y al Encargado de Sucursal administrar la red de tiendas físicas, emitir órdenes de compra a confeccionistas incrementando el stock en tránsito, recepcionar mercancía en tienda aumentando atómicamente la `cantidad_disponible` y registrar ajustes manuales justificados con asiento inmutable en kardex.
-* **CU08: Procesar Cobros con Pasarelas Enchufables:** Permite procesar los pagos derivados de ventas presenciales o web a través del registro central `RegistroPasarelasService` (`IPasarelaProveedor`), canalizando pagos con tarjeta internacional vía Stripe (sesión alojada y webhook firmado), pagos nacionales con QR dinámico vía banco Wayra (aviso autenticado por HMAC-SHA256 e idempotencia por `event_id`) y cobro manual en efectivo en mostrador.
+* **CU08: Procesar Cobros con Pasarelas Enchufables:** Permite procesar los pagos de las compras de la clienta (checkout y compra desde reserva) a través del registro central `RegistroPasarelasService` (`IPasarelaProveedor`), canalizando pagos con tarjeta internacional vía Stripe (sesión alojada y webhook firmado), pagos nacionales con QR dinámico vía banco Wayra (aviso autenticado por HMAC-SHA256 e idempotencia por `event_id`) y cobro en efectivo en la caja física, que la cajera verifica y confirma desde la web.
 
 #### **Módulo 3: Experiencia del Cliente y Probador Virtual por IA**
 * **CU06: Explorar Vitrina y Probar Prendas con IA (VTON):** Permite a la Clienta navegar el catálogo público inyectando en tiempo real la identidad visual de la boutique elegida, consultar existencias físicas desglosadas por sucursal y proyectar prendas seleccionadas sobre su propia imagen o modelo en tiempo real mediante el Probador Virtual por IA generativa (Decart `lucy-vton-3.5`) a través de tokens efímeros de 5 minutos (10 peticiones/10 min por IP).
 * **CU07: Gestionar Carrito y Procesar Checkout Digital:** Permite a la Clienta mantener una bolsa de compras persistente (`jsonb`, máximo 3 unidades por variante SKU), validar cupones de descuento protegidos contra ataques de fuerza bruta y transformar el carrito en una venta en estado `PENDIENTE` que descuenta existencias de forma atómica (máximo 2 compras pendientes sin pagar por usuaria).
-* **CU09: Gestionar Reservas para Probador Físico:** Permite a la Clienta apartar hasta 3 prendas para prueba física en sucursal en una ventana entre +30 min y +48 h sin pago previo, bloqueando existencias en `cantidad_reservada` (hasta máx. 50% de stock libre); y permite al personal avanzar la cita (`CONFIRMADA`, `EN_TIENDA`), recepcionarla en un clic en el POS y aplicar sanción automática de 30 días ante 2 inasistencias acumuladas (`NO_SHOW`).
+* **CU09: Gestionar Reservas para Probador Físico:** Permite a la Clienta apartar hasta 3 prendas para prueba física en sucursal en una ventana entre +30 min y +48 h sin pago previo, bloqueando existencias en `cantidad_reservada` (hasta máx. 50% de stock libre); permite al personal avanzar la cita desde la web (`CONFIRMADA`, `EN_TIENDA`, buscando el Pase de Tienda por su código) y, ya en la tienda, la clienta cierra la reserva con "Comprar lo que reservé": se crea una venta `PENDIENTE` ligada a la reserva que, al aprobarse el pago (efectivo confirmado por la cajera, Stripe o Wayra), deja la reserva `COMPLETADA`; aplica además sanción automática de 30 días ante 2 inasistencias acumuladas (`NO_SHOW`).
 
 #### **Módulo 4: Operación Offline-First y Sincronización**
-* **CU10: Operar en Modo Desconectado con Sincronización Segura:** Permite a la Clienta y al Cajero consultar catálogos cacheados (IndexedDB en PWA con TTL 7 días y SQLite en móvil Expo) y registrar reservas o ventas presenciales de contado sin conexión a Internet, encolándolas en la cola de salida (*outbox*) FIFO local con un identificador único UUID y cabecera `Idempotency-Key` (SHA-256) para su despacho automático al detectar reconexión.
+* **CU10: Operar en Modo Desconectado con Sincronización Segura:** Permite a la Clienta consultar catálogos cacheados (IndexedDB en PWA con TTL 7 días y SQLite en móvil Expo) y registrar compras (checkout) o reservas sin conexión a Internet, encolándolas en la cola de salida (*outbox*) FIFO local con un identificador único UUID y cabecera `Idempotency-Key` (SHA-256) para su despacho automático al detectar reconexión.
 * **CU11: Resolver Conflicto de Concurrencia de Stock (`stock = 1`):** Permite detectar y resolver discrepancias cuando dos transacciones offline compiten por la última unidad física en percha. El servidor actúa como autoridad única rechazando la segunda operación con error HTTP 409 (`STOCK_AGOTADO_CONFLICTO`), ante lo cual el cliente ejecuta una transacción compensatoria (rollback local en outbox) y despliega el modal interactivo `ModalConflictoStock` sugiriendo tallas o sucursales alternativas.
 
 #### **Módulo 5: Reportes Generativos con IA y Machine Learning**
 * **CU12: Monitorear Consola Ejecutiva de Negocio (ADMIN):** Permite al Dueño de boutique auditar en tiempo real la salud financiera de su empresa mediante tarjetas de KPI con deltas simétricos, ticket promedio, rotación de percha (`ventas / stock`), tasa de conversión probador a venta, gráficos Recharts con días rellenados a 0, cuota de pasarelas y consumo de cuotas del plan SaaS.
-* **CU13: Operar Consola de Mostrador POS del Día (Cajero):** Permite al Cajero y Encargado gestionar la operativa física de sucursal con corte horario en `America/La_Paz`, visualizando cobranzas pendientes en caja, alertas preventivas de existencias en stock crítico ($\le 2$ unidades) o agotadas, y la agenda cronológica de citas del día con recepción de clientas en un solo clic.
+* **CU13: Operar Consola de Caja del Día (Cajera):** Permite a la Cajera y al Encargado gestionar desde la web la operativa de la sucursal con corte horario en `America/La_Paz`, visualizando cobros en efectivo pendientes de verificar, alertas preventivas de existencias en stock crítico ($\le 2$ unidades) o agotadas, y la agenda cronológica de citas del día con recepción de clientas en un solo clic.
 * **CU14: Consultar Analítica en Lenguaje Natural e Híbrido con IA:** Permite formular preguntas abiertas de negocio mediante texto o voz. El agente basado en DeepSeek LLM extrae intenciones analíticas hacia un catálogo de 23 métricas parametrizadas (sin generar SQL directo), ejecuta simulaciones *What-If* en memoria con DuckDB y redacta conclusiones gerenciales sin tecnicismos.
 * **CU15: Construir Reportes Dinámicos y Exportar a Excel:** Permite al Administrador diseñar informes visuales sin costo de tokens de LLM mediante `ConstructorReporteDialog`, repivotear tablas dinámicas interactivas por dimensiones cruzadas (`sucursal`, `categoria`, `metodo_pago`, `proveedor`) y exportar libros de balance corporativos a formato nativo `.xlsx` (`exceljs`) con formato contable `"Bs" #,##0.00` y fórmulas de totales.
 * **CU16: Predecir Demanda de Inventario y Riesgo de Citas (Modelos Supervisados):** Conecta con el microservicio Python FastAPI (:8002) para ejecutar el modelo M1 (`RandomForestRegressor`, $R^2 = 0.9566$) para proyectar la reposición óptima de existencias a 30 días, y el modelo M2 (`LogisticRegression` L2, ROC-AUC 0.7978) para estimar la probabilidad de inasistencia (*no-show*) de citas de probador mediante un semáforo visual.
-* **CU17: Auditar Anomalías POS y Segmentar Clientes (Modelos No Supervisados):** Ejecuta el modelo M3 (`KMeans` con $K=4$, Silueta 0.6823) para agrupar clientas según su comportamiento RFM (Recencia, Frecuencia, Valor Monetario), el modelo M4 (`IsolationForest`, contaminación 0.03) para detectar transacciones atípicas o posibles fraudes en caja POS, y permite consultar la Ficha Metodológica reproducible ($N=10.000$, `seed=42`).
+* **CU17: Auditar Anomalías de Caja y Segmentar Clientes (Modelos No Supervisados):** Ejecuta el modelo M3 (`KMeans` con $K=4$, Silueta 0.6823) para agrupar clientas según su comportamiento RFM (Recencia, Frecuencia, Valor Monetario), el modelo M4 (`IsolationForest`, contaminación 0.03) para detectar transacciones atípicas o posibles fraudes en caja y cobros, y permite consultar la Ficha Metodológica reproducible ($N=10.000$, `seed=42`).
 
 ---
 
@@ -88,10 +88,10 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RF04 - Cobro y renovación automatizada de planes (B2B):** El sistema debe permitir al Admin de la boutique contratar, pagar o renovar su plan mensual mediante pasarelas de pago digitales (Stripe Checkout y Wayra QR), persistiendo el registro de cobranza en la tabla `cobros_suscripcion` y actualizando de inmediato la vigencia de la suscripción.
 * **RF05 - Aislamiento lógico multi-tenant:** El backend debe inyectar obligatoriamente el contexto de inquilino (`X-Tenant` o JWT) en cada petición mediante `TenantMiddleware` y `TenantInterceptor`, filtrando automáticamente las 21 tablas de negocio con la cláusula `where: soloTenant({...})`, retornando HTTP 404 si se intenta acceder a un recurso de otra tienda.
 
-#### **Módulo 2: Catálogo, Inventario y Puntos de Venta (POS)**
+#### **Módulo 2: Catálogo, Inventario y Cobros**
 * **RF06 - Gestión multivariante de indumentaria femenina:** El sistema debe permitir al Admin registrar prendas clasificadas por categorías, temporadas y colecciones, generando matrices de variantes SKU únicas por combinación de talla y color HEX con precio tipificado en centavos (`precioCents`).
 * **RF07 - Control de existencias atómico por sucursal:** El sistema debe controlar las cantidades física (`cantidad_disponible`), reservada (`cantidad_reservada`) y en tránsito (`cantidad_transito`) en cada tienda física, ejecutando las rebajas mediante sentencias SQL `UPDATE` condicionadas con bloqueo pesimista (`pessimistic_write`) para evitar saldos negativos.
-* **RF08 - Registro de ventas omnicanal (POS y Digital):** El sistema debe procesar ventas digitales en estado `PENDIENTE` que descuentan stock libre en el checkout y ventas presenciales de mostrador en estado `PAGADA`, generando un código de comprobante determinista institucional `C-XXXXXXXX` derivado del UUID.
+* **RF08 - Registro de ventas omnicanal (Web y Móvil):** El sistema debe procesar las compras de la clienta en estado `PENDIENTE` que descuentan stock libre en el checkout o en la compra desde reserva, y pasan a `PAGADA` al aprobarse el pago (pasarela o efectivo confirmado por la cajera), generando un código de comprobante determinista institucional `C-XXXXXXXX` derivado del UUID.
 * **RF09 - Gestión de abastecimiento con confeccionistas:** El sistema debe permitir emitir órdenes de compra a proveedores textiles aumentando el stock en tránsito de la sucursal de destino, y recepcionar mercancía de forma total o parcial registrando la entrada en kardex.
 * **RF10 - Cancelación de ventas con restitución de inventario:** El sistema debe permitir anular ventas no confirmadas o expiradas, liberando de forma inmediata las unidades reservadas, restituyendo el stock libre y devolviendo los artículos al carrito de la clienta.
 
@@ -105,16 +105,16 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 
 #### **Módulo 4: Operación Offline-First y Sincronización**
 * **RF17 - Consulta desconectada del catálogo:** La aplicación web PWA y la aplicación móvil deben permitir navegar el catálogo y consultar existencias cacheadas previamente en IndexedDB (Web) o SQLite (Móvil) ante pérdida total de conexión a Internet, preservando los datos por 7 días (TTL).
-* **RF18 - Registro de reservas offline:** El sistema debe permitir a la clienta solicitar citas de probador sin conexión, asignando un identificador universal único (UUIDv4) y encolando la orden en el almacenamiento local para su posterior despacho.
-* **RF19 - Registro de ventas presenciales de mostrador offline:** El sistema debe permitir al cajero procesar cobros de contado en efectivo sin conexión desde el POS de la PWA, descontando el inventario local y almacenando la transacción en la cola *outbox*.
-* **RF20 - Cola de salida (*outbox*) con monitoreo de estados:** El cliente debe proveer una estructura de cola local que rastree el ciclo de vida de cada operación offline (`PENDIENTE`, `SINCRONIZANDO`, `SINCRONIZADO`, `COMPENSADO` o `FALLIDO`), permitiendo la depuración de órdenes confirmadas.
+* **RF18 - Registro de reservas y compras offline:** El sistema debe permitir a la clienta solicitar citas de probador y confirmar el checkout de su carrito sin conexión, asignando un identificador universal único (UUIDv4) y encolando la orden en el almacenamiento local para su posterior despacho.
+* **RF19 - Compra desde reserva ("Comprar lo que reservé"):** El sistema debe permitir a la clienta, con su reserva en estado `EN_TIENDA`, comprar las prendas reservadas desde la app o la web, creando una venta `PENDIENTE` ligada a la reserva que pasa la reserva a `COMPLETADA` cuando el pago se aprueba (efectivo confirmado por la cajera en la web, Stripe o Wayra). No existe registro de ventas por el personal.
+* **RF20 - Cola de salida (*outbox*) con monitoreo de estados:** El cliente debe proveer una estructura de cola local que rastree el ciclo de vida de cada operación offline (`PENDIENTE`, `ENVIANDO`, `CONFIRMADA`, `COMPENSADA` o `RECHAZADA`; mismos nombres en la PWA y en la app móvil), permitiendo la depuración de órdenes confirmadas.
 * **RF21 - Sincronización asíncrona e idempotente:** Al restablecerse la conectividad a Internet, el sistema debe drenar automáticamente la cola outbox hacia el backend enviando la cabecera `Idempotency-Key` (SHA-256), garantizando que reintentos sucesivos no dupliquen transacciones ni cobros (`X-Cache-Idempotency: HIT`).
 * **RF22 - Resolución de conflicto concurrente `stock = 1`:** El backend central debe validar la disponibilidad física al procesar operaciones sincronizadas; si la prenda ya fue adquirida por otro canal, debe responder HTTP 409 (`STOCK_AGOTADO_CONFLICTO`), activando en el cliente una transacción compensatoria de rollback local y sugiriendo alternativas inmediatas.
 
 #### **Módulo 5: Reportes Generativos con IA y Machine Learning**
 * **RF23 - Consultas analíticas en lenguaje natural (Texto / Voz):** El sistema debe permitir al Administrador formular solicitudes de información en lenguaje natural mediante teclado o dictado por voz, mapeándolas mediante DeepSeek LLM hacia un catálogo estricto de 23 métricas parametrizadas sin generar sentencias SQL directas.
 * **RF24 - Simulación analítica *What-If* y exportación a Excel:** El sistema debe permitir ejecutar simulaciones predictivas en memoria mediante el motor analítico DuckDB (`:memory:`) y exportar tablas de datos consolidadas hacia libros nativos de Excel `.xlsx` (`exceljs`) con formato contable `"Bs" #,##0.00` y fórmulas GAAP.
-* **RF25 - Tableros de control de Inteligencia de Negocios (BI) por rol:** El sistema debe ofrecer la Consola Ejecutiva para el `ADMIN` con indicadores de facturación, deltas simétricos, rotación y conversión, y la Consola Operativa POS para el `CAJERO`/`ENCARGADO` con agenda cronológica de citas y alertas de stock crítico $\le 2$ unidades.
+* **RF25 - Tableros de control de Inteligencia de Negocios (BI) por rol:** El sistema debe ofrecer la Consola Ejecutiva para el `ADMIN` con indicadores de facturación, deltas simétricos, rotación y conversión, y la Consola de Caja (web) para el `CAJERO`/`ENCARGADO` con cobros pendientes, agenda cronológica de citas y alertas de stock crítico $\le 2$ unidades.
 * **RF26 - Inferencia predictiva mediante Machine Learning (:8002):** El sistema debe integrar un microservicio desacoplado en Python FastAPI que procese 4 modelos entrenados reproducibles ($N=10.000$, `seed=42`): M1 (Demanda Random Forest), M2 (No-Show Regresión Logística), M3 (Segmentación RFM K-Means) y M4 (Detección de Anomalías Isolation Forest), con fallback heurístico resiliente (`X-ML-Fallback: true`).
 
 ---
@@ -126,12 +126,12 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RNF03. Persistencia Desconectada Resiliente:** Las operaciones registradas sin conexión deben almacenarse en motores estructurados locales (**IndexedDB** en la PWA web y base relacional embebida **SQLite** en la app móvil Expo), sobreviviendo intactas al cierre de pestaña, recarga o reinicio del sistema operativo.
 * **RNF04. Integridad Transaccional ACID:** Toda transacción que afecte el inventario o procese un cobro debe ejecutarse dentro de transacciones atómicas gestionadas por PostgreSQL 16 con bloqueos pesimistas (`SELECT ... FOR UPDATE`), garantizando que jamás se produzcan descuadres entre existencias y ventas confirmadas.
 * **RNF05. Idempotencia Rigurosa:** El reenvío sucesivo de una orden diferida (por fallas transitorias de red o reconexiones múltiples) identificado con la misma cabecera `Idempotency-Key` no debe generar duplicidad de compras ni dobles rebajas de inventario, retornando la respuesta original en caché (`X-Cache-Idempotency: HIT`).
-* **RNF06. Recuperación ante Fallos y Transacción Compensatoria:** Ante respuestas de rechazo por parte del servidor central (como HTTP 409 por stock agotado), el cliente no debe purgar la orden de forma silenciosa, sino transicionarla al estado `COMPENSADO`, ejecutar el rollback local y notificar de manera interactiva a la usuaria.
+* **RNF06. Recuperación ante Fallos y Transacción Compensatoria:** Ante respuestas de rechazo por parte del servidor central (como HTTP 409 por stock agotado), el cliente no debe purgar la orden de forma silenciosa, sino transicionarla al estado `COMPENSADA`, ejecutar el rollback local y notificar de manera interactiva a la usuaria.
 * **RNF07. Modularidad y Desacoplamiento:** La arquitectura backend debe estructurarse como un Monolito Modular donde los módulos de negocio no importan entidades de otros módulos, comunicándose exclusivamente mediante servicios exportados e identificadores foráneos planos `UUID`, permitiendo que el microservicio de ML (`mirroria-ml`) opere en un proceso autónomo en puerto `8002`.
-* **RNF08. Compatibilidad y Soporte Omnicanal:** La aplicación web React 19 debe cumplir los estándares de Progressive Web App (PWA) con Service Worker y Web Manifest para operar en navegadores de escritorio y móviles; el cliente móvil en React Native / Expo SDK 57 debe garantizar portabilidad multiplataforma sobre dispositivos Android e iOS.
+* **RNF08. Compatibilidad y Soporte Omnicanal:** La aplicación web React 19 debe cumplir los estándares de Progressive Web App (PWA) con Service Worker y Web Manifest para operar en navegadores de escritorio y móviles; el cliente móvil en React Native / Expo SDK 58 debe garantizar portabilidad multiplataforma sobre dispositivos Android e iOS.
 * **RNF09. Rendimiento y Tiempo de Respuesta:** Las consultas transaccionales de catálogo y pedidos deben responder en un tiempo inferior a **200 ms** bajo condiciones normales, mientras que las inferencias analíticas de Machine Learning y consultas a DuckDB no deben exceder un tiempo límite de **3.000 ms**, activando el fallback heurístico en caso de sobrepasar este umbral.
 * **RNF10. Observabilidad y Trazabilidad:** Todo error de negocio debe emitir una estructura homogénea `{ status, message, timestamp }` evitando fugas de trazas internas del servidor. La telemetría de inferencia debe registrar la cabecera `X-ML-Fallback: true/false` para auditar la salud del microservicio Python.
-* **RNF11. Calidad del Software y Cobertura de Pruebas:** El sistema debe contar con suites de pruebas automatizadas exhaustivas que certifiquen el funcionamiento del software: un mínimo de 466 pruebas unitarias y de integración en backend (Vitest), 293 pruebas en frontend, y scripts de QA de caja negra que certifiquen el aislamiento multi-tenant y reglas de mostrador.
+* **RNF11. Calidad del Software y Cobertura de Pruebas:** El sistema debe contar con suites de pruebas automatizadas exhaustivas que certifiquen el funcionamiento del software: un mínimo de 466 pruebas unitarias y de integración en backend (Vitest), 293 pruebas en frontend, y scripts de QA de caja negra que certifiquen el aislamiento multi-tenant y las reglas de reservas y cobros.
 * **RNF12. Accesibilidad Universal WCAG 2.1:** Todo tema o paleta visual personalizada por una boutique debe ser validada algorítmicamente asegurando un ratio de contraste mínimo de **4.5:1** (Nivel AA) entre los colores de texto y los fondos preestablecidos (`#FFFFFF` o `#0A0A0A`).
 
 ---
@@ -149,7 +149,7 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RN04 - Confinamiento y Accesibilidad de Marca (WCAG 2.1):** Ninguna boutique puede publicar una combinación de color principal cuyo contraste calculado sobre el fondo de la tienda (`#FFFFFF` en modo claro y `#0A0A0A` en modo oscuro) sea inferior al ratio de **4.5:1**. El sistema rechaza colores no conformes con error HTTP 400 y ofrece en la interfaz una herramienta de ajuste perceptual automático en espacio cromático OKLCH.
 
 ### Categoría 2: Operaciones Comerciales e Inventario
-* **RN05 - Descuento Atómico y Existencias No Negativas:** Toda venta web o presencial debe verificar el stock libre disponible y ejecutar la deducción de unidades de manera atómica mediante sentencias SQL condicionadas (`UPDATE inventario_sucursal SET cantidad_disponible = cantidad_disponible - :cant WHERE cantidad_disponible >= :cant`) dentro de transacciones aisladas con bloqueo pesimista. Las existencias jamás pueden asumir valores negativos.
+* **RN05 - Descuento Atómico y Existencias No Negativas:** Toda venta (checkout o compra desde reserva) debe verificar el stock libre disponible y ejecutar la deducción de unidades de manera atómica mediante sentencias SQL condicionadas (`UPDATE inventario_sucursal SET cantidad_disponible = cantidad_disponible - :cant WHERE cantidad_disponible >= :cant`) dentro de transacciones aisladas con bloqueo pesimista. Las existencias jamás pueden asumir valores negativos.
 * **RN06 - Retención y Reglas Anti-Acaparamiento en Reservas:** Una reserva de prendas para probarse en sucursal retiene existencias en la columna `cantidad_reservada` bajo estrictas restricciones:
   - Máximo 3 prendas por reserva y 1 unidad por variante.
   - Máximo 2 reservas activas simultáneas por clienta.
@@ -159,11 +159,11 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RN07 - Restricciones del Carrito y Ventas Pendientes:** Una clienta puede agregar como máximo 3 unidades de una misma variante SKU a su carrito de compras digital, y no puede mantener más de **2 órdenes de compra web simultáneas en estado `PENDIENTE`** sin pagar, previniendo el bloqueo abusivo de inventario en percha.
 
 ### Categoría 3: Operación Offline y Protocolo de Sincronización
-* **RN08 - Restricción de Medios de Pago en Modo Desconectado:** Las ventas presenciales procesadas sin conexión a Internet desde el POS de la PWA se registran exclusivamente como transacciones de **contado en efectivo**; los cobros con tarjeta o código QR dinámico exigen forzosamente conectividad activa con las pasarelas bancarias.
+* **RN08 - Restricción de Medios de Pago en Modo Desconectado:** Sin conexión solo se encola la **orden** (checkout o reserva); el pago nunca se hace offline. Al sincronizar, la venta queda `PENDIENTE` y la clienta paga con tarjeta o QR (que exigen conectividad) o en efectivo en la caja, donde la cajera lo confirma desde la web.
 * **RN09 - Autoridad Central en Conciliación de Existencias:** La confirmación de una venta o reserva en almacenamiento local (IndexedDB o SQLite) no constituye una aceptación definitiva. La validez jurídica y el asiento definitivo de inventario quedan supeditados a la conciliación en el servidor central al restablecerse la red.
 * **RN10 - Persistencia Inviolable de la Cola Outbox:** Ninguna transacción diferida puede ser eliminada del almacenamiento local por fallas transitorias de red o rechazos de sincronización. Las órdenes permanecen en estado `PENDIENTE` o `FALLIDO` hasta que sean resueltas o depuradas voluntariamente por el operador de caja.
 * **RN11 - Idempotencia Obligatoria en Sincronización:** Toda petición mutante sincronizada debe incorporar la cabecera `Idempotency-Key` con un identificador UUIDv4 y el hash SHA-256 canónico del payload. Reenvíos sucesivos de una misma orden confirmada retornan la respuesta almacenada en la tabla `idempotencia` (`X-Cache-Idempotency: HIT`) sin duplicar ventas ni movimientos de stock.
-* **RN12 - Tratamiento del Conflicto de Concurrencia `stock = 1`:** Si al sincronizar una venta offline el stock en percha ya fue adquirido por otro canal, el servidor emite una respuesta HTTP 409 tipada (`STOCK_AGOTADO_CONFLICTO`). El cliente intercepta este código, transiciona la orden a `COMPENSADO` (rollback local), revierte la deducción provisional y despliega el modal interactivo `ModalConflictoStock` sugiriendo sucursales o tallas sustitutas sin bloquear al usuario.
+* **RN12 - Tratamiento del Conflicto de Concurrencia `stock = 1`:** Si al sincronizar una compra offline de la clienta el stock en percha ya fue adquirido por otro canal, el servidor emite una respuesta HTTP 409 tipada (`STOCK_AGOTADO_CONFLICTO`). El cliente intercepta este código, transiciona la orden a `COMPENSADA` (rollback local), revierte la deducción provisional y despliega el modal interactivo `ModalConflictoStock` sugiriendo sucursales o tallas sustitutas sin bloquear al usuario.
 
 ### Categoría 4: Inteligencia Artificial y Analítica
 * **RN13 - Confinamiento y Seguridad en Consultas de IA:** El motor conversacional asistido por DeepSeek LLM tiene **estrictamente prohibido generar sentencias SQL directas**. Toda solicitud en lenguaje natural debe traducirse hacia una ficha analítica validada que consulta exclusivamente el catálogo formal de 23 métricas parametrizadas, inyectando de forma forzosa el `tenant_id` y sucursal del usuario logueado.
@@ -181,7 +181,7 @@ flowchart TB
         SA["🛰️ SuperAdmin\n(DUENO_PLATAFORMA)"]
         ADM["👑 Admin Boutique\n(ADMIN)"]
         ENC["🏬 Encargado Sucursal\n(ENCARGADO_SUCURSAL)"]
-        CAJ["💵 Cajero\n(CAJERO)"]
+        CAJ["💵 Cajera (solo web)\n(CAJERO)"]
         CLI["👗 Clienta\n(CUSTOMER)"]
         VIS["🧑 Visitante\n(Público)"]
         STR["💳 Stripe Gateway"]
@@ -196,7 +196,7 @@ flowchart TB
         CU03(["CU03 Personalizar Identidad Visual de Boutique"])
     end
 
-    subgraph M2["Módulo 2: Catálogo, Inventario y Puntos de Venta (POS)"]
+    subgraph M2["Módulo 2: Catálogo, Inventario y Cobros"]
         CU04(["CU04 Gestionar Catálogo Maestro y Variantes SKU"])
         CU05(["CU05 Gestionar Inventario, Sucursales y Abastecimiento"])
         CU08(["CU08 Procesar Cobros con Pasarelas Enchufables"])
@@ -215,11 +215,11 @@ flowchart TB
 
     subgraph M5["Módulo 5: Reportes Generativos con IA y Machine Learning"]
         CU12(["CU12 Monitorear Consola Ejecutiva de Negocio (ADMIN)"])
-        CU13(["CU13 Operar Consola de Mostrador POS del Día (Cajero)"])
+        CU13(["CU13 Operar Consola de Caja del Día (Cajera)"])
         CU14(["CU14 Consultar Analítica en Lenguaje Natural e Híbrido"])
         CU15(["CU15 Construir Reportes Dinámicos y Exportar a Excel"])
         CU16(["CU16 Predecir Demanda y Riesgo de Citas (Supervisado)"])
-        CU17(["CU17 Auditar Anomalías POS y Segmentar Clientes (No Supervisado)"])
+        CU17(["CU17 Auditar Anomalías de Caja y Segmentar Clientes (No Supervisado)"])
     end
 
     VIS --> CU01
@@ -241,9 +241,7 @@ flowchart TB
     CAJ --> CU09
 
     CLI --> CU10
-    CAJ --> CU10
     CLI --> CU11
-    CAJ --> CU11
 
     ADM --> CU12
     CAJ --> CU13
@@ -368,35 +366,35 @@ La tienda pública `/t/:slug` adopta inmediatamente la nueva paleta de colores, 
 | **Fecha:** | 06/11/2026 |
 
 **Descripción:**
-Permite a la Clienta y al Cajero continuar utilizando la plataforma ante caídas imprevistas de conexión a Internet, navegando catálogos cacheados y registrando reservas o ventas presenciales de contado en efectivo desde la PWA (IndexedDB) o la app móvil (SQLite). Las operaciones se encolan con identificador UUIDv4 y se transmiten automáticamente de forma idempotente con hash SHA-256 al recuperar la red.
+Permite a la Clienta continuar utilizando la plataforma ante caídas imprevistas de conexión a Internet, navegando catálogos cacheados y registrando compras (checkout del carrito) o reservas desde la PWA (IndexedDB) o la app móvil (SQLite). Las operaciones se encolan con identificador UUIDv4 y se transmiten automáticamente de forma idempotente con hash SHA-256 al recuperar la red.
 
 **Actores:**
-Clienta (`CUSTOMER`), Cajero (`CAJERO`), Service Worker, Backend NestJS.
+Clienta (`CUSTOMER`), Service Worker (PWA) / NetInfoListener (móvil), Backend NestJS.
 
 **Pre-Condiciones:**
 1. El usuario abrió la aplicación previamente con conexión a Internet, permitiendo al Service Worker cachear el App Shell y descargar el catálogo local con existencias en IndexedDB o SQLite.
 2. El dispositivo sufre una pérdida total o parcial de conectividad a la red.
 
 **Flujo Normal:**
-1. El usuario navega la tienda o el POS; el sistema detecta el evento de desconexión y activa la barra visual de "Modo Offline".
+1. La clienta navega la tienda (web o app); el sistema detecta el evento de desconexión y activa la barra visual de "Modo Offline".
 2. El sistema carga las prendas y precios directamente desde el almacén `catalogo_cache` de IndexedDB (Web) o base local `SQLite` (Móvil).
-3. El cajero en mostrador selecciona prendas, cantidades y pulsa "Guardar venta offline (Contado)".
+3. La clienta arma su carrito, elige la sucursal de retiro y pulsa "Confirmar compra" (o "Reservar").
 4. El cliente verifica las existencias locales disponibles y deduce provisionalmente el stock local.
 5. El cliente genera un identificador UUIDv4 para la transacción y un comprobante provisional `LOCAL-<UUID>`.
 6. La transacción se encola en el almacén local `outbox` con estado `PENDIENTE` junto con la cabecera `Idempotency-Key` (UUIDv4) y el hash SHA-256 del cuerpo de la petición.
-7. El sistema confirma visualmente que la venta fue guardada localmente y deja el ticket disponible para la siguiente clienta.
+7. El sistema confirma visualmente que la compra quedó guardada en el dispositivo como **"Pendiente de confirmar"** (RN09) y que el pago se hace cuando vuelva la red.
 8. Al restablecerse la conexión a Internet, el Service Worker (o el listener de NetInfo en móvil) detecta el evento `online` y activa el vaciado de la cola FIFO (`outbox-manager.ts`).
-9. El cliente despacha la venta mediante `POST /api/v1/ventas/checkout` enviando la cabecera `Idempotency-Key`.
+9. El cliente despacha la compra mediante `POST /api/v1/ventas/carrito/:usuarioId/checkout` (o `POST /api/v1/reservas`) enviando la cabecera `Idempotency-Key`.
 10. El interceptor global de idempotencia en el backend verifica que la clave no haya sido procesada previamente y ejecuta la transacción en PostgreSQL.
-11. El backend responde HTTP 201 (`X-Cache-Idempotency: MISS`) con el comprobante definitivo `C-XXXXXXXX`.
-12. El cliente actualiza la orden en la cola outbox pasando su estado a `SINCRONIZADO` y actualiza la caché local de catálogo con las existencias confirmadas del servidor.
+11. El backend responde HTTP 201 (`X-Cache-Idempotency: MISS`) con la venta `PENDIENTE` y su comprobante `C-XXXXXXXX`; la clienta pasa a pagar (Stripe, Wayra QR o efectivo en caja).
+12. El cliente actualiza la orden en la cola outbox pasando su estado a `CONFIRMADA` y actualiza la caché local de catálogo con las existencias confirmadas del servidor.
 
 **Flujos Alternativos:**
 * **8a. Falla de red transitoria durante el envío:** Si la conexión cae a mitad de la transmisión, la orden regresa al estado `PENDIENTE` y se reprograma el reintento automático sin pérdida de datos.
 * **10a. Petición duplicada (Reenvío concurrente):** Si la orden ya había ingresado al servidor pero la respuesta HTTP se perdió en el aire, el reenvío encuentra la llave en la tabla `idempotencia` y retorna inmediatamente la respuesta original cacheada HTTP 200 (`X-Cache-Idempotency: HIT`), garantizando cero doble cobro o doble descuento de stock.
 
 **Poscondiciones:**
-La venta queda asentada formalmente en la base de datos central de PostgreSQL con su respectivo comprobante fiscal y movimiento de kardex; la cola outbox local queda limpia y el inventario sincronizado.
+La compra queda asentada formalmente (`PENDIENTE` hasta el pago) en la base de datos central de PostgreSQL con su respectivo comprobante fiscal y movimiento de kardex; la cola outbox local queda limpia y el inventario sincronizado.
 
 ---
 
@@ -412,11 +410,11 @@ La venta queda asentada formalmente en la base de datos central de PostgreSQL co
 Permite detectar, aislar y resolver la colisión de inventario que ocurre cuando dos transacciones registradas de forma concurrente o desconectada compiten por la última prenda disponible en percha (`stock = 1`). El servidor central actúa como autoridad transaccional única rechazando la segunda operación, ante lo cual el cliente ejecuta una transacción compensatoria (rollback) y sugiere alternativas inmediatas.
 
 **Actores:**
-Clienta (`CUSTOMER`), Cajero (`CAJERO`), Backend NestJS.
+Clienta A (App Móvil, SQLite), Clienta B (Web PWA, IndexedDB), Backend NestJS.
 
 **Pre-Condiciones:**
 1. Existe una sola unidad disponible (`cantidad_disponible = 1`) de una variante de prenda en una sucursal determinada.
-2. Dos clientas (o un cajero offline y una compradora web) intentan adquirir la misma prenda en paralelo.
+2. Dos clientas sin conexión, una en la app móvil y otra en la web PWA, confirman la compra de esa misma prenda; las dos órdenes quedan en sus outbox.
 
 **Flujo Normal:**
 1. La primera transacción llega al servidor central; el servicio `InventarioSucursalService` adquiere un bloqueo pesimista exclusivo sobre la fila (`SELECT ... FOR UPDATE`).
@@ -440,9 +438,9 @@ Clienta (`CUSTOMER`), Cajero (`CAJERO`), Backend NestJS.
      }
    }
    ```
-7. El gestor de cola local del cliente (`outbox-manager.ts`) detecta el código `STOCK_AGOTADO_CONFLICTO`, transiciona la orden a estado **`COMPENSADO`** y ejecuta la **transacción compensatoria** restituyendo provisionalmente las existencias en el dispositivo.
+7. El gestor de cola local del cliente (`outbox-manager.ts`) detecta el código `STOCK_AGOTADO_CONFLICTO`, transiciona la orden a estado **`COMPENSADA`** y ejecuta la **transacción compensatoria** restituyendo provisionalmente las existencias en el dispositivo.
 8. El sistema dispara el evento global `mirroria:conflicto-stock` abriendo en pantalla el diálogo interactivo `ModalConflictoStock`.
-9. La clienta (o el cajero) visualiza la notificación: *"La prenda seleccionada acaba de ser adquirida por otra clienta. Tu venta local fue cancelada sin cobro."*.
+9. La clienta que sincronizó segunda visualiza la notificación: *"La prenda seleccionada acaba de ser adquirida por otra clienta. Tu compra fue cancelada sin cobro."*.
 10. El modal ofrece dos alternativas directas:
     - Retirar la prenda en otra sucursal cercana con existencias.
     - Seleccionar otra talla disponible del mismo modelo.
@@ -507,7 +505,7 @@ El Administrador obtiene visibilidad analítica integral para la toma de decisio
 | **Fecha:** | 06/11/2026 |
 
 **Descripción:**
-Permite al Administrador y al Encargado de Sucursal consultar proyecciones analíticas generadas por modelos supervisados de Machine Learning desacoplados en el microservicio Python FastAPI (:8002): el modelo **M1 (Random Forest Regressor)** para pronosticar la demanda de prendas a 30 días y optimizar pedidos de reposición, y el modelo **M2 (Regresión Logística L2)** para clasificar el riesgo de inasistencia (*no-show*) de citas de probador mediante un semáforo visual en el mostrador.
+Permite al Administrador y al Encargado de Sucursal consultar proyecciones analíticas generadas por modelos supervisados de Machine Learning desacoplados en el microservicio Python FastAPI (:8002): el modelo **M1 (Random Forest Regressor)** para pronosticar la demanda de prendas a 30 días y optimizar pedidos de reposición, y el modelo **M2 (Regresión Logística L2)** para clasificar el riesgo de inasistencia (*no-show*) de citas de probador mediante un semáforo visual en la agenda de la Consola de Caja (web).
 
 **Actores:**
 Dueño de Boutique (`ADMIN`), Encargado de Sucursal, Microservicio ML (`mirroria-ml`).
@@ -517,7 +515,7 @@ Dueño de Boutique (`ADMIN`), Encargado de Sucursal, Microservicio ML (`mirroria
 2. Existen prendas registradas y citas de probador programadas en la sucursal.
 
 **Flujo Normal:**
-1. El usuario accede a la sección de "Predicciones" (`/admin/ml`) o consulta la agenda de citas en la Consola Operativa POS (`/admin/dashboard`).
+1. El usuario accede a la sección de "Predicciones" (`/admin/ml`) o consulta la agenda de citas en la Consola de Caja (`/admin/dashboard`).
 2. El frontend solicita las predicciones mediante `GET /api/v1/ml/kpis/demanda?dias=30` y `GET /api/v1/ml/kpis/no-show`.
 3. El módulo `MlModule` en NestJS canaliza la petición hacia el microservicio Python en `http://mirroria-ml:8002/predict/demanda` y `/predict/noshow`.
 4. El microservicio ejecuta la inferencia estadística sobre los artefactos entrenados (`joblib`):
@@ -525,7 +523,7 @@ Dueño de Boutique (`ADMIN`), Encargado de Sucursal, Microservicio ML (`mirroria
      $$\text{Sugerido} = \max(0, \lceil \text{Demanda} \times 1.2 \rceil - \text{Stock})$$
    - **M2 (No-Show):** `LogisticRegression` L2 (ROC-AUC 0.7978, $F_1 = 0.7440$) estima la probabilidad de inasistencia de cada clienta citada y asigna el semáforo de riesgo: Verde ($< 35\%$), Amarillo ($35-65\%$) o Rojo ($\ge 65\%$).
 5. El backend devuelve los resultados inyectando la cabecera `X-ML-Fallback: false`.
-6. La interfaz presenta las tarjetas de reposición sugerida en lenguaje directivo y marca en la agenda POS las citas que requieren confirmación prioritaria por WhatsApp.
+6. La interfaz presenta las tarjetas de reposición sugerida en lenguaje directivo y marca en la agenda de la Consola de Caja las citas que requieren confirmación prioritaria por WhatsApp.
 
 **Flujos Alternativos:**
 * **3a. Microservicio Python apagado o con caída de red:** Si la llamada a `mirroria-ml:8002` supera el tiempo límite de 3.000 ms o falla la conexión, el método `fetchMl` en NestJS activa de inmediato el **fallback heurístico matemático**. Calcula la demanda proporcional al historial y emite las alertas con la cabecera `X-ML-Fallback: true`. La interfaz muestra una etiqueta informativa indicando que los datos corresponden a una estimación matemática de respaldo.

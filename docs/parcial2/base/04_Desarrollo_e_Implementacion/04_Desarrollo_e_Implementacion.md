@@ -25,7 +25,7 @@ Para la evolución, modelado e implementación de la plataforma SaaS multi-tenan
   * **TypeScript 6 & Node.js 24:** Lenguaje tipado que garantiza seguridad en tiempo de compilación y mantenibilidad corporativa. Se configuró en modo ECMAScript Modules puro (`"type": "module"`, `moduleResolution: "nodenext"`).
   * **NestJS 12:** Framework empresarial basado en arquitectura modular e inyección de dependencias. Permite la estructuración desacoplada en 14 módulos de negocio, aplicación de filtros de excepción homogéneos (`GlobalExceptionFilter`), validación declarativa de esquemas mediante `class-validator` / `ValidationPipe` y documentación interactiva automática con Swagger OpenAPI (`/api/docs`).
   * **TypeORM 1.x:** Mapeador objeto-relacional (ORM) encargado de la comunicación con PostgreSQL, aplicando la cláusula transversal `where: soloTenant({...})` y gestionando transacciones atómicas con bloqueos pesimistas (`pessimistic_write`).
-* **Frontend Web y Punto de Venta (POS): React 19 (PWA)**
+* **Frontend Web (tienda de la clienta y panel del personal): React 19 (PWA)**
   * **React 19 & Vite:** Biblioteca declarativa de interfaces de usuario optimizada con compilador nativo y Vite como empaquetador ultrarrápido (puerto local `5174` en desarrollo, Nginx en puerto `80` para producción).
   * **Tailwind CSS v4 & shadcn/ui (Base UI):** Motor de diseño atómico sin dependencias obsoletas, utilizando el preset Nova sobre primitivas accesibles de Base UI y una iconografía uniforme al 100% en **Phosphor Icons** (`@phosphor-icons/react`).
   * **IndexedDB (`idb`):** Motor de base de datos no relacional transaccional embebido en el navegador, utilizado por la PWA para almacenar localmente el catálogo de prendas (almacén `catalogo_cache` con TTL de 7 días) y la cola de operaciones diferidas (almacén `outbox` FIFO).
@@ -35,8 +35,8 @@ Para la evolución, modelado e implementación de la plataforma SaaS multi-tenan
 * **Microservicio de Machine Learning: Python 3.12 y FastAPI**
   * **FastAPI:** Microframework web asíncrono en Python que expone endpoints REST en puerto `8002` (contenedor `mirroria_ml`, 68 MB de RAM) para inferencia analítica en tiempo real.
   * **Scikit-Learn, Pandas y Joblib:** Bibliotecas estadísticas empleadas para entrenar de forma reproducible ($N=10.000$, semilla fija `seed=42`) los cuatro modelos: Random Forest (M1), Regresión Logística L2 (M2), K-Means (M3) e Isolation Forest (M4).
-* **Movilidad y Persistencia Embebida: React Native / Expo SDK 57**
-  * Entorno multiplataforma para el diseño del cliente móvil nativo con **SQLite** (`expo-sqlite`) como réplica espejo del catálogo e inventario local, y `@react-native-community/netinfo` para la detección de conectividad.
+* **Movilidad y Persistencia Embebida: React Native / Expo SDK 58**
+  * Cliente móvil nativo **solo para la clienta y el visitante** (vitrina, carrito, pagos, reservas con Pase de Tienda y compra desde reserva), con **SQLite** (`expo-sqlite`) como réplica espejo del catálogo e inventario y como cola de salida del checkout y las reservas, y `@react-native-community/netinfo` para la detección de conectividad. El personal de la tienda no usa la app móvil.
 * **Servicios e Integraciones Externas:**
   * **Stripe Checkout:** Pasarela de pagos internacionales para tarjetas de crédito/débito con verificación de webhooks firmados (`Stripe-Signature`).
   * **Banco Simulado Wayra (QR):** Servicio financiero nacional que emite códigos QR dinámicos y callbacks firmados mediante HMAC-SHA256 con idempotencia por `event_id`.
@@ -64,12 +64,12 @@ graph TB
     subgraph Usuarios["Actores del Ecosistema"]
         SUPER["SuperAdmin SaaS\n(Operador de MirrorIA)"]
         ADMIN["Dueño de Boutique\n(ADMIN Inquilino)"]
-        STAFF["Personal de Tienda\n(Cajero / Encargado)"]
+        STAFF["Personal de Tienda — solo web\n(Cajera / Encargado)"]
         CLIENTA["Clienta / Usuaria Final\n(Compradora Web/Móvil)"]
     end
 
     subgraph MirrorIA_System["Sistema Central MirrorIA (SaaS Multi-tenant)"]
-        SYS["Plataforma MirrorIA\n(E-Commerce de Moda Femenina,\nProbador Virtual, POS y Analítica BI/ML)"]
+        SYS["Plataforma MirrorIA\n(E-Commerce de Moda Femenina,\nProbador Virtual, Reservas y Analítica BI/ML)"]
     end
 
     subgraph Externos["Sistemas y Servicios Externos"]
@@ -81,7 +81,7 @@ graph TB
 
     SUPER -->|Administra planes y supervisa inquilinos| SYS
     ADMIN -->|Personaliza marca y gestiona inventario| SYS
-    STAFF -->|Registra ventas POS y atiende probador| SYS
+    STAFF -->|Confirma cobros en efectivo y atiende citas (web)| SYS
     CLIENTA -->|Prueba prendas con IA y compra online/offline| SYS
 
     SYS <-->|Sesiones alojadas y webhooks firmados| STRIPE
@@ -324,7 +324,7 @@ CREATE TABLE public.carritos (
 );
 CREATE INDEX idx_carritos_tenant ON public.carritos(tenant_id);
 
--- 16. TABLA: ventas (Órdenes omnicanal POS y Web)
+-- 16. TABLA: ventas (Compras de la clienta: Web, Móvil y compra desde reserva)
 CREATE TABLE public.ventas (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
@@ -333,7 +333,7 @@ CREATE TABLE public.ventas (
     cajero_id uuid REFERENCES public.usuarios(id),
     reserva_id uuid,
     cupon_id uuid,
-    canal character varying(20) NOT NULL, -- WEB o POS
+    canal character varying(20) NOT NULL, -- WEB o MOVIL
     estado character varying(30) DEFAULT 'PENDIENTE' NOT NULL, -- PENDIENTE, PAGADA, CANCELADA
     numero_comprobante character varying(50),
     subtotal_cents bigint NOT NULL,
@@ -468,21 +468,21 @@ La implementación del sistema se organiza de forma estricta en torno a los **ci
 * **Lógica Backend:** Implementado en `SaasModule`. Administra las tablas `planes`, `inquilinos`, `suscripciones`, `inquilino_marca` y `cobros_suscripcion`. El servicio `AprovisionadorWorkspaceService` orquesta la transacción atómica de alta de boutique sembrando la base relacional en PostgreSQL. El método `assertDentroDelPlan` valida en tiempo de ejecución las cuotas máximas de sucursales, productos y staff.
 * **Lógica Frontend:** Vistas `/plataforma/*` para el superusuario y `/admin/suscripcion` para el cliente del SaaS, con la vista `/admin/apariencia` que implementa la validación algorítmica de contraste accesible WCAG 2.1 en espacio cromático OKLCH.
 
-### 4.4.2. Módulo de Catálogo, Inventario y Puntos de Venta (POS)
+### 4.4.2. Módulo de Catálogo, Inventario y Cobros
 * **Lógica Backend:** Implementado mediante los módulos desacoplados `catalogo`, `inventario`, `proveedores` y `ventas`. Administra existencias físicas mediante el servicio `InventarioSucursalService`, asegurando que `ajustarStock` sea el único punto que toque `cantidad_disponible` con sentencias SQL `UPDATE` condicionadas.
-* **Lógica Frontend:** Interfaz de punto de venta (POS) en `/admin/dashboard` y `/admin/cobros` para el Cajero, con lectura rápida de existencias, confirmación de cobros en efectivo y emisión determinista de comprobantes `C-XXXXXXXX`.
+* **Lógica Frontend:** Consola de Caja en `/admin/dashboard` y `/admin/cobros` para la Cajera (solo web), con lectura rápida de existencias y confirmación de cobros en efectivo de las compras de las clientas. El sistema no tiene punto de venta: el personal no registra ventas; los comprobantes `C-XXXXXXXX` se emiten de forma determinista para cada compra.
 
 ### 4.4.3. Módulo de Experiencia del Cliente y Probador Virtual por IA
-* **Lógica Backend:** Módulos `probador`, `reservas` y `promociones`. El módulo `probador` actúa como gateway hacia el motor generativo Decart (`lucy-vton-3.5`), expidiendo tokens de acceso efímeros de 5 minutos con limitador de tasa por IP. El servicio `ReservasService` implementa la máquina de estados finitos (`PENDIENTE` $\to$ `CONFIRMADA` $\to$ `EN_TIENDA` $\to$ `COMPLETADA`) y la suspensión de 30 días ante 2 faltas consecutivas.
-* **Lógica Frontend:** Vitrina pública `/t/:slug` con inyección dinámica de variables CSS de marca, ficha técnica de prenda con selector SKU e interfaz interactiva del Probador Virtual VTON en `/t/:slug/probador`.
+* **Lógica Backend:** Módulos `probador`, `reservas` y `promociones`. El módulo `probador` actúa como gateway hacia el motor generativo Decart (`lucy-vton-3.5`), expidiendo tokens de acceso efímeros de 5 minutos con limitador de tasa por IP. El servicio `ReservasService` implementa la máquina de estados finitos (`PENDIENTE` $\to$ `CONFIRMADA` $\to$ `EN_TIENDA` $\to$ `COMPLETADA`) y la suspensión de 30 días ante 2 faltas consecutivas. La reserva se cierra con la compra desde reserva ("Comprar lo que reservé"): una venta `PENDIENTE` ligada a la reserva que la pasa a `COMPLETADA` al aprobarse el pago.
+* **Lógica Frontend:** Vitrina pública `/t/:slug` con inyección dinámica de variables CSS de marca, ficha técnica de prenda con selector SKU e interfaz interactiva del Probador Virtual VTON en `/t/:slug/probador`. La app móvil (Expo) replica la experiencia de la clienta con pestañas Vitrina · Probador · Carrito · Mis cosas.
 
 ### 4.4.4. Módulo de Operación Offline-First y Sincronización
-* **Lógica Cliente:** El archivo `public/sw.js` cachea el App Shell en `mirroria-app-shell-v1`. El módulo `src/lib/offline/idb.ts` estructura los almacenes IndexedDB `catalogo_cache` (TTL 7 días) y `outbox` FIFO. La clase `OutboxManager` detecta eventos de reconexión y drena la cola enviando la cabecera `Idempotency-Key` (SHA-256). Ante rechazos 409 por stock agotado, transiciona a `COMPENSADO` y abre `ModalConflictoStock`.
+* **Lógica Cliente:** El archivo `public/sw.js` cachea el App Shell en `mirroria-app-shell-v1`. El módulo `src/lib/offline/idb.ts` estructura los almacenes IndexedDB `catalogo_cache` (TTL 7 días) y `outbox` FIFO. La clase `OutboxManager` detecta eventos de reconexión y drena la cola enviando la cabecera `Idempotency-Key` (SHA-256). La PWA encola el checkout y las reservas de la clienta con `encolarOperacion`; la app móvil hace lo mismo sobre SQLite (`outbox_local`). Ante rechazos 409 por stock agotado, transiciona a `COMPENSADA` y abre `ModalConflictoStock`.
 * **Lógica Servidor:** El interceptor `IdempotenciaInterceptor` extrae la llave UUIDv4 y el hash canónico del body, consultando la tabla `idempotencia`. Si la orden ya fue procesada, responde con `X-Cache-Idempotency: HIT`.
 
 ### 4.4.5. Módulo de Reportes Generativos con IA y Machine Learning
 * **Lógica Backend:** Módulo `ia` con DeepSeek LLM y catálogo de 23 métricas parametrizadas (sin sentencias SQL arbitrarias generadas por IA) y motor in-process DuckDB (`:memory:`) para simulaciones *What-If*. Módulo `bi` con endpoints analíticos directos `/dashboard/ejecutivo` y `/dashboard/operativo`. Módulo `ml` que actúa como proxy hacia el microservicio Python en puerto `8002` con fallback heurístico resiliente (`X-ML-Fallback: true`).
-* **Lógica Microservicio ML (`mirroria-ml`):** Proceso en FastAPI con 4 modelos entrenados reproducibles ($N=10.000$, `seed=42`): Demanda a 30 días (Random Forest, $R^2 = 0.9566$), Riesgo No-Show (Regresión Logística L2, ROC-AUC 0.7978), Segmentación RFM (K-Means, Silueta 0.6823) y Auditoría POS (Isolation Forest, c=0.03).
+* **Lógica Microservicio ML (`mirroria-ml`):** Proceso en FastAPI con 4 modelos entrenados reproducibles ($N=10.000$, `seed=42`): Demanda a 30 días (Random Forest, $R^2 = 0.9566$), Riesgo No-Show (Regresión Logística L2, ROC-AUC 0.7978), Segmentación RFM (K-Means, Silueta 0.6823) y Auditoría de caja y cobros (Isolation Forest, c=0.03).
 * **Lógica Frontend:** Tableros `/admin/dashboard` y `/admin/ml` en lenguaje directivo con gráficos Recharts y modal lateral de rigor científico formal `FichaTecnicaSheet`.
 
 ---
