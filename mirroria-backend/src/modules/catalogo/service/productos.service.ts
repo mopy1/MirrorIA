@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
@@ -222,8 +223,9 @@ export class ProductosService {
    * ProveedoresService.findOne consumido desde catalogo. Devuelve la
    * variante con su producto cargado porque ventas necesita precioCents.
    */
-  async findVarianteById(id: string): Promise<VarianteProducto> {
-    const variante = await this.varianteRepository.findOne({
+  async findVarianteById(id: string, manager?: EntityManager): Promise<VarianteProducto> {
+    const repo = manager ? manager.getRepository(VarianteProducto) : this.varianteRepository;
+    const variante = await repo.findOne({
       where: soloTenant({ id }),
       relations: { producto: true },
     });

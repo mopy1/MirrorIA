@@ -61,8 +61,9 @@ export class SucursalesService {
     return sucursales.map((s) => this.toResponse(s));
   }
 
-  async findOne(id: string): Promise<Sucursal> {
-    const sucursal = await this.sucursalRepository.findOne({
+  async findOne(id: string, manager?: EntityManager): Promise<Sucursal> {
+    const repo = manager ? manager.getRepository(Sucursal) : this.sucursalRepository;
+    const sucursal = await repo.findOne({
       where: soloTenant({ id }),
       relations: { ciudad: true },
     });
@@ -81,8 +82,8 @@ export class SucursalesService {
    * sucursalId exista EN LA TIENDA del contexto antes de operar (una sucursal
    * de otra tienda da 404) — mismo criterio que ProveedoresService.findOne.
    */
-  async assertExists(id: string): Promise<void> {
-    await this.findOne(id);
+  async assertExists(id: string, manager?: EntityManager): Promise<void> {
+    await this.findOne(id, manager);
   }
 
   private toResponse(sucursal: Sucursal): SucursalResponseDto {

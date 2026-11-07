@@ -279,7 +279,7 @@ export class VentasService {
     managerExterno?: EntityManager,
   ): Promise<VentaResponseDto> {
     const variantes = await Promise.all(
-      params.items.map((item) => this.productosService.findVarianteById(item.varianteId)),
+      params.items.map((item) => this.productosService.findVarianteById(item.varianteId, managerExterno)),
     );
     // Online no se vende lo dado de baja (el carrito puede tenerlo de antes).
     if (params.canal !== CanalVenta.PRESENCIAL) {

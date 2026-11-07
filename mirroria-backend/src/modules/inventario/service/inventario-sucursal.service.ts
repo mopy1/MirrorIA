@@ -91,8 +91,8 @@ export class InventarioSucursalService {
     if (!params.manager) {
       return this.dataSource.transaction((manager) => this.ajustarStock({ ...params, manager }));
     }
-    await this.sucursalesService.assertExists(params.sucursalId);
-    await this.productosService.findVarianteById(params.varianteId);
+    await this.sucursalesService.assertExists(params.sucursalId, params.manager);
+    await this.productosService.findVarianteById(params.varianteId, params.manager);
 
     const manager = params.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
@@ -127,8 +127,8 @@ export class InventarioSucursalService {
 
       let detallesExtra: Partial<DetallesStockInsuficiente> | undefined;
       try {
-        const variante = await this.productosService.findVarianteById(params.varianteId).catch(() => null);
-        const sucursal = await this.sucursalesService.findOne(params.sucursalId).catch(() => null);
+        const variante = await this.productosService.findVarianteById(params.varianteId, manager).catch(() => null);
+        const sucursal = await this.sucursalesService.findOne(params.sucursalId, manager).catch(() => null);
 
         const otrasSucursalesFilas = await invRepo.find({
           where: soloTenant({ varianteId: params.varianteId }),
@@ -214,8 +214,8 @@ export class InventarioSucursalService {
    * `reservaId`).
    */
   async ajustarReserva(params: AjustarReservaParams): Promise<InventarioSucursal> {
-    await this.sucursalesService.assertExists(params.sucursalId);
-    await this.productosService.findVarianteById(params.varianteId);
+    await this.sucursalesService.assertExists(params.sucursalId, params.manager);
+    await this.productosService.findVarianteById(params.varianteId, params.manager);
 
     const manager = params.manager ?? this.dataSource.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
