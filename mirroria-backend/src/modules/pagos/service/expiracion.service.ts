@@ -81,7 +81,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       // sigue dependiendo del metodo y el reloj arranca en el intento de pago,
       // no en el checkout.
       const limiteMin =
-        pago === null || pago.metodo === MetodoPago.TARJETA
+        pago === null || pago.metodo === MetodoPago.TARJETA || pago.metodo === MetodoPago.BILLETERA
           ? this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO', MINUTOS_TARJETA_POR_DEFECTO)
           : this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO_MANUAL', MINUTOS_MANUAL_POR_DEFECTO);
 

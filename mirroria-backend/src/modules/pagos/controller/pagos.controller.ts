@@ -136,11 +136,20 @@ export class PagosController {
     return this.pagosService.iniciarTarjeta(ventaId, user);
   }
 
+  @Post('ventas/:ventaId/paypal')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Iniciar el pago de una compra propia con PayPal' })
+  iniciarPaypal(@Param('ventaId') ventaId: string, @CurrentUser() user: JwtPayload): Promise<{ url: string }> {
+    return this.pagosService.iniciarPaypal(ventaId, user);
+  }
+
   @Post('ventas/:ventaId/confirmar-tarjeta')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Confirmar con Stripe una compra propia al volver de pagar' })
+  @ApiOperation({ summary: 'Confirmar con Stripe o PayPal una compra propia al volver de pagar' })
   confirmarTarjeta(@Param('ventaId') ventaId: string, @CurrentUser() user: JwtPayload): Promise<{ estado: string }> {
     return this.pagosService.confirmarTarjeta(ventaId, user);
   }

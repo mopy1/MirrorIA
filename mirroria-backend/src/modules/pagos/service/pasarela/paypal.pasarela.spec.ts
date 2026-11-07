@@ -82,12 +82,12 @@ describe('PaypalPasarela', () => {
       expect(p.metadata.estado).toBe('NO_CONFIGURADA');
     });
 
-    it('con credenciales queda disponible, solo para suscripciones', () => {
+    it('con credenciales queda disponible para suscripciones y compras', () => {
       const p = pasarela();
       expect(p.estaConfigurada()).toBe(true);
       expect(p.metadata.estado).toBe('DISPONIBLE');
       expect(p.metadata.soportaSuscripcion).toBe(true);
-      expect(p.metadata.soportaCheckout).toBe(false);
+      expect(p.metadata.soportaCheckout).toBe(true);
     });
 
     it('apunta al sandbox salvo que se pida live a proposito', async () => {

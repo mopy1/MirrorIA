@@ -15,7 +15,7 @@ describe("menú lateral del panel", () => {
 
   it("respeta los roles del router: el CAJERO no ve lo que no puede abrir y no ve grupos vacíos", () => {
     const nav = navParaRol(ADMIN_NAV_GROUPS, "CAJERO", null)
-    expect(hrefs(nav).sort()).toEqual(["/admin/cobros", "/admin/reservas"])
+    expect(hrefs(nav).sort()).toEqual(["/admin/cobros", "/admin/mostrador", "/admin/reservas"])
     expect(nav.map((g) => g.id)).toEqual(["ventas"])
   })
 

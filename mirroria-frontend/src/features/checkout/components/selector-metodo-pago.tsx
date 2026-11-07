@@ -46,7 +46,8 @@ export function SelectorMetodoPago({ metodo, onChange }: SelectorMetodoPagoProps
     ? pasarelas
         .filter((p) => p.estado === "DISPONIBLE" && p.soportaCheckout)
         .map((p) => {
-          const val: MetodoPago = p.tipo === "TARJETA" ? "TARJETA" : p.tipo === "QR" ? "QR" : "EFECTIVO"
+          const val: MetodoPago =
+            p.tipo === "TARJETA" ? "TARJETA" : p.tipo === "QR" ? "QR" : p.tipo === "BILLETERA" ? "PAYPAL" : "EFECTIVO"
           return {
             value: val,
             label: p.nombre,
@@ -61,7 +62,7 @@ export function SelectorMetodoPago({ metodo, onChange }: SelectorMetodoPagoProps
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-2.5">
       <Label>Método de pago</Label>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {metodos.map(({ value, label, icon: IconComponent }) => (
           <Button
             key={value}

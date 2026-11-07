@@ -1,6 +1,6 @@
 // Espejo de los DTO de pagos en mirroria-backend/src/modules/pagos
 
-export type MetodoPago = "TARJETA" | "QR" | "EFECTIVO"
+export type MetodoPago = "TARJETA" | "QR" | "EFECTIVO" | "PAYPAL"
 
 export interface Instrucciones {
   pagoId: string

@@ -51,8 +51,7 @@ describe('RegistroPasarelasService & Pasarelas Enchufables', () => {
     it('filtra pasarelas por contexto: checkout retail', () => {
       const checkoutList = service.listar({ contexto: 'checkout' });
       const ids = checkoutList.map((p) => p.id);
-      expect(ids).toEqual(['STRIPE', 'WAYRA', 'MANUAL']);
-      expect(ids).not.toContain('PAYPAL');
+      expect(ids).toEqual(['STRIPE', 'WAYRA', 'MANUAL', 'PAYPAL']);
       expect(ids).not.toContain('QR_BANCARIO');
     });
 

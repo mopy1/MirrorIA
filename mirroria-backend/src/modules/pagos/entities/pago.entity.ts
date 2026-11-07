@@ -6,10 +6,13 @@ export enum ProveedorPago {
   MANUAL = 'MANUAL',
   /** Cobro por QR dinamico; lo acredita el aviso firmado del banco (Wayra). */
   WAYRA = 'WAYRA',
+  /** Lo cobra la captura que hace el servidor al volver la clienta: aprobar la orden no cobra. */
+  PAYPAL = 'PAYPAL',
 }
 
 export enum MetodoPago {
   TARJETA = 'TARJETA',
+  BILLETERA = 'BILLETERA',
   QR = 'QR',
   EFECTIVO = 'EFECTIVO',
 }
