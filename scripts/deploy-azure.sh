@@ -24,10 +24,12 @@ cd ~/projects/MirrorIA
 test -z \"\$(git status --porcelain)\" || { echo 'La VM tiene cambios sin commitear, freno'; exit 1; }
 docker tag mirroria-mirroria-backend  mirroria-mirroria-backend:$TAG
 docker tag mirroria-mirroria-frontend mirroria-mirroria-frontend:$TAG
+docker image inspect mirroria-mirroria-ml >/dev/null 2>&1 && docker tag mirroria-mirroria-ml mirroria-mirroria-ml:$TAG
 git fetch -q /tmp/mirroria.bundle HEAD
 git merge --ff-only FETCH_HEAD
 git log --oneline -1
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build mirroria-backend mirroria-frontend
+docker exec -i mirroria_postgres psql -U mirroria -d mirroria_db -v ON_ERROR_STOP=1 < scripts/sql/parcial2-esquema.sql
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build mirroria-ml mirroria-backend mirroria-frontend
 sleep 15
 docker ps --format '{{.Names}} {{.Status}}'
 curl -s -o /dev/null -w 'health %{http_code}\n' http://localhost:3000/api/v1/health || true"

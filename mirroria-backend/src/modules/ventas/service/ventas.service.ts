@@ -106,14 +106,15 @@ export class VentasService {
         where: soloTenant({ usuarioId }),
         lock: { mode: 'pessimistic_write' },
       });
-      if (!carrito || carrito.items.length === 0) {
+      const items = dto.items ?? carrito?.items ?? [];
+      if (items.length === 0) {
         throw new OperacionInvalidaException(
           'El carrito está vacío, no se puede completar la compra',
         );
       }
       // El carrito ya lo limita al agregar, pero un carrito viejo (de antes del
       // tope) o editado por otra vía no debe poder saltárselo en el checkout.
-      if (carrito.items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
+      if (items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
         throw new OperacionInvalidaException(
           `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color por compra`,
         );
@@ -130,7 +131,7 @@ export class VentasService {
 
       const venta = await this.registrarVenta(
         {
-          items: carrito.items,
+          items,
           sucursalId: dto.sucursalId,
           canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
           clienteId: usuarioId,

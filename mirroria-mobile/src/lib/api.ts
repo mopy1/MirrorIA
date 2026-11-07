@@ -28,17 +28,25 @@ function getDefaultApiUrl(): string {
 export const API_URL = getDefaultApiUrl();
 console.log(`[MirrorIA Mobile] API_URL configurada en: ${API_URL}`);
 
+/** La app es de una tienda: toda ruta de negocio la pide en la cabecera X-Tenant. */
+export function tiendaActual(): string {
+  return process.env.EXPO_PUBLIC_TIENDA ?? 'tiendaria';
+}
+
 export class ApiError extends Error {
   status: number;
+  codigo?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, codigo?: string) {
     super(message);
     this.status = status;
+    this.codigo = codigo;
   }
 }
 
 interface BackendErrorBody {
   status: number;
+  codigo?: string;
   message: string | string[];
   timestamp: string;
 }
@@ -69,6 +77,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'X-Tenant': tiendaActual(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
@@ -95,7 +104,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as BackendErrorBody | null;
     const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message;
-    throw new ApiError(response.status, message ?? 'Ocurrió un error inesperado');
+    throw new ApiError(response.status, message ?? 'Ocurrió un error inesperado', body?.codigo);
   }
 
   if (response.status === 204) return undefined as T;

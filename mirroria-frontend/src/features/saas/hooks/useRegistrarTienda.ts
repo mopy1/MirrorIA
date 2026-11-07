@@ -20,7 +20,7 @@ export function useRegistrarTienda() {
       const res = await saasApi.registrarTienda(dto)
       guardarBienvenida(res.suscripcion.diasRestantes)
       // Mismo tick: React agrupa ambos cambios y GuestRoute no alcanza a mandar a /admin/catalogo.
-      navigate("/admin/apariencia", { replace: true })
+      navigate("/admin/suscripcion/activar", { replace: true })
       login(res)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la tienda")

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator } from 'react-native';
+import { Alert, View, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ShoppingBag } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/common/ScreenHeader';
@@ -89,11 +89,13 @@ export function CartScreen() {
     setCheckingOut(true);
     setError(null);
     try {
-      const venta = await cartApi.checkout(user.id, {
-        sucursalId,
-        canal: 'MOVIL',
-      });
-      router.push(`/pago/${venta.id}`);
+      const compra = await cartApi.checkout(user.id, { sucursalId, canal: 'MOVIL' }, items);
+      if (compra.encolada) {
+        setItems([]);
+        Alert.alert('Compra guardada', 'Estás sin conexión. Se envía sola cuando vuelva internet.');
+      } else {
+        router.push(`/pago/${compra.venta.id}`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar la compra');
     } finally {

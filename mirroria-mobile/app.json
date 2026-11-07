@@ -43,13 +43,21 @@
       "expo-dev-client",
       "expo-asset",
       "expo-web-browser",
-      ["@livekit/react-native-expo-plugin", {"android": {"audioType": "media"}}],
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "media"
+          }
+        }
+      ],
       [
         "@config-plugins/react-native-webrtc",
         {
           "cameraPermission": "MirrorIA usa la cámara para probarte prendas en vivo con IA."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

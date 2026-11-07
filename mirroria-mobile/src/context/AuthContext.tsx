@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import type { AuthResponse, UsuarioResponse } from '@/src/features/auth/types/auth.types';
 import { setUnauthorizedCallback } from '@/src/lib/api';
 import { storage } from '@/src/lib/storage';
@@ -26,7 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await storage.getItem('mirroria_token');
         // El JWT dura 1h: con uno vencido la app mostraba la sesión abierta y
         // recién fallaba (401) al agregar al carrito o reservar.
-        if (raw && token && !tokenVencido(token)) {
+        // Sin red no se puede renovar: se conserva la sesión para seguir comprando.
+        const sinRed = (await NetInfo.fetch()).isConnected === false;
+        if (raw && token && (sinRed || !tokenVencido(token))) {
           setUser(JSON.parse(raw) as UsuarioResponse);
         } else if (raw || token) {
           await storage.removeItem('mirroria_token');

@@ -25,6 +25,21 @@ describe('ventas con clave de idempotencia', () => {
     expect(ventaRepository.findOne.mock.calls[0][0].where).toMatchObject({ claveIdempotencia: 'clave-1' });
   });
 
+  it('una compra hecha sin conexion trae sus prendas: no depende del carrito del servidor', async () => {
+    const registrar = vi.fn().mockResolvedValue({ id: 'v3' });
+    const ventaRepo = { count: vi.fn().mockResolvedValue(0), findOne: vi.fn().mockResolvedValue(null) };
+    const service = new VentasService(
+      { findOne: vi.fn().mockResolvedValue(null) } as never, {} as never,
+      { transaction: (cb: (m: unknown) => unknown) => cb({ getRepository: () => ventaRepo }) } as never,
+      { assertExists: vi.fn() } as never, {} as never, {} as never, { vaciar: vi.fn() } as never, {} as never, {} as never,
+    );
+    (service as unknown as { registrarVenta: typeof registrar }).registrarVenta = registrar;
+
+    await service.checkoutCarrito('u1', { sucursalId: 's1', canal: 'MOVIL', items: [{ varianteId: 'v', cantidad: 1 }] } as never, 'k');
+
+    expect(registrar.mock.calls[0][0].items).toEqual([{ varianteId: 'v', cantidad: 1 }]);
+  });
+
   it('lo mismo en el checkout: no responde carrito vacio', async () => {
     const ventaRepository = { findOne: vi.fn().mockResolvedValue({ id: 'v2', createdAt: new Date() }) };
     const transaction = vi.fn();
