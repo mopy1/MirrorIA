@@ -91,12 +91,26 @@ describe('IdempotenciaService', () => {
     );
 
     expect(res.estado).toBe(EstadoIdempotencia.EN_PROCESO);
-    expect(mockRepo.update).toHaveBeenCalledWith('uuid-1', expect.objectContaining({
+    expect(mockRepo.update).toHaveBeenCalledWith({ id: 'uuid-1', estado: EstadoIdempotencia.FALLIDO }, expect.objectContaining({
       estado: EstadoIdempotencia.EN_PROCESO,
       hashCuerpo: 'nuevo-hash',
       codigoEstado: null,
       cuerpoRespuesta: null,
     }));
+  });
+
+  it('reiniciarIntento: si otro reintento gano, devuelve null', async () => {
+    vi.mocked(mockRepo.update).mockResolvedValueOnce({ affected: 0 } as never);
+    await expect(service.reiniciarIntento('uuid-1', 'h', '/r', 'post')).resolves.toBeNull();
+  });
+
+  it('estaAtascado: EN_PROCESO hace mas de un minuto es una caida; reciente sigue en curso', () => {
+    const dia = 24 * 60 * 60 * 1000;
+    const hace = (ms: number) => new Date(Date.now() + dia - ms);
+    const fila = (expiraEn: Date, estado = EstadoIdempotencia.EN_PROCESO) => ({ estado, expiraEn }) as unknown as Idempotencia;
+    expect(service.estaAtascado(fila(hace(5 * 60_000)))).toBe(true);
+    expect(service.estaAtascado(fila(hace(5_000)))).toBe(false);
+    expect(service.estaAtascado(fila(hace(5 * 60_000), EstadoIdempotencia.COMPLETADO))).toBe(false);
   });
 
   it('limpiarExpiradas: ejecuta DELETE en QueryBuilder y retorna cantidad afectada', async () => {

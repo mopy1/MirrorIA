@@ -57,6 +57,7 @@ describe('IdempotenciaInterceptor', () => {
     marcarCompletado: vi.fn(),
     marcarFallido: vi.fn(),
     reiniciarIntento: vi.fn(),
+    estaAtascado: vi.fn(() => false),
   } as unknown as IdempotenciaService;
 
   const interceptor = new IdempotenciaInterceptor(mockService);
@@ -116,7 +117,7 @@ describe('IdempotenciaInterceptor', () => {
       clave: 'uuid-key-1',
       ruta: '/api/v1/ventas/presencial',
       metodo: 'POST',
-      hashCuerpo: hash,
+      hashCuerpo: expect.any(String),
     });
     expect(res.setHeader).toHaveBeenCalledWith('X-Cache-Idempotency', 'MISS');
     expect(mockService.marcarCompletado).toHaveBeenCalledWith('reg-1', 201, {
@@ -259,6 +260,49 @@ describe('IdempotenciaInterceptor', () => {
       exitoso: true,
     });
     expect(res.setHeader).toHaveBeenCalledWith('X-Cache-Idempotency', 'MISS');
+  });
+
+  it('una clave de otra usuaria o de otra ruta no devuelve la respuesta guardada', async () => {
+    const { ctx } = crearContexto({ headers: { 'idempotency-key': 'k' }, user: { tenantId: tenantActual(), sub: 'u2' } as never });
+    const hashes: string[] = [];
+    vi.mocked(mockService.buscar).mockResolvedValue(null);
+    vi.mocked(mockService.registrarIntento).mockImplementation(async (p) => {
+      hashes.push(p.hashCuerpo);
+      return { id: 'r' } as unknown as Idempotencia;
+    });
+    await interceptor.intercept(ctx, { handle: () => of({}) });
+    const otra = crearContexto({ headers: { 'idempotency-key': 'k' }, user: { tenantId: tenantActual(), sub: 'u1' } as never });
+    await interceptor.intercept(otra.ctx, { handle: () => of({}) });
+    const ruta = crearContexto({ headers: { 'idempotency-key': 'k' }, url: '/api/v1/otra', user: { tenantId: tenantActual(), sub: 'u1' } as never });
+    await interceptor.intercept(ruta.ctx, { handle: () => of({}) });
+
+    expect(new Set(hashes).size).toBe(3);
+    vi.mocked(mockService.buscar).mockReset();
+    vi.mocked(mockService.registrarIntento).mockReset();
+  });
+
+  it('una operacion que quedo EN_PROCESO por una caida se puede reintentar', async () => {
+    const { ctx } = crearContexto({ headers: { 'idempotency-key': 'caida' } });
+    vi.mocked(mockService.buscar).mockResolvedValueOnce({ id: 'reg-c', estado: EstadoIdempotencia.EN_PROCESO } as unknown as Idempotencia);
+    vi.mocked(mockService.validarHash).mockReturnValueOnce(true);
+    (mockService as unknown as { estaAtascado: ReturnType<typeof vi.fn> }).estaAtascado = vi.fn(() => true);
+    vi.mocked(mockService.reiniciarIntento).mockResolvedValueOnce({ id: 'reg-c' } as unknown as Idempotencia);
+
+    const obs = await interceptor.intercept(ctx, { handle: () => of({ ok: true }) });
+
+    await expect(firstValueFrom(obs)).resolves.toEqual({ ok: true });
+    expect(mockService.reiniciarIntento).toHaveBeenLastCalledWith(
+      'reg-c', expect.any(String), expect.any(String), 'POST', EstadoIdempotencia.EN_PROCESO,
+    );
+  });
+
+  it('dos reintentos a la vez: solo uno retoma, el otro recibe 409', async () => {
+    const { ctx } = crearContexto({ headers: { 'idempotency-key': 'doble' } });
+    vi.mocked(mockService.buscar).mockResolvedValueOnce({ id: 'reg-d', estado: EstadoIdempotencia.FALLIDO } as unknown as Idempotencia);
+    vi.mocked(mockService.validarHash).mockReturnValueOnce(true);
+    vi.mocked(mockService.reiniciarIntento).mockResolvedValueOnce(null);
+
+    await expect(interceptor.intercept(ctx, { handle: () => of({}) })).rejects.toThrow(/en curso/);
   });
 
   it('9. Si el controlador falla con excepción, guarda estado FALLIDO y re-lanza el error', async () => {

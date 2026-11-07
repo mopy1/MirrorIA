@@ -13,6 +13,21 @@ export function calcularHashCuerpo(body: unknown): string {
   return createHash('sha256').update(canonico).digest('hex');
 }
 
+/**
+ * La clave solo vale para la misma persona, ruta y cuerpo: sin esto una clienta
+ * que repetia la clave de otra recibia la respuesta guardada de esa otra.
+ */
+export function calcularHashPeticion(
+  usuarioId: string | undefined,
+  metodo: string,
+  ruta: string,
+  body: unknown,
+): string {
+  return createHash('sha256')
+    .update(`${usuarioId ?? ''}|${metodo}|${ruta}|${calcularHashCuerpo(body)}`)
+    .digest('hex');
+}
+
 function ordenarClaves(obj: unknown): unknown {
   if (obj === null || typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) return obj.map(ordenarClaves);

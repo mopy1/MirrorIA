@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -39,13 +40,14 @@ export class VentasController {
   registrarPresencial(
     @Body() dto: CreateVentaPresencialDto,
     @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') clave?: string,
   ): Promise<VentaResponseDto> {
     // Un cajero cobra en su sucursal: si no, descontaría stock de otra.
     const propia = sucursalDelStaff(user);
     if (propia && dto.sucursalId !== propia) {
       throw new ForbiddenActionException('Solo podés registrar ventas en tu sucursal');
     }
-    return this.ventasService.registrarPresencial(dto, user.sub);
+    return this.ventasService.registrarPresencial(dto, user.sub, clave);
   }
 
   // RF15/RF16: compra digital desde web o móvil, a partir del carrito activo.
@@ -60,9 +62,10 @@ export class VentasController {
     @Param('usuarioId') usuarioId: string,
     @Body() dto: CheckoutCarritoDto,
     @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') clave?: string,
   ): Promise<VentaResponseDto> {
     assertOwnUser(usuarioId, user);
-    return this.ventasService.checkoutCarrito(usuarioId, dto);
+    return this.ventasService.checkoutCarrito(usuarioId, dto, clave);
   }
 
   // Consulta de ventas: dato interno (RF24 — reportes), no del cliente final.

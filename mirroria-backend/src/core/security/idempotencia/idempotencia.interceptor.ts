@@ -14,7 +14,7 @@ import { catchError, switchMap } from 'rxjs/operators';
 import type { JwtPayload } from '../jwt-payload.interface.js';
 import { tenantOpcional } from '../../tenancy/tenant-context.js';
 import { EstadoIdempotencia, type Idempotencia } from './entities/idempotencia.entity.js';
-import { calcularHashCuerpo } from './idempotencia.hash.js';
+import { calcularHashPeticion } from './idempotencia.hash.js';
 import { IdempotenciaService } from './idempotencia.service.js';
 
 const METODOS_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -66,7 +66,8 @@ export class IdempotenciaInterceptor implements NestInterceptor {
     }
 
     const ruta = (req.originalUrl || req.url || req.path || '').split('?')[0];
-    const hashCuerpo = calcularHashCuerpo(req.body);
+    const usuarioId = (req.user as JwtPayload | undefined)?.sub;
+    const hashCuerpo = calcularHashPeticion(usuarioId, metodo, ruta, req.body);
 
     const existente = await this.idempotenciaService.buscar(tenantId, clave);
 
@@ -79,7 +80,10 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         );
       }
 
-      if (existente.estado === EstadoIdempotencia.EN_PROCESO) {
+      if (
+        existente.estado === EstadoIdempotencia.EN_PROCESO &&
+        !this.idempotenciaService.estaAtascado(existente)
+      ) {
         throw new ConflictException(
           'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
         );
@@ -98,13 +102,20 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         return of(existente.cuerpoRespuesta);
       }
 
-      // Estado FALLIDO: reiniciamos el registro a EN_PROCESO para permitir el reintento
-      registro = await this.idempotenciaService.reiniciarIntento(
+      // FALLIDO, o EN_PROCESO abandonado por una caida: se retoma. Solo uno gana.
+      const retomado = await this.idempotenciaService.reiniciarIntento(
         existente.id,
         hashCuerpo,
         ruta,
         metodo,
+        existente.estado,
       );
+      if (!retomado) {
+        throw new ConflictException(
+          'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
+        );
+      }
+      registro = retomado;
     } else {
       try {
         registro = await this.idempotenciaService.registrarIntento({

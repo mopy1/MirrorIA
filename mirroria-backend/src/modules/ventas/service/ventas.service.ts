@@ -40,6 +40,7 @@ interface RegistrarVentaParams {
   estadoInicial: EstadoVenta;
   reservaId?: string | null;
   codigoCupon?: string | null;
+  claveIdempotencia?: string | null;
 }
 
 @Injectable()
@@ -65,8 +66,11 @@ export class VentasService {
   async registrarPresencial(
     dto: CreateVentaPresencialDto,
     cajeroId: string,
+    clave?: string,
   ): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
+    const previa = await this.ventaPorClave(clave);
+    if (previa) return previa;
     return this.registrarVenta({
       items: dto.items,
       sucursalId: dto.sucursalId,
@@ -76,14 +80,23 @@ export class VentasService {
       estadoInicial: EstadoVenta.PAGADA,
       reservaId: dto.reservaId ?? null,
       codigoCupon: dto.codigoCupon ?? null,
+      claveIdempotencia: clave ?? null,
     });
+  }
+
+  private async ventaPorClave(clave?: string): Promise<VentaResponseDto | null> {
+    if (!clave) return null;
+    const venta = await this.ventaRepository.findOne({ where: soloTenant({ claveIdempotencia: clave }) });
+    return venta ? this.cargarYMapear(venta) : null;
   }
 
   // Compra digital (RF14/RF15/RF16): arranca en PENDIENTE porque el cobro
   // real todavía depende del módulo `pagos` (no construido en este batch) —
   // ver AGENTS.md, decisión 2026-09-13.
-  async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto): Promise<VentaResponseDto> {
+  async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto, clave?: string): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
+    const previa = await this.ventaPorClave(clave);
+    if (previa) return previa;
     // Todo en una transacción con el carrito bloqueado (FOR UPDATE): antes el
     // carrito y el conteo de pendientes se leían afuera y el vaciado iba
     // después, así que 4 checkouts simultáneos del mismo carrito creaban 4
@@ -124,6 +137,7 @@ export class VentasService {
           cajeroId: null,
           estadoInicial: EstadoVenta.PENDIENTE,
           codigoCupon: dto.codigoCupon ?? null,
+          claveIdempotencia: clave ?? null,
         },
         manager,
       );
@@ -353,6 +367,7 @@ export class VentasService {
           cajeroId: params.cajeroId,
           reservaId: params.reservaId ?? null,
           cuponId,
+          claveIdempotencia: params.claveIdempotencia ?? null,
           canal: params.canal,
           estado: params.estadoInicial,
           numeroComprobante:

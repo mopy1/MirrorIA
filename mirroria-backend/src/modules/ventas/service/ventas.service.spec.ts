@@ -7,6 +7,39 @@ import { EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 
+describe('ventas con clave de idempotencia', () => {
+  it('reintentar tras una caida devuelve la venta ya guardada, no crea otra', async () => {
+    const venta = { id: 'v1', estado: 'PAGADA', createdAt: new Date() };
+    const ventaRepository = { findOne: vi.fn().mockResolvedValue(venta) };
+    const ventaItemRepository = { find: vi.fn().mockResolvedValue([]) };
+    const transaction = vi.fn();
+    const service = new VentasService(
+      ventaRepository as never, ventaItemRepository as never, { transaction } as never,
+      { assertExists: vi.fn() } as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+
+    const r = await service.registrarPresencial({ sucursalId: 's1', items: [] } as never, 'c1', 'clave-1');
+
+    expect(r.id).toBe('v1');
+    expect(transaction).not.toHaveBeenCalled();
+    expect(ventaRepository.findOne.mock.calls[0][0].where).toMatchObject({ claveIdempotencia: 'clave-1' });
+  });
+
+  it('lo mismo en el checkout: no responde carrito vacio', async () => {
+    const ventaRepository = { findOne: vi.fn().mockResolvedValue({ id: 'v2', createdAt: new Date() }) };
+    const transaction = vi.fn();
+    const service = new VentasService(
+      ventaRepository as never, { find: vi.fn().mockResolvedValue([]) } as never, { transaction } as never,
+      { assertExists: vi.fn() } as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+
+    const r = await service.checkoutCarrito('u1', { sucursalId: 's1' } as never, 'clave-2');
+
+    expect(r.id).toBe('v2');
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('VentasService — cobro y cancelacion', () => {
   let ventaRepo: {
     findOne: ReturnType<typeof vi.fn>;

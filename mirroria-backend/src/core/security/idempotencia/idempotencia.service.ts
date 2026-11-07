@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity.js';
@@ -13,12 +13,39 @@ export interface RegistrarIntentoParams {
   expiraEn?: Date;
 }
 
+const TTL_MS = 24 * 60 * 60 * 1000;
+/** Ninguna operacion tarda esto: si sigue EN_PROCESO, el proceso se cayo a la mitad. */
+const ATASCADA_MS = 60_000;
+const BARRIDA_MS = 60 * 60 * 1000;
+
 @Injectable()
-export class IdempotenciaService {
+export class IdempotenciaService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(IdempotenciaService.name);
+  private barrida: NodeJS.Timeout | null = null;
+
   constructor(
     @InjectRepository(Idempotencia)
     private readonly repo: Repository<Idempotencia>,
   ) {}
+
+  onModuleInit(): void {
+    this.barrida = setInterval(() => {
+      this.limpiarExpiradas().catch((e) => this.logger.warn(`Barrida fallida: ${String(e)}`));
+    }, BARRIDA_MS);
+    this.barrida.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.barrida) clearInterval(this.barrida);
+  }
+
+  /** `expiraEn` lo pone la aplicacion al empezar, asi que dice cuando arranco sin depender de la zona horaria. */
+  estaAtascado(registro: Idempotencia): boolean {
+    return (
+      registro.estado === EstadoIdempotencia.EN_PROCESO &&
+      registro.expiraEn.getTime() - TTL_MS + ATASCADA_MS < Date.now()
+    );
+  }
 
   /**
    * Busca un registro de idempotencia existente por tenantId y clave.
@@ -34,7 +61,7 @@ export class IdempotenciaService {
    */
   async registrarIntento(params: RegistrarIntentoParams): Promise<Idempotencia> {
     const expiraEn =
-      params.expiraEn ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
+      params.expiraEn ?? new Date(Date.now() + TTL_MS);
     const entidad = this.repo.create({
       tenantId: params.tenantId,
       clave: params.clave,
@@ -89,18 +116,18 @@ export class IdempotenciaService {
   }
 
   /**
-   * Reinicia un registro en estado FALLIDO a EN_PROCESO para permitir un reintento limpio.
+   * Pasa a EN_PROCESO un registro FALLIDO o abandonado. Condicionado al estado
+   * leido: con dos reintentos a la vez solo uno gana y el otro recibe null.
    */
   async reiniciarIntento(
     id: string,
     hashCuerpo: string,
     ruta: string,
     metodo: string,
-    expiraEn?: Date,
-  ): Promise<Idempotencia> {
-    const nuevaExpiracion =
-      expiraEn ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await this.repo.update(id, {
+    estadoEsperado: EstadoIdempotencia = EstadoIdempotencia.FALLIDO,
+  ): Promise<Idempotencia | null> {
+    const nuevaExpiracion = new Date(Date.now() + TTL_MS);
+    const { affected } = await this.repo.update({ id, estado: estadoEsperado }, {
       estado: EstadoIdempotencia.EN_PROCESO,
       hashCuerpo,
       ruta,
@@ -109,6 +136,7 @@ export class IdempotenciaService {
       cuerpoRespuesta: null,
       expiraEn: nuevaExpiracion,
     });
+    if (affected !== 1) return null;
     const actualizada = await this.repo.findOneBy({ id });
     if (!actualizada) {
       throw new Error(`No se encontró el registro de idempotencia con id ${id}`);
