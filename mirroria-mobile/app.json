@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "MirrorIA",
+    "slug": "mirroria-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mirroria",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "bo.mirroria.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#281B89",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#281B89",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Para escanear la etiqueta de una prenda en la tienda"
+        }
+      ],
+      "expo-notifications",
+      "expo-secure-store",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": false
+    },
+    "ios": {
+      "supportsTablet": false
+    }
+  }
+}
