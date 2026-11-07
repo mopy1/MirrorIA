@@ -18,7 +18,8 @@ export function useAgregarAlCarrito() {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function agregar(varianteId: string | undefined) {
+  /** Sin red va a la outbox: se avisa "Pendiente de confirmar", nunca "agregado" (RN09). */
+  async function agregar(varianteId: string | undefined, descripcion?: string) {
     if (!isAuthenticated) {
       navigate(ruta("/login"))
       return
@@ -27,10 +28,14 @@ export function useAgregarAlCarrito() {
     setFeedback(null)
     setError(null)
     try {
-      await addItem(varianteId, 1)
-      setFeedback("Se agregó al carrito.")
+      const resultado = await addItem(varianteId, 1, descripcion)
+      setFeedback(
+        resultado === "ENCOLADA"
+          ? "Sin conexión: la guardamos en este dispositivo. Queda pendiente de confirmar y se envía sola al volver la red."
+          : "Se agregó al carrito."
+      )
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo agregar al carrito")
+      setError(err instanceof ApiError || err instanceof Error ? err.message : "No se pudo agregar al carrito")
     }
   }
 

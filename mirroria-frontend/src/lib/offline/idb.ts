@@ -99,13 +99,32 @@ export async function actualizarOutbox(id: string, parcial: Partial<OperacionOut
   })
 }
 
-export async function listarOutbox(filtro?: { estado?: EstadoOutbox; tenantId?: string }): Promise<OperacionOutbox[]> {
+// Filas guardadas con los nombres de la Fase 3 (antes de unificar con el móvil).
+const ESTADOS_VIEJOS: Record<string, EstadoOutbox> = {
+  SINCRONIZANDO: 'ENVIANDO',
+  SINCRONIZADO: 'CONFIRMADA',
+  COMPENSADO: 'COMPENSADA',
+  FALLIDO: 'RECHAZADA',
+}
+
+export function normalizarEstado(estado: string): EstadoOutbox {
+  return ESTADOS_VIEJOS[estado] ?? (estado as EstadoOutbox)
+}
+
+export interface FiltroOutbox {
+  estado?: EstadoOutbox
+  tenantId?: string
+  usuarioId?: string
+}
+
+export async function listarOutbox(filtro?: FiltroOutbox): Promise<OperacionOutbox[]> {
   const db = await abrirDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_OUTBOX, 'readonly')
     const req = tx.objectStore(STORE_OUTBOX).getAll()
     req.onsuccess = () => {
-      let items = (req.result as OperacionOutbox[]) || []
+      let items = ((req.result as OperacionOutbox[]) || []).map((i) => ({ ...i, estado: normalizarEstado(i.estado) }))
+      if (filtro?.usuarioId) items = items.filter((i) => i.usuarioId === filtro.usuarioId)
       if (filtro?.estado) items = items.filter((i) => i.estado === filtro.estado)
       if (filtro?.tenantId) items = items.filter((i) => i.tenantId === filtro.tenantId)
       items.sort((a, b) => a.creadoEn - b.creadoEn)

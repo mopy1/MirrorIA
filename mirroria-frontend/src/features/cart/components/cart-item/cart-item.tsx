@@ -9,9 +9,11 @@ interface CartItemProps {
   item: CartLineItem
   onRemove: (varianteId: string) => void
   onUpdateQuantity?: (varianteId: string, cantidad: number) => Promise<void> | void
+  /** Sin red (o ítem aún en la outbox): cambiar o quitar necesita conexión. */
+  bloqueado?: boolean
 }
 
-export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
+export function CartItem({ item, onRemove, onUpdateQuantity, bloqueado = false }: CartItemProps) {
   const [hasError, setHasError] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
 
@@ -20,6 +22,8 @@ export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
     setIsUpdating(true)
     try {
       await onUpdateQuantity(item.varianteId, newQty)
+    } catch {
+      // El error lo muestra la página (CartPage); acá solo se libera el botón.
     } finally {
       setIsUpdating(false)
     }
@@ -44,6 +48,11 @@ export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
       <div className="flex flex-1 flex-col justify-between min-w-0">
         <div>
           <p className="text-sm font-medium text-foreground truncate">{item.productoTitulo}</p>
+          {item.pendiente && (
+            <span className="mt-1 inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+              Pendiente de confirmar
+            </span>
+          )}
           {item.disponible ? (
             <p className="text-xs text-muted-foreground mt-0.5">
               Talla {item.tallaNombre} · {item.colorNombre}
@@ -60,7 +69,7 @@ export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
                 variant="outline"
                 size="icon-xs"
                 aria-label="Disminuir cantidad"
-                disabled={item.cantidad <= 1 || isUpdating}
+                disabled={item.cantidad <= 1 || isUpdating || bloqueado}
                 onClick={() => updateQty(item.cantidad - 1)}
               >
                 <Minus />
@@ -70,7 +79,7 @@ export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
                 variant="outline"
                 size="icon-xs"
                 aria-label="Aumentar cantidad"
-                disabled={item.cantidad >= 3 || isUpdating}
+                disabled={item.cantidad >= 3 || isUpdating || bloqueado}
                 onClick={() => updateQty(item.cantidad + 1)}
               >
                 <Plus />
@@ -89,7 +98,7 @@ export function CartItem({ item, onRemove, onUpdateQuantity }: CartItemProps) {
         variant="ghost"
         size="icon"
         aria-label="Quitar del carrito"
-        disabled={isUpdating}
+        disabled={isUpdating || bloqueado}
         onClick={() => onRemove(item.varianteId)}
       >
         <Trash />

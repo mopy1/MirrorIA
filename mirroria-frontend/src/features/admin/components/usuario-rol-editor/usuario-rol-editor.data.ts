@@ -28,7 +28,7 @@ export const ROLES_CONFIG: Record<string, RolConfigItem> = {
   },
   CAJERO: {
     label: "Cajero",
-    description: "Opera el punto de venta (POS) y cobros de sucursal",
+    description: "Confirma en caja los pagos en efectivo de las clientas (Cobros por confirmar)",
     badgeClasses: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-medium",
     icon: IdentificationBadge,
   },

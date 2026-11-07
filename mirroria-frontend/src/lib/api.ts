@@ -1,3 +1,4 @@
+import { sinRedSimulado } from "./offline/red-simulada"
 import { getTiendaActiva } from "./tienda-activa"
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
@@ -83,6 +84,10 @@ function cabecerasIdempotencia(method?: string, headers?: HeadersInit): Record<s
  */
 export async function apiFetch<T>(path: string, options: RequestInit = {}, modo: ModoTenant = "auto"): Promise<T> {
   const isAuthEndpoint = path.startsWith("/seguridad/auth/")
+  // Demo "Simular sin red": ninguna mutación sale (lo encolable va por la outbox).
+  if ((options.method ?? "GET").toUpperCase() !== "GET" && sinRedSimulado()) {
+    throw new ApiError(0, "Sin conexión: esta acción necesita internet")
+  }
 
   const response = await fetch(`${API_URL}${path}`, {
     ...options,

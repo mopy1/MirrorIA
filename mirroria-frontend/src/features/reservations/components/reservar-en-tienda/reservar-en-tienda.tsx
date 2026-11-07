@@ -1,4 +1,4 @@
-import { CalendarBlank } from "@phosphor-icons/react"
+import { CalendarBlank, CircleNotch } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CupoReservaInfo } from "./cupo-reserva-info"
@@ -7,6 +7,8 @@ import { useReservarEnTienda } from "./useReservarEnTienda"
 interface ReservarEnTiendaProps {
   varianteId: string | null
   sucursalId: string | null
+  /** Texto de la outbox si se reserva sin red ("Vestido Gala · M · Rosa"). */
+  descripcion?: string
 }
 
 /**
@@ -19,8 +21,8 @@ interface ReservarEnTiendaProps {
  * (reglas anti-acaparamiento del backend: 1 unidad por variante, máx. 2
  * reservas activas, horario entre +30 min y +48 h — ver `useCupoReserva`).
  */
-export function ReservarEnTienda({ varianteId, sucursalId }: ReservarEnTiendaProps) {
-  const r = useReservarEnTienda(varianteId, sucursalId)
+export function ReservarEnTienda({ varianteId, sucursalId, descripcion }: ReservarEnTiendaProps) {
+  const r = useReservarEnTienda(varianteId, sucursalId, descripcion)
 
   return (
     <div className="mt-4 flex flex-col gap-2 rounded-xl border border-dashed border-border p-3">
@@ -53,6 +55,7 @@ export function ReservarEnTienda({ varianteId, sucursalId }: ReservarEnTiendaPro
               disabled={!r.puedeEnviar || r.isLoading}
               onClick={r.reservar}
             >
+              {r.isLoading && <CircleNotch className="size-4 animate-spin" />}
               {r.isLoading ? "Reservando..." : "Reservar"}
             </Button>
           </div>

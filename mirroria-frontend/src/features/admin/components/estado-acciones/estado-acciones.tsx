@@ -18,7 +18,8 @@ const TRANSICIONES: Record<string, { estado: string; label: string; variant?: "d
     { estado: "EXPIRADA", label: "Expirar", variant: "outline", className: "h-7 text-xs px-2 text-muted-foreground" },
   ],
   // Se probó y no compró: libera las prendas apartadas (no cuenta como falta).
-  // Si compra, la reserva se cierra sola al cobrar la venta presencial.
+  // Si compra, lo hace ELLA desde "Mis reservas" (POST /ventas/desde-reserva/:id);
+  // el efectivo lo confirma la cajera en Cobros y ahí la reserva pasa a COMPLETADA.
   EN_TIENDA: [
     { estado: "CANCELADA", label: "No compró", variant: "outline", className: "h-7 text-xs px-2.5" },
   ],
@@ -47,6 +48,11 @@ export function EstadoAcciones({ reservaId, estadoActual, onCambiado }: EstadoAc
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 justify-end">
+      {estadoActual === "EN_TIENDA" && (
+        <span className="text-[11px] text-muted-foreground" title="La clienta compra lo reservado desde su cuenta; si paga en efectivo, se confirma en Cobros por confirmar y la reserva se completa sola.">
+          Compra desde su reserva · efectivo en Cobros
+        </span>
+      )}
       {opciones.map((op) => (
         <Button
           key={op.estado}

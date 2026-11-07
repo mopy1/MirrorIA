@@ -52,7 +52,9 @@ export function VentasTable({ ventas, sucursales }: VentasTableProps) {
                   icon: CheckCircle,
                 }
                 const Icon = estado.icon
-                const isOnline = venta.canal.toUpperCase() === "WEB"
+                const canal = venta.canal.toUpperCase()
+                // PRESENCIAL solo existe en datos viejos: el personal ya no registra ventas.
+                const isOnline = canal !== "PRESENCIAL"
 
                 return (
                   <TableRow key={venta.id} className="hover:bg-muted/30">
@@ -80,7 +82,7 @@ export function VentasTable({ ventas, sucursales }: VentasTableProps) {
                         )}
                       >
                         {isOnline ? <Globe className="size-3 shrink-0" /> : <Storefront className="size-3 shrink-0" />}
-                        <span>{isOnline ? "Tienda Web" : "Caja Física"}</span>
+                        <span>{canal === "MOVIL" ? "App móvil" : isOnline ? "Tienda web" : "En tienda"}</span>
                       </Badge>
                     </TableCell>
                     <TableCell>

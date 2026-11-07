@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from "motion/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -65,8 +66,9 @@ export function ProductDetail({ producto }: { producto: Producto }) {
             size="lg"
             className="w-full sm:w-auto"
             disabled={!variante || cartLoading || Boolean(sinStock)}
-            onClick={() => agregar(variante?.id)}
+            onClick={() => agregar(variante?.id, variante ? `${producto.titulo} · ${variante.tallaNombre} · ${variante.colorNombre}` : undefined)}
           >
+            {cartLoading && <CircleNotch className="size-4 animate-spin" />}
             Agregar al carrito
           </Button>
 
@@ -92,7 +94,11 @@ export function ProductDetail({ producto }: { producto: Producto }) {
           </p>
         )}
 
-        <ReservarEnTienda varianteId={variante?.id ?? null} sucursalId={sucursalId} />
+        <ReservarEnTienda
+          varianteId={variante?.id ?? null}
+          sucursalId={sucursalId}
+          descripcion={variante ? `Reserva: ${producto.titulo} · ${variante.tallaNombre} · ${variante.colorNombre}` : undefined}
+        />
       </motion.div>
     </div>
   )

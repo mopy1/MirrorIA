@@ -67,12 +67,12 @@ export function SelectorMetodoPago({ metodo, onChange }: SelectorMetodoPagoProps
             key={value}
             type="button"
             variant={metodo === value ? "default" : "outline"}
-            className="h-auto flex-col gap-1.5 py-3 text-center"
+            className="h-auto min-w-0 flex-col gap-1.5 px-2 py-3 text-center"
             aria-pressed={metodo === value}
             onClick={() => onChange(value)}
           >
             <IconComponent className="size-5 shrink-0" />
-            <span className="truncate text-xs sm:text-sm">{label}</span>
+            <span className="w-full whitespace-normal text-xs leading-tight sm:text-sm">{label}</span>
           </Button>
         ))}
       </div>

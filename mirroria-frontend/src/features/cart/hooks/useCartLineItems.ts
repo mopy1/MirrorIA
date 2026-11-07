@@ -13,6 +13,8 @@ export interface CartLineItem {
   imagenUrl?: string
   /** false: la prenda se dio de baja; el backend rechaza el checkout hasta quitarla. */
   disponible: boolean
+  /** Agregada sin red: está en la outbox, "Pendiente de confirmar" (RN09). */
+  pendiente: boolean
 }
 
 /**
@@ -21,7 +23,7 @@ export interface CartLineItem {
  * catálogo una vez); acá solo se cruza contra los ítems del carrito.
  */
 export function useCartLineItems() {
-  const { carrito, isLoading: cartLoading, removeItem, updateItem } = useCart()
+  const { carrito, isLoading: cartLoading, removeItem, updateItem, variantesPendientes } = useCart()
   const { variantes, isLoading: catalogoLoading, error } = useVariantesConProducto()
 
   const lineItems: CartLineItem[] = (carrito?.items ?? []).flatMap((item): CartLineItem[] => {
@@ -43,6 +45,7 @@ export function useCartLineItems() {
           subtotalCents: 0,
           imagenUrl: variante?.imagenUrl,
           disponible: false,
+          pendiente: variantesPendientes.includes(item.varianteId),
         },
       ]
     }
@@ -58,6 +61,7 @@ export function useCartLineItems() {
         subtotalCents: variante.precioCents * item.cantidad,
         imagenUrl: variante.imagenUrl,
         disponible: true,
+        pendiente: variantesPendientes.includes(item.varianteId),
       },
     ]
   })

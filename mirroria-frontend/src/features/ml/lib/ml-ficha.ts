@@ -52,7 +52,7 @@ export function formatearModelos(data?: MetricasModelosResponse | null): ModeloC
       metricasTexto: m4
         ? `Contam: ${contam !== null ? `${(contam * 100).toFixed(1)}%` : "—"} | Normal: ${num(m4, "score_medio_normales")} | Anómalo: ${num(m4, "score_medio_anomalos")}`
         : "Contam: 3.0% | Score: -0.218 / 0.165",
-      kpiAsociado: "Prevención de Merma & Fraude en POS", formulaResumen: "Aislamiento por longitud de camino promedio E(h(x))",
+      kpiAsociado: "Prevención de Merma & Fraude en Cobros", formulaResumen: "Aislamiento por longitud de camino promedio E(h(x))",
     },
   ]
 }
