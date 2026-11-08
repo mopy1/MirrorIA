@@ -3,9 +3,9 @@
 > **App solo para clienta (`CUSTOMER`) y visitante. Sin punto de venta.** Las cuentas de personal
 > (`ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`, `DUENO_PLATAFORMA`) se rechazan en el login: "usala en la web".
 > Spec cerrada: vault `U/2-2026/SI2/Parcial2/Movil_Spec.md` (manda sobre este archivo). Plan: `Plan_Movil.md`.
-> Estado: **M0 + M1 + M2 hechos** (scaffold, tema, acceso, espejo SQLite, vitrina/ficha offline, `OutboxManager`, carrito/checkout/reserva
-> encolables, `ModalConflictoStock`, Pendientes con línea de tiempo; conflicto `stock = 1` probado en el POCO). Pendiente: M3 (pagos, Mis
-> pedidos/reservas, Pase de Tienda, "Comprar lo que reservé"), M4 (escáner, avisos, Decart).
+> Estado: **M0 + M1 + M2 + M3 hechos** (scaffold, tema, acceso, espejo SQLite, vitrina/ficha offline, `OutboxManager`, carrito/checkout/reserva
+> encolables, `ModalConflictoStock`, Pendientes; **M3:** pago real QR Wayra/Stripe/"Pagar en caja", Mis pedidos, Mis reservas, Pase de Tienda
+> con recordatorio local, "Comprar lo que reservé" y dashboard con KPIs; probado de punta a punta en el POCO). Pendiente: M4 (escáner, avisos, Decart).
 
 ## 1. Stack (versiones exactas, spec §1.1)
 
@@ -19,7 +19,8 @@
 | Local | `expo-sqlite` 58.0.15 (`mirroria_local.db`) · `expo-secure-store` 58.0.2 · `expo-crypto` 58.0.7 |
 | Red | `@react-native-community/netinfo` 12.0.1 |
 | Fuentes | Bricolage Grotesque (títulos MirrorIA/`geist`), Geist (cuerpo), Geist Mono (montos/SKU), Outfit, DM Sans, Playfair |
-| Instalado para fases futuras | `expo-camera`, `expo-notifications`, `expo-haptics` (ya en uso), `expo-web-browser`, `react-native-qrcode-svg` |
+| En uso desde M3 | `expo-notifications` (recordatorio local), `expo-web-browser` (Stripe), `react-native-qrcode-svg` (Pase), `expo-haptics` |
+| Instalado para M4 | `expo-camera` (escáner) |
 | **No instalado aún** | Decart/LiveKit (M4, *development build*) |
 
 ## 2. Levantar en el POCO X3 Pro (Expo Go 58.0.5, ADB inalámbrico)
@@ -45,7 +46,7 @@ Cuentas: clienta `clienta@mirroria.com` (tiendaria) · personal para probar el r
 mirroria-mobile/
 ├── app.json · babel.config.js · metro.config.js · tailwind.config.js · components.json · eslint.config.js
 ├── nativewind-env.d.ts · tsconfig.json (alias @/* → src/*) · .env.example
-├── docs/capturas/{m1,m2}/       # capturas del POCO para el PDF (m2: outbox, conflicto, reserva)
+├── docs/capturas/{m1,m2,m3}/    # capturas del POCO para el PDF (m3: pagos, pase, comprar lo reservado, sin red)
 └── src/
     ├── global.css               # tokens por defecto (MirrorIA claro/oscuro) en "R G B"
     ├── app/                     # SOLO rutas: `export { default } from '@/features/...'`
@@ -57,7 +58,7 @@ mirroria-mobile/
     │       ├── vitrina/{index, escanear, [productoId]/index, [productoId]/reservar}
     │       ├── probador/index
     │       ├── carrito/index
-    │       └── mis-cosas/{index, pedidos, reservas, pendientes, avisos}
+    │       └── mis-cosas/{index, pedidos/{index,[ventaId]}, reservas/{index,[reservaId]}, pago/[ventaId], pendientes, avisos}
     ├── components/
     │   ├── ui/                  # RNR (button, text, card, badge, input, label, dialog, alert-dialog, tabs, separator,
     │   │                        #  skeleton*, switch, avatar, progress, select, toggle(-group), textarea) + icon.tsx (Phosphor)
@@ -66,13 +67,18 @@ mirroria-mobile/
     │                            # BadgeEstadoOutbox (RN09), FilaOpcion (radio 56 px)
     ├── contexts/                # TiendaContext · SesionContext · TemaContext
     ├── lib/
-    │   ├── api/                 # cliente-http (apiFetch), contexto-http, errores (ApiError, ErrorSinRed), endpoints
+    │   ├── api/                 # cliente-http (apiFetch), contexto-http, errores (ApiError, ErrorSinRed), endpoints,
+    │   │                        #  con-cache (lectura con respaldo en configuracion_sync: ventas_json/reservas_json)
     │   ├── db/                  # sqlite-local (SQLite Local + transaccionExclusiva), migraciones v1-v2 (+test), tipos-espejo,
-    │   │                        #  repos/{configuracion,espejo,vitrina,carrito,reservas}
+    │   │                        #  repos/{configuracion,espejo,vitrina,carrito,reservas,detalle (nombres de prendas/sucursales)}
     │   ├── outbox/              # OutboxManager: tipos, clasificar-respuesta (+test), repo-outbox, cola-outbox (núcleo puro, +test),
     │   │                        #  outbox-manager (timers/NetInfo/AppState), enviar-operacion, sql-expo, operaciones (las 3 encolables),
     │   │                        #  consultas, conflictos-store, use-outbox, use-motor-outbox
-    │   ├── reservas/            # horarios (+test): ventana +30 min/+48 h, 10-20 h La Paz
+    │   ├── reservas/            # horarios (+test): ventana +30 min/+48 h, 10-20 h La Paz · comprar-reserva (+test): accionPase,
+    │   │                        #  ventaDeReserva, codigoPase, momentoRecordatorio, etiquetas
+    │   ├── pagos/               # estado-pago (+test): vistaPago, intervaloConsulta (polling), bloqueoPago (RN08), metodosDisponibles ·
+    │   │                        #  resumen-clienta (KPIs del dashboard)
+    │   ├── notificaciones/      # use-abrir-notificacion (handler en primer plano + tocar el aviso abre el pase)
     │   ├── red/                 # net-info-listener (NetInfoListener), use-estado-red
     │   ├── sesion/              # sesion-store (SecureStore por tienda), jwt (+test)
     │   ├── tema/                # color (+test, port web), derivar-tokens, tema-plataforma, tokens, fuentes, marca.types
@@ -85,8 +91,12 @@ mirroria-mobile/
         ├── espejo/   {api,hooks}
         ├── vitrina/  {api,components,hooks,screens}   # + ReservarScreen (cupo, sucursal, horario)
         ├── carrito/  {api,components,hooks,screens}   # carrito (+ agregados sin red), CheckoutScreen
-        ├── pagos/    {screens}                  # PagoScreen: placeholder digno hasta M3 (solo con red, RN08)
-        ├── mis-cosas/{components,screens}
+        ├── pagos/    {api,components,hooks,screens} # PagoScreen (usePago): ResumenPedido, SelectorMetodoPago, PanelQr/PanelCaja/
+        │                                        #  PanelMetodo, PiePago, CompraConfirmada, CancelarCompra
+        ├── pedidos/  {components,hooks,screens} # MisPedidosScreen, PedidoScreen, TarjetaPedido, BadgeEstadoVenta, useMisVentas/useVenta
+        ├── reservas/ {api,components,hooks,screens} # MisReservasScreen, PaseScreen (usePase), PaseQr, DetallesReserva, PieAccionesPase,
+        │                                        #  useRecordatorio, useComprarReserva
+        ├── mis-cosas/{components,hooks,screens} # dashboard: KpisClienta, ProximaCita, useResumenClienta
         ├── sync/     {components,hooks,screens} # Pendientes, OperacionScreen (comprobante + línea de tiempo), ModalConflictoStock
         └── probador/ {screens}                  # "Próximamente" (Decart en M4)
 ```
@@ -106,10 +116,12 @@ mirroria-mobile/
 | `/probador` | `ProbadorScreen` | — | M4 |
 | `/carrito` | `CarritoScreen` | `carrito_local` + `CARRITO_AGREGAR` sin confirmar (badge "Pendiente") + aviso de compra en curso | M2 ✅ |
 | `/carrito/checkout` | `CheckoutScreen` | SQLite (`stockParaRetiro`) + `POST /promociones/cupones/validar` (solo con red); "Confirmar" → outbox `CHECKOUT` | M2 ✅ |
-| `/carrito/pago/[ventaId]?total=` | `PagoScreen` | — (placeholder; los métodos llegan en M3) | M3 |
-| `/mis-cosas` | `MisCosasScreen` | sesión + estado del espejo | M1 ✅ |
+| `/carrito/pago/[ventaId]` · `/mis-cosas/pago/[ventaId]` | `PagoScreen` | `GET /ventas/:id` (polling) · `GET /pagos/pasarelas` · `POST /pagos/ventas/:id/{qr,sesion,manual,cancelar}` · `GET /pagos/qr/:pagoId` | M3 ✅ |
+| `/mis-cosas` | `MisCosasScreen` (dashboard) | `GET /ventas/mias`, `GET /reservas/mias`, cupo (con caché) + espejo | M3 ✅ |
 | `/mis-cosas/pendientes` | `PendientesScreen` | outbox + `NetInfoListener` + modo demo "Sin red"; "Sincronizar ahora", "Borrar terminadas" | M2 ✅ |
-| `/mis-cosas/{pedidos,reservas,avisos}` | placeholders | — | M3 · M3 · M4 |
+| `/mis-cosas/pedidos` · `pedidos/[ventaId]` | `MisPedidosScreen` · `PedidoScreen` | `GET /ventas/mias` · `GET /ventas/:id` (+ `CHECKOUT` en la outbox) | M3 ✅ |
+| `/mis-cosas/reservas` · `reservas/[reservaId]` | `MisReservasScreen` · `PaseScreen` | `GET /reservas/mias` (+ `RESERVA_CREAR` en la outbox), `GET /reservas/:id` c/15 s, `PATCH …/cancelar`, `POST /ventas/desde-reserva/:id` | M3 ✅ |
+| `/mis-cosas/avisos` | placeholder | — | M4 |
 
 Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back()` o la ruta de respaldo).
 
@@ -124,6 +136,10 @@ Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back
 - **vitrina:** `useVitrina`/`useFicha` leen solo SQLite (`networkMode: 'always'`). TTL 7 días → `AvisoEspejo` "Datos desactualizados"; nunca sincronizada + sin red → `VitrinaVacia` (CU46 4b). Visitante: `PedirSesion` al agregar/reservar.
 - **red:** `online = !modoSinRed && !(isConnected === false || isInternetReachable === false)` (`null` = desconocido). Alimenta `onlineManager`, el cliente HTTP (rechaza antes del `fetch` con `ErrorSinRed`) y `BarraRed`.
 
+- **pagos (M3.1):** `usePago` guarda el cobro iniciado en `configuracion_sync` (`cobro:<ventaId>`: QR, instrucciones de caja o "tarjeta abierta") para que al volver se vea lo mismo. La app nunca da nada por pagado: consulta `GET /ventas/:id` (QR 3 s, tarjeta 4 s, caja 5 s, eligiendo 30 s) y el QR (`GET /pagos/qr/:pagoId`) hasta que el backend acredita (aviso Wayra, webhook Stripe o la cajera en `/admin/cobros`). Al acreditarse: háptico, invalida `ventas`, `reservas` y el espejo. "Pagar en caja" muestra `#` + 8 primeros del id de la venta (lo que ve la cajera; el backend devuelve el id entero). Stripe: `WebBrowser.openBrowserAsync` y al volver se refresca. RN08: sin red todo deshabilitado con motivo; 401 → "Tu sesión venció".
+- **pedidos/reservas (M3.2/M3.4):** listas con `conCache` (sin red muestran lo último guardado: el pase sirve sin señal en la tienda); nombres de prenda/sucursal desde SQLite (`detalle.repo`). Pase: QR negro sobre blanco con SOLO el código (D11), `useFocusEffect` + `refetchInterval` 15 s.
+- **recordatorio (M3.2):** `expo-notifications` local, trigger DATE 1 h antes (`momentoRecordatorio`), id en `recordatorio:<reservaId>`; se quita solo si la reserva deja de estar PENDIENTE/CONFIRMADA; tocarlo abre el pase (`data.ruta`).
+- **comprar lo reservado (M3.3):** `accionPase` decide la primaria: `EN_TIENDA` → "Comprar lo que reservé" (solo con red, cupón opcional, una `Idempotency-Key` por intento) o "Pagar mi compra" si ya hay una `PENDIENTE`; `COMPLETADA` → "Compra pagada · ver pedido".
 - **outbox (M2):** ver §6 abajo. Las pantallas que encolan (`useAgregarCarrito`, `useCheckout`, `useReservar`, `useResolverConflicto`) llaman a `lib/outbox/operaciones` y navegan al comprobante (`OperacionScreen`). `useMotorOutbox` (layout raíz) pasa la sesión al manager, invalida `['outbox']`/`['vitrina']` en cada cambio, re-snapshot del espejo tras una CONFIRMADA, háptico Success/Error y abre `ModalConflictoStock` (vía `conflictosStore`).
 
 ## 6. Protocolo offline (resumen; detalle en spec §5)
@@ -149,8 +165,12 @@ Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back
 - Logos `/images/*` necesitan el frontend Docker + `adb reverse tcp:8080 tcp:80`; si no cargan se muestra el monograma.
 - `react-native-reusables` trae clases `dark:` y de animación web: se quitaron (los colores salen de los tokens, no del esquema del sistema).
 - React Compiler **desactivado** en `app.json` (la plantilla 58 lo trae activo) para no mezclarlo con css-interop de NativeWind.
+- **Expo Go 58 + `setNotificationChannelAsync`** tira `NullPointerException` nativo: el recordatorio cae al canal por defecto (funciona igual).
+- **Teclado:** `tabBarHideOnKeyboard` en las tabs y `keyboardShouldPersistTaps="handled"` en los ScrollView con input (si no, el primer toque a "Aplicar" solo cierra el teclado).
+- **Chrome primer arranque** en el POCO: la Custom Tab de Stripe abre la bienvenida de Chrome y Expo Go puede volver a su inicio; reabrir con deep link `exp://127.0.0.1:8081/--/mis-cosas/pago/<ventaId>` (el cobro quedó en SQLite).
+- **JWT de 1 h**: tras una pausa larga la sesión vence (401); la app la descarta al arrancar y el pago muestra "Tu sesión venció".
 - M4: tras `expo prebuild`, `android/gradle.properties` con `org.gradle.workers.max=2` y `reactNativeArchitectures=arm64-v8a` (RAM).
 
 ## 8. Checklist QA (spec §8.5)
 
-`tsc` · `expo lint` · `expo-doctor` (20/20) · `npm test` (25: migraciones, outbox, clasificación, horarios, formato, jwt, color) limpios; `grep -rn "lucide\|animate-" src` vacío; ningún componente propio > 120 líneas (los primitivos RNR `select/dialog/alert-dialog` se dejan como vienen); ninguna referencia a `/ventas/presenciales`, `/pagos/pendientes`, `/dashboard/operativo`; recorrer cada ruta y su "← Volver"; capturas del POCO en `docs/capturas/`.
+`tsc` · `expo lint` · `expo-doctor` (20/20) · `npm test` (38: migraciones, outbox, clasificación, horarios, formato, jwt, color, estado-pago, KPIs, comprar-reserva) limpios; `grep -rn "lucide\|animate-" src` vacío; ningún componente propio > 120 líneas (los primitivos RNR `select/dialog/alert-dialog` se dejan como vienen); ninguna referencia a `/ventas/presenciales`, `/pagos/pendientes`, `/dashboard/operativo`; recorrer cada ruta y su "← Volver"; capturas del POCO en `docs/capturas/`.
