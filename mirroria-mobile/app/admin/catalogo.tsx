@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { CatalogoAdminScreen } from '@/src/features/admin-catalogo/screens/CatalogoAdminScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="catalogo" />;
-}
+export default CatalogoAdminScreen;

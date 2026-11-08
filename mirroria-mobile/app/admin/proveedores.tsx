@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { ProveedoresAdminScreen } from '@/src/features/admin-proveedores/screens/ProveedoresAdminScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="proveedores" />;
-}
+export default ProveedoresAdminScreen;
