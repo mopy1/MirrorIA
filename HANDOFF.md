@@ -42,7 +42,7 @@ Números verificados: **113 rutas** HTTP, **30 tablas**, **466** tests unitarios
 1. Este archivo.
 2. `AGENTS.md` (raíz): árbol del monorepo, puertos, comandos, mapa front ↔ back.
 3. El `AGENTS.md` del paquete que vas a tocar: `mirroria-backend/AGENTS.md` (módulos y tabla de las 101 rutas)
-   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). Móvil: la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`).
+   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). Móvil: `mirroria-mobile/AGENTS.md` (Expo SDK 58, rehecha desde cero 2026-11-07; **M0–M4.5 hechos** en la rama `feat/app-movil`: offline con SQLite + outbox, pagos, reservas, escáner, avisos, probador Decart; ya no corre en Expo Go, se usa el *development build* o el APK de `mirroria-mobile/dist/`).
 4. En el vault: `U/2-2026/SI2/Parcial2/Plan_Parcial2.md` y la spec de la fase en curso
    (`Fase1_Spec_MultiTenant.md`, `Fase1b_Spec_Personalizacion_Tiendaria.md` son el modelo a seguir).
 5. Contratos y datos: vault `U/2-2026/SI2/Parcial1/App/` (`Endpoints.md`, `Database.md`, `Reglas_de_Negocio.md`,
@@ -103,7 +103,7 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 
 - Multi-tenant con **BD compartida + `tenant_id`** (los otros dos enfoques solo se comparan en la doc).
 - Tienda pública por ruta `/t/<slug>`; el "cliente" del SaaS es el dueño de la tienda (ADMIN del inquilino).
-- Móvil: **Expo + SQLite**; la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Una app con modo Mostrador (vendedora, offline) y modo Clienta.
+- Móvil: **Expo SDK 58 + SQLite**, rehecha desde cero (spec vault `U/2-2026/SI2/Parcial2/Movil_Spec.md`). **Solo clienta/visitante, sin POS** (el modo Mostrador se eliminó el 2026-11-07). Build Android **local** con Gradle (sin EAS); APK de entrega firmado con el keystore de debug.
 - **Decart** (`lucy-vton-3.5`) es el único probador virtual; el AR viejo se borró.
 - **Sin POS** (punto de venta), por seguridad: la tienda física tiene su caja; solo la cajera (`CAJERO`), en la web, confirma el efectivo
   (`/admin/cobros`) y el personal resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` se **borró** el 2026-11-07: la clienta
