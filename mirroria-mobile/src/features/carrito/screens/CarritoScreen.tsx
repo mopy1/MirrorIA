@@ -8,17 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useSesion } from '@/contexts/SesionContext';
+import { mensajeDeError } from '@/lib/api/errores';
 import { enCurso } from '@/lib/outbox/consultas';
+import { useEstadoRed } from '@/lib/red/use-estado-red';
 import { useOutbox } from '@/lib/outbox/use-outbox';
 import { AvisoCompraPendiente } from '../components/AvisoCompraPendiente';
-import { FilaCarrito } from '../components/FilaCarrito';
+import { FilaCarritoDeslizable } from '../components/FilaCarritoDeslizable';
 import { ResumenCarrito } from '../components/ResumenCarrito';
 import { useCarritoLocal } from '../hooks/use-carrito-local';
+import { useQuitarDelCarrito } from '../hooks/use-quitar-del-carrito';
 
 /** Tab Carrito: visitante → iniciar sesión; clienta → su carrito (espejo + lo agregado sin red). */
 export default function CarritoScreen() {
   const { sesion } = useSesion();
   const q = useCarritoLocal();
+  const red = useEstadoRed();
+  const quitar = useQuitarDelCarrito();
   const compra = useOutbox().mias.find((f) => f.tipo === 'CHECKOUT' && enCurso(f)) ?? null;
   const items = q.data ?? [];
   const total = items.reduce((s, i) => s + i.precioCents * i.cantidad, 0);
@@ -61,7 +66,19 @@ export default function CarritoScreen() {
         </View>
       ) : (
         <>
-          <FlatList data={items} keyExtractor={(i) => i.varianteId} renderItem={({ item }) => <FilaCarrito item={item} />} contentContainerClassName="px-5" />
+          <FlatList
+            data={items}
+            keyExtractor={(i) => i.varianteId}
+            renderItem={({ item }) => (
+              <FilaCarritoDeslizable item={item} habilitado={red.online && item.pendientes === 0 && !compra} quitando={quitar.isPending && quitar.variables === item.varianteId} onQuitar={quitar.mutate} />
+            )}
+            contentContainerClassName="px-5"
+            ListFooterComponent={
+              <Text className={`pt-3 text-xs ${quitar.error ? 'text-danger' : 'text-muted-foreground'}`}>
+                {quitar.error ? mensajeDeError(quitar.error) : red.online ? 'Deslizá una prenda a la izquierda para quitarla.' : 'Sin conexión: para quitar prendas necesitás red.'}
+              </Text>
+            }
+          />
           <ResumenCarrito totalCents={total} unidades={unidades} compraEnCurso={!!compra} />
         </>
       )}

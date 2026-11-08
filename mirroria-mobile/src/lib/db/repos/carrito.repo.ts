@@ -1,4 +1,4 @@
-import { obtenerDb } from '../sqlite-local';
+import { obtenerDb, transaccionExclusiva } from '../sqlite-local';
 import type { ProductoDto } from '../tipos-espejo';
 
 export interface ItemCarritoLocal {
@@ -63,4 +63,18 @@ export async function stockParaRetiro(tenantId: string, varianteIds: string[]) {
       ORDER BY su.nombre`,
     tenantId, ...varianteIds,
   );
+}
+
+/** Copia el carrito que devolvió el servidor (p. ej. tras quitar un ítem) a `carrito_local`. */
+export async function reemplazarCarritoLocal(tenantId: string, usuarioId: string, items: { varianteId: string; cantidad: number }[]) {
+  const ahora = Date.now();
+  await transaccionExclusiva(async (tx) => {
+    await tx.runAsync('DELETE FROM carrito_local WHERE tenant_id = ? AND usuario_id = ?', tenantId, usuarioId);
+    for (const it of items) {
+      await tx.runAsync(
+        'INSERT INTO carrito_local (tenant_id, usuario_id, variante_id, cantidad, guardado_en) VALUES (?,?,?,?,?)',
+        tenantId, usuarioId, it.varianteId, it.cantidad, ahora,
+      );
+    }
+  });
 }

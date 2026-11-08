@@ -20,13 +20,13 @@ import { useAccionesFicha } from '../hooks/use-acciones-ficha';
 import { useFicha } from '../hooks/use-ficha';
 import { libreTotal, useSeleccionVariante } from '../hooks/use-seleccion-variante';
 
-/** `vitrina/[productoId]`: ficha desde SQLite con stock por sucursal; funciona en modo avión. */
+/** `vitrina/[productoId]?variante=`: ficha desde SQLite con stock por sucursal; funciona en modo avión. */
 export default function FichaScreen() {
-  const { productoId } = useLocalSearchParams<{ productoId: string }>();
+  const { productoId, variante } = useLocalSearchParams<{ productoId: string; variante?: string }>();
   const { tienda } = useTienda();
   const red = useEstadoRed();
   const q = useFicha(productoId);
-  const sel = useSeleccionVariante(q.data);
+  const sel = useSeleccionVariante(q.data, variante);
   const acc = useAccionesFicha(productoId, q.data, sel.variante);
 
   let cuerpo: React.ReactNode;
@@ -67,6 +67,7 @@ export default function FichaScreen() {
           onAgregar={acc.onAgregar}
           onReservar={acc.onReservar}
           onAvisame={acc.onAvisame}
+          aviso={acc.aviso}
         />
       ) : null}
       <PedirSesion visible={!!acc.pedirSesion} motivo={acc.pedirSesion ?? ''} nombreTienda={tienda?.nombre ?? 'la tienda'} onCerrar={acc.cerrarPedir} />

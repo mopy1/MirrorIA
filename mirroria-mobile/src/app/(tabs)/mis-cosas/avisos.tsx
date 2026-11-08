@@ -1,1 +1,1 @@
-export { default } from '@/features/mis-cosas/screens/AvisosScreen';
+export { default } from '@/features/avisos/screens/AvisosScreen';

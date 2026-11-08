@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { CheckCircle, Sparkle } from 'phosphor-react-native';
+import { BellRinging, CheckCircle, Sparkle } from 'phosphor-react-native';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ interface Props {
   onAgregar: () => void;
   onReservar: () => void;
   onAvisame: () => void;
+  aviso: { activo: boolean; creando: boolean; sinPermiso: boolean };
 }
 
 /** Barra de acciones pegada abajo (zona del pulgar): 1 primaria con el monto adentro. */
@@ -38,9 +39,23 @@ export function AccionesFicha(p: Props) {
       ) : null}
       {p.error ? <Text className="mb-2 text-sm text-danger">{mensajeDeError(p.error)}</Text> : null}
       {sinRed && !p.agregada ? <Text className="mb-2 text-xs text-muted-foreground">Sin conexión: la agregamos igual y queda “Pendiente de confirmar”.</Text> : null}
-      <Button size="lg" className="h-[52px]" disabled={p.agregando} onPress={p.agotada ? p.onAvisame : p.onAgregar}>
-        {p.agregando ? <ActivityIndicator color={colores['primary-foreground']} /> : null}
-        <Text>{p.agotada ? 'Avisame cuando vuelva' : `Agregar al carrito · ${formatoBs(p.precioCents)}`}</Text>
+      {p.agotada && p.aviso.activo ? (
+        <View className="mb-2 flex-row items-center gap-2">
+          <Icon as={BellRinging} size={18} weight="fill" className="text-success" />
+          <Text className="flex-1 text-sm">
+            {p.aviso.sinPermiso ? 'Aviso guardado. Activá las notificaciones para que te llegue.' : 'Te avisamos cuando vuelva esta talla.'}
+          </Text>
+        </View>
+      ) : null}
+      <Button
+        size="lg"
+        variant={p.agotada && p.aviso.activo ? 'outline' : 'default'}
+        className="h-[52px]"
+        disabled={p.agregando || p.aviso.creando}
+        onPress={p.agotada ? p.onAvisame : p.onAgregar}
+      >
+        {p.agregando || p.aviso.creando ? <ActivityIndicator color={colores['primary-foreground']} /> : null}
+        <Text>{p.agotada ? (p.aviso.activo ? 'Ver mis avisos' : 'Avisame cuando vuelva') : `Agregar al carrito · ${formatoBs(p.precioCents)}`}</Text>
       </Button>
       <View className="mt-2 flex-row gap-2">
         <Button variant="outline" className="h-11 flex-1" onPress={p.onReservar}>
