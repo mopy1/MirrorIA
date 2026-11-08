@@ -1,6 +1,4 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { PrediccionesScreen } from '@/src/features/ml/screens/PrediccionesScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="ml" />;
-}
+/** Predicciones (ML) del panel: dueña y encargada. */
+export default PrediccionesScreen;

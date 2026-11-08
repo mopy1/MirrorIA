@@ -1,6 +1,4 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { DashboardScreen } from '@/src/features/dashboard/screens/DashboardScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="dashboard" />;
-}
+/** Inicio del panel: resumen del negocio (dueña) u hoy en la tienda (equipo). */
+export default DashboardScreen;
