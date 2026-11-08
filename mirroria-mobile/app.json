@@ -59,7 +59,13 @@
       ],
       "expo-sqlite",
       "expo-sharing",
-      "expo-speech-recognition"
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "MirrorIA usa el micrófono solo para dictar tus preguntas de reportes.",
+          "speechRecognitionPermission": "MirrorIA convierte tu voz en texto para armar el reporte que pediste."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

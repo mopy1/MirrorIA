@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { ReportesScreen } from '@/src/features/reports/screens/ReportesScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="reportes" />;
-}
+export default ReportesScreen;
