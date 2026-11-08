@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { UsuariosScreen } from '@/src/features/admin-usuarios/screens/UsuariosScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="usuarios" />;
-}
+export default UsuariosScreen;

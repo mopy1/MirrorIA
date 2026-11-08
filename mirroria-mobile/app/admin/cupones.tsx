@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { CuponesScreen } from '@/src/features/admin-cupones/screens/CuponesScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="cupones" />;
-}
+export default CuponesScreen;

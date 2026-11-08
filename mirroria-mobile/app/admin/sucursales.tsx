@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { SucursalesScreen } from '@/src/features/admin-sucursales/screens/SucursalesScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="sucursales" />;
-}
+export default SucursalesScreen;
