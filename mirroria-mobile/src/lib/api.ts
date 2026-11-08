@@ -28,10 +28,9 @@ function getDefaultApiUrl(): string {
 export const API_URL = getDefaultApiUrl();
 console.log(`[MirrorIA Mobile] API_URL configurada en: ${API_URL}`);
 
-/** La app es de una tienda: toda ruta de negocio la pide en la cabecera X-Tenant. */
-export function tiendaActual(): string {
-  return process.env.EXPO_PUBLIC_TIENDA ?? 'tiendaria';
-}
+// Toda ruta de negocio pide la tienda en la cabecera X-Tenant; la tienda se elige en la app.
+import { tiendaActual } from './tienda';
+export { tiendaActual };
 
 export class ApiError extends Error {
   status: number;
