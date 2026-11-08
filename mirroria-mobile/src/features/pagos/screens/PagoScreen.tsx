@@ -1,64 +1,86 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { Bank, CreditCard, Money, QrCode, type Icon as PhosphorIcon } from 'phosphor-react-native';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
+import { Prohibit } from 'phosphor-react-native';
+import * as React from 'react';
 import { ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EncabezadoPantalla } from '@/components/common/EncabezadoPantalla';
-import { MonedaBs } from '@/components/common/MonedaBs';
+import { EstadoError } from '@/components/common/EstadoError';
+import { EstadoVacio } from '@/components/common/EstadoVacio';
 import { Pantalla } from '@/components/common/Pantalla';
-import { Titulo } from '@/components/common/Titulo';
 import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { useDiccionario } from '@/features/espejo/hooks/use-diccionario';
+import { mensajeDeError } from '@/lib/api/errores';
+import { CancelarCompra } from '../components/CancelarCompra';
+import { CompraConfirmada } from '../components/CompraConfirmada';
+import { PanelMetodo } from '../components/PanelMetodo';
+import { PiePago } from '../components/PiePago';
+import { ResumenPedido } from '../components/ResumenPedido';
+import { SelectorMetodoPago } from '../components/SelectorMetodoPago';
+import { usePago } from '../hooks/use-pago';
 
-const METODOS: { icono: PhosphorIcon; titulo: string; detalle: string }[] = [
-  { icono: QrCode, titulo: 'QR Wayra', detalle: 'Escaneás el QR con tu banco y la pantalla cambia sola' },
-  { icono: CreditCard, titulo: 'Tarjeta', detalle: 'Pago seguro con Stripe en el navegador' },
-  { icono: Money, titulo: 'Efectivo en caja', detalle: 'Le decís tu código a la cajera al retirar' },
-];
-
-/** `carrito/pago/[ventaId]`: solo con red (RN08). Los métodos llegan en M3; la venta ya está apartada. */
+/**
+ * `carrito/pago/[ventaId]` y `mis-cosas/pago/[ventaId]` (M3.1): QR Wayra con polling, Stripe en el
+ * navegador o "Pagar en caja". Solo con red (RN08). Montada en dos tabs para que "← Volver" quede donde empezó.
+ */
 export default function PagoScreen() {
-  const { ventaId, total } = useLocalSearchParams<{ ventaId: string; total?: string }>();
-  const insets = useSafeAreaInsets();
-  const codigo = `#${(ventaId ?? '').slice(0, 8).toUpperCase()}`;
+  const { ventaId } = useLocalSearchParams<{ ventaId: string }>();
+  const enMisCosas = usePathname().startsWith('/mis-cosas');
+  const p = usePago(ventaId);
+  const dic = useDiccionario().data;
+  const v = p.venta.data;
+  // Al iniciar un cobro, el QR o el código de caja quedan a la vista (debajo del selector).
+  const scroll = React.useRef<ScrollView>(null);
+  const cobroVisible = p.cobro?.metodo === p.metodo ? p.cobro?.metodo : null;
+  React.useEffect(() => {
+    if (cobroVisible) setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250);
+  }, [cobroVisible]);
+
+  let cuerpo: React.ReactNode;
+  if (p.venta.isPending) cuerpo = <View className="gap-3 p-5">{[120, 64, 64, 64].map((h, i) => <Skeleton key={i} style={{ height: h }} />)}</View>;
+  else if (!v) cuerpo = <EstadoError error={p.venta.error} onReintentar={() => void p.venta.refetch()} />;
+  else if (p.vista === 'PAGADA') cuerpo = <CompraConfirmada venta={v} dic={dic} />;
+  else if (p.vista === 'CANCELADA')
+    cuerpo = (
+      <EstadoVacio icono={Prohibit} titulo="Esta compra se canceló" texto="No se te cobró nada. Si todavía querés las prendas, volvé a comprarlas.">
+        <Button onPress={() => router.navigate('/vitrina')}>
+          <Text>Ir a la vitrina</Text>
+        </Button>
+      </EstadoVacio>
+    );
+  else
+    cuerpo = (
+      <ScrollView ref={scroll} contentContainerClassName="gap-6 px-5 pb-6 pt-2">
+        <ResumenPedido venta={v} dic={dic} />
+        <View className="gap-3">
+          <Text className="font-body-semibold text-xs uppercase tracking-wider text-muted-foreground">Cómo vas a pagar</Text>
+          <SelectorMetodoPago metodos={p.metodos} elegido={p.metodo} onElegir={p.elegir} deshabilitado={!p.online || p.iniciar.isPending} />
+          {p.metodo ? <PanelMetodo metodo={p.metodo} cobro={p.cobro} estadoQr={p.estadoQr} sucursal={dic?.sucursales.get(v.sucursalId)?.nombre} online={p.online} /> : null}
+        </View>
+        <CancelarCompra desdeReserva={!!v.reservaId} deshabilitado={!p.online || p.cancelar.isPending} onConfirmar={() => p.cancelar.mutate()} />
+      </ScrollView>
+    );
+
+  const enCurso = !!v && p.vista !== 'PAGADA' && p.vista !== 'CANCELADA';
+  const error = p.iniciar.error ?? p.cancelar.error;
   return (
     <Pantalla>
-      <EncabezadoPantalla titulo="Pagar" respaldo="/carrito" />
-      <ScrollView contentContainerClassName="gap-6 px-5 pb-8 pt-2">
-        <View className="rounded-lg border border-dashed border-border bg-card p-5">
-          <Text className="text-xs text-muted-foreground">Pedido</Text>
-          <Text className="font-mono text-2xl" selectable>
-            {codigo}
-          </Text>
-          <View className="mt-3 flex-row items-baseline justify-between border-t border-dashed border-border pt-3">
-            <Text className="font-body-semibold text-sm">A pagar</Text>
-            <MonedaBs cents={Number(total ?? 0)} className="text-xl" />
-          </View>
-        </View>
-        <View className="gap-2">
-          <Titulo nivel="h3">Cómo vas a pagar</Titulo>
-          {METODOS.map((m) => (
-            <View key={m.titulo} className="min-h-14 flex-row items-center gap-3 rounded-lg border border-border px-4 py-3 opacity-60">
-              <Icon as={m.icono} size={22} weight="duotone" className="text-primary" />
-              <View className="flex-1">
-                <Text className="font-body-medium text-sm">{m.titulo}</Text>
-                <Text className="text-xs text-muted-foreground">{m.detalle}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-        <View className="flex-row gap-3 rounded-lg bg-brand-accent/30 p-4">
-          <Icon as={Bank} size={20} weight="duotone" className="text-foreground" />
-          <Text className="flex-1 text-sm leading-5">
-            El pago desde la app llega en la próxima versión. Tus prendas ya están apartadas: podés pagar este pedido desde la web, en Mis pedidos.
-          </Text>
-        </View>
-      </ScrollView>
-      <View className="border-t border-border px-5 pt-3" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-        <Button size="lg" className="h-[52px]" onPress={() => router.navigate('/carrito')}>
-          <Text>Entendido</Text>
-        </Button>
-      </View>
+      <EncabezadoPantalla titulo={p.vista === 'PAGADA' ? undefined : 'Pagar'} respaldo={enMisCosas ? '/mis-cosas/pedidos' : '/carrito'} />
+      <View className="flex-1">{cuerpo}</View>
+      {enCurso ? (
+        <PiePago
+          metodo={p.metodo}
+          iniciado={!!p.cobro && p.cobro.metodo === p.metodo}
+          vista={p.vista}
+          totalCents={v.totalCents}
+          bloqueo={p.bloqueo}
+          cargando={p.iniciar.isPending}
+          error={error ? mensajeDeError(error) : null}
+          onIniciar={() => p.metodo && p.iniciar.mutate(p.metodo)}
+          onRevisar={p.revisar}
+          onEntendido={() => router.navigate('/mis-cosas/pedidos')}
+        />
+      ) : null}
     </Pantalla>
   );
 }

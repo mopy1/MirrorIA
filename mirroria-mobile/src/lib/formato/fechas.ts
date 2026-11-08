@@ -26,3 +26,17 @@ export function diaHoraLaPaz(ms: number): string {
   const d = new Date(ms + LA_PAZ_MS);
   return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} · ${horaLaPaz(ms)}`;
 }
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Partes de una fecha en La Paz para bloques de calendario: { dia: 'sáb', num: 8, mes: 'nov' }. */
+export function partesFechaLaPaz(ms: number): { dia: string; num: number; mes: string } {
+  const d = new Date(ms + LA_PAZ_MS);
+  return { dia: DIAS[d.getUTCDay()], num: d.getUTCDate(), mes: MESES[d.getUTCMonth()] };
+}
+
+/** "sáb 8 nov · 15:00" en hora de La Paz. */
+export function fechaCortaLaPaz(ms: number): string {
+  const p = partesFechaLaPaz(ms);
+  return `${p.dia} ${p.num} ${p.mes} · ${horaLaPaz(ms)}`;
+}

@@ -8,7 +8,11 @@ export type ClaveConfig =
   | 'modo_sin_red'
   | `ultimo_sync_espejo:${string}`
   | `grupo_carrito:${string}`
-  | `cupo_json:${string}`;
+  | `cupo_json:${string}`
+  | `ventas_json:${string}`
+  | `reservas_json:${string}`
+  | `recordatorio:${string}`
+  | `cobro:${string}`;
 
 export async function leerConfig(clave: ClaveConfig): Promise<string | null> {
   const db = await obtenerDb();
