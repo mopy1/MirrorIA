@@ -20,7 +20,8 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
   private readonly logger = new Logger(PasarelaStripe.name);
   private readonly cliente: Stripe | null;
   private readonly secretoWebhook: string | undefined;
-  private readonly moneda: string;
+  private readonly moneda: 'bob' | 'usd';
+  private readonly tipoCambio: number;
 
   readonly id: PasarelaId = 'STRIPE';
   readonly metadata: PasarelaMetadata = {
@@ -39,9 +40,35 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     const clave = config.get<string>('STRIPE_SECRET_KEY');
     this.cliente = clave ? new Stripe(clave) : null;
     this.secretoWebhook = config.get<string>('STRIPE_WEBHOOK_SECRET');
-    // BOB puede no estar habilitada en una cuenta de prueba; por eso es
-    // configurable y cae en usd, que siempre funciona en modo test.
-    this.moneda = config.get<string>('STRIPE_MONEDA') ?? 'usd';
+    // Los montos de MirrorIA siempre son centavos de boliviano. Stripe acepta
+    // `bob` en Checkout con tarjeta (verificado en modo test; Amex no la
+    // soporta), así que se cobra en Bs por defecto. Con STRIPE_MONEDA=usd se
+    // convierte con STRIPE_TIPO_CAMBIO (Bs por USD) y se muestra el monto en Bs.
+    this.moneda = config.get<string>('STRIPE_MONEDA')?.toLowerCase() === 'usd' ? 'usd' : 'bob';
+    const tipo = Number(config.get<string>('STRIPE_TIPO_CAMBIO') ?? 6.96);
+    this.tipoCambio = Number.isFinite(tipo) && tipo > 0 ? tipo : 6.96;
+  }
+
+  /**
+   * Arma el `line_item` de Stripe a partir de un monto en centavos de Bs.
+   * En `bob` va tal cual (Bs 80 = 8000); en `usd` se convierte al tipo de
+   * cambio y la descripción lleva el monto original en Bs. El mínimo de
+   * Stripe es el equivalente a 0,50 USD (~Bs 6 a su tipo de cambio).
+   */
+  lineaDeCobro(montoCentsBs: number, descripcion: string): Stripe.Checkout.SessionCreateParams.LineItem {
+    const enUsd = this.moneda === 'usd';
+    const montoBs = (montoCentsBs / 100).toLocaleString('es-BO', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return {
+      price_data: {
+        currency: this.moneda,
+        product_data: { name: enUsd ? `${descripcion} (Bs ${montoBs})` : descripcion },
+        unit_amount: enUsd ? Math.round(montoCentsBs / this.tipoCambio) : montoCentsBs,
+      },
+      quantity: 1,
+    };
   }
 
   estaConfigurada(): boolean {
@@ -52,19 +79,11 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     if (!this.cliente) {
       throw new PasarelaNoConfiguradaException('Stripe no está configurado en este servidor.');
     }
-    const moneda = (params.moneda ?? this.moneda).toLowerCase();
+    // `params.moneda` se ignora: el monto siempre llega en centavos de Bs y la
+    // moneda de cobro la decide la configuración (ver `lineaDeCobro`).
     const sesion = await this.cliente.checkout.sessions.create({
       mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: moneda,
-            product_data: { name: params.descripcion },
-            unit_amount: params.montoCents,
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: [this.lineaDeCobro(params.montoCents, params.descripcion)],
       success_url: params.urlExito,
       cancel_url: params.urlCancelacion,
       client_reference_id: params.referencia,
@@ -101,16 +120,7 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     }
     const sesion = await this.cliente.checkout.sessions.create({
       mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: this.moneda,
-            product_data: { name: params.descripcion },
-            unit_amount: params.montoCents,
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: [this.lineaDeCobro(params.montoCents, params.descripcion)],
       success_url: params.urlExito,
       cancel_url: params.urlCancelacion,
       client_reference_id: params.referencia,

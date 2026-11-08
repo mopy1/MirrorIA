@@ -293,7 +293,8 @@ modules/pagos/
     ├── pasarela/                 # Arquitectura de Pasarelas Enchufables (Strategy + Service Locator)
     │   ├── pasarela.interface.ts # IPasarelaProveedor + PasarelaMetadata + IniciarCobroParams/Resultado + legados
     │   ├── registro-pasarelas.service.ts # Registro central singleton con listar, obtener, asegurarDisponible
-    │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, tarjeta internacional, sesión alojada)
+    │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, sesión alojada). Cobra en `bob` (STRIPE_MONEDA, default bob);
+    │   │                         #  con `usd` convierte con STRIPE_TIPO_CAMBIO (6.96) y muestra los Bs (`lineaDeCobro`, checkout y suscripción)
     │   ├── wayra.pasarela.ts     # WayraPasarela (DISPONIBLE, QR interoperable nacional)
     │   ├── manual.pasarela.ts    # ManualPasarela (DISPONIBLE, efectivo en sucursal, solo checkout)
     │   ├── paypal.pasarela.ts    # PaypalPasarela (EN_DESARROLLO, stub HTTP 503)

@@ -76,3 +76,68 @@ describe('PasarelaStripe — `checkout.session.completed` NO significa cobrado',
     expect(() => pasarela.verificarEvento(CUERPO, FIRMA)).toThrow(FirmaWebhookInvalidaException);
   });
 });
+
+/** Pasarela con `checkout.sessions.create` falso que devuelve lo que se le pidió. */
+function pasarelaCobro(valores: Record<string, string | undefined>) {
+  const config = {
+    get: vi.fn((clave: string) =>
+      clave === 'STRIPE_SECRET_KEY' ? 'sk_test_falsa' : clave === 'STRIPE_WEBHOOK_SECRET' ? 'whsec_falsa' : valores[clave],
+    ),
+  } as unknown as ConfigService;
+  const pasarela = new PasarelaStripe(config);
+  const create = vi.fn().mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' });
+  const interna = pasarela as unknown as { cliente: Stripe };
+  interna.cliente.checkout = { sessions: { create } } as unknown as Stripe['checkout'];
+  return { pasarela, create };
+}
+
+const SESION = { montoCents: 8000, descripcion: 'Tiendaria — Compra #ABC', referencia: 'v1', urlExito: 'x', urlCancelacion: 'y' };
+
+function precioPedido(create: ReturnType<typeof vi.fn>) {
+  const linea = (create.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams).line_items![0];
+  return linea.price_data as Stripe.Checkout.SessionCreateParams.LineItem.PriceData & {
+    product_data: { name: string };
+  };
+}
+
+describe('PasarelaStripe — moneda del cobro (Bs 80 no es USD 80)', () => {
+  it('sin STRIPE_MONEDA cobra en bob con los mismos centavos', async () => {
+    const { pasarela, create } = pasarelaCobro({});
+    await pasarela.crearSesion(SESION);
+    const precio = precioPedido(create);
+    expect(precio.currency).toBe('bob');
+    expect(precio.unit_amount).toBe(8000);
+    expect(precio.product_data.name).toBe(SESION.descripcion);
+  });
+
+  it('con STRIPE_MONEDA=usd convierte al tipo de cambio por defecto (6,96) y muestra los Bs', async () => {
+    const { pasarela, create } = pasarelaCobro({ STRIPE_MONEDA: 'USD' });
+    await pasarela.crearSesion(SESION);
+    const precio = precioPedido(create);
+    expect(precio.currency).toBe('usd');
+    expect(precio.unit_amount).toBe(1149); // 8000 / 6,96 = 1149,4 → USD 11,49
+    expect(precio.product_data.name).toBe('Tiendaria — Compra #ABC (Bs 80,00)');
+  });
+
+  it('respeta STRIPE_TIPO_CAMBIO y descarta uno inválido', async () => {
+    const a = pasarelaCobro({ STRIPE_MONEDA: 'usd', STRIPE_TIPO_CAMBIO: '10' });
+    await a.pasarela.crearSesion(SESION);
+    expect(precioPedido(a.create).unit_amount).toBe(800);
+    const b = pasarelaCobro({ STRIPE_MONEDA: 'usd', STRIPE_TIPO_CAMBIO: 'cero' });
+    await b.pasarela.crearSesion(SESION);
+    expect(precioPedido(b.create).unit_amount).toBe(1149);
+  });
+
+  it('el cobro de suscripción (iniciarCobro) usa la misma regla aunque pida BOB', async () => {
+    const { pasarela, create } = pasarelaCobro({ STRIPE_MONEDA: 'usd' });
+    const r = await pasarela.iniciarCobro({
+      ...SESION,
+      montoCents: 34800,
+      moneda: 'BOB',
+      contexto: 'suscripcion',
+      nombreComercio: 'Tiendaria',
+    });
+    expect(r).toMatchObject({ modo: 'REDIRECT', token: 'cs_1' });
+    expect(precioPedido(create)).toMatchObject({ currency: 'usd', unit_amount: 5000 });
+  });
+});
