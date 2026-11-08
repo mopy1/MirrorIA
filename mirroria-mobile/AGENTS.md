@@ -5,7 +5,8 @@
 > Spec cerrada: vault `U/2-2026/SI2/Parcial2/Movil_Spec.md` (manda sobre este archivo). Plan: `Plan_Movil.md`.
 > Estado: **M0 + M1 + M2 + M3 hechos** (scaffold, tema, acceso, espejo SQLite, vitrina/ficha offline, `OutboxManager`, carrito/checkout/reserva
 > encolables, `ModalConflictoStock`, Pendientes; **M3:** pago real QR Wayra/Stripe/"Pagar en caja", Mis pedidos, Mis reservas, Pase de Tienda
-> con recordatorio local, "Comprar lo que reservé" y dashboard con KPIs; probado de punta a punta en el POCO). Pendiente: M4 (escáner, avisos, Decart).
+> con recordatorio local, "Comprar lo que reservé" y dashboard con KPIs; probado de punta a punta en el POCO; **M4.1** escáner de etiqueta y
+> **M4.2** "Avisame cuando vuelva" + deslizar para quitar del carrito, 2026-11-08). Pendiente: M4.3–M4.5 (dev build y probador Decart).
 
 ## 1. Stack (versiones exactas, spec §1.1)
 
@@ -20,7 +21,7 @@
 | Red | `@react-native-community/netinfo` 12.0.1 |
 | Fuentes | Bricolage Grotesque (títulos MirrorIA/`geist`), Geist (cuerpo), Geist Mono (montos/SKU), Outfit, DM Sans, Playfair |
 | En uso desde M3 | `expo-notifications` (recordatorio local), `expo-web-browser` (Stripe), `react-native-qrcode-svg` (Pase), `expo-haptics` |
-| Instalado para M4 | `expo-camera` (escáner) |
+| En uso desde M4 | `expo-camera` (escáner, QR + Code128), `react-native-gesture-handler` v3 (`usePanGesture`, deslizar en el carrito) |
 | **No instalado aún** | Decart/LiveKit (M4, *development build*) |
 
 ## 2. Levantar en el POCO X3 Pro (Expo Go 58.0.5, ADB inalámbrico)
@@ -46,7 +47,7 @@ Cuentas: clienta `clienta@mirroria.com` (tiendaria) · personal para probar el r
 mirroria-mobile/
 ├── app.json · babel.config.js · metro.config.js · tailwind.config.js · components.json · eslint.config.js
 ├── nativewind-env.d.ts · tsconfig.json (alias @/* → src/*) · .env.example
-├── docs/capturas/{m1,m2,m3}/    # capturas del POCO para el PDF (m3: pagos, pase, comprar lo reservado, sin red)
+├── docs/capturas/{m1,m2,m3,m4}/ # capturas del POCO para el PDF (m3: pagos, pase…; m4: escáner, avisos, deslizar)
 └── src/
     ├── global.css               # tokens por defecto (MirrorIA claro/oscuro) en "R G B"
     ├── app/                     # SOLO rutas: `export { default } from '@/features/...'`
@@ -70,7 +71,8 @@ mirroria-mobile/
     │   ├── api/                 # cliente-http (apiFetch), contexto-http, errores (ApiError, ErrorSinRed), endpoints,
     │   │                        #  con-cache (lectura con respaldo en configuracion_sync: ventas_json/reservas_json)
     │   ├── db/                  # sqlite-local (SQLite Local + transaccionExclusiva), migraciones v1-v2 (+test), tipos-espejo,
-    │   │                        #  repos/{configuracion,espejo,vitrina,carrito,reservas,detalle (nombres de prendas/sucursales)}
+    │   │                        #  repos/{configuracion,espejo,vitrina,carrito,reservas,detalle (nombres de prendas/sucursales),
+    │   │                        #  escaner (buscarPorSku), avisos}
     │   ├── outbox/              # OutboxManager: tipos, clasificar-respuesta (+test), repo-outbox, cola-outbox (núcleo puro, +test),
     │   │                        #  outbox-manager (timers/NetInfo/AppState), enviar-operacion, sql-expo, operaciones (las 3 encolables),
     │   │                        #  consultas, conflictos-store, use-outbox, use-motor-outbox
@@ -78,7 +80,10 @@ mirroria-mobile/
     │   │                        #  ventaDeReserva, codigoPase, momentoRecordatorio, etiquetas
     │   ├── pagos/               # estado-pago (+test): vistaPago, intervaloConsulta (polling), bloqueoPago (RN08), metodosDisponibles ·
     │   │                        #  resumen-clienta (KPIs del dashboard)
-    │   ├── notificaciones/      # use-abrir-notificacion (handler en primer plano + tocar el aviso abre el pase)
+    │   ├── notificaciones/      # use-abrir-notificacion (handler en primer plano + tocar el aviso abre `data.ruta`)
+    │   ├── vitrina/             # parsear-etiqueta (+test): SKU plano, `mirroria:v:<SKU>` o enlace `?sku=`/`?codigo=`
+    │   ├── avisos/              # decidir-avisos (+test, 0→>0 notifica, se re-arma al agotarse), sql-avisos (+test node:sqlite),
+    │   │                        #  revisar-avisos (tras cada snapshot: notificación local inmediata)
     │   ├── red/                 # net-info-listener (NetInfoListener), use-estado-red
     │   ├── sesion/              # sesion-store (SecureStore por tienda), jwt (+test)
     │   ├── tema/                # color (+test, port web), derivar-tokens, tema-plataforma, tokens, fuentes, marca.types
@@ -89,8 +94,11 @@ mirroria-mobile/
         ├── tiendas/  {api,components,hooks,screens,types}
         ├── auth/     {api,components,hooks,screens,types}
         ├── espejo/   {api,hooks}
-        ├── vitrina/  {api,components,hooks,screens}   # + ReservarScreen (cupo, sucursal, horario)
-        ├── carrito/  {api,components,hooks,screens}   # carrito (+ agregados sin red), CheckoutScreen
+        ├── vitrina/  {api,components,hooks,screens}   # + ReservarScreen (cupo, sucursal, horario), EscanearScreen
+        │                                        #  (components/escaner: VisorEtiqueta, PermisoCamara, CodigoManual, ResultadoEscaneo; useEscaner)
+        ├── avisos/   {components,hooks,screens} # AvisosScreen, FilaAviso, BadgeAviso, QuitarAviso, BannerPermiso; useAvisos,
+        │                                        #  useMutacionesAviso, useAvisoVariante, usePermisoNotificaciones
+        ├── carrito/  {api,components,hooks,screens}   # carrito (+ agregados sin red, FilaCarritoDeslizable + useQuitarDelCarrito), CheckoutScreen
         ├── pagos/    {api,components,hooks,screens} # PagoScreen (usePago): ResumenPedido, SelectorMetodoPago, PanelQr/PanelCaja/
         │                                        #  PanelMetodo, PiePago, CompraConfirmada, CancelarCompra
         ├── pedidos/  {components,hooks,screens} # MisPedidosScreen, PedidoScreen, TarjetaPedido, BadgeEstadoVenta, useMisVentas/useVenta
@@ -109,19 +117,19 @@ mirroria-mobile/
 | `/tiendas` | `TiendasScreen` | `GET /saas/tiendas?limite=50` 🧭 (+ caché `directorio_json`) | M1 ✅ |
 | `/acceso/login` · `/acceso/registro` | `LoginScreen` · `RegistroScreen` | `POST /seguridad/auth/login` · `/register` con `X-Tenant` | M1 ✅ |
 | `/vitrina` | `VitrinaScreen` | SQLite `catalogo_local` + `v_stock_libre` | M1 ✅ |
-| `/vitrina/[productoId]` | `FichaScreen` | SQLite (variantes + stock por sucursal); "Agregar" → outbox `CARRITO_AGREGAR` | M2 ✅ |
+| `/vitrina/[productoId]?variante=` | `FichaScreen` | SQLite (variantes + stock por sucursal); "Agregar" → outbox `CARRITO_AGREGAR`; agotada → "Avisame cuando vuelva" (`avisos_local`) | M2 ✅ · M4.2 ✅ |
 | `/vitrina/[id]/reservar?variante=` | `ReservarScreen` | SQLite (`reservas.repo`) + `GET /reservas/mias/cupo` (caché `cupo_json:<usuario>`); "Reservar" → outbox `RESERVA_CREAR` | M2 ✅ |
 | `/vitrina/reserva/[outboxId]` · `/carrito/compra/[outboxId]` · `/mis-cosas/pendientes/[outboxId]` | `OperacionScreen` | outbox (`outbox_local` + `outbox_eventos`) | M2 ✅ |
-| `/vitrina/escanear` | placeholder | — | M4 |
+| `/vitrina/escanear?codigo=` | `EscanearScreen` | `expo-camera` (QR/Code128) o código escrito → SQLite `variantes_local.sku` → ficha con `?variante=` (sin red también) | M4.1 ✅ |
 | `/probador` | `ProbadorScreen` | — | M4 |
-| `/carrito` | `CarritoScreen` | `carrito_local` + `CARRITO_AGREGAR` sin confirmar (badge "Pendiente") + aviso de compra en curso | M2 ✅ |
+| `/carrito` | `CarritoScreen` | `carrito_local` + `CARRITO_AGREGAR` sin confirmar (badge "Pendiente") + aviso de compra en curso; deslizar → "Quitar" (`DELETE /ventas/carrito/:u/items/:v`, solo con red) | M2 ✅ · M4.2 ✅ |
 | `/carrito/checkout` | `CheckoutScreen` | SQLite (`stockParaRetiro`) + `POST /promociones/cupones/validar` (solo con red); "Confirmar" → outbox `CHECKOUT` | M2 ✅ |
 | `/carrito/pago/[ventaId]` · `/mis-cosas/pago/[ventaId]` | `PagoScreen` | `GET /ventas/:id` (polling) · `GET /pagos/pasarelas` · `POST /pagos/ventas/:id/{qr,sesion,manual,cancelar}` · `GET /pagos/qr/:pagoId` | M3 ✅ |
 | `/mis-cosas` | `MisCosasScreen` (dashboard) | `GET /ventas/mias`, `GET /reservas/mias`, cupo (con caché) + espejo | M3 ✅ |
 | `/mis-cosas/pendientes` | `PendientesScreen` | outbox + `NetInfoListener` + modo demo "Sin red"; "Sincronizar ahora", "Borrar terminadas" | M2 ✅ |
 | `/mis-cosas/pedidos` · `pedidos/[ventaId]` | `MisPedidosScreen` · `PedidoScreen` | `GET /ventas/mias` · `GET /ventas/:id` (+ `CHECKOUT` en la outbox) | M3 ✅ |
 | `/mis-cosas/reservas` · `reservas/[reservaId]` | `MisReservasScreen` · `PaseScreen` | `GET /reservas/mias` (+ `RESERVA_CREAR` en la outbox), `GET /reservas/:id` c/15 s, `PATCH …/cancelar`, `POST /ventas/desde-reserva/:id` | M3 ✅ |
-| `/mis-cosas/avisos` | placeholder | — | M4 |
+| `/mis-cosas/avisos` | `AvisosScreen` | SQLite `avisos_local` + `v_stock_libre` (sin endpoint nuevo) | M4.2 ✅ |
 
 Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back()` o la ruta de respaldo).
 
@@ -140,6 +148,9 @@ Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back
 - **pedidos/reservas (M3.2/M3.4):** listas con `conCache` (sin red muestran lo último guardado: el pase sirve sin señal en la tienda); nombres de prenda/sucursal desde SQLite (`detalle.repo`). Pase: QR negro sobre blanco con SOLO el código (D11), `useFocusEffect` + `refetchInterval` 15 s.
 - **recordatorio (M3.2):** `expo-notifications` local, trigger DATE 1 h antes (`momentoRecordatorio`), id en `recordatorio:<reservaId>`; se quita solo si la reserva deja de estar PENDIENTE/CONFIRMADA; tocarlo abre el pase (`data.ruta`).
 - **comprar lo reservado (M3.3):** `accionPase` decide la primaria: `EN_TIENDA` → "Comprar lo que reservé" (solo con red, cupón opcional, una `Idempotency-Key` por intento) o "Pagar mi compra" si ya hay una `PENDIENTE`; `COMPLETADA` → "Compra pagada · ver pedido".
+- **escáner (M4.1, D10):** `useEscaner` con candado (una lectura → una ficha; se libera al volver a enfocar o con "Escanear otra"). `parsearEtiqueta` → `buscarPorSku` (SQLite) → `router.push('/vitrina/[productoId]', {variante})` + háptico Light. No encontrado/código ajeno → `ResultadoEscaneo` con el código leído, la fecha del espejo y "Escanear otra"/"Ver la vitrina". Espejo vacío → "Primero abrí la vitrina con internet". Permiso explicado (o "Abrir ajustes" si se negó para siempre), linterna, "Escribir código". `?codigo=` (deep link) se lee igual que la cámara: sirve para QA (`exp://127.0.0.1:8081/--/vitrina/escanear?codigo=mirroria%3Av%3APANTAL-L-NEG`). Etiquetas de prueba: `uv run scripts/qa/etiquetas_qr.py [--tienda nomada] [--solo-agotadas]` → `scripts/qa/etiquetas/<tienda>/{<SKU>.png,index.html}` (ignorado en git).
+- **avisos (M4.2):** por dispositivo y tienda (`avisos_local`, sin FK a `variantes_local` para sobrevivir al reemplazo del espejo; uno por variante). Crear pide el permiso de notificaciones (si se niega, el aviso igual queda y la lista lo muestra). `useSincronizacionEspejo` llama `revisarAvisos` tras cada snapshot (login, reconexión, cada 5 min, pull-to-refresh, CONFIRMADA de la outbox, volver a la app tras > 60 s por `staleTime`): `decidirAvisos` notifica los armados con libre > 0 (`trigger: null`, `data.ruta = /vitrina/<id>?variante=<v>`) y re-arma los ya notificados que volvieron a 0. Expo Go no corre JS en segundo plano: la notificación llega al volver a abrir la app o con ella abierta.
+- **deslizar en el carrito (M4.2):** `FilaCarritoDeslizable` (pan propio `usePanGesture` v3 + Reanimated, umbral 48 px o velocidad) descubre "Quitar" (96 px, `danger`); tocarlo → `useQuitarDelCarrito` (DELETE, copia el carrito devuelto a `carrito_local`). Deshabilitado sin red, con unidades "Pendiente" o con una compra en curso; el pie de la lista lo explica.
 - **outbox (M2):** ver §6 abajo. Las pantallas que encolan (`useAgregarCarrito`, `useCheckout`, `useReservar`, `useResolverConflicto`) llaman a `lib/outbox/operaciones` y navegan al comprobante (`OperacionScreen`). `useMotorOutbox` (layout raíz) pasa la sesión al manager, invalida `['outbox']`/`['vitrina']` en cada cambio, re-snapshot del espejo tras una CONFIRMADA, háptico Success/Error y abre `ModalConflictoStock` (vía `conflictosStore`).
 
 ## 6. Protocolo offline (resumen; detalle en spec §5)
@@ -169,8 +180,13 @@ Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back
 - **Teclado:** `tabBarHideOnKeyboard` en las tabs y `keyboardShouldPersistTaps="handled"` en los ScrollView con input (si no, el primer toque a "Aplicar" solo cierra el teclado).
 - **Chrome primer arranque** en el POCO: la Custom Tab de Stripe abre la bienvenida de Chrome y Expo Go puede volver a su inicio; reabrir con deep link `exp://127.0.0.1:8081/--/mis-cosas/pago/<ventaId>` (el cobro quedó en SQLite).
 - **JWT de 1 h**: tras una pausa larga la sesión vence (401); la app la descarta al arrancar y el pago muestra "Tu sesión venció".
+- **Expo Go 58.0.5 se cae al TOCAR una notificación local** (`LauncherActivity`: `IllegalStateException: Cannot access database on the main thread`, nativo de Expo Go): termina en el escritorio. La notificación SÍ se muestra; la ruta de `data.ruta` se verificó por deep link. Afecta también al recordatorio de M3. Revisar en el *development build*/APK (M4.3).
+- **`ReanimatedSwipeable` (RNGH 3.3) dibujaba las acciones en el flujo** (arriba e izquierda de la fila) en esta app: se reemplazó por un pan propio (`FilaCarritoDeslizable`) con la acción en `style` absoluto.
+- **Fast Refresh recrea el `QueryClient`** de `_layout.tsx` si se edita un módulo de su cadena: las mutaciones invalidan un caché sin observadores y la UI "no se actualiza". Antes de dar por roto algo de datos, `am force-stop` y reabrir.
+- **Deep link con el mismo `?codigo=`** a una pantalla ya abierta no re-dispara el efecto (el parámetro no cambió): reabrir la app en frío o usar otro código.
+- **Volver a la app por "recientes"**: Expo Go tiene dos tareas (la experiencia y su `HomeActivity`); para reanudar sin adivinar coordenadas usar `am start -d exp://127.0.0.1:8081/--/<ruta>`.
 - M4: tras `expo prebuild`, `android/gradle.properties` con `org.gradle.workers.max=2` y `reactNativeArchitectures=arm64-v8a` (RAM).
 
 ## 8. Checklist QA (spec §8.5)
 
-`tsc` · `expo lint` · `expo-doctor` (20/20) · `npm test` (38: migraciones, outbox, clasificación, horarios, formato, jwt, color, estado-pago, KPIs, comprar-reserva) limpios; `grep -rn "lucide\|animate-" src` vacío; ningún componente propio > 120 líneas (los primitivos RNR `select/dialog/alert-dialog` se dejan como vienen); ninguna referencia a `/ventas/presenciales`, `/pagos/pendientes`, `/dashboard/operativo`; recorrer cada ruta y su "← Volver"; capturas del POCO en `docs/capturas/`.
+`tsc` · `expo lint` · `expo-doctor` (20/20) · `npm test` (55: migraciones, outbox, clasificación, horarios, formato, jwt, color, estado-pago, KPIs, comprar-reserva, **parsear-etiqueta, decidir-avisos, sql-avisos**) limpios; `grep -rn "lucide\|animate-" src` vacío; ningún componente propio > 120 líneas (los primitivos RNR `select/dialog/alert-dialog` se dejan como vienen); ninguna referencia a `/ventas/presenciales`, `/pagos/pendientes`, `/dashboard/operativo`; recorrer cada ruta y su "← Volver"; capturas del POCO en `docs/capturas/`.
