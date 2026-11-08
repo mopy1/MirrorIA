@@ -51,7 +51,7 @@ Para la evolución, modelado e implementación de la plataforma SaaS multi-tenan
 
 * **Mermaid & Mermaid CLI (`@mermaid-js/mermaid-cli` v12.2.0):** Herramienta de diagramación declarativa como código utilizada para modelar los diagramas de clases, robustez BCE, secuencias UML 2.5 y diagramas C4, compilándolos de forma nativa a imágenes PNG de alta resolución.
 * **Docker & Docker Compose:** Entorno de contenedores para orquestar la suite de servicios (`mirroria_postgres`, `mirroria_backend`, `mirroria_frontend` y `mirroria_ml`) con políticas `restart: "no"` para cuidar la memoria RAM en WSL3.
-* **Vitest & Oxlint:** Suite de pruebas ultrarrápida (555 pruebas en backend, 345 en frontend y 18 en móvil) y linter de alto rendimiento.
+* **Vitest & Oxlint:** Suite de pruebas ultrarrápida (557 pruebas en backend, 345 en frontend y 17 en móvil) y linter de alto rendimiento.
 * **Git & GitHub:** Control de versiones distribuido bajo estrategia de rama única `main` para trazabilidad de código.
 
 ---

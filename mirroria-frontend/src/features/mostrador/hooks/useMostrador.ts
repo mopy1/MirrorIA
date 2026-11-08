@@ -69,8 +69,11 @@ export function useMostrador() {
   const disponible = useCallback((item: ItemMostrador) => disponibleLocal(item, pendientes), [pendientes])
 
   async function vender(lineas: LineaVenta[]): Promise<ResultadoVenta<VentaRegistrada>> {
+    // El mismo cuerpo con red y en la cola: si la respuesta se perdió, el reintento
+    // usa la misma clave y tiene que coincidir byte a byte o el servidor lo rechaza.
     const payload = {
       sucursalId: sucursalId ?? "",
+      vendidaEn: new Date().toISOString(),
       items: lineas.map((l) => ({ varianteId: l.item.varianteId, cantidad: l.cantidad, precioUnitCents: l.item.precioCents })),
     }
     try {
@@ -80,8 +83,7 @@ export function useMostrador() {
         encolar: (p, clave) =>
           outboxManager.encolarOperacion({
             tenantId: tienda, tipo: TIPO_VENTA, endpoint: "/ventas/presenciales", idempotencyKey: clave,
-            // La caja ya cobró: el servidor respeta ese precio aunque cambie antes de sincronizar.
-            payload: { ...p, vendidaSinConexionEn: new Date().toISOString() },
+            payload: { ...p },
           }),
         generarClave: () => crypto.randomUUID(),
       })

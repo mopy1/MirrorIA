@@ -18,6 +18,7 @@ const METODO_LABEL: Record<MetodoPago, string> = {
   QR: "QR",
   EFECTIVO: "Efectivo",
   PAYPAL: "PayPal",
+  BILLETERA: "PayPal",
 }
 
 interface CobrosTableProps {

@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -56,6 +57,7 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
     @Inject(PASARELA) private readonly pasarela: Pasarela,
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {}
 
   async expirarVencidas(): Promise<number> {
@@ -95,6 +97,9 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       if (pago?.proveedorPago === ProveedorPago.STRIPE && pago.referenciaExterna) {
         if (!(await this.pasarela.cerrarSesion(pago.referenciaExterna))) {
           this.logger.warn(`Venta ${venta.id}: la sesion ${pago.referenciaExterna} no se pudo cerrar, no se cancela`);
+          // Si se pagó y el aviso no llegó, se acredita acá: si no, quedaba
+          // pendiente para siempre con el stock apartado.
+          await this.acreditarSiSePago(venta.tenantId, pago);
           continue;
         }
       }
@@ -113,6 +118,17 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     }
 
     return canceladas;
+  }
+
+  private async acreditarSiSePago(tenantId: string, pago: Pago): Promise<void> {
+    try {
+      // Por ModuleRef para no crear una dependencia circular con PagosService.
+      const { PagosService } = await import('./pagos.service.js');
+      const pagos = this.moduleRef?.get(PagosService, { strict: false });
+      await conTenant({ tenantId }, () => pagos?.acreditarSesionPagada(pago) ?? Promise.resolve());
+    } catch (error) {
+      this.logger.warn(`No se pudo acreditar la sesion ${pago.referenciaExterna}: ${String(error)}`);
+    }
   }
 
   /**

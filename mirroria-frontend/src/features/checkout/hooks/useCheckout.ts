@@ -32,6 +32,8 @@ export function useCheckout() {
           // query params) — guardamos de cuál venta se trata para poder
           // consultar su estado real al volver, en vez de confiar en la URL.
           sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
+          // "Continuar pago" del carrito tiene que volver a la misma pasarela.
+          sessionStorage.setItem(`mirroria_pasarela_${venta.id}`, metodo)
           window.location.href = url
           return
         } catch (err) {

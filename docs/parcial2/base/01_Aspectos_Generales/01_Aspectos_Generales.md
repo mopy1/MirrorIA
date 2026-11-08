@@ -157,4 +157,4 @@ flowchart TD
    - Finaliza con la **Revisión Crítica de Diseño (CDR)**.
 4. **Fase 4 — Implementación y Pruebas:**
    - Codificación del sistema sobre la arquitectura monorepo: backend en NestJS 12, microservicio de ML en FastAPI y frontend en React 19 PWA.
-   - Ejecución de baterías de pruebas automatizadas: 555 tests unitarios en backend, 345 tests en frontend, 18 en la app móvil, pruebas de integración e2e y scripts de QA de aislamiento multi-tenant y reglas de mostrador.
+   - Ejecución de baterías de pruebas automatizadas: 557 tests unitarios en backend, 345 tests en frontend, 17 en la app móvil, pruebas de integración e2e y scripts de QA de aislamiento multi-tenant y reglas de mostrador.

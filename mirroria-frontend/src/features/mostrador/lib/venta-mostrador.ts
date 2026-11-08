@@ -18,6 +18,8 @@ export interface LineaVenta {
 
 export interface VentaPayload {
   sucursalId: string
+  /** Cuándo cobró la caja: el servidor acepta el precio que regía en ese momento. */
+  vendidaEn?: string
   items: { varianteId: string; cantidad: number; precioUnitCents?: number }[]
 }
 

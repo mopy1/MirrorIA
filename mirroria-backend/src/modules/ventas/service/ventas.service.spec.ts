@@ -8,13 +8,19 @@ import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-i
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 
 describe('orden de bloqueo y precio de la venta sin conexion', () => {
-  function servicio(precioActual: number) {
+  function servicio(precioActual: number, anterior: { cents: number; cambiadoEn: Date } | null = null) {
     const ajustarStock = vi.fn();
     const ventaRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => ({ ...x, createdAt: new Date() })) };
     const itemRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => x) };
     const manager = { getRepository: (e: unknown) => (String(e).includes('VentaItem') ? itemRepo : ventaRepo) };
     const productos = {
-      findVarianteById: vi.fn(async (id: string) => ({ id, activo: true, producto: { activo: true, precioCents: precioActual, titulo: id } })),
+      findVarianteById: vi.fn(async (id: string) => ({
+        id, activo: true,
+        producto: {
+          activo: true, precioCents: precioActual, titulo: id,
+          precioAnteriorCents: anterior?.cents ?? null, precioCambiadoEn: anterior?.cambiadoEn ?? null,
+        },
+      })),
     };
     const service = new VentasService(
       {} as never, {} as never, { transaction: (cb: (m: unknown) => unknown) => cb(manager) } as never,
@@ -29,13 +35,31 @@ describe('orden de bloqueo y precio de la venta sin conexion', () => {
     expect(ajustarStock.mock.calls.map(([p]) => p.varianteId)).toEqual(['a', 'b']);
   });
 
-  it('una venta de caja hecha sin conexion queda con el precio que se cobro', async () => {
-    const { service, itemRepo } = servicio(25000);
+  it('una venta sin conexion queda con el precio que regia cuando se cobro', async () => {
+    const vendidaEn = new Date(Date.now() - 60 * 60_000);
+    const { service, itemRepo } = servicio(25000, { cents: 10000, cambiadoEn: new Date(Date.now() - 10 * 60_000) });
     await service.registrarPresencial({
-      sucursalId: 's1', vendidaSinConexionEn: '2026-11-07T10:00:00Z',
+      sucursalId: 's1', vendidaEn: vendidaEn.toISOString(),
       items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 10000 }],
     } as never, 'c1');
     expect(itemRepo.create.mock.calls[0][0].precioUnitCents).toBe(10000);
+  });
+
+  it('el cajero no puede poner un precio que la prenda nunca tuvo', async () => {
+    const { service } = servicio(50000);
+    await expect(service.registrarPresencial({
+      sucursalId: 's1', vendidaEn: new Date().toISOString(),
+      items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 1 }],
+    } as never, 'c1')).rejects.toThrow(/precio/i);
+  });
+
+  it('una fecha de venta futura o de hace mas de 7 dias se rechaza', async () => {
+    const { service } = servicio(100);
+    for (const f of [new Date(Date.now() + 3600_000), new Date(Date.now() - 8 * 86400_000)]) {
+      await expect(service.registrarPresencial({
+        sucursalId: 's1', vendidaEn: f.toISOString(), items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 100 }],
+      } as never, 'c1')).rejects.toThrow();
+    }
   });
 
   it('con conexion manda el precio actual aunque el cliente mande otro', async () => {

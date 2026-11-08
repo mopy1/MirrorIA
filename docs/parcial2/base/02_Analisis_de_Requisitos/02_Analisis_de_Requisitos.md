@@ -86,7 +86,7 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RF02 - Gestión de planes comerciales de suscripción:** El sistema debe administrar los planes Básico (Bs 99 / 1 sucursal / 50 prendas / 3 staff), Crecimiento (Bs 249 / 3 sucursales / 300 prendas / 10 staff / destacado) y Cadena (Bs 599 / recursos ilimitados), asignando cuotas de recursos y el nivel de marca permitido (`ESENCIAL`, `COMPLETA` o `MARCA_BLANCA`).
 * **RF03 - Control y restricción de cuotas de suscripción:** El sistema debe verificar en tiempo de ejecución (`assertDentroDelPlan`) que la tienda no supere las cuotas de su plan al crear o reactivar sucursales, prendas o usuarios staff, rechazando las operaciones excedentes con código HTTP 409 `LimitePlanExcedidoException`.
 * **RF04 - Cobro y renovación automatizada de planes (B2B):** El sistema debe permitir al Admin de la boutique contratar, pagar o renovar su plan mensual mediante pasarelas de pago digitales (Stripe Checkout y Wayra QR), persistiendo el registro de cobranza en la tabla `cobros_suscripcion` y actualizando de inmediato la vigencia de la suscripción.
-* **RF05 - Aislamiento lógico multi-tenant:** El backend debe inyectar obligatoriamente el contexto de inquilino (`X-Tenant` o JWT) en cada petición mediante `TenantMiddleware` y `TenantInterceptor`, filtrando automáticamente las 21 tablas de negocio con la cláusula `where: soloTenant({...})`, retornando HTTP 404 si se intenta acceder a un recurso de otra tienda.
+* **RF05 - Aislamiento lógico multi-tenant:** El backend debe inyectar obligatoriamente el contexto de inquilino (`X-Tenant` o JWT) en cada petición mediante `TenantMiddleware` y `TenantInterceptor`, filtrando automáticamente las 22 tablas de negocio con la cláusula `where: soloTenant({...})`, retornando HTTP 404 si se intenta acceder a un recurso de otra tienda.
 
 #### **Módulo 2: Catálogo, Inventario y Puntos de Venta (POS)**
 * **RF06 - Gestión multivariante de indumentaria femenina:** El sistema debe permitir al Admin registrar prendas clasificadas por categorías, temporadas y colecciones, generando matrices de variantes SKU únicas por combinación de talla y color HEX con precio tipificado en centavos (`precioCents`).
@@ -105,7 +105,7 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 
 #### **Módulo 4: Operación Offline-First y Sincronización**
 * **RF17 - Consulta desconectada del catálogo:** La aplicación web PWA y la aplicación móvil deben permitir navegar el catálogo y consultar existencias cacheadas previamente en IndexedDB (Web) o SQLite (Móvil) ante pérdida total de conexión a Internet, preservando los datos por 7 días (TTL).
-* **RF18 - Registro de reservas offline:** El sistema debe permitir a la clienta solicitar citas de probador sin conexión, asignando un identificador universal único (UUIDv4) y encolando la orden en el almacenamiento local para su posterior despacho.
+* **RF18 - Ventas y compras sin conexión:** El cajero debe poder registrar ventas de contado en el Mostrador sin conexión, y la clienta comprar desde la app móvil sin conexión; cada operación lleva un UUIDv4 como `Idempotency-Key` y se encola localmente hasta reconectar. Las citas de probador (reservas) requieren conexión.
 * **RF19 - Registro de ventas presenciales de mostrador offline:** El sistema debe permitir al cajero procesar cobros de contado en efectivo sin conexión desde el POS de la PWA, descontando el inventario local y almacenando la transacción en la cola *outbox*.
 * **RF20 - Cola de salida (*outbox*) con monitoreo de estados:** El cliente debe proveer una estructura de cola local que rastree el ciclo de vida de cada operación offline (`PENDIENTE`, `SINCRONIZANDO`, `SINCRONIZADO`, `COMPENSADO` o `FALLIDO`), permitiendo la depuración de órdenes confirmadas.
 * **RF21 - Sincronización asíncrona e idempotente:** Al restablecerse la conectividad a Internet, el sistema debe drenar automáticamente la cola outbox hacia el backend enviando la cabecera `Idempotency-Key` (SHA-256), garantizando que reintentos sucesivos no dupliquen transacciones ni cobros (`X-Cache-Idempotency: HIT`).
@@ -129,9 +129,9 @@ Los casos de uso del 2.º Ciclo consolidan los servicios de valor del sistema, a
 * **RNF06. Recuperación ante Fallos y Transacción Compensatoria:** Ante respuestas de rechazo por parte del servidor central (como HTTP 409 por stock agotado), el cliente no debe purgar la orden de forma silenciosa, sino transicionarla al estado `COMPENSADO`, ejecutar el rollback local y notificar de manera interactiva a la usuaria.
 * **RNF07. Modularidad y Desacoplamiento:** La arquitectura backend debe estructurarse como un Monolito Modular donde los módulos de negocio no importan entidades de otros módulos, comunicándose exclusivamente mediante servicios exportados e identificadores foráneos planos `UUID`, permitiendo que el microservicio de ML (`mirroria-ml`) opere en un proceso autónomo en puerto `8002`.
 * **RNF08. Compatibilidad y Soporte Omnicanal:** La aplicación web React 19 debe cumplir los estándares de Progressive Web App (PWA) con Service Worker y Web Manifest para operar en navegadores de escritorio y móviles; el cliente móvil en React Native / Expo SDK 57 debe garantizar portabilidad multiplataforma sobre dispositivos Android e iOS.
-* **RNF09. Rendimiento y Tiempo de Respuesta:** Las consultas transaccionales de catálogo y pedidos deben responder en un tiempo inferior a **200 ms** bajo condiciones normales, mientras que las inferencias analíticas de Machine Learning y consultas a DuckDB no deben exceder un tiempo límite de **3.000 ms**, activando el fallback heurístico en caso de sobrepasar este umbral.
+* **RNF09. Rendimiento y Tiempo de Respuesta:** Las consultas transaccionales de catálogo y pedidos deben responder en un tiempo inferior a **200 ms** bajo condiciones normales, mientras que las inferencias analíticas de Machine Learning y consultas a DuckDB no deben exceder un tiempo límite de **1.500 ms**, activando el fallback heurístico en caso de sobrepasar este umbral.
 * **RNF10. Observabilidad y Trazabilidad:** Todo error de negocio debe emitir una estructura homogénea `{ status, message, timestamp }` evitando fugas de trazas internas del servidor. La telemetría de inferencia debe registrar la cabecera `X-ML-Fallback: true/false` para auditar la salud del microservicio Python.
-* **RNF11. Calidad del Software y Cobertura de Pruebas:** El sistema debe contar con suites de pruebas automatizadas exhaustivas que certifiquen el funcionamiento del software: un mínimo de 466 pruebas unitarias y de integración en backend (Vitest), 293 pruebas en frontend, y scripts de QA de caja negra que certifiquen el aislamiento multi-tenant y reglas de mostrador.
+* **RNF11. Calidad del Software y Cobertura de Pruebas:** El sistema debe contar con suites de pruebas automatizadas exhaustivas que certifiquen el funcionamiento del software: 557 pruebas unitarias y 61 de integración en backend (Vitest), 345 pruebas en frontend, 17 en la app móvil, y scripts de QA de caja negra que certifiquen el aislamiento multi-tenant y reglas de mostrador.
 * **RNF12. Accesibilidad Universal WCAG 2.1:** Todo tema o paleta visual personalizada por una boutique debe ser validada algorítmicamente asegurando un ratio de contraste mínimo de **4.5:1** (Nivel AA) entre los colores de texto y los fondos preestablecidos (`#FFFFFF` o `#0A0A0A`).
 
 ---
@@ -368,7 +368,7 @@ La tienda pública `/t/:slug` adopta inmediatamente la nueva paleta de colores, 
 | **Fecha:** | 06/11/2026 |
 
 **Descripción:**
-Permite a la Clienta y al Cajero continuar utilizando la plataforma ante caídas imprevistas de conexión a Internet, navegando catálogos cacheados y registrando reservas o ventas presenciales de contado en efectivo desde la PWA (IndexedDB) o la app móvil (SQLite). Las operaciones se encolan con identificador UUIDv4 y se transmiten automáticamente de forma idempotente con hash SHA-256 al recuperar la red.
+Permite a la Clienta y al Cajero continuar utilizando la plataforma ante caídas imprevistas de conexión a Internet, navegando catálogos guardados y registrando ventas presenciales de contado en efectivo (Mostrador) o compras desde la app móvil desde la PWA (IndexedDB) o la app móvil (SQLite). Las operaciones se encolan con identificador UUIDv4 y se transmiten automáticamente de forma idempotente con hash SHA-256 al recuperar la red.
 
 **Actores:**
 Clienta (`CUSTOMER`), Cajero (`CAJERO`), Service Worker, Backend NestJS.
@@ -380,13 +380,13 @@ Clienta (`CUSTOMER`), Cajero (`CAJERO`), Service Worker, Backend NestJS.
 **Flujo Normal:**
 1. El usuario navega la tienda o el POS; el sistema detecta el evento de desconexión y activa la barra visual de "Modo Offline".
 2. El sistema carga las prendas y precios directamente desde el almacén `catalogo_cache` de IndexedDB (Web) o base local `SQLite` (Móvil).
-3. El cajero en mostrador selecciona prendas, cantidades y pulsa "Guardar venta offline (Contado)".
+3. El cajero en `/admin/mostrador` selecciona prendas y cantidades y pulsa "Cobrar en efectivo".
 4. El cliente verifica las existencias locales disponibles y deduce provisionalmente el stock local.
-5. El cliente genera un identificador UUIDv4 para la transacción y un comprobante provisional `LOCAL-<UUID>`.
+5. El cliente genera un identificador UUIDv4 como clave de idempotencia y anota la hora del cobro (`vendidaEn`), con la que el servidor valida el precio cobrado.
 6. La transacción se encola en el almacén local `outbox` con estado `PENDIENTE` junto con la cabecera `Idempotency-Key` (UUIDv4) y el hash SHA-256 del cuerpo de la petición.
 7. El sistema confirma visualmente que la venta fue guardada localmente y deja el ticket disponible para la siguiente clienta.
 8. Al restablecerse la conexión a Internet, el Service Worker (o el listener de NetInfo en móvil) detecta el evento `online` y activa el vaciado de la cola FIFO (`outbox-manager.ts`).
-9. El cliente despacha la venta mediante `POST /api/v1/ventas/checkout` enviando la cabecera `Idempotency-Key`.
+9. El cliente despacha la venta mediante `POST /api/v1/ventas/presenciales` (en el móvil, `POST /api/v1/ventas/carrito/:id/checkout` con sus prendas) enviando la cabecera `Idempotency-Key`.
 10. El interceptor global de idempotencia en el backend verifica que la clave no haya sido procesada previamente y ejecuta la transacción en PostgreSQL.
 11. El backend responde HTTP 201 (`X-Cache-Idempotency: MISS`) con el comprobante definitivo `C-XXXXXXXX`.
 12. El cliente actualiza la orden en la cola outbox pasando su estado a `SINCRONIZADO` y actualiza la caché local de catálogo con las existencias confirmadas del servidor.
@@ -528,7 +528,7 @@ Dueño de Boutique (`ADMIN`), Encargado de Sucursal, Microservicio ML (`mirroria
 6. La interfaz presenta las tarjetas de reposición sugerida en lenguaje directivo y marca en la agenda POS las citas que requieren confirmación prioritaria por WhatsApp.
 
 **Flujos Alternativos:**
-* **3a. Microservicio Python apagado o con caída de red:** Si la llamada a `mirroria-ml:8002` supera el tiempo límite de 3.000 ms o falla la conexión, el método `fetchMl` en NestJS activa de inmediato el **fallback heurístico matemático**. Calcula la demanda proporcional al historial y emite las alertas con la cabecera `X-ML-Fallback: true`. La interfaz muestra una etiqueta informativa indicando que los datos corresponden a una estimación matemática de respaldo.
+* **3a. Microservicio Python apagado o con caída de red:** Si la llamada a `mirroria-ml:8002` supera el tiempo límite de 1.500 ms o falla la conexión, el método `fetchMl` en NestJS activa de inmediato el **fallback heurístico matemático**. Calcula la demanda proporcional al historial y emite las alertas con la cabecera `X-ML-Fallback: true`. La interfaz muestra una etiqueta informativa indicando que los datos corresponden a una estimación matemática de respaldo.
 * **4a. Consulta de rigor científico:** El usuario pulsa en el botón "¿Cómo se calcula?" en el encabezado; el sistema despliega el panel lateral `FichaTecnicaSheet` exponiendo el tamaño de muestra ($N=10.000$), semilla (`seed=42`), métricas de bondad de ajuste ($R^2$, MAE, ROC-AUC) y citas académicas formales (Breiman 2001, Cox 1958).
 
 **Poscondiciones:**

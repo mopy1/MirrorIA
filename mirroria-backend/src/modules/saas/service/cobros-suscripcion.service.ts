@@ -196,6 +196,13 @@ export class CobrosSuscripcionService {
 
     const pasarela = this.registroPasarelas.obtener(cobro.proveedorPago as PasarelaId);
     if (!pasarela.confirmarCobro) return false;
+    // Antes de capturar: PayPal no cobra hasta la captura, así que un plan que ya
+    // no entra se rechaza sin mover dinero.
+    if (cobro.proveedorPago === 'PAYPAL' && !(await this.planEntra(cobro))) {
+      await this.repo.update({ id: cobro.id, estado: 'PENDIENTE' }, { estado: 'RECHAZADO' });
+      cobro.estado = 'RECHAZADO';
+      return false;
+    }
     const resultado = await pasarela.confirmarCobro(cobro.referenciaExterna);
 
     if (resultado.estado === 'RECHAZADO') {
@@ -204,6 +211,14 @@ export class CobrosSuscripcionService {
       return false;
     }
     if (resultado.estado !== 'APROBADO' || !resultado.transaccion) return false;
+    if (!(await this.planEntra(cobro))) {
+      this.logger.error(`Cobro SaaS ${cobro.id} pagado con un plan que ya no alcanza: requiere reembolso`);
+      await this.repo.update(
+        { id: cobro.id, estado: 'PENDIENTE' },
+        { estado: 'RECHAZADO', metadata: { ...(cobro.metadata ?? {}), motivoReembolso: 'el plan pagado ya no alcanza para la tienda' } },
+      );
+      return false;
+    }
 
     const esperado = cobro.metadata?.montoPasarelaCents;
     if (typeof esperado === 'number' && resultado.montoCents !== esperado) {
@@ -237,7 +252,7 @@ export class CobrosSuscripcionService {
       if (affected !== 1) return;
       await this.suscripciones.activarPorPago(
         cobro.inquilinoId,
-        { proveedor: cobro.proveedorPago, referencia, montoCents: cobro.montoCents, planId: await this.planQueEntra(cobro) },
+        { proveedor: cobro.proveedorPago, referencia, montoCents: cobro.montoCents, planId: cobro.planId },
         manager,
       );
     });
@@ -245,17 +260,16 @@ export class CobrosSuscripcionService {
   }
 
   /**
-   * Entre generar el cobro y pagarlo la tienda pudo crecer: si ya no entra en el
-   * plan pagado, el mes se acredita igual pero el plan no cambia.
+   * Entre generar el cobro y pagarlo la tienda pudo crecer. Acreditar igual le
+   * daba un mes del plan grande pagando el chico: si no entra, no se acredita.
    */
-  private async planQueEntra(cobro: CobroSuscripcion): Promise<string | undefined> {
-    if (!cobro.planId) return undefined;
+  private async planEntra(cobro: CobroSuscripcion): Promise<boolean> {
+    if (!cobro.planId) return true;
     try {
       await this.suscripciones.asegurarUsoEnPlan(cobro.inquilinoId, await this.planes.porId(cobro.planId));
-      return cobro.planId;
+      return true;
     } catch {
-      this.logger.warn(`Cobro ${cobro.id}: el uso actual no entra en el plan pagado, se mantiene el plan`);
-      return undefined;
+      return false;
     }
   }
 
@@ -308,6 +322,10 @@ export class CobrosSuscripcionService {
     });
     if (!cobro) return false;
     if (cobro.estado === 'APROBADO') return true;
+    if (!(await this.planEntra(cobro))) {
+      this.logger.warn(`Aviso ${aviso.id}: el plan pagado ya no alcanza para la tienda, no se acredita`);
+      return false;
+    }
     if ((cobro.createdAt?.getTime() ?? Date.now()) + VIGENCIA_COBRO_MS < Date.now()) {
       this.logger.warn(`Aviso ${aviso.id} sobre el cobro SaaS vencido ${cobro.id}: no se acredita`);
       return false;

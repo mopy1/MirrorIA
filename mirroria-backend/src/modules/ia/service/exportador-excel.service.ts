@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import ExcelJS from 'exceljs';
@@ -11,6 +11,7 @@ import { ExportarReporteDto } from '../dto/exportar-reporte.dto.js';
 import { ReporteResponseDto, type ComparacionDto } from '../dto/reporte-response.dto.js';
 import { MotorConsultaService, type FilaReporte } from './motor-consulta.service.js';
 import { CATALOGO_METRICAS } from './catalogo-metricas.js';
+import { IaService } from './ia.service.js';
 
 export const METRICAS_MONETARIAS = new Set([
   'ingresos',
@@ -37,6 +38,7 @@ export class ExportadorExcelService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly motorConsulta: MotorConsultaService,
+    @Optional() private readonly iaService?: IaService,
   ) {}
 
   /**
@@ -93,10 +95,17 @@ export class ExportadorExcelService {
 
     // El nombre lo pone el servidor: si no, se podía emitir el reporte a nombre de otra tienda.
     const nombreTienda = await this.resolverNombreTienda();
-    const filas: FilaReporte[] =
-      dto.filas ?? dto.reporte?.filas ?? (await this.motorConsulta.ejecutar(ficha));
-    const comparacion: ComparacionDto | null =
-      dto.comparacion ?? dto.reporte?.comparacion ?? null;
+    // Las filas las calcula el servidor con la misma ficha (y el alcance de sucursal):
+    // aceptarlas del cliente permitía emitir el reporte oficial con cifras inventadas.
+    let filas: FilaReporte[];
+    let comparacion: ComparacionDto | null = null;
+    if (this.iaService && user) {
+      const reporte = await this.iaService.consultar(ficha, user);
+      filas = reporte.filas;
+      comparacion = reporte.comparacion ?? null;
+    } else {
+      filas = await this.motorConsulta.ejecutar(ficha);
+    }
 
     return {
       ficha,

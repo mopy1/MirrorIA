@@ -81,6 +81,9 @@ export class CobroQrService {
     if (venta.estado !== 'PENDIENTE') {
       throw new VentaNoPagableException(`su estado es ${venta.estado}`);
     }
+    if (venta.totalCents <= 0) {
+      throw new VentaNoPagableException('el total es Bs 0: no hay nada que cobrar con QR');
+    }
 
     // Recargar la pantalla de pago no puede generar otro QR: el que ya esta en
     // la pantalla (o en la foto que alguien le saco) tiene que seguir valiendo.

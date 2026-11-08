@@ -277,6 +277,13 @@ export class PagosService {
     return { estado: (await this.ventasService.findOne(ventaId)).estado };
   }
 
+  /** La barrida encontró una sesión de tarjeta que no se puede cerrar: si está pagada, se acredita. */
+  async acreditarSesionPagada(pago: Pago): Promise<void> {
+    if (!pago.referenciaExterna || !this.pasarela.confirmarCobro) return;
+    const r = await this.pasarela.confirmarCobro(pago.referenciaExterna);
+    if (r.estado === 'APROBADO' && r.transaccion) await this.acreditarEvento(pago, `confirmado:${r.transaccion}`);
+  }
+
   /**
    * "Volver al carrito": la clienta abandona una compra PENDIENTE sin pagar
    * (p. ej. salio de Stripe sin pagar). Se cancela con la misma logica que el

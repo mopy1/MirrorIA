@@ -57,8 +57,11 @@ export class CreateVentaPresencialDto {
   @Type(() => VentaItemDto)
   items!: VentaItemDto[];
 
-  /** Cuándo se vendió sin conexión: la caja ya cobró, se respeta ese precio. */
+  /**
+   * Cuándo se cobró en la caja. La venta sin conexión llega después: con esto el
+   * servidor acepta el precio que regía en ese momento (y solo ese).
+   */
   @IsOptional()
   @IsDateString()
-  vendidaSinConexionEn?: string;
+  vendidaEn?: string;
 }

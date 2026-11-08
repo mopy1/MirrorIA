@@ -70,7 +70,11 @@ export class IaAgenteService {
 
   private async ejecutarTool(name: string, args: Record<string, unknown>, prevFilas: FilaReporteHibridoDto[], user: JwtPayload) {
     if (name === 'simular_what_if') {
-      const base = prevFilas.length ? prevFilas : [{ etiqueta: 'Base General', valor: 10000 }];
+      // Sin datos previos no se simula sobre una base inventada.
+      if (!prevFilas.length) {
+        return { resumen: 'Para simular primero hace falta consultar un dato real (por ejemplo, ingresos por mes).', filas: [], datosParaIa: [], sim: false };
+      }
+      const base = prevFilas;
       const proy = await this.duckDbService.proyectarWhatIf(base, Number(args.variacionPrecioPct) || 0, Number(args.variacionVolumenPct) || 0);
       const filas = proy.map((p) => ({ etiqueta: p.etiqueta, valor: p.valorProyectado, detalles: { original: p.valorOriginal, deltaAbs: p.deltaAbsoluto, deltaPct: p.deltaPorcentual } }));
       return { resumen: `Simulacion DuckDB: ${filas.length} escenarios proyectados.`, filas, datosParaIa: filas, sim: true, metrica: 'simular_what_if' };

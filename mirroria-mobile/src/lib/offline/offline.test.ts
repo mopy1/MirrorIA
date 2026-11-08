@@ -148,7 +148,8 @@ describe('offline en SQLite', () => {
       });
       expect(r).toEqual({ enviadas: 1, compensadas: 0, rechazadas: 1 });
       expect(alRechazo.mock.calls[0][1]).toBe('Hasta 3 unidades');
-      expect(await listarCarrito(db, ANA)).toEqual([{ varianteId: 'v4', cantidad: 4 }]);
+      // Vuelven al carrito, pero sin pasar el tope de 3 unidades.
+      expect(await listarCarrito(db, ANA)).toEqual([{ varianteId: 'v4', cantidad: 3 }]);
     });
 
     it('una prenda borrada (404) tampoco se pierde en silencio', async () => {

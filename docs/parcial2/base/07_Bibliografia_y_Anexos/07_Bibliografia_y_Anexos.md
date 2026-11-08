@@ -82,7 +82,7 @@ Para facilitar la verificación de los resultados por parte de la docente y el t
 * **Repositorio de Código Fuente (Monorepo GitHub):**  
   [https://github.com/mopy1/MirrorIA](https://github.com/mopy1/MirrorIA)  
   *Estructura monorepo con `mirroria-backend/`, `mirroria-frontend/`, `mirroria-ml/`, `scripts/` y `db/`.*
-* **Despliegue en Producción (Máquina Virtual en Azure Cloud):**  
+* **Despliegue en Producción (Máquina Virtual en Azure Cloud; se redespliega con `scripts/deploy-azure.sh` antes de la defensa):**  
   [https://mirroria.duckdns.org](https://mirroria.duckdns.org)  
   *Despliegue asegurado con certificados TLS/SSL válidos de Let's Encrypt sobre Nginx reverse proxy, PostgreSQL 16 y Docker.*
 * **Documentación Interactiva de la API (Swagger UI):**  

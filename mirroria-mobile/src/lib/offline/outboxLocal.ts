@@ -50,9 +50,15 @@ function debeReintentarse(status: number, codigo?: string): boolean {
   );
 }
 
+/** El mismo tope que el servidor: lo devuelto no puede dejar más de 3 unidades. */
+const MAX_UNIDADES = 3;
+
 async function devolverAlCarrito(db: BaseLocal, d: Dueña, op: Operacion): Promise<void> {
   const { items = [] } = JSON.parse(op.payload) as { items?: ItemLocal[] };
   for (const item of items) await agregarAlCarrito(db, d, item);
+  await db.ejecutar('UPDATE carrito_local SET cantidad = ? WHERE tienda = ? AND usuario_id = ? AND cantidad > ?', [
+    MAX_UNIDADES, d.tienda, d.usuarioId, MAX_UNIDADES,
+  ]);
   await marcarCambiosLocales(db, d);
 }
 

@@ -42,8 +42,8 @@ interface RegistrarVentaParams {
   reservaId?: string | null;
   codigoCupon?: string | null;
   claveIdempotencia?: string | null;
-  /** Venta de caja sin conexión: se registra con el precio cobrado, no con el de ahora. */
-  respetarPrecioCobrado?: boolean;
+  /** Venta de caja: cuándo se cobró, para validar el precio que trae. */
+  vendidaEn?: Date | null;
 }
 
 @Injectable()
@@ -85,8 +85,36 @@ export class VentasService {
       reservaId: dto.reservaId ?? null,
       codigoCupon: dto.codigoCupon ?? null,
       claveIdempotencia: clave ?? null,
-      respetarPrecioCobrado: Boolean(dto.vendidaSinConexionEn),
+      vendidaEn: this.fechaDeCobro(dto.vendidaEn),
     });
+  }
+
+  /** Hasta 7 días atrás (lo que dura el catálogo guardado) y nunca en el futuro. */
+  private fechaDeCobro(iso?: string): Date | null {
+    if (!iso) return null;
+    const fecha = new Date(iso);
+    const ahora = Date.now();
+    if (fecha.getTime() > ahora + 5 * 60_000 || fecha.getTime() < ahora - 7 * 86_400_000) {
+      throw new OperacionInvalidaException('La fecha de la venta no es válida');
+    }
+    return fecha;
+  }
+
+  /**
+   * El precio que trae una venta de caja solo vale si es el que la prenda tenía
+   * al cobrarse: el actual, o el anterior si el cambio fue posterior al cobro.
+   */
+  private precioDeVenta(
+    producto: { precioCents: number; precioAnteriorCents?: number | null; precioCambiadoEn?: Date | null; titulo?: string },
+    cobrado: number | undefined,
+    vendidaEn: Date | null | undefined,
+  ): number {
+    if (!vendidaEn || cobrado === undefined || cobrado === producto.precioCents) return producto.precioCents;
+    const cambioPosterior = producto.precioCambiadoEn && producto.precioCambiadoEn.getTime() > vendidaEn.getTime();
+    if (cambioPosterior && cobrado === producto.precioAnteriorCents) return cobrado;
+    throw new OperacionInvalidaException(
+      `El precio de "${producto.titulo ?? 'la prenda'}" no coincide con el que tenía al momento de la venta`,
+    );
   }
 
   /** SQL directo: ventas no importa entidades de seguridad (regla 1). */
@@ -336,8 +364,7 @@ export class VentasService {
 
       for (let i = 0; i < params.items.length; i++) {
         const { varianteId, cantidad, precioUnitCents: cobrado } = params.items[i];
-        const precioUnitCents =
-          params.respetarPrecioCobrado && cobrado !== undefined ? cobrado : variantes[i].producto.precioCents;
+        const precioUnitCents = this.precioDeVenta(variantes[i].producto, cobrado, params.vendidaEn);
         const itemSubtotalCents = precioUnitCents * cantidad;
         subtotalCents += itemSubtotalCents;
         itemsAGuardar.push({

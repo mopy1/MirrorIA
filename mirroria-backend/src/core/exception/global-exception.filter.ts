@@ -39,6 +39,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? ERRORES_POSTGRES[(exception.driverError as { code?: string } | undefined)?.code ?? '']
         : undefined;
 
+    // Errores de Express (cuerpo demasiado grande, JSON mal formado) traen su propio status.
+    const deExpress = (exception as { status?: unknown; type?: unknown } | null)?.status;
+    if (!(exception instanceof HttpException) && typeof deExpress === 'number' && deExpress >= 400 && deExpress < 500) {
+      response.status(deExpress).json({
+        status: deExpress,
+        message: deExpress === 413 ? 'El pedido es demasiado grande' : 'El pedido no es válido',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     // Pool lleno: el servidor está ocupado, no roto.
     const ocupado = exception instanceof Error && /timeout exceeded when trying to connect/i.test(exception.message);
     const status =

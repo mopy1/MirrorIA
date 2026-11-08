@@ -581,7 +581,7 @@ sequenceDiagram
     ADM->>UI: Accede a "Predicciones" (Pestaña Demanda a 30 días)
     UI->>BACK: GET /api/v1/ml/kpis/demanda?dias=30
     activate BACK
-    BACK->>ML_PY: POST http://mirroria-ml:8002/predict/demanda (Timeout: 3.000 ms)
+    BACK->>ML_PY: POST http://mirroria-ml:8002/predict/demanda (Timeout: 1.500 ms)
     
     alt Microservicio Python Online (Inferencia Exitosa)
         ML_PY-->>BACK: 200 OK { modelo: "RandomForestRegressor", R2: 0.9566, proyecciones: [...] }

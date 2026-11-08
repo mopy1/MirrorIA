@@ -260,7 +260,7 @@ describe('ExportadorExcelService', () => {
     );
   });
 
-  it('generarLibro acepta un payload con reporte anidado', async () => {
+  it('generarLibro con reporte anidado recalcula las filas en el servidor (no confia en las del cliente)', async () => {
     const dto: ExportarReporteDto = {
       reporte: {
         ficha: { metrica: 'cantidad_ventas', agruparPor: 'metodo_pago', filtros: {}, orden: 'desc', limite: 10 },
@@ -272,6 +272,6 @@ describe('ExportadorExcelService', () => {
 
     const buffer = await service.generarLibro(dto, 'admin@tiendaria.com');
     expect(buffer).toBeInstanceOf(Buffer);
-    expect(motorConsulta.ejecutar).not.toHaveBeenCalled();
+    expect(motorConsulta.ejecutar).toHaveBeenCalled();
   });
 });

@@ -155,7 +155,11 @@ export class ProductosService {
 
     if (dto.titulo !== undefined) producto.titulo = dto.titulo;
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion;
-    if (dto.precioCents !== undefined) producto.precioCents = dto.precioCents;
+    if (dto.precioCents !== undefined && dto.precioCents !== producto.precioCents) {
+      producto.precioAnteriorCents = producto.precioCents;
+      producto.precioCambiadoEn = new Date();
+      producto.precioCents = dto.precioCents;
+    }
     if (dto.imagenes !== undefined) {
       producto.imagenes = dto.imagenes.map((img, index) => ({
         url: img.url,
@@ -174,7 +178,7 @@ export class ProductosService {
       }
       await manager.getRepository(Producto).save(producto);
     });
-    return this.findOne(id);
+    return this.findOne(id, true);
   }
 
   async createVariante(

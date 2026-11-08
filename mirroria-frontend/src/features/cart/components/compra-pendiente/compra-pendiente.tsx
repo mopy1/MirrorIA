@@ -27,16 +27,17 @@ export function CompraPendiente({ venta, variantes, onCancelada }: CompraPendien
   async function continuarPago() {
     setIsLoading(true)
     try {
-      // Misma ruta que el checkout con tarjeta: el backend reutiliza la sesión
-      // de Stripe si sigue abierta.
-      const { url } = await paymentsApi.iniciarTarjeta(venta.id)
+      // Misma pasarela que eligió en el checkout: el backend reutiliza la sesión
+      // de Stripe o la orden de PayPal si siguen abiertas.
+      const paypal = sessionStorage.getItem(`mirroria_pasarela_${venta.id}`) === "PAYPAL"
+      const { url } = await (paypal ? paymentsApi.iniciarPaypal(venta.id) : paymentsApi.iniciarTarjeta(venta.id))
       sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
       window.location.href = url
     } catch (err) {
       // Sin tarjeta disponible (503) queda el pago en la sucursal.
       navigate(ruta(`/pago/${venta.id}`), {
         state: {
-          motivo: err instanceof ApiError ? err.message : "No se pudo iniciar el pago con tarjeta",
+          motivo: err instanceof ApiError ? err.message : "No se pudo iniciar el pago en línea",
         },
       })
     }

@@ -135,7 +135,8 @@ export async function limpiarDatosOffline(): Promise<void> {
     const req = outbox.getAll()
     req.onsuccess = () => {
       for (const op of req.result as OperacionOutbox[]) {
-        if (op.estado === 'SINCRONIZADO' || op.estado === 'COMPENSADO' || op.estado === 'FALLIDO') outbox.delete(op.id)
+        // Un rechazo sin leer se conserva: la próxima persona en la caja tiene que verlo.
+        if (op.estado === 'SINCRONIZADO' || op.estado === 'COMPENSADO' || (op.estado === 'FALLIDO' && op.avisado)) outbox.delete(op.id)
       }
     }
     tx.oncomplete = () => resolve()

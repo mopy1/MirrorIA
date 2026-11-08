@@ -24,7 +24,7 @@ export function EstadoRegreso({ venta, cancelado }: { venta: Venta; cancelado: b
             reservada y se puede pagar por otro medio, o cancelarla y
             recuperar las prendas en el carrito (VolverAlCarrito). */}
         <p className="mt-2 text-sm text-muted-foreground">
-          No completaste el pago con tarjeta. Tu compra sigue reservada: podés pagarla con otro
+          No completaste el pago en línea. Tu compra sigue reservada: podés pagarla con otro
           medio o cancelarla y volver a tu carrito con las mismas prendas.
         </p>
       </>
