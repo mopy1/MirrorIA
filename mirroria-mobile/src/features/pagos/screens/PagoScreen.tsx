@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
-import { Prohibit } from 'phosphor-react-native';
+import { Prohibit, UserCircle } from 'phosphor-react-native';
 import * as React from 'react';
 import { ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { EncabezadoPantalla } from '@/components/common/EncabezadoPantalla';
@@ -9,6 +9,7 @@ import { Pantalla } from '@/components/common/Pantalla';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { useSesion } from '@/contexts/SesionContext';
 import { useDiccionario } from '@/features/espejo/hooks/use-diccionario';
 import { mensajeDeError } from '@/lib/api/errores';
 import { CancelarCompra } from '../components/CancelarCompra';
@@ -27,6 +28,7 @@ export default function PagoScreen() {
   const { ventaId } = useLocalSearchParams<{ ventaId: string }>();
   const enMisCosas = usePathname().startsWith('/mis-cosas');
   const p = usePago(ventaId);
+  const { sesion } = useSesion();
   const dic = useDiccionario().data;
   const v = p.venta.data;
   // Al iniciar un cobro, el QR o el código de caja quedan a la vista (debajo del selector).
@@ -37,15 +39,33 @@ export default function PagoScreen() {
   }, [cobroVisible]);
 
   let cuerpo: React.ReactNode;
-  if (p.venta.isPending) cuerpo = <View className="gap-3 p-5">{[120, 64, 64, 64].map((h, i) => <Skeleton key={i} style={{ height: h }} />)}</View>;
+  if (!sesion)
+    cuerpo = (
+      <EstadoVacio icono={UserCircle} titulo="Tu sesión venció" texto="Iniciá sesión de nuevo: tu compra sigue apartada y la pagás desde Mis pedidos.">
+        <Button onPress={() => router.push('/acceso/login')}>
+          <Text>Iniciar sesión</Text>
+        </Button>
+      </EstadoVacio>
+    );
+  else if (p.venta.isPending) cuerpo = <View className="gap-3 p-5">{[120, 64, 64, 64].map((h, i) => <Skeleton key={i} style={{ height: h }} />)}</View>;
   else if (!v) cuerpo = <EstadoError error={p.venta.error} onReintentar={() => void p.venta.refetch()} />;
   else if (p.vista === 'PAGADA') cuerpo = <CompraConfirmada venta={v} dic={dic} />;
   else if (p.vista === 'CANCELADA')
     cuerpo = (
-      <EstadoVacio icono={Prohibit} titulo="Esta compra se canceló" texto="No se te cobró nada. Si todavía querés las prendas, volvé a comprarlas.">
-        <Button onPress={() => router.navigate('/vitrina')}>
-          <Text>Ir a la vitrina</Text>
-        </Button>
+      <EstadoVacio
+        icono={Prohibit}
+        titulo="Esta compra se canceló"
+        texto={v.reservaId ? 'No se te cobró nada. Lo que reservaste sigue apartado: podés comprarlo desde tu pase.' : 'No se te cobró nada. Si todavía querés las prendas, revisá tu carrito.'}
+      >
+        {v.reservaId ? (
+          <Button onPress={() => router.navigate({ pathname: '/mis-cosas/reservas/[reservaId]', params: { reservaId: v.reservaId! } })}>
+            <Text>Ver mi pase</Text>
+          </Button>
+        ) : (
+          <Button onPress={() => router.navigate('/carrito')}>
+            <Text>Ir al carrito</Text>
+          </Button>
+        )}
       </EstadoVacio>
     );
   else
@@ -61,7 +81,7 @@ export default function PagoScreen() {
       </ScrollView>
     );
 
-  const enCurso = !!v && p.vista !== 'PAGADA' && p.vista !== 'CANCELADA';
+  const enCurso = !!sesion && !!v && p.vista !== 'PAGADA' && p.vista !== 'CANCELADA';
   const error = p.iniciar.error ?? p.cancelar.error;
   return (
     <Pantalla>

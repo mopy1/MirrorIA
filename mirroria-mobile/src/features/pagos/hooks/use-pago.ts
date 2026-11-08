@@ -36,7 +36,11 @@ export function usePago(ventaId: string | undefined) {
     refetchInterval: (q) => (q.state.data?.estado === 'PENDIENTE' || !q.state.data ? 3_000 : false),
   });
   const estadoQr = qr.data?.estado ?? null;
-  const venta = useVenta(ventaId, (v) => intervaloConsulta({ estadoVenta: v?.estado, iniciado: cobro?.metodo ?? null, estadoQr, online: red.online }));
+  // Rápido con un cobro en curso; cada 30 s mientras elige (la compra puede vencer o pagarse desde la web).
+  const venta = useVenta(ventaId, (v) =>
+    intervaloConsulta({ estadoVenta: v?.estado, iniciado: cobro?.metodo ?? null, estadoQr, online: red.online }) ||
+    (red.online && v?.estado === 'PENDIENTE' ? 30_000 : false),
+  );
   const vista = vistaPago({ estadoVenta: venta.data?.estado, iniciado: cobro?.metodo ?? null, estadoQr });
 
   const pasarelas = useQuery({ queryKey: ['pagos', 'pasarelas'], queryFn: listarPasarelas, staleTime: 10 * 60_000 });

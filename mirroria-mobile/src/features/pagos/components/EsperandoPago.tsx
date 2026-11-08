@@ -2,7 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useTema } from '@/contexts/TemaContext';
 
-/** Línea de estado "se actualiza sola" (spinner nativo: nada de clases animate-*). */
+/** Línea de estado "se actualiza sola" (spinner nativo, sin clases de animación de Tailwind: nativewind#1875). */
 export function EsperandoPago({ texto }: { texto: string }) {
   const { colores } = useTema();
   return (

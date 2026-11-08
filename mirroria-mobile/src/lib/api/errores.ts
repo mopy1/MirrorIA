@@ -33,6 +33,7 @@ export class ErrorSinRed extends Error {
 /** Mensaje para la UI a partir de cualquier error. */
 export function mensajeDeError(e: unknown): string {
   if (e instanceof ErrorSinRed) return 'No hay conexión con la tienda. Probá de nuevo cuando vuelva la red.';
+  if (e instanceof ApiError && e.status === 401) return 'Tu sesión venció. Iniciá sesión de nuevo para seguir.';
   if (e instanceof ApiError) return e.message;
   return 'Algo salió mal. Probá de nuevo.';
 }
