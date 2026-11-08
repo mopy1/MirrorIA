@@ -1,13 +1,15 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
+  ArrayMaxSize, ArrayMinSize,
   IsArray,
+  IsDateString,
   IsInt,
   IsOptional,
   IsPositive,
   IsString,
   IsUUID,
   ValidateNested,
+  Max,
 } from 'class-validator';
 
 export class VentaItemDto {
@@ -16,7 +18,14 @@ export class VentaItemDto {
 
   @IsInt()
   @IsPositive()
+  @Max(1000)
   cantidad!: number;
+
+  /** Solo cuenta en una venta hecha sin conexión: es lo que la caja cobró. */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  precioUnitCents?: number;
 }
 
 export class CreateVentaPresencialDto {
@@ -43,7 +52,16 @@ export class CreateVentaPresencialDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => VentaItemDto)
   items!: VentaItemDto[];
+
+  /**
+   * Cuándo se cobró en la caja. La venta sin conexión llega después: con esto el
+   * servidor acepta el precio que regía en ese momento (y solo ese).
+   */
+  @IsOptional()
+  @IsDateString()
+  vendidaEn?: string;
 }

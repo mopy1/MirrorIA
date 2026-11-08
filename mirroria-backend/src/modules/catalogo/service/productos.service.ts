@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { assertDentroDelPlan } from '../../../core/tenancy/limites-plan.js';
+import { assertDentroDelPlan, bloquearCupoDelPlan } from '../../../core/tenancy/limites-plan.js';
 import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import type {
   ProductoResponseDto,
@@ -37,7 +38,6 @@ export class ProductosService {
   ) {}
 
   async create(dto: CreateProductoDto): Promise<ProductoResponseDto> {
-    assertDentroDelPlan('productos', await this.contarActivos());
     const existente = await this.productoRepository.findOne({
       where: soloTenant({ slug: dto.slug }),
     });
@@ -61,8 +61,11 @@ export class ProductosService {
       throw new RecursoNoEncontradoException('Colección', dto.coleccionId);
     }
 
-    const producto = await this.productoRepository.save(
-      this.productoRepository.create({
+    const producto = await this.productoRepository.manager.transaction(async (manager) => {
+      await bloquearCupoDelPlan(manager, 'productos');
+      const repo = manager.getRepository(Producto);
+      assertDentroDelPlan('productos', await repo.count({ where: soloTenant({ activo: true }) }));
+      return repo.save(repo.create({
         categoria,
         coleccion,
         titulo: dto.titulo,
@@ -75,8 +78,8 @@ export class ProductosService {
           orden: img.orden ?? index,
         })),
         activo: true,
-      }),
-    );
+      }));
+    });
     return this.toResponse(producto, []);
   }
 
@@ -152,7 +155,11 @@ export class ProductosService {
 
     if (dto.titulo !== undefined) producto.titulo = dto.titulo;
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion;
-    if (dto.precioCents !== undefined) producto.precioCents = dto.precioCents;
+    if (dto.precioCents !== undefined && dto.precioCents !== producto.precioCents) {
+      producto.precioAnteriorCents = producto.precioCents;
+      producto.precioCambiadoEn = new Date();
+      producto.precioCents = dto.precioCents;
+    }
     if (dto.imagenes !== undefined) {
       producto.imagenes = dto.imagenes.map((img, index) => ({
         url: img.url,
@@ -161,13 +168,17 @@ export class ProductosService {
       }));
     }
     // Reactivar una prenda vuelve a ocupar un lugar del plan.
-    if (dto.activo === true && !producto.activo) {
-      assertDentroDelPlan('productos', await this.contarActivos());
-    }
+    const reactiva = dto.activo === true && !producto.activo;
     if (dto.activo !== undefined) producto.activo = dto.activo;
 
-    await this.productoRepository.save(producto);
-    return this.findOne(id);
+    await this.productoRepository.manager.transaction(async (manager) => {
+      if (reactiva) {
+        await bloquearCupoDelPlan(manager, 'productos');
+        assertDentroDelPlan('productos', await manager.getRepository(Producto).count({ where: soloTenant({ activo: true }) }));
+      }
+      await manager.getRepository(Producto).save(producto);
+    });
+    return this.findOne(id, true);
   }
 
   async createVariante(
@@ -222,8 +233,9 @@ export class ProductosService {
    * ProveedoresService.findOne consumido desde catalogo. Devuelve la
    * variante con su producto cargado porque ventas necesita precioCents.
    */
-  async findVarianteById(id: string): Promise<VarianteProducto> {
-    const variante = await this.varianteRepository.findOne({
+  async findVarianteById(id: string, manager?: EntityManager): Promise<VarianteProducto> {
+    const repo = manager ? manager.getRepository(VarianteProducto) : this.varianteRepository;
+    const variante = await repo.findOne({
       where: soloTenant({ id }),
       relations: { producto: true },
     });

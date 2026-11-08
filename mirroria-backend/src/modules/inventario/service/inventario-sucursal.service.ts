@@ -10,7 +10,7 @@ import {
 import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
-import type { InventarioSucursalResponseDto } from '../dto/inventario-response.dto.js';
+import type { InventarioSucursalResponseDto, ItemMostradorDto } from '../dto/inventario-response.dto.js';
 import { InventarioSucursal } from '../entities/inventario-sucursal.entity.js';
 import type { OrdenCompra } from '../entities/orden-compra.entity.js';
 import {
@@ -78,6 +78,27 @@ export class InventarioSucursalService {
     return filas.map((f) => this.toResponse(f));
   }
 
+  async catalogoMostrador(sucursalId: string): Promise<ItemMostradorDto[]> {
+    await this.sucursalesService.assertExists(sucursalId);
+    const filas: (Omit<ItemMostradorDto, 'precioCents' | 'disponible'> & { precioCents: string; disponible: string })[] =
+      await this.dataSource.query(
+        `SELECT
+          vp.id AS "varianteId", p.id AS "productoId", p.titulo, t.nombre AS talla, c.nombre AS color,
+          vp.sku, p.precio_cents AS "precioCents",
+          COALESCE(inv.cantidad_disponible - inv.cantidad_reservada, 0) AS disponible
+        FROM variantes_producto vp
+        JOIN productos p ON p.id = vp.producto_id
+        JOIN tallas t ON t.id = vp.talla_id
+        JOIN colores c ON c.id = vp.color_id
+        LEFT JOIN inventario_sucursal inv
+          ON inv.variante_id = vp.id AND inv.sucursal_id = $2 AND inv.tenant_id = $1
+        WHERE vp.tenant_id = $1 AND vp.activo = true AND p.activo = true
+        ORDER BY p.titulo, t.nombre, c.nombre`,
+        [tenantActual(), sucursalId],
+      );
+    return filas.map((f) => ({ ...f, precioCents: Number(f.precioCents), disponible: Number(f.disponible) }));
+  }
+
   /**
    * Punto de entrada único para mover `cantidadDisponible`: valida que la
    * variante y la sucursal existan, aplica el delta, rechaza si el resultado
@@ -91,8 +112,8 @@ export class InventarioSucursalService {
     if (!params.manager) {
       return this.dataSource.transaction((manager) => this.ajustarStock({ ...params, manager }));
     }
-    await this.sucursalesService.assertExists(params.sucursalId);
-    await this.productosService.findVarianteById(params.varianteId);
+    await this.sucursalesService.assertExists(params.sucursalId, params.manager);
+    await this.productosService.findVarianteById(params.varianteId, params.manager);
 
     const manager = params.manager;
     const invRepo = manager.getRepository(InventarioSucursal);
@@ -127,8 +148,8 @@ export class InventarioSucursalService {
 
       let detallesExtra: Partial<DetallesStockInsuficiente> | undefined;
       try {
-        const variante = await this.productosService.findVarianteById(params.varianteId).catch(() => null);
-        const sucursal = await this.sucursalesService.findOne(params.sucursalId).catch(() => null);
+        const variante = await this.productosService.findVarianteById(params.varianteId, manager).catch(() => null);
+        const sucursal = await this.sucursalesService.findOne(params.sucursalId, manager).catch(() => null);
 
         const otrasSucursalesFilas = await invRepo.find({
           where: soloTenant({ varianteId: params.varianteId }),
@@ -214,8 +235,8 @@ export class InventarioSucursalService {
    * `reservaId`).
    */
   async ajustarReserva(params: AjustarReservaParams): Promise<InventarioSucursal> {
-    await this.sucursalesService.assertExists(params.sucursalId);
-    await this.productosService.findVarianteById(params.varianteId);
+    await this.sucursalesService.assertExists(params.sucursalId, params.manager);
+    await this.productosService.findVarianteById(params.varianteId, params.manager);
 
     const manager = params.manager ?? this.dataSource.manager;
     const invRepo = manager.getRepository(InventarioSucursal);

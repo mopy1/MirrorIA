@@ -84,7 +84,8 @@ export class IaService {
   }
 
   async reporteHibrido(dto: PromptDto, user: JwtPayload): Promise<ReporteHibridoResponseDto> {
-    if (!this.agente) throw new IaNoConfiguradaException();
+    // Sin clave el agente no tiene modelo: respondía "finalizada con éxito" sin datos.
+    if (!this.agente || !this.proveedor.estaConfigurado()) throw new IaNoConfiguradaException();
     return this.agente.ejecutar(dto.prompt, user);
   }
 

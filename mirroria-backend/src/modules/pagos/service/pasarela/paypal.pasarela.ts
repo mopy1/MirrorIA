@@ -53,7 +53,7 @@ export class PaypalPasarela implements IPasarelaProveedor {
       descripcion: 'Billetera digital global y pagos internacionales con cuenta PayPal.',
       tipo: 'BILLETERA',
       estado: this.estaConfigurada() ? 'DISPONIBLE' : 'NO_CONFIGURADA',
-      soportaCheckout: false,
+      soportaCheckout: true,
       soportaSuscripcion: true,
       icono: 'paypal-logo',
       monedas: ['USD'],

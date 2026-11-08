@@ -52,7 +52,9 @@ export function CartPage() {
         <div className="mt-16 flex flex-col items-center gap-3 text-center">
           <ShoppingBag className="size-10 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">
-            {pendientes.length > 0 ? "Tu carrito está vacío." : "Todavía no agregaste nada."}
+            {typeof navigator !== "undefined" && !navigator.onLine
+              ? "Sin conexión: tu carrito se muestra cuando vuelva internet."
+              : pendientes.length > 0 ? "Tu carrito está vacío." : "Todavía no agregaste nada."}
           </p>
           <Link to={ruta("/tienda")} className={cn(buttonVariants({ variant: "outline" }))}>
             Ir a la tienda

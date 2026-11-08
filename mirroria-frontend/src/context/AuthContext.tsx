@@ -1,3 +1,4 @@
+import { limpiarDatosOffline } from "@/lib/offline/idb"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { authApi } from "@/features/auth/api/authApi"
 import type { UsuarioResponse } from "@/features/auth/types/auth.types"
@@ -49,6 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout: () => {
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(USER_KEY)
+        // Lo guardado para trabajar sin red no queda para la próxima persona;
+        // la cola pendiente sí, porque son ventas ya cobradas.
+        void limpiarDatosOffline().catch(() => {})
         setUser(null)
       },
     }),

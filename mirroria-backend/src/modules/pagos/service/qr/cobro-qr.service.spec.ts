@@ -53,6 +53,7 @@ describe('CobroQrService', () => {
     } as unknown as ConfigService;
 
     pagoRepo = {
+      manager: { query: vi.fn().mockResolvedValue([{ nombre: 'Tienda Luna' }]) },
       create: vi.fn((e) => e),
       save: vi.fn((e) => Promise.resolve({ id: 'p1', ...e })),
       findOne: vi.fn().mockResolvedValue(null),

@@ -33,7 +33,7 @@ El alcance de las pruebas cubre los cinco módulos del sistema:
 | **Catálogo e Inventario** | Integración / Concurrencia | Certificar que `UPDATE` condicionado previene inventarios negativos bajo concurrencia pesimista. | Vitest e2e / PostgreSQL 16 | Cero existencias negativas en `cantidad_disponible` y registro inmutable en `movimientos_inventario`. | Equipo Backend |
 | **Operación Offline y Sync** | Resiliencia / Integración | Validar persistencia en IndexedDB, drenado por outbox FIFO, idempotencia con hash SHA-256 y resolución del conflicto `stock = 1`. | Vitest / Playwright en PWA sin red | Reenvíos sucesivos retornan `X-Cache-Idempotency: HIT`. Colisión en última prenda emite HTTP 409 tipado y activa rollback compensatorio. | Equipo Frontend / QA |
 | **Experiencia y Probador IA** | Seguridad / Funcional | Validar que la emisión de credenciales de Decart AI no exponga API keys y cumpla el límite de tasa por IP. | Vitest / Supertest | Token efímero expira a los 5 minutos; peticiones $> 10$ en 10 min reciben HTTP 429. | Equipo Backend |
-| **Machine Learning y Analítica** | Rendimiento / Disponibilidad | Validar métricas de modelos (M1 a M4) y verificar activación automática del fallback heurístico ante caída del servicio en :8002. | Pytest / Vitest (`MlFallbackInterceptor`) | Timeout $\le 3.000$ ms; al apagar el contenedor se emite `X-ML-Fallback: true` con estimación matemática coherente. | Equipo ML / Backend |
+| **Machine Learning y Analítica** | Rendimiento / Disponibilidad | Validar métricas de modelos (M1 a M4) y verificar activación automática del fallback heurístico ante caída del servicio en :8002. | Pytest / Vitest (`MlFallbackInterceptor`) | Timeout $\le 1.500$ ms; al apagar el contenedor se emite `X-ML-Fallback: true` con estimación matemática coherente. | Equipo ML / Backend |
 
 ---
 
@@ -46,10 +46,10 @@ Las pruebas funcionales verifican el comportamiento de cada Caso de Uso ante ent
 | ID | Caso de Uso / RF | Descripción de la Prueba | Resultado Esperado | Resultado Obtenido | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **PF-01** | CU01 / RF01 | Registrar una nueva boutique mediante el endpoint público `/saas/tiendas` con slug único. | Aprovisionamiento atómico: crea inquilino, marca, sucursal, proveedor propio y usuario `ADMIN` en estado `TRIAL` (14 días). | Aprovisionamiento completado en 112 ms; emite token JWT y redirige a `/admin/dashboard`. | **Aprobado** |
-| **PF-02** | CU02 / RF03 | Crear una segunda sucursal en una boutique suscrita al Plan Básico (`maxSucursales = 1`). | El sistema rechaza la operación con código HTTP 409 informando que se alcanzó el límite del plan. | Emite HTTP 409 `LimitePlanExcedidoException` con mensaje `"Límite de sucursales alcanzado para el plan basico"`. | **Aprobado** |
+| **PF-02** | CU02 / RF03 | Crear una segunda sucursal en una boutique suscrita al Plan Básico (`maxSucursales = 1`). | El sistema rechaza la operación con código HTTP 409 informando que se alcanzó el límite del plan. | Emite HTTP 409 `LimitePlanExcedidoException` indicando el límite del plan; seis altas simultáneas tampoco lo superan (bloqueo por tienda). | **Aprobado** |
 | **PF-03** | CU03 / RF11 | Configurar un color principal de tienda con contraste deficiente contra el fondo blanco (ej. `#FFFF00`). | El sistema calcula el ratio WCAG 2.1 ($< 4.5:1$), emite alerta visual y bloquea el guardado. | Validador emite ratio 1.07:1, muestra alerta ámbar y herramienta OKLCH recalcula automáticamente a color accesible. | **Aprobado** |
-| **PF-04** | CU07 / RF14 | Intentar agregar 4 unidades de una misma variante SKU al carrito de compras digital. | La validación del DTO y del servicio rechaza la solicitud limitando a máximo 3 unidades por variante. | Rechaza con HTTP 400 Bad Request indicando `"No puedes agregar más de 3 unidades por variante"`. | **Aprobado** |
-| **PF-05** | CU09 / RF15 | Solicitar una cita de probador con 4 prendas o con fecha fuera del rango de 48 horas. | El sistema rechaza la creación de la reserva por violación de los límites anti-acaparamiento. | Rechaza con HTTP 400 validando `@ArrayMaxSize(3)` y restricción temporal de 48 h. | **Aprobado** |
+| **PF-04** | CU07 / RF14 | Intentar agregar 4 unidades de una misma variante SKU al carrito de compras digital. | La validación del DTO y del servicio rechaza la solicitud limitando a máximo 3 unidades por variante. | Rechaza con HTTP 409 (regla de negocio) indicando el tope de 3 unidades por talla y color. | **Aprobado** |
+| **PF-05** | CU09 / RF15 | Solicitar una cita de probador con 4 prendas o con fecha fuera del rango de 48 horas. | El sistema rechaza la creación de la reserva por violación de los límites anti-acaparamiento. | Rechaza con HTTP 409 (regla de negocio) por el tope de prendas y la ventana de 48 h. | **Aprobado** |
 | **PF-06** | CU09 / RF15 | Clienta con 2 inasistencias acumuladas (`NO_SHOW`) intenta agendar una nueva cita. | El sistema constata las 2 faltas en los últimos 30 días y bloquea la creación por 30 días. | Emite HTTP 403 `"Usuario bloqueado para reservas hasta YYYY-MM-DD"`. | **Aprobado** |
 | **PF-07** | CU14 / RF23 | Formular una pregunta abierta de ventas al asistente conversacional IA por chat web. | El LLM extrae la intención analítica hacia el catálogo de 23 métricas sin escribir código SQL directo. | Genera consulta parametrizada contra la BD del tenant y narra conclusiones gerenciales sin tecnicismos. | **Aprobado** |
 | **PF-08** | CU15 / RF24 | Exportar reporte de ventas dinámico a formato Excel nativo mediante botón de descarga. | Genera libro binario `.xlsx` con membrete de la tienda, formato `"Bs" #,##0.00` y fórmulas GAAP. | Descarga exitosa de archivo `.xlsx` legible en Microsoft Excel con auto-ajuste de columnas. | **Aprobado** |
@@ -83,7 +83,7 @@ Durante las fases iterativas de desarrollo se registraron y subsanaron los sigui
 | **ERR-01** | PI-01 | Al reintentar sincronizar una orden offline con payload ligeramente modificado, el backend devolvía error interno 500. | **Alta** | No se comparaba el hash criptográfico del cuerpo contra la clave de idempotencia original. | Se incorporó el hashing SHA-256 canónico (`hash_cuerpo`), emitiendo HTTP 422 `Unprocessable Entity` ante discrepancias de payload. | **Corregido** |
 | **ERR-02** | PI-02 | Cuando el stock era 1 y ocurría un conflicto concurrente, la orden en la PWA permanecía bloqueada en estado `PENDIENTE`. | **Crítica** | El gestor outbox no capturaba el código de negocio `STOCK_AGOTADO_CONFLICTO`, tratándolo como fallo genérico de red. | Se añadió la transición explícita al estado `COMPENSADO` y el despacho del evento `mirroria:conflicto-stock` para abrir el modal guiado. | **Corregido** |
 | **ERR-03** | PF-03 | Al cambiar una tienda al modo oscuro, los textos principales perdían legibilidad sobre el fondo `#0A0A0A`. | **Media** | El contraste solo se validaba contra fondo blanco predeterminado. | Se actualizó `color.ts` para contrastar contra `FONDO_TIENDA[modo]` y se integró el ajustador perceptual OKLCH. | **Corregido** |
-| **ERR-04** | PI-04 | La caída del microservicio Python bloqueaba el hilo de NestJS durante 30 segundos antes de responder. | **Alta** | Las llamadas `fetch` nativas carecían de límite de tiempo de espera (*timeout*). | Se integró `AbortController` con un timeout estricto de **3.000 ms** para conmutar de inmediato al fallback heurístico. | **Corregido** |
+| **ERR-04** | PI-04 | La caída del microservicio Python bloqueaba el hilo de NestJS durante 30 segundos antes de responder. | **Alta** | Las llamadas `fetch` nativas carecían de límite de tiempo de espera (*timeout*). | Se integró `AbortController` con un timeout estricto (hoy **1.500 ms** y una sola dirección) para conmutar de inmediato al fallback heurístico. | **Corregido** |
 
 ---
 
@@ -93,9 +93,10 @@ Durante las fases iterativas de desarrollo se registraron y subsanaron los sigui
 
 | Suite / Entorno de Pruebas | Total Ejecutadas | Aprobadas | Fallidas | Cobertura / Tasa de Éxito |
 | :--- | :--- | :--- | :--- | :--- |
-| **Pruebas Unitarias Backend (Vitest)** | 466 | 466 | 0 | **100%** (56 archivos de prueba) |
-| **Pruebas de Integración e2e Backend** | 62 | 62 | 0 | **100%** (Contra PostgreSQL local) |
-| **Pruebas Unitarias Frontend (Vitest)** | 293 | 293 | 0 | **100%** (52 suites de componentes) |
+| **Pruebas Unitarias Backend (Vitest)** | 557 | 557 | 0 | **100%** |
+| **Pruebas de Integración e2e Backend** | 61 | 61 | 0 | **100%** (Contra PostgreSQL local) |
+| **Pruebas Unitarias Frontend (Vitest)** | 345 | 345 | 0 | **100%** |
+| **Pruebas App Móvil (Vitest + SQLite real)** | 17 | 17 | 0 | **100%** (+1 de integración contra el backend, que corre aparte) |
 | **Pruebas Microservicio ML (Pytest)** | 6 | 6 | 0 | **100%** (Pipelines M1-M4) |
 | **QA Automatizado de Aislamiento Tenant** | 84 | 84 | 0 | **100%** (`qa_aislamiento.py`) |
 | **QA Automatizado de Reglas de Mostrador/POS**| 21 | 21 | 0 | **100%** (`qa_reglas.py`) |

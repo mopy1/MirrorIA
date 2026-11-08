@@ -25,13 +25,15 @@ export function useCheckout() {
       const venta = await checkoutApi.checkout(user.id, sucursalId, codigoCupon)
       await refresh()
 
-      if (metodo === "TARJETA") {
+      if (metodo === "TARJETA" || metodo === "PAYPAL") {
         try {
-          const { url } = await paymentsApi.iniciarTarjeta(venta.id)
+          const { url } = await (metodo === "PAYPAL" ? paymentsApi.iniciarPaypal(venta.id) : paymentsApi.iniciarTarjeta(venta.id))
           // La pasarela vuelve a una URL fija (sin la venta en la ruta ni en
           // query params) — guardamos de cuál venta se trata para poder
           // consultar su estado real al volver, en vez de confiar en la URL.
           sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
+          // "Continuar pago" del carrito tiene que volver a la misma pasarela.
+          sessionStorage.setItem(`mirroria_pasarela_${venta.id}`, metodo)
           window.location.href = url
           return
         } catch (err) {
@@ -47,7 +49,7 @@ export function useCheckout() {
               motivo:
                 err instanceof ApiError
                   ? err.message
-                  : "No se pudo iniciar el pago con tarjeta",
+                  : "No se pudo iniciar el pago en línea",
             },
           })
           return

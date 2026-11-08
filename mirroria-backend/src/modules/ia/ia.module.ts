@@ -6,6 +6,7 @@ import { DeepSeekProveedor } from './service/proveedor-ia/deepseek.proveedor.js'
 import { PROVEEDOR_IA } from './service/proveedor-ia/proveedor-ia.interface.js';
 import { DuckDbService } from './service/duckdb.service.js';
 import { ExportadorExcelService } from './service/exportador-excel.service.js';
+import { ExportadorPdfService } from './service/exportador-pdf.service.js';
 import { IaAgenteService } from './service/ia-agente.service.js';
 import { IaService } from './service/ia.service.js';
 import { MotorConsultaService } from './service/motor-consulta.service.js';
@@ -19,6 +20,7 @@ import { MotorConsultaService } from './service/motor-consulta.service.js';
     DuckDbService,
     IaAgenteService,
     ExportadorExcelService,
+    ExportadorPdfService,
     { provide: PROVEEDOR_IA, useClass: DeepSeekProveedor },
   ],
   exports: [IaService, DuckDbService, IaAgenteService, ExportadorExcelService],

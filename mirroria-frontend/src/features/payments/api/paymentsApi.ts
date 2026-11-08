@@ -18,6 +18,14 @@ export const paymentsApi = {
   iniciarTarjeta: (ventaId: string) =>
     apiFetch<{ url: string }>(`/pagos/ventas/${ventaId}/sesion`, { method: "POST" }),
 
+  /** PayPal: devuelve la url para aprobar; el cobro se hace al volver. */
+  iniciarPaypal: (ventaId: string) =>
+    apiFetch<{ url: string }>(`/pagos/ventas/${ventaId}/paypal`, { method: "POST" }),
+
+  /** Al volver de la pasarela: el servidor le pregunta a Stripe si se pagó. */
+  confirmarTarjeta: (ventaId: string) =>
+    apiFetch<{ estado: string }>(`/pagos/ventas/${ventaId}/confirmar-tarjeta`, { method: "POST" }),
+
   /** QR: genera (o reutiliza) el QR de la compra. Se acredita solo cuando el banco avisa. */
   iniciarQr: (ventaId: string) =>
     apiFetch<CobroQr>(`/pagos/ventas/${ventaId}/qr`, { method: "POST" }),

@@ -1,3 +1,4 @@
+import { resolverTiendaConCache } from "@/features/saas/lib/cache-tienda"
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useMatch, useParams } from "react-router-dom"
 import { buttonVariants } from "@/components/ui/button"
@@ -46,8 +47,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelado = false
     setEstado({ tipo: "cargando" })
-    saasApi
-      .resolverTienda(slug)
+    resolverTiendaConCache(slug, () => saasApi.resolverTienda(slug))
       .then(async (tienda) => {
         const marca = marcaDe(tienda)
         await cargarFuente(marca.fuente)

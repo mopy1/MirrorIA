@@ -4,7 +4,8 @@ export interface OpcionSelector {
 }
 
 export const METRICAS_DISPONIBLES: OpcionSelector[] = [
-  { id: "ingresos", label: "Ingresos Netos (Bs)" },
+  // Neto de descuentos en el total; por prenda o categoría suma el precio de cada línea.
+  { id: "ingresos", label: "Ingresos (Bs)" },
   { id: "unidades", label: "Unidades Vendidas" },
   { id: "cantidad_ventas", label: "Cantidad de Ventas" },
   { id: "ticket_promedio", label: "Ticket Promedio (Bs)" },

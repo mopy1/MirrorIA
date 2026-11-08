@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Check, Copy, FileXls, SpinnerGap, X } from "@phosphor-icons/react"
+import { Check, Copy, FilePdf, FileXls, SpinnerGap, X } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import { useExportarExcel } from "../../hooks/useExportarExcel"
 import type { Reporte } from "../../types/reports.types"
@@ -12,7 +12,7 @@ interface AccionesReporteProps {
   onCerrar?: () => void
 }
 
-/** Exportar a Excel (principal) · Copiar resumen · Cerrar. El error de exportación se dice en texto, con la salida. */
+/** Exportar a Excel (principal) · PDF · Copiar resumen · Cerrar. El error de exportación se dice en texto, con la salida. */
 export function AccionesReporte({ reporte, titulo, resumen, onCerrar }: AccionesReporteProps) {
   const { exportar, exportando, error } = useExportarExcel(reporte, titulo)
   const [copiado, setCopiado] = useState<"si" | "error" | null>(null)
@@ -35,9 +35,13 @@ export function AccionesReporte({ reporte, titulo, resumen, onCerrar }: Acciones
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="lg" onClick={exportar} disabled={exportando || reporte.filas.length === 0}>
-          {exportando ? <SpinnerGap className="size-4 motion-safe:animate-spin" aria-hidden /> : <FileXls className="size-4" aria-hidden />}
-          {exportando ? "Preparando Excel…" : "Exportar a Excel"}
+        <Button size="lg" onClick={() => exportar("excel")} disabled={Boolean(exportando) || reporte.filas.length === 0}>
+          {exportando === "excel" ? <SpinnerGap className="size-4 motion-safe:animate-spin" aria-hidden /> : <FileXls className="size-4" aria-hidden />}
+          {exportando === "excel" ? "Preparando Excel…" : "Exportar a Excel"}
+        </Button>
+        <Button size="lg" variant="outline" onClick={() => exportar("pdf")} disabled={Boolean(exportando) || reporte.filas.length === 0}>
+          {exportando === "pdf" ? <SpinnerGap className="size-4 motion-safe:animate-spin" aria-hidden /> : <FilePdf className="size-4" aria-hidden />}
+          {exportando === "pdf" ? "Preparando PDF…" : "Exportar a PDF"}
         </Button>
         <Button size="lg" variant="outline" onClick={copiar}>
           {copiado === "si" ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}

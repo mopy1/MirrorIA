@@ -46,6 +46,24 @@ export const reportsApi = {
       body: JSON.stringify(ficha),
     }),
 
+  /** Exportar el reporte a PDF. */
+  exportarPdf: async (payload: ExportarReportePayload): Promise<Blob> => {
+    const res = await fetch(`${API_URL}/ia/reportes/exportar-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...cabecerasTenant("auto"),
+      },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as { message?: string | string[] } | null
+      const msg = err?.message || "Error al exportar reporte a PDF"
+      throw new ApiError(res.status, Array.isArray(msg) ? msg.join(", ") : msg)
+    }
+    return res.blob()
+  },
+
   /** Exportar reporte estructurado a Microsoft Excel (.xlsx) */
   exportarExcel: async (payload: ExportarReportePayload): Promise<Blob> => {
     const res = await fetch(`${API_URL}/ia/reportes/exportar-excel`, {

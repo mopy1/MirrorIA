@@ -23,5 +23,11 @@ export function buildTypeOrmOptions(
     // por migraciones (`typeorm migration:generate`) y apagar `synchronize`.
     synchronize: config.get<string>('NODE_ENV', 'development') !== 'production',
     logging: config.get<string>('NODE_ENV', 'development') === 'development',
+    // Sin tope de espera, una conexion pedida con el pool lleno colgaba la API para
+    // todas las tiendas. Con el tope falla esa peticion y el resto sigue.
+    extra: {
+      max: Number(config.get<string>('DB_POOL_MAX', '30')),
+      connectionTimeoutMillis: 5000,
+    },
   };
 }

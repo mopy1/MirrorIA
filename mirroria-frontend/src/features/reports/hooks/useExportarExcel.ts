@@ -1,40 +1,34 @@
 import { useState } from "react"
 import { ApiError } from "@/lib/api"
 import { reportsApi } from "../api/reportsApi"
+import { nombreArchivoReporte, type FormatoReporte } from "../lib/formato-pedido"
 import type { Reporte } from "../types/reports.types"
 
-/** Nombre de archivo legible a partir del título: "top-5-productos-mas-vendidos_2026-11-06.xlsx". */
 export function nombreArchivoExcel(titulo: string, fecha = new Date()): string {
-  const slug = titulo
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60)
-  return `${slug || "reporte"}_${fecha.toISOString().slice(0, 10)}.xlsx`
+  return nombreArchivoReporte(titulo, "excel", fecha)
 }
 
-/** Exporta el reporte a Excel con el backend (`POST /ia/reportes/exportar-excel`) y lo descarga. */
+/** Pide el archivo al backend y lo descarga. */
+export async function descargarReporte(reporte: Reporte, titulo: string, formato: FormatoReporte): Promise<void> {
+  const payload = { ficha: reporte.ficha, filas: reporte.filas, comparacion: reporte.comparacion, titulo }
+  const blob = await (formato === "pdf" ? reportsApi.exportarPdf(payload) : reportsApi.exportarExcel(payload))
+  reportsApi.descargarExcel(blob, nombreArchivoReporte(titulo, formato))
+}
+
+/** Exporta el reporte a Excel o PDF con el backend y lo descarga. */
 export function useExportarExcel(reporte: Reporte, titulo: string) {
-  const [exportando, setExportando] = useState(false)
+  const [exportando, setExportando] = useState<FormatoReporte | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function exportar() {
-    setExportando(true)
+  async function exportar(formato: FormatoReporte = "excel") {
+    setExportando(formato)
     setError(null)
     try {
-      const blob = await reportsApi.exportarExcel({
-        ficha: reporte.ficha,
-        filas: reporte.filas,
-        comparacion: reporte.comparacion,
-        titulo,
-      })
-      reportsApi.descargarExcel(blob, nombreArchivoExcel(titulo))
+      await descargarReporte(reporte, titulo, formato)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo generar el Excel. Probá de nuevo en un momento.")
+      setError(e instanceof ApiError ? e.message : "No se pudo generar el archivo. Probá de nuevo en un momento.")
     } finally {
-      setExportando(false)
+      setExportando(null)
     }
   }
 

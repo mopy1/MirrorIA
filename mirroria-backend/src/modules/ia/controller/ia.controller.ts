@@ -16,6 +16,7 @@ import { PromptDto } from '../dto/prompt.dto.js';
 import { ReporteResponseDto } from '../dto/reporte-response.dto.js';
 import { ReporteHibridoResponseDto } from '../dto/reporte-hibrido-response.dto.js';
 import { ExportadorExcelService } from '../service/exportador-excel.service.js';
+import { ExportadorPdfService } from '../service/exportador-pdf.service.js';
 import { IaService } from '../service/ia.service.js';
 
 const PIPE_FICHA = new ValidationPipe({
@@ -30,6 +31,7 @@ export class IaController {
   constructor(
     private readonly iaService: IaService,
     private readonly exportadorExcelService: ExportadorExcelService,
+    private readonly exportadorPdfService: ExportadorPdfService,
   ) {}
 
   @Post('reportes')
@@ -89,6 +91,27 @@ export class IaController {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
+
+  @Post('reportes/exportar-pdf')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(30, 5 * 60_000))
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @ApiOperation({ summary: 'Generar y descargar el reporte en PDF' })
+  async exportarPdf(
+    @Body() dto: ExportarReporteDto,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.exportadorPdfService.generarDocumento(dto, user.email, user);
+    const metrica = (dto.ficha ?? dto.reporte?.ficha)?.metrica ?? 'reporte';
+    const fecha = new Date().toISOString().slice(0, 10);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="reporte_${metrica}_${fecha}.pdf"`);
     res.setHeader('Content-Length', buffer.length);
     res.end(buffer);
   }

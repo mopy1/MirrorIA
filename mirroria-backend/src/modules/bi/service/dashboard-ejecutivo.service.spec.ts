@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataSource } from 'typeorm';
 import { correrConContexto } from '../../../core/tenancy/tenant-context.js';
 import { PeriodoDashboard } from '../dto/filtro-dashboard-ejecutivo.dto.js';
@@ -134,7 +134,12 @@ describe('DashboardEjecutivoService (Métricas estratégicas y BI multi-tenant)'
   const periodosService = new PeriodosService();
   let service: DashboardEjecutivoService;
 
+  // Los datos simulados responden segun el periodo: la prueba dependia del dia en que corria.
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T15:00:00Z'));
     consultasEjecutadas.length = 0;
     vi.clearAllMocks();
     service = new DashboardEjecutivoService(

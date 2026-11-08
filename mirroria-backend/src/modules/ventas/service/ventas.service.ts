@@ -5,7 +5,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { soloTenant } from '../../../core/tenancy/tenant-context.js';
+import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { InventarioSucursalService } from '../../inventario/service/inventario-sucursal.service.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
@@ -29,6 +29,7 @@ export const comprobanteDe = (ventaId: string): string =>
 interface ItemAVender {
   varianteId: string;
   cantidad: number;
+  precioUnitCents?: number;
 }
 
 interface RegistrarVentaParams {
@@ -40,6 +41,9 @@ interface RegistrarVentaParams {
   estadoInicial: EstadoVenta;
   reservaId?: string | null;
   codigoCupon?: string | null;
+  claveIdempotencia?: string | null;
+  /** Venta de caja: cuándo se cobró, para validar el precio que trae. */
+  vendidaEn?: Date | null;
 }
 
 @Injectable()
@@ -65,8 +69,12 @@ export class VentasService {
   async registrarPresencial(
     dto: CreateVentaPresencialDto,
     cajeroId: string,
+    clave?: string,
   ): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
+    const previa = await this.ventaPorClave(clave);
+    if (previa) return previa;
+    if (dto.clienteId) await this.assertClientaDeLaTienda(dto.clienteId);
     return this.registrarVenta({
       items: dto.items,
       sucursalId: dto.sucursalId,
@@ -76,14 +84,61 @@ export class VentasService {
       estadoInicial: EstadoVenta.PAGADA,
       reservaId: dto.reservaId ?? null,
       codigoCupon: dto.codigoCupon ?? null,
+      claveIdempotencia: clave ?? null,
+      vendidaEn: this.fechaDeCobro(dto.vendidaEn),
     });
+  }
+
+  /** Hasta 7 días atrás (lo que dura el catálogo guardado) y nunca en el futuro. */
+  private fechaDeCobro(iso?: string): Date | null {
+    if (!iso) return null;
+    const fecha = new Date(iso);
+    const ahora = Date.now();
+    if (fecha.getTime() > ahora + 5 * 60_000 || fecha.getTime() < ahora - 7 * 86_400_000) {
+      throw new OperacionInvalidaException('La fecha de la venta no es válida');
+    }
+    return fecha;
+  }
+
+  /**
+   * El precio que trae una venta de caja solo vale si es el que la prenda tenía
+   * al cobrarse: el actual, o el anterior si el cambio fue posterior al cobro.
+   */
+  private precioDeVenta(
+    producto: { precioCents: number; precioAnteriorCents?: number | null; precioCambiadoEn?: Date | null; titulo?: string },
+    cobrado: number | undefined,
+    vendidaEn: Date | null | undefined,
+  ): number {
+    if (!vendidaEn || cobrado === undefined || cobrado === producto.precioCents) return producto.precioCents;
+    const cambioPosterior = producto.precioCambiadoEn && producto.precioCambiadoEn.getTime() > vendidaEn.getTime();
+    if (cambioPosterior && cobrado === producto.precioAnteriorCents) return cobrado;
+    throw new OperacionInvalidaException(
+      `El precio de "${producto.titulo ?? 'la prenda'}" no coincide con el que tenía al momento de la venta`,
+    );
+  }
+
+  /** SQL directo: ventas no importa entidades de seguridad (regla 1). */
+  private async assertClientaDeLaTienda(clienteId: string): Promise<void> {
+    const filas: unknown[] = await this.dataSource.query('SELECT 1 FROM usuarios WHERE id = $1 AND tenant_id = $2', [
+      clienteId,
+      tenantActual(),
+    ]);
+    if (filas.length === 0) throw new RecursoNoEncontradoException('Clienta', clienteId);
+  }
+
+  private async ventaPorClave(clave?: string): Promise<VentaResponseDto | null> {
+    if (!clave) return null;
+    const venta = await this.ventaRepository.findOne({ where: soloTenant({ claveIdempotencia: clave }) });
+    return venta ? this.cargarYMapear(venta) : null;
   }
 
   // Compra digital (RF14/RF15/RF16): arranca en PENDIENTE porque el cobro
   // real todavía depende del módulo `pagos` (no construido en este batch) —
   // ver AGENTS.md, decisión 2026-09-13.
-  async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto): Promise<VentaResponseDto> {
+  async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto, clave?: string): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
+    const previa = await this.ventaPorClave(clave);
+    if (previa) return previa;
     // Todo en una transacción con el carrito bloqueado (FOR UPDATE): antes el
     // carrito y el conteo de pendientes se leían afuera y el vaciado iba
     // después, así que 4 checkouts simultáneos del mismo carrito creaban 4
@@ -93,14 +148,15 @@ export class VentasService {
         where: soloTenant({ usuarioId }),
         lock: { mode: 'pessimistic_write' },
       });
-      if (!carrito || carrito.items.length === 0) {
+      const items = dto.items ?? carrito?.items ?? [];
+      if (items.length === 0) {
         throw new OperacionInvalidaException(
           'El carrito está vacío, no se puede completar la compra',
         );
       }
       // El carrito ya lo limita al agregar, pero un carrito viejo (de antes del
       // tope) o editado por otra vía no debe poder saltárselo en el checkout.
-      if (carrito.items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
+      if (items.some((i) => i.cantidad > REGLAS_COMPRA.maxUnidadesPorVariante)) {
         throw new OperacionInvalidaException(
           `Podés llevar hasta ${REGLAS_COMPRA.maxUnidadesPorVariante} unidades de la misma talla y color por compra`,
         );
@@ -117,13 +173,14 @@ export class VentasService {
 
       const venta = await this.registrarVenta(
         {
-          items: carrito.items,
+          items,
           sucursalId: dto.sucursalId,
           canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
           clienteId: usuarioId,
           cajeroId: null,
           estadoInicial: EstadoVenta.PENDIENTE,
           codigoCupon: dto.codigoCupon ?? null,
+          claveIdempotencia: clave ?? null,
         },
         manager,
       );
@@ -278,8 +335,11 @@ export class VentasService {
     params: RegistrarVentaParams,
     managerExterno?: EntityManager,
   ): Promise<VentaResponseDto> {
+    // Siempre el mismo orden de bloqueo: dos pedidos con las mismas prendas en
+    // distinto orden se bloqueaban mutuamente (deadlock, 500).
+    params = { ...params, items: [...params.items].sort((a, b) => a.varianteId.localeCompare(b.varianteId)) };
     const variantes = await Promise.all(
-      params.items.map((item) => this.productosService.findVarianteById(item.varianteId)),
+      params.items.map((item) => this.productosService.findVarianteById(item.varianteId, managerExterno)),
     );
     // Online no se vende lo dado de baja (el carrito puede tenerlo de antes).
     if (params.canal !== CanalVenta.PRESENCIAL) {
@@ -303,8 +363,8 @@ export class VentasService {
       }[] = [];
 
       for (let i = 0; i < params.items.length; i++) {
-        const { varianteId, cantidad } = params.items[i];
-        const precioUnitCents = variantes[i].producto.precioCents;
+        const { varianteId, cantidad, precioUnitCents: cobrado } = params.items[i];
+        const precioUnitCents = this.precioDeVenta(variantes[i].producto, cobrado, params.vendidaEn);
         const itemSubtotalCents = precioUnitCents * cantidad;
         subtotalCents += itemSubtotalCents;
         itemsAGuardar.push({
@@ -353,6 +413,7 @@ export class VentasService {
           cajeroId: params.cajeroId,
           reservaId: params.reservaId ?? null,
           cuponId,
+          claveIdempotencia: params.claveIdempotencia ?? null,
           canal: params.canal,
           estado: params.estadoInicial,
           numeroComprobante:

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import ExcelJS from 'exceljs';
@@ -11,8 +11,9 @@ import { ExportarReporteDto } from '../dto/exportar-reporte.dto.js';
 import { ReporteResponseDto, type ComparacionDto } from '../dto/reporte-response.dto.js';
 import { MotorConsultaService, type FilaReporte } from './motor-consulta.service.js';
 import { CATALOGO_METRICAS } from './catalogo-metricas.js';
+import { IaService } from './ia.service.js';
 
-const METRICAS_MONETARIAS = new Set([
+export const METRICAS_MONETARIAS = new Set([
   'ingresos',
   'ticket_promedio',
   'descuentos',
@@ -23,7 +24,7 @@ const FORMATO_MONEDA_BS = '"Bs" #,##0.00;[Red]-"Bs" #,##0.00;"Bs" 0.00';
 const FORMATO_ENTERO = '#,##0';
 const FORMATO_PORCENTAJE = '+0.0%;-0.0%;0.0%';
 
-interface ParametrosWorkbook {
+export interface ParametrosWorkbook {
   ficha: FichaConsultaDto;
   filas: FilaReporte[];
   comparacion?: ComparacionDto | null;
@@ -37,6 +38,7 @@ export class ExportadorExcelService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly motorConsulta: MotorConsultaService,
+    @Optional() private readonly iaService?: IaService,
   ) {}
 
   /**
@@ -69,6 +71,15 @@ export class ExportadorExcelService {
     usuarioNombre: string,
     user?: JwtPayload,
   ): Promise<Buffer> {
+    return this.construirWorkbook(await this.prepararDatos(dto, usuarioNombre, user));
+  }
+
+  /** Lo que comparten Excel y PDF: alcance de sucursal, tienda y filas. */
+  async prepararDatos(
+    dto: ExportarReporteDto,
+    usuarioNombre: string,
+    user?: JwtPayload,
+  ): Promise<ParametrosWorkbook> {
     const ficha = dto.ficha ?? dto.reporte?.ficha;
     if (!ficha) {
       throw new CombinacionInvalidaException('Debe proporcionar una ficha o un reporte para exportar');
@@ -82,20 +93,28 @@ export class ExportadorExcelService {
       }
     }
 
-    const nombreTienda = await this.resolverNombreTienda(dto.nombreTienda);
-    const filas: FilaReporte[] =
-      dto.filas ?? dto.reporte?.filas ?? (await this.motorConsulta.ejecutar(ficha));
-    const comparacion: ComparacionDto | null =
-      dto.comparacion ?? dto.reporte?.comparacion ?? null;
+    // El nombre lo pone el servidor: si no, se podía emitir el reporte a nombre de otra tienda.
+    const nombreTienda = await this.resolverNombreTienda();
+    // Las filas las calcula el servidor con la misma ficha (y el alcance de sucursal):
+    // aceptarlas del cliente permitía emitir el reporte oficial con cifras inventadas.
+    let filas: FilaReporte[];
+    let comparacion: ComparacionDto | null = null;
+    if (this.iaService && user) {
+      const reporte = await this.iaService.consultar(ficha, user);
+      filas = reporte.filas;
+      comparacion = reporte.comparacion ?? null;
+    } else {
+      filas = await this.motorConsulta.ejecutar(ficha);
+    }
 
-    return this.construirWorkbook({
+    return {
       ficha,
       filas,
       comparacion,
       titulo: dto.titulo,
       nombreTienda,
       usuarioGenerador: usuarioNombre,
-    });
+    };
   }
 
   private async resolverNombreTienda(nombreExplicito?: string): Promise<string> {
@@ -299,7 +318,7 @@ export class ExportadorExcelService {
     return Buffer.from(buffer);
   }
 
-  private resumirFiltros(ficha: FichaConsultaDto): string {
+  resumirFiltros(ficha: FichaConsultaDto): string {
     const f = ficha.filtros ?? {};
     const partes: string[] = [];
     if (f.desde || f.hasta) partes.push(`Fechas: ${f.desde ?? 'inicio'} a ${f.hasta ?? 'hoy'}`);

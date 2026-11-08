@@ -1,5 +1,6 @@
 import {
   type CallHandler,
+  BadRequestException,
   ConflictException,
   type ExecutionContext,
   HttpException,
@@ -14,10 +15,15 @@ import { catchError, switchMap } from 'rxjs/operators';
 import type { JwtPayload } from '../jwt-payload.interface.js';
 import { tenantOpcional } from '../../tenancy/tenant-context.js';
 import { EstadoIdempotencia, type Idempotencia } from './entities/idempotencia.entity.js';
-import { calcularHashCuerpo } from './idempotencia.hash.js';
+import { calcularHashPeticion } from './idempotencia.hash.js';
 import { IdempotenciaService } from './idempotencia.service.js';
 
 const METODOS_MUTANTES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+/** Con `codigo` la cola sabe que debe reintentar y no dar la operación por rechazada. */
+const EN_CURSO = {
+  message: 'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
+  codigo: 'IDEMPOTENCIA_EN_CURSO',
+};
 
 @Injectable()
 export class IdempotenciaInterceptor implements NestInterceptor {
@@ -46,6 +52,9 @@ export class IdempotenciaInterceptor implements NestInterceptor {
     if (clave === '') {
       return next.handle();
     }
+    if (clave.length > 150) {
+      throw new BadRequestException('Idempotency-Key admite hasta 150 caracteres');
+    }
 
     const metodo = req.method ? req.method.toUpperCase() : 'POST';
     if (!METODOS_MUTANTES.has(metodo)) {
@@ -66,7 +75,8 @@ export class IdempotenciaInterceptor implements NestInterceptor {
     }
 
     const ruta = (req.originalUrl || req.url || req.path || '').split('?')[0];
-    const hashCuerpo = calcularHashCuerpo(req.body);
+    const usuarioId = (req.user as JwtPayload | undefined)?.sub;
+    const hashCuerpo = calcularHashPeticion(usuarioId, metodo, ruta, req.body);
 
     const existente = await this.idempotenciaService.buscar(tenantId, clave);
 
@@ -79,10 +89,11 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         );
       }
 
-      if (existente.estado === EstadoIdempotencia.EN_PROCESO) {
-        throw new ConflictException(
-          'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-        );
+      if (
+        existente.estado === EstadoIdempotencia.EN_PROCESO &&
+        !this.idempotenciaService.estaAtascado(existente)
+      ) {
+        throw new ConflictException(EN_CURSO);
       }
 
       if (existente.estado === EstadoIdempotencia.COMPLETADO) {
@@ -98,13 +109,18 @@ export class IdempotenciaInterceptor implements NestInterceptor {
         return of(existente.cuerpoRespuesta);
       }
 
-      // Estado FALLIDO: reiniciamos el registro a EN_PROCESO para permitir el reintento
-      registro = await this.idempotenciaService.reiniciarIntento(
+      // FALLIDO, o EN_PROCESO abandonado por una caida: se retoma. Solo uno gana.
+      const retomado = await this.idempotenciaService.reiniciarIntento(
         existente.id,
         hashCuerpo,
         ruta,
         metodo,
+        existente.estado,
       );
+      if (!retomado) {
+        throw new ConflictException(EN_CURSO);
+      }
+      registro = retomado;
     } else {
       try {
         registro = await this.idempotenciaService.registrarIntento({
@@ -119,9 +135,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           (err as { code?: string; driverError?: { code?: string } })?.driverError
             ?.code ?? (err as { code?: string })?.code;
         if (pgCode === '23505') {
-          throw new ConflictException(
-            'Existe una operación en curso con esta misma clave de idempotencia. Espere a que finalice.',
-          );
+          throw new ConflictException(EN_CURSO);
         }
         throw err;
       }

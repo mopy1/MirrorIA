@@ -87,7 +87,7 @@ describe('IaAgenteService', () => {
     }));
   });
 
-  it('ejecuta bucle multi-paso con DuckDB what-if y asigna what-if-comparison', async () => {
+  it('sin un dato real previo no simula sobre una base inventada', async () => {
     mockProveedor.chatearConTools
       .mockResolvedValueOnce({ contenido: null, toolCalls: [{ id: 't1', name: 'simular_what_if', arguments: { variacionPrecioPct: 15 } }] })
       .mockResolvedValueOnce({ contenido: 'Simulacion finalizada.', toolCalls: [] });
@@ -97,7 +97,8 @@ describe('IaAgenteService', () => {
     ]);
 
     const res = await service.ejecutar('simular aumento de precio del 15%', mockUser);
-    expect(res.esSimulacion).toBe(true);
-    expect(res.tipoGraficoSugerido).toBe('what-if-comparison');
+    expect(res.esSimulacion).toBe(false);
+    expect(mockDuckDb.proyectarWhatIf).not.toHaveBeenCalled();
+    
   });
 });

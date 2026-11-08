@@ -1,4 +1,4 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { TenantBaseEntity } from '../../../core/database/tenant-base.entity.js';
 
 export enum CanalVenta {
@@ -17,6 +17,7 @@ export enum EstadoVenta {
 }
 
 @Entity('ventas')
+@Index('uq_ventas_tenant_clave', ['tenantId', 'claveIdempotencia'], { unique: true })
 export class Venta extends TenantBaseEntity {
   // Todas las FK de esta entidad son cross-módulo -> columnas simples, mismo
   // criterio que el resto del proyecto. cliente_id/cajero_id nullable porque
@@ -35,6 +36,10 @@ export class Venta extends TenantBaseEntity {
   // validar por ahora (ver AGENTS.md, roadmap).
   @Column({ name: 'reserva_id', type: 'uuid', nullable: true })
   reservaId!: string | null;
+
+  /** Una caida entre guardar la venta y anotarlo en `idempotencia` no debe duplicarla al reintentar. */
+  @Column({ name: 'clave_idempotencia', type: 'varchar', length: 128, nullable: true })
+  claveIdempotencia!: string | null;
 
   @Column({ name: 'cupon_id', type: 'uuid', nullable: true })
   cuponId!: string | null;

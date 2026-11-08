@@ -12,6 +12,7 @@ describe('UsuariosService — nunca quedan 0 ADMIN', () => {
 
   beforeEach(() => {
     repo = { findOne: vi.fn(), count: vi.fn(), save: vi.fn((u) => u) };
+    repo.manager = { transaction: (cb: (m: unknown) => unknown) => cb({ getRepository: () => repo }) };
     service = new UsuariosService(
       repo as unknown as Repository<Usuario>,
       { assertExists: vi.fn() } as unknown as SucursalesService,

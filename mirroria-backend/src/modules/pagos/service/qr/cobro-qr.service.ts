@@ -36,6 +36,8 @@ const PREFIJO_TRANSACCION = 'wayra:';
 
 /** Lo que el banco necesita saber de un QR para mostrarlo al escanearlo. */
 export interface CobroQrPublico {
+  /** Quién cobra: el banco lo muestra a quien paga. */
+  comercio?: string;
   montoCents: number;
   referencia: string;
   estado: EstadoCobroQr;
@@ -78,6 +80,9 @@ export class CobroQrService {
     assertOwnUser(venta.clienteId ?? '', user);
     if (venta.estado !== 'PENDIENTE') {
       throw new VentaNoPagableException(`su estado es ${venta.estado}`);
+    }
+    if (venta.totalCents <= 0) {
+      throw new VentaNoPagableException('el total es Bs 0: no hay nada que cobrar con QR');
     }
 
     // Recargar la pantalla de pago no puede generar otro QR: el que ya esta en
@@ -165,7 +170,11 @@ export class CobroQrService {
     const venta = await conTenant({ tenantId: pago.tenantId }, () =>
       this.ventasService.findOne(pago.ventaId),
     );
+    const [tienda] = (await this.pagoRepository.manager.query('SELECT nombre FROM inquilinos WHERE id = $1', [
+      pago.tenantId,
+    ])) as { nombre: string }[];
     return {
+      comercio: tienda?.nombre ?? COMERCIO_QR,
       montoCents: pago.montoCents,
       referencia: referenciaDeVenta(pago.ventaId),
       ...this.estadoPublico(pago, venta.estado),

@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { ApiError } from "@/lib/api"
 import { reportsApi } from "../api/reportsApi"
+import { formatoPedido } from "../lib/formato-pedido"
+import { descargarReporte } from "./useExportarExcel"
 import { describirFallo, mapHibridoAReporte, respuestaMeta, textoReporteListo, tituloDesdeTexto } from "../lib/reportes-chat.utils"
 import type { ChatMessage, ReportTab, TabReporte } from "../types/chat.types"
 import type { Reporte } from "../types/reports.types"
@@ -36,7 +38,14 @@ export function useReportesChat() {
     actualizarTab(tabId, { cargando: true, error: undefined, iniciadoEn: Date.now() })
     try {
       const hibrido = await reportsApi.preguntarHibrido(pregunta)
-      actualizarTab(tabId, { reporte: mapHibridoAReporte(hibrido), cargando: false, generadoEn: new Date() })
+      const reporte = mapHibridoAReporte(hibrido)
+      actualizarTab(tabId, { reporte, cargando: false, generadoEn: new Date() })
+      const formato = formatoPedido(pregunta)
+      if (formato && reporte.filas.length > 0) {
+        descargarReporte(reporte, titulo, formato).catch(() =>
+          agregarMensaje({ rol: "asistente", texto: "El reporte está listo, pero no pude generar el archivo. Probá con el botón de exportar.", tono: "error" }),
+        )
+      }
       agregarMensaje({ rol: "asistente", texto: textoReporteListo(hibrido.narrativa), tono: "normal", reporteTabId: tabId, reporteTitulo: titulo, pregunta })
     } catch (e) {
       const fallo = describirFallo(e instanceof ApiError ? e.status : null, e instanceof Error ? e.message : undefined)

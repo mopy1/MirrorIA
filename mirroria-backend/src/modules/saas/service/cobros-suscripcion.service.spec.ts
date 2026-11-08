@@ -15,7 +15,7 @@ describe('CobrosSuscripcionService', () => {
   let repo: Record<string, ReturnType<typeof vi.fn>>;
   let dataSource: { transaction: ReturnType<typeof vi.fn> };
   let inquilinos: { detalle: ReturnType<typeof vi.fn> };
-  let planes: { porCodigo: ReturnType<typeof vi.fn> };
+  let planes: { porCodigo: ReturnType<typeof vi.fn>; porId: ReturnType<typeof vi.fn> };
   let suscripciones: {
     ultima: ReturnType<typeof vi.fn>;
     activarPorPago: ReturnType<typeof vi.fn>;
@@ -52,6 +52,7 @@ describe('CobrosSuscripcionService', () => {
 
     planes = {
       porCodigo: vi.fn().mockResolvedValue(PLAN_PRO),
+      porId: vi.fn(async (id: string) => ({ ...PLAN_PRO, id })),
     };
 
     suscripciones = {

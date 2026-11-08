@@ -6,6 +6,10 @@
 # El archivo base (docker-compose.yml) sigue siendo el que se usa tal cual
 # en una máquina de desarrollo (HTTP plano, sin este archivo).
 services:
+  # En desarrollo se prende a mano; en la VM tiene que volver solo tras un reinicio.
+  mirroria-ml:
+    restart: unless-stopped
+
   mirroria-frontend:
     build:
       context: ./mirroria-frontend

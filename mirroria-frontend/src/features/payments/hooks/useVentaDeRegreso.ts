@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { checkoutApi } from "@/features/checkout/api/checkoutApi"
+import { paymentsApi } from "../api/paymentsApi"
 import type { Venta } from "@/features/checkout/types/checkout.types"
 import { ApiError } from "@/lib/api"
 
@@ -24,8 +25,11 @@ export function useVentaDeRegreso() {
 
   const cargar = useCallback(() => {
     if (!ventaId) return
-    checkoutApi
-      .getVenta(ventaId)
+    // Volver a la URL de éxito no prueba el pago: se confirma con la pasarela.
+    paymentsApi
+      .confirmarTarjeta(ventaId)
+      .catch(() => null)
+      .then(() => checkoutApi.getVenta(ventaId))
       .then((v) => {
         setVenta(v)
         setError(null)

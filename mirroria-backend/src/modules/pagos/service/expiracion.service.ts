@@ -1,10 +1,12 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { conTenant, soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { VentasService } from '../../ventas/service/ventas.service.js';
-import { EstadoPago, MetodoPago, Pago } from '../entities/pago.entity.js';
+import { EstadoPago, MetodoPago, Pago, ProveedorPago } from '../entities/pago.entity.js';
+import { PASARELA, type Pasarela } from './pasarela/pasarela.interface.js';
 
 const MINUTOS_TARJETA_POR_DEFECTO = 30;
 const MINUTOS_MANUAL_POR_DEFECTO = 1440; // un dia
@@ -54,6 +56,8 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Pago) private readonly pagoRepository: Repository<Pago>,
     private readonly ventasService: VentasService,
     private readonly config: ConfigService,
+    @Inject(PASARELA) private readonly pasarela: Pasarela,
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {}
 
   async expirarVencidas(): Promise<number> {
@@ -79,13 +83,26 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
       // sigue dependiendo del metodo y el reloj arranca en el intento de pago,
       // no en el checkout.
       const limiteMin =
-        pago === null || pago.metodo === MetodoPago.TARJETA
+        pago === null || pago.metodo === MetodoPago.TARJETA || pago.metodo === MetodoPago.BILLETERA
           ? this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO', MINUTOS_TARJETA_POR_DEFECTO)
           : this.minutosDeConfig('PAGOS_MINUTOS_VENCIMIENTO_MANUAL', MINUTOS_MANUAL_POR_DEFECTO);
 
       const desde = pago ? pago.createdAt : venta.createdAt;
       const minutosTranscurridos = (ahora - desde.getTime()) / 60_000;
       if (minutosTranscurridos < limiteMin) continue;
+
+      // Una sesión de tarjeta se cierra antes de cancelar. Si no se puede
+      // cerrar es porque la clienta ya pagó (el aviso no llegó, por una caída):
+      // cancelar le devolvía el stock a otra y la dejaba pagando sin venta.
+      if (pago?.proveedorPago === ProveedorPago.STRIPE && pago.referenciaExterna) {
+        if (!(await this.pasarela.cerrarSesion(pago.referenciaExterna))) {
+          this.logger.warn(`Venta ${venta.id}: la sesion ${pago.referenciaExterna} no se pudo cerrar, no se cancela`);
+          // Si se pagó y el aviso no llegó, se acredita acá: si no, quedaba
+          // pendiente para siempre con el stock apartado.
+          await this.acreditarSiSePago(venta.tenantId, pago);
+          continue;
+        }
+      }
 
       try {
         // Barrida global: cada venta se cancela con el tenant de su propia fila.
@@ -101,6 +118,17 @@ export class ExpiracionService implements OnModuleInit, OnModuleDestroy {
     }
 
     return canceladas;
+  }
+
+  private async acreditarSiSePago(tenantId: string, pago: Pago): Promise<void> {
+    try {
+      // Por ModuleRef para no crear una dependencia circular con PagosService.
+      const { PagosService } = await import('./pagos.service.js');
+      const pagos = this.moduleRef?.get(PagosService, { strict: false });
+      await conTenant({ tenantId }, () => pagos?.acreditarSesionPagada(pago) ?? Promise.resolve());
+    } catch (error) {
+      this.logger.warn(`No se pudo acreditar la sesion ${pago.referenciaExterna}: ${String(error)}`);
+    }
   }
 
   /**

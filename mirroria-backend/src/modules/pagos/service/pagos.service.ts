@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import type { DataSource, EntityManager } from 'typeorm';
-import { Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import type { JwtPayload } from '../../../core/security/jwt-payload.interface.js';
 import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
@@ -23,6 +23,7 @@ import { VentaNoPagableException } from '../exception/venta-no-pagable.exception
 import { ExpiracionService } from './expiracion.service.js';
 import { PASARELA } from './pasarela/pasarela.interface.js';
 import type { Pasarela } from './pasarela/pasarela.interface.js';
+import { RegistroPasarelasService } from './pasarela/registro-pasarelas.service.js';
 
 @Injectable()
 export class PagosService {
@@ -38,7 +39,59 @@ export class PagosService {
     @Optional()
     @Inject(forwardRef(() => CobrosSuscripcionService))
     private readonly cobrosSuscripcionService?: CobrosSuscripcionService,
+    @Optional() private readonly registroPasarelas?: RegistroPasarelasService,
   ) {}
+
+  /**
+   * PayPal: la clienta aprueba en PayPal y vuelve; el cobro recién ocurre con la
+   * captura que hace `confirmarTarjeta`. Por eso una orden aprobada y nunca
+   * capturada no movió dinero y la barrida la puede cancelar sin riesgo.
+   */
+  async iniciarPaypal(ventaId: string, user: JwtPayload): Promise<{ url: string }> {
+    await this.expiracionService.expirarVencidas();
+    const paypal = this.registroPasarelas?.asegurarDisponible('PAYPAL', 'checkout');
+    if (!paypal) throw new PasarelaNoConfiguradaException();
+    const venta = await this.ventasService.findOne(ventaId);
+    assertOwnUser(venta.clienteId ?? '', user);
+    if (venta.estado !== 'PENDIENTE') {
+      throw new VentaNoPagableException(`su estado es ${venta.estado}`);
+    }
+    if (venta.totalCents <= 0) {
+      throw new VentaNoPagableException('el total es Bs 0: no hay nada que cobrar en línea');
+    }
+    return this.dataSource.transaction(async (manager) => {
+      await this.bloquearVentaPendiente(manager, ventaId);
+      const repo = manager.getRepository(Pago);
+      const existente = await repo.findOne({
+        where: soloTenant({ ventaId, estado: EstadoPago.PENDIENTE, proveedorPago: ProveedorPago.PAYPAL }),
+      });
+      // La referencia es el id del pago: es la clave de idempotencia de PayPal,
+      // así un segundo clic devuelve la misma orden en vez de abrir otra.
+      const pagoId = existente?.id ?? randomUUID();
+      const orden = await paypal.iniciarCobro({
+        montoCents: venta.totalCents,
+        moneda: 'BOB',
+        descripcion: this.descripcionParaLaPasarela(venta),
+        referencia: pagoId,
+        contexto: 'checkout',
+        nombreComercio: contextoTenant()?.nombre ?? 'MirrorIA',
+        urlExito: this.conVentaId(this.config.get<string>('PAGOS_URL_EXITO') ?? '', ventaId),
+        urlCancelacion: this.conVentaId(this.config.get<string>('PAGOS_URL_CANCELACION') ?? '', ventaId),
+      });
+      await repo.save({
+        ...(existente ?? {}),
+        id: pagoId,
+        ventaId,
+        proveedorPago: ProveedorPago.PAYPAL,
+        metodo: MetodoPago.BILLETERA,
+        montoCents: venta.totalCents,
+        estado: EstadoPago.PENDIENTE,
+        eventId: `paypal:${orden.token}`,
+        referenciaExterna: orden.token ?? null,
+      } as Pago);
+      return { url: orden.url ?? '' };
+    });
+  }
 
   /**
    * Arranca un cobro en efectivo. No cobra nada: crea el registro en
@@ -196,6 +249,42 @@ export class PagosService {
   }
 
   /**
+   * La clienta vuelve de pagar con tarjeta: se le pregunta a Stripe en vez de
+   * esperar el aviso, que puede tardar o no llegar. Mismo camino de acreditación
+   * que el aviso, así que si llegan los dos se acredita una sola vez.
+   */
+  async confirmarTarjeta(ventaId: string, user: JwtPayload): Promise<{ estado: string }> {
+    const venta = await this.ventasService.findOne(ventaId);
+    assertOwnUser(venta.clienteId ?? '', user);
+    if (venta.estado !== 'PENDIENTE') return { estado: venta.estado };
+    const pago = await this.pagoRepository.findOne({
+      where: soloTenant({
+        ventaId,
+        estado: EstadoPago.PENDIENTE,
+        proveedorPago: In([ProveedorPago.STRIPE, ProveedorPago.PAYPAL]),
+      }),
+      order: { createdAt: 'DESC' },
+    });
+    const confirmar =
+      pago?.proveedorPago === ProveedorPago.PAYPAL
+        ? this.registroPasarelas?.obtener('PAYPAL').confirmarCobro?.bind(this.registroPasarelas.obtener('PAYPAL'))
+        : this.pasarela.confirmarCobro?.bind(this.pasarela);
+    if (!pago?.referenciaExterna || !confirmar) return { estado: venta.estado };
+    const r = await confirmar(pago.referenciaExterna);
+    if (r.estado === 'APROBADO' && r.transaccion) {
+      await this.acreditarEvento(pago, `confirmado:${r.transaccion}`);
+    }
+    return { estado: (await this.ventasService.findOne(ventaId)).estado };
+  }
+
+  /** La barrida encontró una sesión de tarjeta que no se puede cerrar: si está pagada, se acredita. */
+  async acreditarSesionPagada(pago: Pago): Promise<void> {
+    if (!pago.referenciaExterna || !this.pasarela.confirmarCobro) return;
+    const r = await this.pasarela.confirmarCobro(pago.referenciaExterna);
+    if (r.estado === 'APROBADO' && r.transaccion) await this.acreditarEvento(pago, `confirmado:${r.transaccion}`);
+  }
+
+  /**
    * "Volver al carrito": la clienta abandona una compra PENDIENTE sin pagar
    * (p. ej. salio de Stripe sin pagar). Se cancela con la misma logica que el
    * vencimiento (stock, cupon y prendas al carrito). Antes de cancelar se
@@ -344,6 +433,9 @@ export class PagosService {
       );
     }
     // Lo mismo con el QR dinamico: lo acredita el aviso firmado del banco.
+    if (pago.proveedorPago === ProveedorPago.PAYPAL) {
+      throw new VentaNoPagableException('un cobro con PayPal lo confirma PayPal, no una persona');
+    }
     if (pago.proveedorPago === ProveedorPago.WAYRA) {
       throw new VentaNoPagableException(
         'un cobro por QR lo confirma el banco, no una persona',

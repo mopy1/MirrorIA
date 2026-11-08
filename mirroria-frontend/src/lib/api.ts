@@ -1,3 +1,4 @@
+import { crearClavesDeIntento } from "./clave-intento"
 import { getTiendaActiva } from "./tienda-activa"
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
@@ -32,7 +33,7 @@ interface BackendErrorBody {
 
 export type ModoTenant = "auto" | "sesion" | "ninguno"
 
-function slugDeSesion(): string | null {
+export function slugDeSesion(): string | null {
   try {
     const raw = localStorage.getItem(USER_KEY)
     return raw ? ((JSON.parse(raw) as { tenant?: { slug?: string } | null }).tenant?.slug ?? null) : null
@@ -64,8 +65,11 @@ export function destinoTras401(pathname: string, slugSesion: string | null): str
   return "/entrar"
 }
 
+const clavesDeIntento = crearClavesDeIntento(() => crypto.randomUUID())
+
 /** Inyecta Idempotency-Key en mutaciones (POST, PUT, PATCH) si no viene una explícita. */
-function cabecerasIdempotencia(method?: string, headers?: HeadersInit): Record<string, string> {
+function cabecerasIdempotencia(path: string, options: RequestInit): Record<string, string> {
+  const { method, headers, body } = options
   const m = (method ?? "GET").toUpperCase()
   if (m !== "POST" && m !== "PUT" && m !== "PATCH") return {}
   const yaTiene = headers && Object.keys(headers as Record<string, string>).some(
@@ -73,7 +77,7 @@ function cabecerasIdempotencia(method?: string, headers?: HeadersInit): Record<s
   )
   if (yaTiene) return {}
   return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? { "Idempotency-Key": crypto.randomUUID() }
+    ? { "Idempotency-Key": clavesDeIntento.obtener(m, path, String(body ?? "")) }
     : {}
 }
 
@@ -84,15 +88,21 @@ function cabecerasIdempotencia(method?: string, headers?: HeadersInit): Record<s
 export async function apiFetch<T>(path: string, options: RequestInit = {}, modo: ModoTenant = "auto"): Promise<T> {
   const isAuthEndpoint = path.startsWith("/seguridad/auth/")
 
+  const metodo = (options.method ?? "GET").toUpperCase()
+  const cuerpo = String(options.body ?? "")
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...cabecerasIdempotencia(options.method, options.headers),
+      ...cabecerasIdempotencia(path, options),
       ...cabecerasTenant(modo),
       ...options.headers,
     },
+  }).catch((err) => {
+    clavesDeIntento.terminar(metodo, path, cuerpo, null)
+    throw err
   })
+  clavesDeIntento.terminar(metodo, path, cuerpo, response.status)
 
   if (response.status === 401 && !isAuthEndpoint) {
     const destino = destinoTras401(window.location.pathname, slugDeSesion())
