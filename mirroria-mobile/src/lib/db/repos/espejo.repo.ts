@@ -1,4 +1,4 @@
-import { obtenerDb } from '../sqlite-local';
+import { transaccionExclusiva } from '../sqlite-local';
 import type { SnapshotEspejo } from '../tipos-espejo';
 
 /**
@@ -6,12 +6,11 @@ import type { SnapshotEspejo } from '../tipos-espejo';
  * si algo falla, queda el espejo anterior entero.
  */
 export async function reemplazarEspejo(tenantId: string, s: SnapshotEspejo): Promise<void> {
-  const db = await obtenerDb();
   const ahora = Date.now();
   const nombreCategoria = new Map(s.categorias.map((c) => [c.id, c.nombre]));
   const ordenTalla = new Map(s.tallas.map((t) => [t.id, t.orden]));
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionExclusiva(async (tx) => {
     for (const tabla of ['stock_local', 'variantes_local', 'catalogo_local', 'sucursales_local']) {
       await tx.runAsync(`DELETE FROM ${tabla} WHERE tenant_id = ?`, tenantId);
     }

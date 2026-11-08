@@ -28,7 +28,7 @@ export function ReglasReserva({ cupo, encoladas, guardado, sinCupo }: Props) {
       <Text className="text-xs leading-4 text-muted-foreground">
         Hasta {cupo?.maxPrendasPorReserva ?? 3} prendas por reserva, {cupo?.maxUnidadesPorVariante ?? 1} por talla. Entre {cupo?.anticipacionMinimaMinutos ?? 30} min y{' '}
         {cupo?.ventanaMaximaHoras ?? 48} h desde ahora; te esperamos {cupo?.toleranciaMinutos ?? 30} min.
-        {guardado ? ' (Cupo guardado: se confirma al volver la red.)' : ''}
+        {guardado ? (cupo ? ' Cupo guardado: la tienda lo confirma al volver la red.' : ' Sin red: la tienda revisa tu cupo cuando se envíe.') : ''}
       </Text>
     </View>
   );

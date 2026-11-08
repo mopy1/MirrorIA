@@ -16,7 +16,11 @@ const CABECERA: Record<TipoOperacion, { titulo: string; icono: PhosphorIcon }> =
 
 /** RN09 en palabras: nunca "comprado" hasta que el servidor concilia. */
 function explicacion(f: FilaOutbox): string {
-  if (f.estado === 'PENDIENTE' || f.estado === 'ENVIANDO') return 'Todavía no está hecha: la tienda la confirma cuando vuelva la red. No se cobró nada.';
+  if (f.estado === 'PENDIENTE' || f.estado === 'ENVIANDO') {
+    return f.tipo === 'RESERVA_CREAR'
+      ? 'Todavía no está apartada: la tienda la confirma cuando vuelva la red.'
+      : 'Todavía no está hecha: la tienda la confirma cuando vuelva la red. No se cobró nada.';
+  }
   if (f.estado === 'COMPENSADA') return 'Otra clienta se llevó la última unidad antes de que llegara tu pedido. No se te cobró nada.';
   if (f.estado === 'RECHAZADA') return f.ultimoError ?? 'La tienda no la aceptó.';
   if (f.tipo === 'CHECKOUT') return 'La tienda apartó tus prendas. Falta pagar para retirarlas.';
@@ -28,7 +32,7 @@ export function TicketOperacion({ fila }: { fila: FilaOutbox }) {
   const c = CABECERA[fila.tipo];
   const m = fila.meta;
   const ventaId = typeof fila.respuesta?.id === 'string' ? fila.respuesta.id : null;
-  const confirmadaTexto = fila.estado === 'CONFIRMADA' && ventaId ? `Confirmada · ${codigoCorto(ventaId)}${fila.tipo === 'CHECKOUT' ? ' · falta pagar' : ''}` : undefined;
+  const confirmadaTexto = fila.estado === 'CONFIRMADA' && ventaId && fila.tipo !== 'CARRITO_AGREGAR' ? `Confirmada · ${codigoCorto(ventaId)}${fila.tipo === 'CHECKOUT' ? ' · falta pagar' : ''}` : undefined;
   return (
     <View className="mx-5 rounded-lg border border-dashed border-border bg-card p-5">
       <View className="mb-3 flex-row items-center gap-3">
@@ -50,7 +54,7 @@ export function TicketOperacion({ fila }: { fila: FilaOutbox }) {
             {l.precioCents ? <MonedaBs cents={l.precioCents * l.cantidad} /> : null}
           </View>
         ))}
-        {m.sucursalNombre ? <Text className="text-xs text-muted-foreground">{fila.tipo === 'CHECKOUT' ? 'Retiro en' : 'Sucursal'} {m.sucursalNombre}</Text> : null}
+        {m.sucursalNombre ? <Text className="text-xs text-muted-foreground">{fila.tipo === 'CHECKOUT' ? 'Retiro en' : 'En'} {m.sucursalNombre}</Text> : null}
         {m.fechaHora ? <Text className="text-xs text-muted-foreground">Para el {m.fechaHora}</Text> : null}
       </View>
       {m.totalCents !== undefined ? (

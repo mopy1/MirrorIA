@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 function etiqueta(libre: number) {
   if (libre <= 0) return { texto: 'Agotada', clase: 'bg-danger/10 text-danger' };
+  if (libre === 1) return { texto: 'Última unidad', clase: 'bg-warning/15 text-warning' };
   if (libre <= 2) return { texto: `Últimas ${libre}`, clase: 'bg-warning/15 text-warning' };
   return { texto: `${libre} disponibles`, clase: 'bg-success/10 text-success' };
 }

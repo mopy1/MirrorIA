@@ -83,6 +83,11 @@ class OutboxManagerImpl {
       r.conflictos.forEach((c) => this.emitir({ tipo: 'conflicto', fila: c.fila, detalle: c.detalle }));
       if (r.pausada) this.tokenPausado = ctx.token;
       if (r.reintentoEn !== null) this.reintento = setTimeout(() => void this.procesarCola(), r.reintentoEn);
+    } catch (e) {
+      // Falla local (SQLite): la fila en vuelo vuelve a PENDIENTE y se reintenta con la MISMA clave (HIT si llegó).
+      console.warn('[OutboxManager] ciclo interrumpido', e);
+      await this.cola.recuperarEnviando().catch(() => undefined);
+      this.reintento = setTimeout(() => void this.procesarCola(), 2_000);
     } finally {
       this.publicar({ sincronizando: false, pausada: this.tokenPausado !== null && this.tokenPausado === this.ctx?.token });
       this.emitir({ tipo: 'cambio' });

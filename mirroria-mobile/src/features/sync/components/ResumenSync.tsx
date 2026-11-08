@@ -33,7 +33,7 @@ export function ResumenSync({ pendientes, conSesion }: { pendientes: number; con
         <Text className="text-sm text-muted-foreground">{pendientes === 1 ? 'operación por enviar' : 'operaciones por enviar'}</Text>
       </View>
       <Text className="text-xs text-muted-foreground">{texto}</Text>
-      <Button size="lg" className="h-[52px]" disabled={!red.online || !conSesion || estado.sincronizando} onPress={() => void OutboxManager.procesarCola(true)}>
+      <Button size="lg" className="h-[52px]" disabled={!red.online || !conSesion || estado.sincronizando || pendientes === 0} onPress={() => void OutboxManager.procesarCola(true)}>
         {estado.sincronizando ? <ActivityIndicator color={colores['primary-foreground']} /> : <Icon as={ArrowsClockwise} size={18} weight="bold" className="text-primary-foreground" />}
         <Text>Sincronizar ahora</Text>
       </Button>

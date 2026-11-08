@@ -24,7 +24,8 @@ export default function PendientesScreen() {
   const { sesion } = useSesion();
   const { tienda } = useTienda();
   const q = useOutbox();
-  const filas = [...q.mias].sort((a, b) => PRIORIDAD[a.estado] - PRIORIDAD[b.estado] || b.creadoEn - a.creadoEn);
+  // Las que faltan enviar, en el orden en que salen (FIFO); el resto, lo más nuevo primero.
+  const filas = [...q.mias].sort((a, b) => PRIORIDAD[a.estado] - PRIORIDAD[b.estado] || (PRIORIDAD[a.estado] === 1 ? a.creadoEn - b.creadoEn : b.creadoEn - a.creadoEn));
   const terminadas = q.mias.filter(terminada).length;
 
   return (
