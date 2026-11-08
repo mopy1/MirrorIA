@@ -1,6 +1,3 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import { SuscripcionScreen } from '@/src/features/subscription/screens/SuscripcionScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
-export default function Pantalla() {
-  return <EnConstruccion titulo="suscripcion" />;
-}
+export default SuscripcionScreen;

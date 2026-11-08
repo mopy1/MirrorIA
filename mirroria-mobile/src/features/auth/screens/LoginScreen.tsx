@@ -8,14 +8,16 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sparkles } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Icon } from '@/components/ui/icon';
+import { BrandLogo } from '@/components/brand-logo';
+import { useMarcaTienda } from '@/src/features/saas/hooks/useMarcaTienda';
+import { AccesosPlataforma } from '../components/AccesosPlataforma';
 import { AuthBackButton } from '@/components/common/AuthBackButton';
 import { LoginForm } from '../components/LoginForm';
 
 export function LoginScreen() {
+  const { marca } = useMarcaTienda();
   const translateY = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
   const logoOpacity = useRef(new Animated.Value(1)).current;
@@ -111,15 +113,15 @@ export function LoginScreen() {
               }}
               className="items-center mb-6"
             >
-              <View className="w-12 h-12 rounded-2xl bg-primary items-center justify-center mb-2.5 shadow-md">
-                <Icon as={Sparkles} size={24} className="text-primary-foreground" />
+              <View style={{ alignItems: 'center' }}>
+                <BrandLogo size="xl" withText={false} className="mb-2.5" />
+                <Text className="text-2xl font-bold tracking-tight text-foreground text-center">
+                  {marca?.nombre ?? 'MirrorIA'}
+                </Text>
+                <Text className="text-xs uppercase tracking-widest text-muted-foreground mt-1 text-center">
+                  Boutique & Probador Virtual
+                </Text>
               </View>
-              <Text className="text-2xl font-bold tracking-tight text-foreground">
-                Mirror<Text className="text-primary">IA</Text>
-              </Text>
-              <Text className="text-xs uppercase tracking-widest text-muted-foreground mt-1">
-                Boutique & Probador Virtual
-              </Text>
             </Animated.View>
 
             {/* Tarjeta de Formulario */}
@@ -134,6 +136,7 @@ export function LoginScreen() {
                 <LoginForm />
               </CardContent>
             </Card>
+            <AccesosPlataforma />
           </Animated.View>
         </ScrollView>
       </Pressable>

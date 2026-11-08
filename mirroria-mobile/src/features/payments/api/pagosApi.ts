@@ -15,6 +15,16 @@ export const pagosApi = {
     });
   },
 
+  /** PayPal: devuelve la URL para aprobar el pago; el cobro se captura al confirmar. */
+  async iniciarPaypal(ventaId: string): Promise<SesionTarjetaResponse> {
+    return apiFetch<SesionTarjetaResponse>(`/pagos/ventas/${ventaId}/paypal`, { method: 'POST' });
+  },
+
+  /** Al volver de Stripe o PayPal: el servidor le pregunta a la pasarela si se pagó. */
+  async confirmarPasarela(ventaId: string): Promise<{ estado: string }> {
+    return apiFetch<{ estado: string }>(`/pagos/ventas/${ventaId}/confirmar-tarjeta`, { method: 'POST' });
+  },
+
   async iniciarManual(
     ventaId: string,
     metodo: MetodoPagoManual,
