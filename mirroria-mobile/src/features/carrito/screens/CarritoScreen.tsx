@@ -8,14 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useSesion } from '@/contexts/SesionContext';
+import { enCurso } from '@/lib/outbox/consultas';
+import { useOutbox } from '@/lib/outbox/use-outbox';
+import { AvisoCompraPendiente } from '../components/AvisoCompraPendiente';
 import { FilaCarrito } from '../components/FilaCarrito';
 import { ResumenCarrito } from '../components/ResumenCarrito';
 import { useCarritoLocal } from '../hooks/use-carrito-local';
 
-/** Tab Carrito: visitante → iniciar sesión; clienta → su carrito (espejo, se ve sin red). */
+/** Tab Carrito: visitante → iniciar sesión; clienta → su carrito (espejo + lo agregado sin red). */
 export default function CarritoScreen() {
   const { sesion } = useSesion();
   const q = useCarritoLocal();
+  const compra = useOutbox().mias.find((f) => f.tipo === 'CHECKOUT' && enCurso(f)) ?? null;
   const items = q.data ?? [];
   const total = items.reduce((s, i) => s + i.precioCents * i.cantidad, 0);
   const unidades = items.reduce((s, i) => s + i.cantidad, 0);
@@ -40,6 +44,7 @@ export default function CarritoScreen() {
       <View className="px-5 pb-2 pt-4">
         <Titulo nivel="display">Tu carrito</Titulo>
       </View>
+      {compra ? <AvisoCompraPendiente fila={compra} /> : null}
       {q.isPending ? (
         <View className="gap-4 px-5 pt-4">
           {[0, 1].map((i) => (
@@ -57,7 +62,7 @@ export default function CarritoScreen() {
       ) : (
         <>
           <FlatList data={items} keyExtractor={(i) => i.varianteId} renderItem={({ item }) => <FilaCarrito item={item} />} contentContainerClassName="px-5" />
-          <ResumenCarrito totalCents={total} unidades={unidades} />
+          <ResumenCarrito totalCents={total} unidades={unidades} compraEnCurso={!!compra} />
         </>
       )}
     </Pantalla>

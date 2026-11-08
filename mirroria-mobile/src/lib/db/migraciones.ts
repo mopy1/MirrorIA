@@ -122,4 +122,24 @@ SELECT s.tenant_id, s.variante_id, s.sucursal_id,
 FROM stock_local s;
 `,
   },
+  {
+    version: 2,
+    sql: `
+-- v2 (M2) ------------------------------------------------------------
+-- Texto para la clienta y datos que no viajan al backend (prenda, sucursal, total)
+ALTER TABLE outbox_local ADD COLUMN descripcion TEXT NOT NULL DEFAULT '';
+ALTER TABLE outbox_local ADD COLUMN meta_json TEXT;
+
+-- Línea de tiempo de cada operación: PENDIENTE → ENVIANDO → CONFIRMADA/COMPENSADA/RECHAZADA
+CREATE TABLE IF NOT EXISTS outbox_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  outbox_id TEXT NOT NULL REFERENCES outbox_local(id) ON DELETE CASCADE,
+  estado TEXT NOT NULL,
+  en INTEGER NOT NULL,
+  codigo INTEGER,
+  detalle TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_eventos ON outbox_eventos(outbox_id, id);
+`,
+  },
 ];

@@ -27,7 +27,7 @@ export default function FichaScreen() {
   const red = useEstadoRed();
   const q = useFicha(productoId);
   const sel = useSeleccionVariante(q.data);
-  const acc = useAccionesFicha(productoId, sel.variante);
+  const acc = useAccionesFicha(productoId, q.data, sel.variante);
 
   let cuerpo: React.ReactNode;
   if (q.isPending) cuerpo = <FichaSkeleton />;

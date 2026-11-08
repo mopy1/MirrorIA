@@ -22,10 +22,10 @@ function encolar(db: DatabaseSync, id: string, estado: string, cantidad: number)
   db.prepare(`INSERT INTO outbox_items VALUES (?, 'v1', 's1', ?, 'DESCUENTA')`).run(id, cantidad);
 }
 
-test('v1 crea todas las tablas de la spec', () => {
+test('v1 + v2 crean todas las tablas de la spec', () => {
   const db = base();
   const tablas = (db.prepare(`SELECT name FROM sqlite_master WHERE type IN ('table','view')`).all() as { name: string }[]).map((t) => t.name);
-  for (const t of ['catalogo_local', 'variantes_local', 'stock_local', 'sucursales_local', 'carrito_local', 'outbox_local', 'outbox_items', 'configuracion_sync', 'avisos_local', 'v_stock_libre']) {
+  for (const t of ['catalogo_local', 'variantes_local', 'stock_local', 'sucursales_local', 'carrito_local', 'outbox_local', 'outbox_items', 'configuracion_sync', 'avisos_local', 'v_stock_libre', 'outbox_eventos']) {
     assert.ok(tablas.includes(t), `falta ${t}`);
   }
 });

@@ -9,3 +9,20 @@ export function haceCuanto(ms: number, ahora = Date.now()): string {
   const d = Math.round(h / 24);
   return d === 1 ? 'hace 1 día' : `hace ${d} días`;
 }
+
+const LA_PAZ_MS = -4 * 60 * 60 * 1000; // UTC−4 todo el año (sin horario de verano)
+const dos = (n: number) => String(n).padStart(2, '0');
+
+/** "14:32" en hora de La Paz. */
+export function horaLaPaz(ms: number): string {
+  const d = new Date(ms + LA_PAZ_MS);
+  return `${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())}`;
+}
+
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+/** "sáb 7 · 14:32" en hora de La Paz. */
+export function diaHoraLaPaz(ms: number): string {
+  const d = new Date(ms + LA_PAZ_MS);
+  return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} · ${horaLaPaz(ms)}`;
+}

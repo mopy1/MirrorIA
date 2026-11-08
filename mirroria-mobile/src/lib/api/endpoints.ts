@@ -11,4 +11,6 @@ export const EP = {
   tallas: '/catalogo/tallas',
   inventario: '/inventario',
   carrito: (usuarioId: string) => `/ventas/carrito/${usuarioId}`,
+  validarCupon: '/promociones/cupones/validar',
+  cupoReservas: '/reservas/mias/cupo',
 } as const;

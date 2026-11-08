@@ -1,19 +1,22 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useSesion } from '@/contexts/SesionContext';
-import { CLAVE_SYNC } from '@/features/espejo/hooks/use-sincronizacion-espejo';
-import { agregarAlCarrito } from '../api/carrito.api';
+import { useTienda } from '@/contexts/TiendaContext';
+import { encolarAgregarCarrito } from '@/lib/outbox/operaciones';
+import type { MetaOperacion } from '@/lib/outbox/tipos';
 
-/** Agrega una variante y refresca el espejo (así `carrito_local` y el badge de la tab se actualizan). */
+/**
+ * "Agregar al carrito" SIEMPRE por la outbox (también sin red, spec §5.3): se ve al instante
+ * con badge "Pendiente" y el `OutboxManager` lo envía cuando hay red.
+ */
 export function useAgregarCarrito() {
   const { sesion } = useSesion();
-  const qc = useQueryClient();
+  const { tienda } = useTienda();
   return useMutation({
-    mutationFn: (varianteId: string) => agregarAlCarrito(sesion!.usuario.id, varianteId),
-    onSuccess: () => {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      void qc.refetchQueries({ queryKey: CLAVE_SYNC });
-    },
+    networkMode: 'always',
+    mutationFn: (p: { varianteId: string; meta: MetaOperacion }) =>
+      encolarAgregarCarrito({ tenantId: tienda!.id, usuarioId: sesion!.usuario.id, ...p }),
+    onSuccess: () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
     onError: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
   });
 }

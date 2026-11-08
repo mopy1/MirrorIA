@@ -15,6 +15,9 @@ import { TemaProvider, useTema } from '@/contexts/TemaContext';
 import { TiendaProvider, useTienda } from '@/contexts/TiendaContext';
 import { useSincronizacionEspejo } from '@/features/espejo/hooks/use-sincronizacion-espejo';
 import { obtenerDb } from '@/lib/db/sqlite-local';
+import { ModalConflictoStock } from '@/features/sync/components/ModalConflictoStock';
+import { OutboxManager } from '@/lib/outbox/outbox-manager';
+import { useMotorOutbox } from '@/lib/outbox/use-motor-outbox';
 import { NetInfoListener } from '@/lib/red/net-info-listener';
 import { FUENTES_APP } from '@/lib/tema/fuentes';
 
@@ -28,12 +31,14 @@ const queryClient = new QueryClient({
 
 AppState.addEventListener('change', (s) => focusManager.setFocused(s === 'active'));
 
-/** Base lista antes de pintar: SQLite migrado + NetInfoListener escuchando. */
-const base = obtenerDb().then(() => NetInfoListener.iniciar());
+/** Base lista antes de pintar: SQLite migrado + NetInfoListener + OutboxManager (ENVIANDO → PENDIENTE). */
+const base = obtenerDb()
+  .then(() => NetInfoListener.iniciar())
+  .then(() => OutboxManager.iniciar());
 
 /**
  * Frontera ICONIX `PantallaMovilApp`: layout raíz con los providers
- * (Query, Tienda, Sesión, Tema, SQLite, NetInfo) y el navegador.
+ * (Query, Tienda, Sesión, Tema, SQLite, NetInfo, Outbox), el navegador y el modal global de conflicto.
  */
 export default function PantallaMovilApp() {
   const [fuentes] = useFonts(FUENTES_APP);
@@ -71,6 +76,7 @@ function Navegacion() {
   const [lista, setLista] = React.useState(listaAhora);
   if (listaAhora && !lista) setLista(true);
   useSincronizacionEspejo();
+  useMotorOutbox();
 
   React.useEffect(() => {
     if (lista) void SplashScreen.hideAsync();
@@ -87,6 +93,7 @@ function Navegacion() {
         <Stack.Screen name="acceso" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(tabs)" />
       </Stack>
+      <ModalConflictoStock />
     </>
   );
 }

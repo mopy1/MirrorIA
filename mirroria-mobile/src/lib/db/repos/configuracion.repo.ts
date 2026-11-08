@@ -6,7 +6,9 @@ export type ClaveConfig =
   | 'tienda_json'
   | 'directorio_json'
   | 'modo_sin_red'
-  | `ultimo_sync_espejo:${string}`;
+  | `ultimo_sync_espejo:${string}`
+  | `grupo_carrito:${string}`
+  | `cupo_json:${string}`;
 
 export async function leerConfig(clave: ClaveConfig): Promise<string | null> {
   const db = await obtenerDb();

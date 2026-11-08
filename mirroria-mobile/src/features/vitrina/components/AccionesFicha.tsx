@@ -26,18 +26,19 @@ export function AccionesFicha(p: Props) {
   const insets = useSafeAreaInsets();
   const { colores } = useTema();
   const sinRed = !p.online && !p.agotada;
+  const aviso = p.online ? 'Agregada a tu carrito' : 'Guardada: se envía sola cuando vuelva la red';
   return (
     <View className="border-t border-border bg-background px-5 pt-3" style={{ paddingBottom: insets.bottom + 10 }}>
       {p.agregada ? (
         <Pressable onPress={() => router.navigate('/carrito')} className="mb-2 flex-row items-center gap-2" accessibilityRole="link">
           <Icon as={CheckCircle} size={18} weight="fill" className="text-success" />
-          <Text className="flex-1 text-sm">Agregada a tu carrito</Text>
+          <Text className="flex-1 text-sm">{aviso}</Text>
           <Text className="font-body-semibold text-sm text-primary">Ver carrito</Text>
         </Pressable>
       ) : null}
       {p.error ? <Text className="mb-2 text-sm text-danger">{mensajeDeError(p.error)}</Text> : null}
-      {sinRed ? <Text className="mb-2 text-xs text-muted-foreground">Sin conexión: para agregar al carrito necesitás red en esta versión.</Text> : null}
-      <Button size="lg" className="h-[52px]" disabled={p.agregando || sinRed} onPress={p.agotada ? p.onAvisame : p.onAgregar}>
+      {sinRed && !p.agregada ? <Text className="mb-2 text-xs text-muted-foreground">Sin conexión: la agregamos igual y queda “Pendiente de confirmar”.</Text> : null}
+      <Button size="lg" className="h-[52px]" disabled={p.agregando} onPress={p.agotada ? p.onAvisame : p.onAgregar}>
         {p.agregando ? <ActivityIndicator color={colores['primary-foreground']} /> : null}
         <Text>{p.agotada ? 'Avisame cuando vuelva' : `Agregar al carrito · ${formatoBs(p.precioCents)}`}</Text>
       </Button>
