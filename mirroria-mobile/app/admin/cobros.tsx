@@ -1,6 +1,11 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import React from 'react';
+import { ConPermiso } from '@/src/features/staff/components/ConPermiso';
+import { CobrosScreen } from '@/src/features/staff/screens/CobrosScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
 export default function Pantalla() {
-  return <EnConstruccion titulo="cobros" />;
+  return (
+    <ConPermiso href="/admin/cobros" titulo="Cobros por confirmar">
+      <CobrosScreen />
+    </ConPermiso>
+  );
 }

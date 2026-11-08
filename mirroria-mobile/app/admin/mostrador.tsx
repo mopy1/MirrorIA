@@ -1,6 +1,11 @@
-import { EnConstruccion } from '@/components/admin/EnConstruccion';
+import React from 'react';
+import { ConPermiso } from '@/src/features/staff/components/ConPermiso';
+import { MostradorScreen } from '@/src/features/mostrador/screens/MostradorScreen';
 
-// Pantalla pendiente: la reemplaza el módulo correspondiente.
 export default function Pantalla() {
-  return <EnConstruccion titulo="mostrador" />;
+  return (
+    <ConPermiso href="/admin/mostrador" titulo="Mostrador">
+      <MostradorScreen />
+    </ConPermiso>
+  );
 }
