@@ -17,9 +17,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colores.foreground,
+        tabBarActiveTintColor: colores.primary,
         tabBarInactiveTintColor: colores['muted-foreground'],
-        tabBarStyle: { backgroundColor: colores.background, borderTopColor: colores.border, height: 64, paddingTop: 6 },
+        tabBarStyle: { backgroundColor: colores.background, borderTopColor: colores.border },
         tabBarLabelStyle: { fontFamily: 'Geist_500Medium', fontSize: 11 },
         tabBarBadgeStyle: { backgroundColor: colores.primary, color: colores['primary-foreground'], fontFamily: 'GeistMono_500Medium', fontSize: 10 },
         sceneStyle: { backgroundColor: colores.background },

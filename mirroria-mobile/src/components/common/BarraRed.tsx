@@ -25,7 +25,7 @@ export function BarraRed({ ultimoSync }: { ultimoSync?: string | null }) {
         <Icon as={CloudSlash} size={16} weight="bold" className="text-warning" />
         <Text className="font-body-semibold text-xs text-foreground">{titulo}</Text>
         <Text className="flex-1 text-xs text-muted-foreground" numberOfLines={1}>
-          {ultimoSync ? `· vitrina guardada ${ultimoSync}` : '· mostrando lo guardado en el teléfono'}
+          {ultimoSync ? `· guardado ${ultimoSync}` : '· usando lo guardado'}
         </Text>
       </Pressable>
     </Animated.View>

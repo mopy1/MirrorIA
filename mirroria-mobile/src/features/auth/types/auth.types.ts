@@ -22,7 +22,7 @@ export type DatosRegistro = z.infer<typeof esquemaRegistro>;
 /** D2: el personal de la tienda no usa la app. */
 export class ErrorCuentaPersonal extends Error {
   constructor() {
-    super('Tu cuenta es del personal de la tienda: usala en la web (mirroria…/admin).');
+    super('Tu cuenta es del personal de la tienda: usala en la web, desde el panel de administración.');
     this.name = 'ErrorCuentaPersonal';
   }
 }

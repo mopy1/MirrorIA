@@ -19,6 +19,9 @@ export function HeroVitrina({ tienda, insetSuperior }: { tienda: TiendaDirectori
     <View style={{ height: 380 + insetSuperior }} className="bg-muted">
       {foto ? <Image source={foto} style={{ flex: 1 }} contentFit="cover" transition={200} /> : null}
       <Velo />
+      <View className="absolute left-0 right-0 top-0" style={{ height: insetSuperior + 96 }}>
+        <Velo desde="arriba" opacidad={0.5} />
+      </View>
       <View className="absolute left-0 right-0 flex-row items-center gap-2.5 px-5" style={{ top: insetSuperior + 10 }}>
         <LogoTienda tienda={tienda} tamano={34} />
         <RNText className="flex-1 text-white" style={{ fontFamily: familiaTitulos, fontSize: 17 }} numberOfLines={1}>

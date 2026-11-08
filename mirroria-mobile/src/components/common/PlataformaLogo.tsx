@@ -15,7 +15,7 @@ export function PlataformaLogo({ tamano = 28 }: { tamano?: number }) {
       <RNText style={estilo}>m</RNText>
       <View>
         <View
-          style={{ position: 'absolute', top: tamano * 0.1, left: tamano * 0.06, width: punto, height: punto, borderRadius: punto / 2, backgroundColor: '#C3F74C' }}
+          style={{ position: 'absolute', top: tamano * 0.1, left: tamano * 0.15, width: punto, height: punto, borderRadius: punto / 2, backgroundColor: '#C3F74C' }}
         />
         <RNText style={estilo}>ı</RNText>
       </View>

@@ -8,15 +8,11 @@ export const libreTotal = (v: VarianteFicha) => v.stock.reduce((s, x) => s + x.l
 export function useSeleccionVariante(ficha: FichaPrenda | null | undefined) {
   const variantes = ficha?.variantes ?? [];
   const inicial = variantes.find((v) => libreTotal(v) > 0) ?? variantes[0];
-  const [color, setColor] = React.useState<string | undefined>(inicial?.color);
-  const [talla, setTalla] = React.useState<string | undefined>(inicial?.talla);
-
-  React.useEffect(() => {
-    if (!color && inicial) {
-      setColor(inicial.color);
-      setTalla(inicial.talla);
-    }
-  }, [color, inicial]);
+  // Lo elegido por la clienta; mientras no elija nada manda la variante inicial (sin efectos).
+  const [colorElegido, setColor] = React.useState<string | undefined>();
+  const [tallaElegida, setTalla] = React.useState<string | undefined>();
+  const color = colorElegido ?? inicial?.color;
+  const talla = tallaElegida ?? inicial?.talla;
 
   const colores = [...new Map(variantes.map((v) => [v.color, v.colorHex])).entries()].map(([nombre, hex]) => ({ nombre, hex }));
   const delColor = variantes.filter((v) => v.color === color);

@@ -23,7 +23,7 @@ export function InterruptorSinRed() {
       </View>
       <View className="flex-row items-center gap-3 border-t border-border pt-4">
         <View className="flex-1">
-          <Text className="font-body-medium text-sm">Simular "Sin red"</Text>
+          <Text className="font-body-medium text-sm">Simular “Sin red”</Text>
           <Text className="text-xs leading-4 text-muted-foreground">Para la demo: la app actúa como en modo avión.</Text>
         </View>
         <Switch checked={red.modoSinRed} onCheckedChange={(v) => void NetInfoListener.ponerModoSinRed(v)} accessibilityLabel='Simular "Sin red"' />

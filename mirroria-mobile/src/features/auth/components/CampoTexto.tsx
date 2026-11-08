@@ -25,6 +25,7 @@ export function CampoTexto<T extends FieldValues>({ control, nombre, etiqueta, .
           <Label nativeID={`campo-${nombre}`}>{etiqueta}</Label>
           <Input
             aria-labelledby={`campo-${nombre}`}
+            ref={field.ref}
             value={field.value as string}
             onChangeText={field.onChange}
             onBlur={field.onBlur}

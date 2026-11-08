@@ -19,11 +19,13 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
   const { tienda } = useTienda();
   const slug = tienda?.slug ?? null;
   const [sesion, setSesion] = React.useState<Sesion | null>(null);
-  const [cargada, setCargada] = React.useState(false);
+  /** Slug cuya sesión ya se leyó de SecureStore (así no se marca 'cargada' con la de otra tienda). */
+  const [leidaPara, setLeidaPara] = React.useState<string | null | undefined>(undefined);
+  const cargada = leidaPara === slug;
 
   React.useEffect(() => {
     let vivo = true;
-    setCargada(false);
+    contextoHttp.token = null; // nunca mandar el token de otra tienda mientras se lee la de esta
     (async () => {
       let s = slug ? await leerSesion(slug) : null;
       if (s && (jwtVencido(s.token) || s.usuario.role !== 'CUSTOMER')) {
@@ -33,7 +35,7 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
       if (!vivo) return;
       contextoHttp.token = s?.token ?? null;
       setSesion(s);
-      setCargada(true);
+      setLeidaPara(slug);
     })();
     return () => {
       vivo = false;
@@ -63,7 +65,7 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [cerrarSesion]);
 
-  const valor = React.useMemo(() => ({ sesion, cargada, iniciarSesion, cerrarSesion }), [sesion, cargada, iniciarSesion, cerrarSesion]);
+  const valor = React.useMemo(() => ({ sesion: cargada ? sesion : null, cargada, iniciarSesion, cerrarSesion }), [sesion, cargada, iniciarSesion, cerrarSesion]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 

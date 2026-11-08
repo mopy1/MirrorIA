@@ -12,12 +12,12 @@ import { CampoTexto } from './CampoTexto';
 export function FormLogin() {
   const { colores } = useTema();
   const m = useLogin();
-  const { control, handleSubmit } = useForm<DatosLogin>({ resolver: zodResolver(esquemaLogin), defaultValues: { email: '', password: '' } });
+  const { control, handleSubmit, setFocus } = useForm<DatosLogin>({ resolver: zodResolver(esquemaLogin), defaultValues: { email: '', password: '' } });
   return (
     <View className="gap-4">
       <AvisoAcceso error={m.error} />
-      <CampoTexto control={control} nombre="email" etiqueta="Correo" keyboardType="email-address" autoCapitalize="none" autoComplete="email" placeholder="tu@correo.com" />
-      <CampoTexto control={control} nombre="password" etiqueta="Contraseña" secureTextEntry autoComplete="current-password" placeholder="Tu contraseña" onSubmitEditing={() => void handleSubmit((d) => m.mutate(d))()} />
+      <CampoTexto control={control} nombre="email" etiqueta="Correo" keyboardType="email-address" autoCapitalize="none" autoComplete="email" placeholder="tu@correo.com" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => setFocus('password')} />
+      <CampoTexto control={control} nombre="password" etiqueta="Contraseña" secureTextEntry autoComplete="current-password" placeholder="Tu contraseña" returnKeyType="go" onSubmitEditing={() => void handleSubmit((d) => m.mutate(d))()} />
       <Button size="lg" className="mt-2 h-[52px]" disabled={m.isPending} onPress={() => void handleSubmit((d) => m.mutate(d))()}>
         {m.isPending ? <ActivityIndicator color={colores['primary-foreground']} /> : null}
         <Text>{m.isPending ? 'Entrando…' : 'Entrar'}</Text>

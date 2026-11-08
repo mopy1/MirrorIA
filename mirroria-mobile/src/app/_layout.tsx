@@ -65,7 +65,11 @@ function Navegacion() {
   const tienda = useTienda();
   const sesion = useSesion();
   const { tema, colores } = useTema();
-  const lista = tienda.cargada && sesion.cargada;
+  // Solo el PRIMER arranque espera a tienda y sesión: después nunca se desmonta el navegador
+  // (si no, al cambiar de tienda se pierde el estado de navegación).
+  const listaAhora = tienda.cargada && sesion.cargada;
+  const [lista, setLista] = React.useState(listaAhora);
+  if (listaAhora && !lista) setLista(true);
   useSincronizacionEspejo();
 
   React.useEffect(() => {
@@ -73,6 +77,7 @@ function Navegacion() {
   }, [lista]);
   if (!lista) return null;
 
+  // La StatusBar raíz monta primero; una pantalla puede apilar la suya encima (la vitrina sobre su foto).
   return (
     <>
       <StatusBar style={tema.oscuro ? 'light' : 'dark'} />
