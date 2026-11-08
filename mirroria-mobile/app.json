@@ -57,7 +57,9 @@
           "cameraPermission": "MirrorIA usa la cámara para probarte prendas en vivo con IA."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true
