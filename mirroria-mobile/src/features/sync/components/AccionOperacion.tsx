@@ -29,9 +29,9 @@ export function AccionOperacion({ fila }: { fila: FilaOutbox }) {
     texto = `Pagar ${formatoBs(total)}`;
     nota = 'El pago necesita conexión (nunca se paga sin red).';
     accion = () => router.push({ pathname: '/carrito/pago/[ventaId]', params: { ventaId: r.id as string, total: String(total) } });
-  } else if (fila.estado === 'CONFIRMADA' && fila.tipo === 'RESERVA_CREAR') {
-    texto = 'Ver mis reservas';
-    accion = () => router.navigate('/mis-cosas/reservas');
+  } else if (fila.estado === 'CONFIRMADA' && fila.tipo === 'RESERVA_CREAR' && typeof r.id === 'string') {
+    texto = 'Ver mi pase de tienda';
+    accion = () => router.navigate({ pathname: '/mis-cosas/reservas/[reservaId]', params: { reservaId: r.id as string } });
   } else if (fila.estado === 'COMPENSADA') {
     texto = 'Ver alternativas';
     accion = () => conflictosStore.abrir({ fila, detalle: (r.detalles ?? {}) as DetalleConflicto });

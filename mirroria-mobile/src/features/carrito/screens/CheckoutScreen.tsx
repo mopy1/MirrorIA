@@ -40,7 +40,7 @@ export default function CheckoutScreen() {
     );
   else
     cuerpo = (
-      <ScrollView contentContainerClassName="gap-7 px-5 pb-8 pt-2">
+      <ScrollView contentContainerClassName="gap-7 px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
         <Seccion titulo="Tus prendas">
           <LineasCompra lineas={c.items.map((i) => ({ prenda: i.nombre, talla: i.talla, color: i.color, cantidad: i.cantidad, precioCents: i.precioCents }))} />
         </Seccion>

@@ -15,6 +15,7 @@ import { TemaProvider, useTema } from '@/contexts/TemaContext';
 import { TiendaProvider, useTienda } from '@/contexts/TiendaContext';
 import { useSincronizacionEspejo } from '@/features/espejo/hooks/use-sincronizacion-espejo';
 import { obtenerDb } from '@/lib/db/sqlite-local';
+import { useAbrirDesdeNotificacion } from '@/lib/notificaciones/use-abrir-notificacion';
 import { ModalConflictoStock } from '@/features/sync/components/ModalConflictoStock';
 import { OutboxManager } from '@/lib/outbox/outbox-manager';
 import { useMotorOutbox } from '@/lib/outbox/use-motor-outbox';
@@ -77,6 +78,7 @@ function Navegacion() {
   if (listaAhora && !lista) setLista(true);
   useSincronizacionEspejo();
   useMotorOutbox();
+  useAbrirDesdeNotificacion();
 
   React.useEffect(() => {
     if (lista) void SplashScreen.hideAsync();

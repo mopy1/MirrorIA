@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Prohibit } from 'phosphor-react-native';
 import * as React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { EncabezadoPantalla } from '@/components/common/EncabezadoPantalla';
 import { EstadoError } from '@/components/common/EstadoError';
 import { EstadoVacio } from '@/components/common/EstadoVacio';
@@ -30,7 +30,7 @@ export default function PagoScreen() {
   const dic = useDiccionario().data;
   const v = p.venta.data;
   // Al iniciar un cobro, el QR o el código de caja quedan a la vista (debajo del selector).
-  const scroll = React.useRef<ScrollView>(null);
+  const scroll = React.useRef<ScrollViewInstance>(null);
   const cobroVisible = p.cobro?.metodo === p.metodo ? p.cobro?.metodo : null;
   React.useEffect(() => {
     if (cobroVisible) setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250);

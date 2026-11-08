@@ -20,6 +20,8 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Con el teclado abierto (cupón), la tab bar no queda flotando sobre él.
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colores.primary,
         tabBarInactiveTintColor: colores['muted-foreground'],
         tabBarStyle: { backgroundColor: colores.background, borderTopColor: colores.border },
