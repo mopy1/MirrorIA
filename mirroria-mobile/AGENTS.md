@@ -5,10 +5,23 @@ Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE**
 
 ---
 
-## 🎯 Alcance Estricto: Exclusivo para Clientas (`CUSTOMER`)
-- **La aplicación móvil es EXCLUSIVAMENTE para clientas compradoras (`CUSTOMER`).**
-- **Bajo ninguna circunstancia se debe implementar panel o módulos de administración en móvil.**
-- Las funciones administrativas (gestión de productos, stock, sucursales, reportes y usuarios) pertenecen de forma exclusiva al frontend web (`mirroria-frontend` en `/admin`).
+## 🎯 Alcance: clientas + panel de la tienda (paridad con la web, 2026-11-08)
+- **Cambio de regla pedido por el usuario el 2026-11-08:** la app ya NO es solo para clientas. Todo lo del Segundo
+  Parcial que tiene la web está también en el teléfono (rama `movil-paridad`). La regla vieja "nunca panel admin en móvil" queda anulada.
+- **Clienta (`CUSTOMER`):** pestañas `(tabs)` de siempre + pagos QR (Wayra simulado), PayPal y Stripe, compras sin internet (SQLite).
+- **Equipo de la tienda (`ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`):** al entrar va a `/admin` (`app/admin/*`). Menú por rol en
+  `src/features/admin/lib/menu-admin.ts`, mismas reglas que `admin-sidebar.data.ts` de la web; test de cero pantallas huérfanas.
+  Pantallas: Inicio (dashboards BI por rol), Mostrador (caja que vende SIN internet: cola SQLite `src/lib/offline/colaCaja.ts`,
+  misma `Idempotency-Key` y mismo cuerpo en línea y en la cola), Ventas, Cobros, Reservas, Cupones, Catálogo (+ `catalogo/[id]`),
+  Inventario, Proveedores, Reportes con IA (texto y voz con `expo-speech-recognition`, constructor, tabla dinámica, Excel/PDF),
+  Predicciones (ML), Sucursales, Equipo y permisos, Apariencia, Plan y suscripción.
+- **SaaS:** `app/saas/planes`, `app/saas/registro` (alta de tienda en 3 pasos), `app/saas/tiendas` (directorio y cambiar de tienda).
+  La tienda actual vive en `src/lib/tienda.ts` (`tiendaActual()` = cabecera `X-Tenant`, se guarda en el teléfono); la marca de la
+  tienda (nombre, logo, color) se aplica en toda la app.
+- **Panel de la plataforma (`/plataforma`, `DUENO_PLATAFORMA`) NO está en el móvil**: queda solo en la web.
+- **Ver la app en la PC:** `EXPO_PUBLIC_TIENDA=casa-andina npx expo start --web` (en web no hay SQLite: `expoBase.web.ts` es una base
+  vacía; el sin-internet solo funciona en el teléfono). Banco de pruebas con Playwright en `C:\dev\mirroria-qa\movil` (`BRIEF.md`).
+- El dictado por voz y los archivos usan módulos nativos: **hace falta un APK nuevo** (Expo Go no los trae).
 
 ---
 
