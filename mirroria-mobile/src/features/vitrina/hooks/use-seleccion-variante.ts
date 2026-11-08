@@ -4,10 +4,13 @@ import type { FichaPrenda, VarianteFicha } from '@/lib/db/tipos-espejo';
 
 export const libreTotal = (v: VarianteFicha) => v.stock.reduce((s, x) => s + x.libre, 0);
 
-/** Color y talla elegidos; arranca en la primera variante con stock. */
-export function useSeleccionVariante(ficha: FichaPrenda | null | undefined) {
+/**
+ * Color y talla elegidos. Arranca en `varianteInicial` (escáner o aviso, `?variante=`) o, si no
+ * viene, en la primera variante con stock.
+ */
+export function useSeleccionVariante(ficha: FichaPrenda | null | undefined, varianteInicial?: string) {
   const variantes = ficha?.variantes ?? [];
-  const inicial = variantes.find((v) => libreTotal(v) > 0) ?? variantes[0];
+  const inicial = variantes.find((v) => v.id === varianteInicial) ?? variantes.find((v) => libreTotal(v) > 0) ?? variantes[0];
   // Lo elegido por la clienta; mientras no elija nada manda la variante inicial (sin efectos).
   const [colorElegido, setColor] = React.useState<string | undefined>();
   const [tallaElegida, setTalla] = React.useState<string | undefined>();
