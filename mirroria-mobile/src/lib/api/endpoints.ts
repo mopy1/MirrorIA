@@ -25,4 +25,5 @@ export const EP = {
   pagoTarjeta: (ventaId: string) => `/pagos/ventas/${ventaId}/sesion`,
   pagoEfectivo: (ventaId: string) => `/pagos/ventas/${ventaId}/manual`,
   cancelarVenta: (ventaId: string) => `/pagos/ventas/${ventaId}/cancelar`,
+  tokenProbador: '/probador/token', // 🧭 público, sin X-Tenant (token efímero de Decart)
 } as const;

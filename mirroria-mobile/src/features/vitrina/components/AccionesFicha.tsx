@@ -19,6 +19,8 @@ interface Props {
   onAgregar: () => void;
   onReservar: () => void;
   onAvisame: () => void;
+  /** Abre el probador con esta prenda (`/probador?prenda=`). */
+  onProbar: () => void;
   aviso: { activo: boolean; creando: boolean; sinPermiso: boolean };
 }
 
@@ -61,9 +63,9 @@ export function AccionesFicha(p: Props) {
         <Button variant="outline" className="h-11 flex-1" onPress={p.onReservar}>
           <Text>Reservar para probarme</Text>
         </Button>
-        <Button variant="ghost" className="h-11" onPress={() => router.navigate('/probador')}>
+        <Button variant="ghost" className="h-11" onPress={p.onProbar}>
           <Icon as={Sparkle} size={16} weight="fill" className="text-primary" />
-          <Text>Probar con IA</Text>
+          <Text>Probármelo</Text>
         </Button>
       </View>
     </View>

@@ -67,6 +67,7 @@ export default function FichaScreen() {
           onAgregar={acc.onAgregar}
           onReservar={acc.onReservar}
           onAvisame={acc.onAvisame}
+          onProbar={() => router.navigate({ pathname: '/probador', params: { prenda: productoId } })}
           aviso={acc.aviso}
         />
       ) : null}

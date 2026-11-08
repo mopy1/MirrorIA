@@ -1,39 +1,51 @@
-import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { Sparkle } from 'phosphor-react-native';
-import { Text as RNText, View } from 'react-native';
-import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
+import { StatusBar } from 'expo-status-bar';
+import { useIsFocused } from 'expo-router';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BarraRed } from '@/components/common/BarraRed';
 import { Text } from '@/components/ui/text';
-import { useTema } from '@/contexts/TemaContext';
-import { useTienda } from '@/contexts/TiendaContext';
-import { Velo } from '@/components/common/Velo';
-import { urlImagen } from '@/lib/config';
+import { ChipEstadoProbador } from '../components/ChipEstadoProbador';
+import { PanelEstadoProbador } from '../components/PanelEstadoProbador';
+import { PieProbador } from '../components/PieProbador';
+import { TiraPrendas } from '../components/TiraPrendas';
+import { VideoProbador } from '../components/VideoProbador';
+import { useProbador } from '../hooks/use-probador';
 
-/** Tab Probador (D7): reservado "Próximamente" hasta M4 (Decart, development build). */
+/** Tab Probador (M4.4): Decart `lucy-vton-3.5` en vivo con la cámara frontal y las prendas de la vitrina. */
 export default function ProbadorScreen() {
-  const { tienda } = useTienda();
-  const { familiaTitulos } = useTema();
-  const foto = urlImagen(tienda?.marca?.imagenes.probador ?? tienda?.marca?.hero.imagenUrl);
+  const p = useProbador();
+  const enfocada = useIsFocused();
+  const prendas = p.prendas.data ?? [];
+  const conVideo = p.fase === 'en-vivo' || p.fase === 'conectando' || p.fase === 'abriendo-camara';
   return (
     <View className="flex-1 bg-black">
-      {foto ? <Image source={foto} style={{ position: 'absolute', inset: 0 }} contentFit="cover" transition={200} /> : null}
-      <Velo opacidad={0.9} />
-      <View className="flex-1 justify-end px-6" style={{ paddingBottom: 28 }}>
-        <View className="mb-4 flex-row items-center gap-2 self-start rounded-full bg-white/15 px-3 py-1.5">
-          <Icon as={Sparkle} size={14} weight="fill" className="text-white" />
-          <Text className="font-body-semibold text-xs text-white">Llega en la próxima versión</Text>
+      {enfocada ? <StatusBar style="light" /> : null}
+      {conVideo ? <VideoProbador local={p.camara.stream} remoto={p.sesion.remoto} conectando={p.fase !== 'en-vivo'} /> : null}
+      <SafeAreaView edges={['top']} className="flex-1">
+        <View className="bg-background">
+          <BarraRed />
         </View>
-        <RNText className="text-white" style={{ fontFamily: familiaTitulos, fontSize: 32, lineHeight: 36, letterSpacing: -0.6 }}>
-          Probador con IA
-        </RNText>
-        <Text className="mt-3 text-sm leading-5 text-white/85">
-          Vas a verte en vivo con la prenda puesta usando la cámara frontal, antes de reservarla o comprarla.
-        </Text>
-        <Button size="lg" className="mt-6 h-[52px]" onPress={() => router.navigate('/vitrina')}>
-          <Text>Ver vitrina</Text>
-        </Button>
-      </View>
+        <View className="px-5 pt-3">
+          <ChipEstadoProbador fase={p.fase} restante={p.restante} />
+        </View>
+        <View className="flex-1">
+          {conVideo ? null : (
+            <PanelEstadoProbador
+              fase={p.fase}
+              error={p.sesion.error}
+              hayPrendas={prendas.length > 0}
+              onEncender={p.encender}
+              onPermiso={() => void p.camara.pedirPermiso()}
+              onReintentar={p.reintentar}
+            />
+          )}
+        </View>
+        <View className="gap-3 bg-black/55 pb-4 pt-3">
+          {p.fase === 'en-vivo' && p.sesion.error ? <Text className="px-5 text-xs text-white/85">{p.sesion.error}</Text> : null}
+          {prendas.length > 0 ? <TiraPrendas prendas={prendas} elegidaId={p.elegida?.id ?? null} onElegir={p.elegir} /> : null}
+          {p.fase === 'en-vivo' ? <PieProbador prenda={p.elegida} onTerminar={() => p.apagar()} /> : null}
+        </View>
+      </SafeAreaView>
     </View>
   );
 }

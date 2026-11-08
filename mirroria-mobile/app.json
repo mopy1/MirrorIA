@@ -15,7 +15,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -27,7 +30,7 @@
         {
           "backgroundColor": "#281B89",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 150
         }
       ],
       "expo-sqlite",
@@ -37,10 +40,41 @@
           "cameraPermission": "Para escanear la etiqueta de una prenda en la tienda"
         }
       ],
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#281B89"
+        }
+      ],
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "media"
+          }
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Para verte con la prenda puesta en el probador con IA",
+          "microphonePermission": "El probador no usa el micrófono"
+        }
+      ],
+      "expo-dev-client",
+      "./plugins/with-gradle-ram"
     ],
     "experiments": {
       "typedRoutes": true,
