@@ -54,10 +54,12 @@ export class IaController {
     return this.iaService.reporteHibrido(dto, user);
   }
 
+  // Sin LLM (solo SQL armado desde la ficha): el tope es mas alto que el de las rutas con IA, porque
+  // abrir Reportes ya dispara ~7 consultas y con 20 en 10 min la tercera visita (o un aula en el mismo WiFi) daba 429.
   @Post('reportes/consulta')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(20, 10 * 60_000))
+  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(200, 10 * 60_000))
   @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
   @ApiOperation({ summary: 'Ejecutar una ficha de consulta ya armada (sin IA)' })
   @ApiBody({ type: FichaConsultaDto })
