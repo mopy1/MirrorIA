@@ -4,6 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { ApiError } from '@/src/lib/api';
 import { authApi } from '../api/authApi';
 import type { LoginRequest } from '../types/auth.types';
+import { destinoTrasLogin } from '../lib/destino';
 
 export function useLogin() {
   const { login } = useAuth();
@@ -17,8 +18,9 @@ export function useLogin() {
     try {
       const auth = await authApi.login(data);
       await login(auth);
-      // Se vuelve a donde se pidió el login (ej. la ficha de una prenda), no al inicio.
-      if (router.canGoBack()) router.back();
+      // El equipo de la tienda va a su panel; la clienta vuelve a donde se pidió el login.
+      if (auth.usuario.role !== 'CUSTOMER') router.replace(destinoTrasLogin(auth.usuario.role));
+      else if (router.canGoBack()) router.back();
       else router.replace('/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión');

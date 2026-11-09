@@ -6,6 +6,7 @@ import { ProfileHeader } from '../components/ProfileHeader';
 import { GuestPromptCard } from '../components/GuestPromptCard';
 import { StorePassCard } from '../components/StorePassCard';
 import { ProfileNavigationMenu } from '../components/ProfileNavigationMenu';
+import { TiendaActualCard } from '../components/TiendaActualCard';
 
 export function ProfileScreen() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -14,13 +15,13 @@ export function ProfileScreen() {
     <View className="flex-1 bg-background">
       <ScreenHeader
         title="Mi Perfil"
-        subtitle="Experiencia MirrorIA & Tienda"
+        subtitle="Tu cuenta y tu tienda"
         showLogo={false}
       />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 36 }}
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 120 }}
       >
         {isAuthenticated && user ? (
           <>
@@ -32,6 +33,7 @@ export function ProfileScreen() {
         )}
 
         <ProfileNavigationMenu />
+        <TiendaActualCard />
       </ScrollView>
     </View>
   );

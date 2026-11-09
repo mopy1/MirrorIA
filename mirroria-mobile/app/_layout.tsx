@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import { AuthProvider } from '@/src/context/AuthContext';
 import { Sincronizador } from '@/src/lib/offline/Sincronizador';
+import { TemaTienda } from '@/src/features/saas/components/TemaTienda';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -27,11 +28,13 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <Sincronizador />
-      <ThemeProvider value={NAV_THEME.light}>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }} />
-        <PortalHost />
-      </ThemeProvider>
+      <TemaTienda>
+        <ThemeProvider value={NAV_THEME.light}>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false }} />
+          <PortalHost />
+        </ThemeProvider>
+      </TemaTienda>
     </AuthProvider>
   );
 }

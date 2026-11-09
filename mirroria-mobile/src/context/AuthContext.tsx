@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import type { AuthResponse, UsuarioResponse } from '@/src/features/auth/types/auth.types';
 import { setUnauthorizedCallback } from '@/src/lib/api';
 import { storage } from '@/src/lib/storage';
+import { cambiarTienda, cargarTienda } from '@/src/lib/tienda';
 import { AuthContext, type AuthContextValue } from './auth-context';
 
 /** `exp` del JWT (segundos) ya pasado. Token ilegible = se trata como vencido. */
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadStoredUser() {
       try {
+        await cargarTienda();
         const raw = await storage.getItem('mirroria_user');
         const token = await storage.getItem('mirroria_token');
         // El JWT dura 1h: con uno vencido la app mostraba la sesión abierta y
@@ -60,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (auth: AuthResponse) => {
         await storage.setItem('mirroria_token', auth.accessToken);
         await storage.setItem('mirroria_user', JSON.stringify(auth.usuario));
+        if (auth.usuario.tenant?.slug) await cambiarTienda(auth.usuario.tenant.slug);
         setUser(auth.usuario);
       },
       logout: async () => {
@@ -71,5 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user, isLoading]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // Hasta leer la tienda guardada no se pinta nada: toda petición necesita su X-Tenant.
+  return <AuthContext.Provider value={value}>{isLoading ? null : children}</AuthContext.Provider>;
 }

@@ -1,3 +1,5 @@
+import { ESQUEMA_CAJA } from './esquemaCaja';
+
 /** Lo mínimo de SQLite que usa la app: permite probar el SQL real fuera del teléfono. */
 export interface BaseLocal {
   ejecutar(sql: string, params?: (string | number | null)[]): Promise<void>;
@@ -40,6 +42,8 @@ const ESQUEMA = [
     sincronizado_en INTEGER
   )`,
   'CREATE INDEX IF NOT EXISTS idx_outbox_estado ON outbox (tienda, usuario_id, estado, creado_en)',
+  // Caja del mostrador (equipo de la tienda): ver stockCajaLocal.ts y colaCaja.ts.
+  ...ESQUEMA_CAJA,
 ];
 
 export async function prepararBase(db: BaseLocal): Promise<void> {

@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { CreditCard, QrCode, Banknote, CheckCircle2 } from 'lucide-react-native';
+import { CheckCircle2 } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/common/ScreenHeader';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,12 @@ import { cartApi } from '@/src/features/cart/api/cartApi';
 import { pagosApi } from '../api/pagosApi';
 import type { VentaResponseDto } from '@/src/features/cart/types/cart.types';
 import { CobroQrView } from '../components/CobroQrView';
+import { EsperandoPasarela } from '../components/EsperandoPasarela';
+import { MetodosPago } from '../components/MetodosPago';
+import { usePagoPasarela } from '../hooks/usePagoPasarela';
+import { pasarelasApi } from '../api/pasarelasApi';
+import { opcionesDePago, type MetodoCheckout } from '../lib/metodos-pago';
+import type { PasarelaMetadata } from '../types/pasarelas.types';
 import type {
   EstadoCobroQrResponseDto,
   InstruccionesResponseDto,
@@ -38,6 +43,19 @@ export function PaymentScreen() {
     setVista('exito');
   }, []);
 
+  // Stripe y PayPal: al volver se confirma con la pasarela y se lee la venta real.
+  const onVenta = useCallback((v: VentaResponseDto) => {
+    setVenta(v);
+    if (v.estado === 'PAGADA' || v.estado === 'ENTREGADA') setVista('exito');
+  }, []);
+  const pasarela = usePagoPasarela(ventaId, onVenta);
+  const [pasarelas, setPasarelas] = useState<PasarelaMetadata[] | null>(null);
+
+  useEffect(() => {
+    // Sin red o con error se ofrecen todos los medios: la API avisa si alguno no está listo.
+    pasarelasApi.getPasarelas('checkout').then(setPasarelas).catch(() => setPasarelas(null));
+  }, []);
+
   useEffect(() => {
     if (!ventaId) return;
     cartApi
@@ -49,39 +67,6 @@ export function PaymentScreen() {
       .catch(() => setVenta(null))
       .finally(() => setLoading(false));
   }, [ventaId]);
-
-  async function pollVentaHastaPagada(intentos = 6) {
-    for (let i = 0; i < intentos; i++) {
-      await new Promise((r) => setTimeout(r, 1800));
-      try {
-        const v = await cartApi.getVenta(ventaId);
-        setVenta(v);
-        if (v.estado === 'PAGADA') {
-          setVista('exito');
-          return;
-        }
-      } catch {
-        // seguimos intentando
-      }
-    }
-  }
-
-  async function handleTarjeta() {
-    setProcesando('TARJETA');
-    setError(null);
-    try {
-      const { url } = await pagosApi.iniciarTarjeta(ventaId);
-      await WebBrowser.openBrowserAsync(url);
-      // El regreso del navegador no prueba nada por sí solo — el webhook de
-      // Stripe es la única autoridad real. Consultamos el estado real de la
-      // venta unos segundos después de que la clienta cierra el navegador.
-      await pollVentaHastaPagada();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar el pago con tarjeta');
-    } finally {
-      setProcesando(null);
-    }
-  }
 
   async function handleManual(metodo: 'EFECTIVO') {
     setProcesando(metodo);
@@ -95,6 +80,13 @@ export function PaymentScreen() {
     } finally {
       setProcesando(null);
     }
+  }
+
+  function elegirMetodo(m: MetodoCheckout) {
+    setError(null);
+    if (m === 'TARJETA' || m === 'PAYPAL') void pasarela.pagar(m);
+    else if (m === 'QR') setVista('qr');
+    else void handleManual('EFECTIVO');
   }
 
   if (loading) {
@@ -156,31 +148,26 @@ export function PaymentScreen() {
           </View>
         )}
 
-        {vista === 'metodo' && (
+        {vista === 'metodo' && pasarela.esperando && (
+          <EsperandoPasarela
+            pasarela={pasarela.esperando}
+            resultado={pasarela.resultado}
+            revisando={pasarela.revisando}
+            onRevisar={pasarela.revisar}
+            onOtroMedio={pasarela.cancelar}
+          />
+        )}
+
+        {vista === 'metodo' && !pasarela.esperando && (
           <View className="gap-3">
-            <Button disabled={procesando !== null} onPress={handleTarjeta}>
-              <Icon as={CreditCard} size={16} className="text-primary-foreground" />
-              <Text>{procesando === 'TARJETA' ? 'Abriendo…' : 'Pagar con tarjeta'}</Text>
-            </Button>
-            <Button
-              variant="outline"
-              disabled={procesando !== null}
-              onPress={() => {
-                setError(null);
-                setVista('qr');
-              }}
-            >
-              <Icon as={QrCode} size={16} className="text-foreground" />
-              <Text>Pagar con QR</Text>
-            </Button>
-            <Button
-              variant="outline"
-              disabled={procesando !== null}
-              onPress={() => handleManual('EFECTIVO')}
-            >
-              <Icon as={Banknote} size={16} className="text-foreground" />
-              <Text>{procesando === 'EFECTIVO' ? 'Generando…' : 'Pagar en efectivo'}</Text>
-            </Button>
+            {pasarela.error && (
+              <Text className="text-xs font-semibold text-destructive text-center">{pasarela.error}</Text>
+            )}
+            <MetodosPago
+              opciones={opcionesDePago(pasarelas)}
+              procesando={(pasarela.abriendo ?? procesando) as MetodoCheckout | null}
+              onElegir={elegirMetodo}
+            />
             {venta.estado !== 'PENDIENTE' && (
               <Text className="text-[11px] text-muted-foreground text-center">
                 Estado actual: {venta.estado}
