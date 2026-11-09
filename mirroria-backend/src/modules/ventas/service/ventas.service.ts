@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
@@ -13,7 +12,7 @@ import { PromocionesService } from '../../promociones/service/promociones.servic
 import { ReservasService } from '../../reservas/service/reservas.service.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
 import type { CheckoutCarritoDto } from '../dto/checkout-carrito.dto.js';
-import type { CreateVentaPresencialDto } from '../dto/create-venta-presencial.dto.js';
+import type { ComprarReservaDto } from '../dto/comprar-reserva.dto.js';
 import type { VentaResponseDto } from '../dto/ventas-response.dto.js';
 import { CanalVenta, EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { VentaItem } from '../entities/venta-item.entity.js';
@@ -29,7 +28,6 @@ export const comprobanteDe = (ventaId: string): string =>
 interface ItemAVender {
   varianteId: string;
   cantidad: number;
-  precioUnitCents?: number;
 }
 
 interface RegistrarVentaParams {
@@ -37,13 +35,9 @@ interface RegistrarVentaParams {
   sucursalId: string;
   canal: CanalVenta;
   clienteId: string | null;
-  cajeroId: string | null;
-  estadoInicial: EstadoVenta;
   reservaId?: string | null;
   codigoCupon?: string | null;
   claveIdempotencia?: string | null;
-  /** Venta de caja: cuándo se cobró, para validar el precio que trae. */
-  vendidaEn?: Date | null;
 }
 
 @Injectable()
@@ -63,67 +57,33 @@ export class VentasService {
     private readonly promocionesService: PromocionesService,
   ) {}
 
-  // Compra presencial (RF17/RF18): el cajero ya cobró en el punto de caja,
-  // por eso arranca en PAGADA directo — no hay módulo `pagos` de por medio.
-  // `cajeroId` viene de @CurrentUser() en el controller, no del body.
-  async registrarPresencial(
-    dto: CreateVentaPresencialDto,
-    cajeroId: string,
-    clave?: string,
-  ): Promise<VentaResponseDto> {
-    await this.sucursalesService.assertExists(dto.sucursalId);
-    const previa = await this.ventaPorClave(clave);
-    if (previa) return previa;
-    if (dto.clienteId) await this.assertClientaDeLaTienda(dto.clienteId);
-    return this.registrarVenta({
-      items: dto.items,
-      sucursalId: dto.sucursalId,
-      canal: CanalVenta.PRESENCIAL,
-      clienteId: dto.clienteId ?? null,
-      cajeroId,
-      estadoInicial: EstadoVenta.PAGADA,
-      reservaId: dto.reservaId ?? null,
-      codigoCupon: dto.codigoCupon ?? null,
-      claveIdempotencia: clave ?? null,
-      vendidaEn: this.fechaDeCobro(dto.vendidaEn),
-    });
-  }
-
-  /** Hasta 7 días atrás (lo que dura el catálogo guardado) y nunca en el futuro. */
-  private fechaDeCobro(iso?: string): Date | null {
-    if (!iso) return null;
-    const fecha = new Date(iso);
-    const ahora = Date.now();
-    if (fecha.getTime() > ahora + 5 * 60_000 || fecha.getTime() < ahora - 7 * 86_400_000) {
-      throw new OperacionInvalidaException('La fecha de la venta no es válida');
-    }
-    return fecha;
-  }
-
   /**
-   * El precio que trae una venta de caja solo vale si es el que la prenda tenía
-   * al cobrarse: el actual, o el anterior si el cambio fue posterior al cobro.
+   * Compra desde la reserva: la clienta, ya EN_TIENDA, compra las prendas que
+   * reservó. Nace PENDIENTE como el checkout y se paga igual (efectivo en caja,
+   * Stripe o QR Wayra). No descuenta stock acá: las unidades siguen apartadas
+   * por la reserva; al aprobarse el pago `marcarPagada` las da por vendidas y
+   * completa la reserva. Si la compra se cancela o vence, la reserva vuelve a
+   * su ciclo normal (EN_TIENDA hasta "No compró" o la barrida).
    */
-  private precioDeVenta(
-    producto: { precioCents: number; precioAnteriorCents?: number | null; precioCambiadoEn?: Date | null; titulo?: string },
-    cobrado: number | undefined,
-    vendidaEn: Date | null | undefined,
-  ): number {
-    if (!vendidaEn || cobrado === undefined || cobrado === producto.precioCents) return producto.precioCents;
-    const cambioPosterior = producto.precioCambiadoEn && producto.precioCambiadoEn.getTime() > vendidaEn.getTime();
-    if (cambioPosterior && cobrado === producto.precioAnteriorCents) return cobrado;
-    throw new OperacionInvalidaException(
-      `El precio de "${producto.titulo ?? 'la prenda'}" no coincide con el que tenía al momento de la venta`,
-    );
-  }
-
-  /** SQL directo: ventas no importa entidades de seguridad (regla 1). */
-  private async assertClientaDeLaTienda(clienteId: string): Promise<void> {
-    const filas: unknown[] = await this.dataSource.query('SELECT 1 FROM usuarios WHERE id = $1 AND tenant_id = $2', [
-      clienteId,
-      tenantActual(),
-    ]);
-    if (filas.length === 0) throw new RecursoNoEncontradoException('Clienta', clienteId);
+  async comprarReserva(
+    reservaId: string,
+    usuarioId: string,
+    dto: ComprarReservaDto,
+  ): Promise<VentaResponseDto> {
+    return this.dataSource.transaction(async (manager) => {
+      const { sucursalId, items } = await this.reservasService.paraComprar(reservaId, usuarioId, manager);
+      return this.registrarVenta(
+        {
+          items,
+          sucursalId,
+          canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
+          clienteId: usuarioId,
+          reservaId,
+          codigoCupon: dto.codigoCupon ?? null,
+        },
+        manager,
+      );
+    });
   }
 
   private async ventaPorClave(clave?: string): Promise<VentaResponseDto | null> {
@@ -132,9 +92,8 @@ export class VentasService {
     return venta ? this.cargarYMapear(venta) : null;
   }
 
-  // Compra digital (RF14/RF15/RF16): arranca en PENDIENTE porque el cobro
-  // real todavía depende del módulo `pagos` (no construido en este batch) —
-  // ver AGENTS.md, decisión 2026-09-13.
+  // Compra digital (RF14/RF15/RF16): arranca en PENDIENTE; el cobro lo
+  // resuelve el módulo `pagos` (pasarela o confirmación de la cajera).
   async checkoutCarrito(usuarioId: string, dto: CheckoutCarritoDto, clave?: string): Promise<VentaResponseDto> {
     await this.sucursalesService.assertExists(dto.sucursalId);
     const previa = await this.ventaPorClave(clave);
@@ -177,8 +136,6 @@ export class VentasService {
           sucursalId: dto.sucursalId,
           canal: dto.canal === 'WEB' ? CanalVenta.WEB : CanalVenta.MOVIL,
           clienteId: usuarioId,
-          cajeroId: null,
-          estadoInicial: EstadoVenta.PENDIENTE,
           codigoCupon: dto.codigoCupon ?? null,
           claveIdempotencia: clave ?? null,
         },
@@ -211,7 +168,9 @@ export class VentasService {
 
   /**
    * Lleva una venta de PENDIENTE a PAGADA. La llama el modulo `pagos` cuando un
-   * cobro se aprueba — por webhook de Stripe o por confirmacion de un cajero.
+   * cobro se aprueba — por webhook de Stripe, aviso de Wayra o confirmacion de
+   * la cajera. Si es una compra desde la reserva, ahí recién se descuenta el
+   * stock y la reserva pasa a COMPLETADA (en la misma transacción del pago).
    *
    * Idempotente a proposito: Stripe reintenta los webhooks, y una venta que ya
    * esta PAGADA tiene que quedarse quieta en vez de fallar. Pero una venta
@@ -219,7 +178,10 @@ export class VentasService {
    * cobrarla dejaria vendida mercaderia que el sistema cree tener.
    */
   async marcarPagada(ventaId: string, manager?: EntityManager): Promise<void> {
-    const repo = manager ? manager.getRepository(Venta) : this.ventaRepository;
+    // Los llamadores (pagos) pasan su transacción; sin ella se abre una, para
+    // que el cobro y la venta de lo reservado queden juntos o no quede nada.
+    if (!manager) return this.dataSource.transaction((m) => this.marcarPagada(ventaId, m));
+    const repo = manager.getRepository(Venta);
     // UPDATE condicionado a PENDIENTE, no "leer y guardar": un pago tardío
     // leía PENDIENTE, la expiración cancelaba (devolviendo stock y cupón) y el
     // save pisaba CANCELADA con PAGADA. Si la cancelación tiene la fila
@@ -228,8 +190,11 @@ export class VentasService {
       soloTenant({ id: ventaId, estado: EstadoVenta.PENDIENTE }),
       { estado: EstadoVenta.PAGADA, numeroComprobante: comprobanteDe(ventaId) },
     );
-    if (affected === 1) return;
     const venta = await repo.findOne({ where: soloTenant({ id: ventaId }) });
+    if (affected === 1) {
+      if (venta?.reservaId) await this.venderLoReservado(venta, manager);
+      return;
+    }
     if (!venta) {
       throw new RecursoNoEncontradoException('Venta', ventaId);
     }
@@ -237,6 +202,27 @@ export class VentasService {
       return;
     }
     throw new OperacionInvalidaException(`No se puede cobrar una venta en estado ${venta.estado}`);
+  }
+
+  // Compra desde la reserva ya pagada: las unidades apartadas pasan a
+  // vendidas. Se resta cantidadDisponible sin respetar reservadas (son las de
+  // esta reserva) y completarPorVenta libera su cantidadReservada: un solo
+  // descuento.
+  private async venderLoReservado(venta: Venta, manager: EntityManager): Promise<void> {
+    const items = await manager
+      .getRepository(VentaItem)
+      .find({ where: soloTenant({ venta: { id: venta.id } }) });
+    for (const item of items) {
+      await this.inventarioSucursalService.ajustarStock({
+        varianteId: item.varianteId,
+        sucursalId: venta.sucursalId,
+        cantidad: -item.cantidad,
+        tipoMovimiento: TipoMovimientoInventario.VENTA,
+        usuarioId: venta.clienteId,
+        manager,
+      });
+    }
+    await this.reservasService.completarPorVenta(venta.reservaId!, venta.sucursalId, manager);
   }
 
   /**
@@ -298,7 +284,9 @@ export class VentasService {
         where: soloTenant({ venta: { id: ventaId } }),
       });
 
-      for (const item of items) {
+      // Una compra desde la reserva nunca descontó stock (sigue apartado por
+      // la reserva) ni vació el carrito: solo se devuelve el cupón.
+      for (const item of venta.reservaId ? [] : items) {
         await this.inventarioSucursalService.ajustarStock({
           varianteId: item.varianteId,
           sucursalId: venta.sucursalId,
@@ -316,7 +304,7 @@ export class VentasService {
 
       // El checkout vació el carrito al crear la venta: sin esto las prendas
       // desaparecían al cancelar o vencer. Vuelven sumándose a lo que haya.
-      if (venta.clienteId) {
+      if (venta.clienteId && !venta.reservaId) {
         await this.carritosService.devolverItems(venta.clienteId, items, manager);
       }
 
@@ -326,10 +314,10 @@ export class VentasService {
   }
 
   /**
-   * Núcleo compartido por ambos flujos de compra: resuelve el precio real de
-   * cada variante, descuenta stock vía InventarioSucursalService (RF20 — acá
-   * es donde el inventario se actualiza automáticamente), y guarda
-   * venta + venta_items en una sola transacción.
+   * Núcleo compartido por ambos flujos de compra (carrito y reserva): resuelve
+   * el precio real de cada variante, descuenta stock vía
+   * InventarioSucursalService (RF20; salvo en la compra desde la reserva, que
+   * descuenta al pagarse) y guarda venta + venta_items en una sola transacción.
    */
   private async registrarVenta(
     params: RegistrarVentaParams,
@@ -341,8 +329,9 @@ export class VentasService {
     const variantes = await Promise.all(
       params.items.map((item) => this.productosService.findVarianteById(item.varianteId, managerExterno)),
     );
-    // Online no se vende lo dado de baja (el carrito puede tenerlo de antes).
-    if (params.canal !== CanalVenta.PRESENCIAL) {
+    // No se vende lo dado de baja (el carrito puede tenerlo de antes). Lo ya
+    // reservado sí: la clienta tiene la prenda apartada en la mano.
+    if (!params.reservaId) {
       const inactiva = variantes.find((v) => !v.activo || !v.producto?.activo);
       if (inactiva) {
         throw new OperacionInvalidaException(
@@ -363,8 +352,8 @@ export class VentasService {
       }[] = [];
 
       for (let i = 0; i < params.items.length; i++) {
-        const { varianteId, cantidad, precioUnitCents: cobrado } = params.items[i];
-        const precioUnitCents = this.precioDeVenta(variantes[i].producto, cobrado, params.vendidaEn);
+        const { varianteId, cantidad } = params.items[i];
+        const precioUnitCents = variantes[i].producto.precioCents;
         const itemSubtotalCents = precioUnitCents * cantidad;
         subtotalCents += itemSubtotalCents;
         itemsAGuardar.push({
@@ -374,15 +363,17 @@ export class VentasService {
           subtotalCents: itemSubtotalCents,
         });
 
+        // La compra desde la reserva descuenta al pagarse (venderLoReservado).
+        if (params.reservaId) continue;
         await this.inventarioSucursalService.ajustarStock({
           varianteId,
           sucursalId: params.sucursalId,
           cantidad: -cantidad,
           tipoMovimiento: TipoMovimientoInventario.VENTA,
-          usuarioId: params.cajeroId ?? params.clienteId ?? null,
+          usuarioId: params.clienteId,
           manager,
-          // Sin reserva, solo se vende lo que no está apartado.
-          respetarReservadas: !params.reservaId,
+          // Solo se vende lo que no está apartado por una reserva.
+          respetarReservadas: true,
         });
       }
 
@@ -402,22 +393,17 @@ export class VentasService {
       const totalCents = Math.max(0, subtotalCents - descuentoCents);
 
       const ventaRepo = manager.getRepository(Venta);
-      // id generado acá (no por la BD) para poder derivar el comprobante de la
-      // venta presencial, que nace PAGADA, en el mismo INSERT.
-      const id = randomUUID();
       const venta = await ventaRepo.save(
         ventaRepo.create({
-          id,
           clienteId: params.clienteId,
           sucursalId: params.sucursalId,
-          cajeroId: params.cajeroId,
+          cajeroId: null, // ninguna venta nace en caja: la cajera solo confirma el cobro
           reservaId: params.reservaId ?? null,
           cuponId,
           claveIdempotencia: params.claveIdempotencia ?? null,
           canal: params.canal,
-          estado: params.estadoInicial,
-          numeroComprobante:
-            params.estadoInicial === EstadoVenta.PAGADA ? comprobanteDe(id) : null,
+          estado: EstadoVenta.PENDIENTE,
+          numeroComprobante: null,
           subtotalCents,
           descuentoCents,
           totalCents,
@@ -436,12 +422,6 @@ export class VentasService {
           }),
         ),
       );
-
-      // La venta ya descontó cantidadDisponible arriba (ajustarStock, RF20).
-      // Si concreta una reserva, cerrarla libera su cantidadReservada.
-      if (params.reservaId) {
-        await this.reservasService.completarPorVenta(params.reservaId, params.sucursalId, manager);
-      }
 
       return this.toResponse(venta, itemsGuardados);
     });

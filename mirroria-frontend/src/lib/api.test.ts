@@ -139,7 +139,7 @@ describe("apiFetch", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await expect(apiFetch("/ventas/presencial", { method: "POST" })).rejects.toMatchObject({
+    await expect(apiFetch("/ventas/carrito/u-1/checkout", { method: "POST" })).rejects.toMatchObject({
       status: 409,
       codigo: "STOCK_AGOTADO_CONFLICTO",
       detalles: { prendaNombre: "Vestido Rosa" },

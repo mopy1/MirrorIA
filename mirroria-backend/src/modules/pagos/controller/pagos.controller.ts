@@ -159,7 +159,7 @@ export class PagosController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
-    summary: 'Cancelar una compra propia sin pagar y devolver sus prendas al carrito',
+    summary: 'Cancelar una compra propia sin pagar (las del carrito vuelven al carrito; las de una reserva siguen apartadas)',
   })
   cancelar(@Param('ventaId') ventaId: string, @CurrentUser() user: JwtPayload): Promise<void> {
     return this.pagosService.cancelarPorClienta(ventaId, user);

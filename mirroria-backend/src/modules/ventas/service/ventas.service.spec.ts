@@ -7,8 +7,8 @@ import { EstadoVenta, Venta } from '../entities/venta.entity.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 
-describe('orden de bloqueo y precio de la venta sin conexion', () => {
-  function servicio(precioActual: number, anterior: { cents: number; cambiadoEn: Date } | null = null) {
+describe('orden de bloqueo de la venta', () => {
+  function servicio(precioActual: number) {
     const ajustarStock = vi.fn();
     const ventaRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => ({ ...x, createdAt: new Date() })) };
     const itemRepo = { create: vi.fn((x) => x), save: vi.fn(async (x) => x) };
@@ -16,77 +16,34 @@ describe('orden de bloqueo y precio de la venta sin conexion', () => {
     const productos = {
       findVarianteById: vi.fn(async (id: string) => ({
         id, activo: true,
-        producto: {
-          activo: true, precioCents: precioActual, titulo: id,
-          precioAnteriorCents: anterior?.cents ?? null, precioCambiadoEn: anterior?.cambiadoEn ?? null,
-        },
+        producto: { activo: true, precioCents: precioActual, titulo: id },
       })),
     };
     const service = new VentasService(
       {} as never, {} as never, { transaction: (cb: (m: unknown) => unknown) => cb(manager) } as never,
       { assertExists: vi.fn() } as never, productos as never, { ajustarStock } as never, {} as never, {} as never, {} as never,
     );
-    return { service, ajustarStock, itemRepo };
+    const registrar = (items: { varianteId: string; cantidad: number; precioUnitCents?: number }[]) =>
+      (service as unknown as { registrarVenta: (p: unknown) => Promise<unknown> }).registrarVenta({
+        items, sucursalId: 's1', canal: 'WEB', clienteId: 'u1',
+      });
+    return { registrar, ajustarStock, itemRepo };
   }
 
   it('descuenta el stock siempre en el mismo orden: dos pedidos cruzados no se bloquean entre si', async () => {
-    const { service, ajustarStock } = servicio(100);
-    await service.registrarPresencial({ sucursalId: 's1', items: [{ varianteId: 'b', cantidad: 1 }, { varianteId: 'a', cantidad: 1 }] } as never, 'c1');
+    const { registrar, ajustarStock } = servicio(100);
+    await registrar([{ varianteId: 'b', cantidad: 1 }, { varianteId: 'a', cantidad: 1 }]);
     expect(ajustarStock.mock.calls.map(([p]) => p.varianteId)).toEqual(['a', 'b']);
   });
 
-  it('una venta sin conexion queda con el precio que regia cuando se cobro', async () => {
-    const vendidaEn = new Date(Date.now() - 60 * 60_000);
-    const { service, itemRepo } = servicio(25000, { cents: 10000, cambiadoEn: new Date(Date.now() - 10 * 60_000) });
-    await service.registrarPresencial({
-      sucursalId: 's1', vendidaEn: vendidaEn.toISOString(),
-      items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 10000 }],
-    } as never, 'c1');
-    expect(itemRepo.create.mock.calls[0][0].precioUnitCents).toBe(10000);
-  });
-
-  it('el cajero no puede poner un precio que la prenda nunca tuvo', async () => {
-    const { service } = servicio(50000);
-    await expect(service.registrarPresencial({
-      sucursalId: 's1', vendidaEn: new Date().toISOString(),
-      items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 1 }],
-    } as never, 'c1')).rejects.toThrow(/precio/i);
-  });
-
-  it('una fecha de venta futura o de hace mas de 7 dias se rechaza', async () => {
-    const { service } = servicio(100);
-    for (const f of [new Date(Date.now() + 3600_000), new Date(Date.now() - 8 * 86400_000)]) {
-      await expect(service.registrarPresencial({
-        sucursalId: 's1', vendidaEn: f.toISOString(), items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 100 }],
-      } as never, 'c1')).rejects.toThrow();
-    }
-  });
-
-  it('con conexion manda el precio actual aunque el cliente mande otro', async () => {
-    const { service, itemRepo } = servicio(25000);
-    await service.registrarPresencial({ sucursalId: 's1', items: [{ varianteId: 'a', cantidad: 1, precioUnitCents: 1 }] } as never, 'c1');
+  it('manda el precio actual aunque el cliente mande otro', async () => {
+    const { registrar, itemRepo } = servicio(25000);
+    await registrar([{ varianteId: 'a', cantidad: 1, precioUnitCents: 1 }]);
     expect(itemRepo.create.mock.calls[0][0].precioUnitCents).toBe(25000);
   });
 });
 
 describe('ventas con clave de idempotencia', () => {
-  it('reintentar tras una caida devuelve la venta ya guardada, no crea otra', async () => {
-    const venta = { id: 'v1', estado: 'PAGADA', createdAt: new Date() };
-    const ventaRepository = { findOne: vi.fn().mockResolvedValue(venta) };
-    const ventaItemRepository = { find: vi.fn().mockResolvedValue([]) };
-    const transaction = vi.fn();
-    const service = new VentasService(
-      ventaRepository as never, ventaItemRepository as never, { transaction } as never,
-      { assertExists: vi.fn() } as never, {} as never, {} as never, {} as never, {} as never, {} as never,
-    );
-
-    const r = await service.registrarPresencial({ sucursalId: 's1', items: [] } as never, 'c1', 'clave-1');
-
-    expect(r.id).toBe('v1');
-    expect(transaction).not.toHaveBeenCalled();
-    expect(ventaRepository.findOne.mock.calls[0][0].where).toMatchObject({ claveIdempotencia: 'clave-1' });
-  });
-
   it('una compra hecha sin conexion trae sus prendas: no depende del carrito del servidor', async () => {
     const registrar = vi.fn().mockResolvedValue({ id: 'v3' });
     const ventaRepo = { count: vi.fn().mockResolvedValue(0), findOne: vi.fn().mockResolvedValue(null) };

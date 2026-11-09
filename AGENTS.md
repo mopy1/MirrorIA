@@ -44,7 +44,7 @@ U/2-2026/SI2/
 | Backend | NestJS 12, Node 24, TypeScript ESM, TypeORM 1.x | `127.0.0.1:3000` (`/api/v1`, Swagger `/api/docs` fuera de prod) | `mirroria_backend` |
 | Machine Learning | Python 3.12, FastAPI, scikit-learn, pandas, joblib | `127.0.0.1:8002` (FastAPI interno / proxy en backend) | `mirroria_ml` |
 | Frontend | React 19, Vite, Tailwind v4, shadcn/ui (Base UI), Phosphor | `5174` en dev · `80` en Docker (Nginx + proxy `/api/`) | `mirroria_frontend` |
-| Móvil | React Native / Expo SDK 57 — **congelada**, se rehará (Expo + SQLite) | `8081` | — |
+| Móvil | Expo SDK 58 (RN 0.88, New Arch) + SQLite + Decart/LiveKit — app de clienta, *development build* / APK Android (rama `feat/app-movil`) | `8081` (Metro del dev build) | — |
 | Despliegue | Azure VM (`https://mirroria.duckdns.org`), `scripts/deploy-azure.sh` | 443 | override `docker-compose.prod.yml` |
 
 Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, password en `.env` de la raíz
@@ -77,7 +77,7 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   └── {app,dataset,models,scripts,tests}/ # 4 modelos M1-M4 entrenados con seed=42 y atados a KPIs
 ├── mirroria-frontend/           # React — ver mirroria-frontend/AGENTS.md (rutas, guards, features)
 │   └── src/{features,components,layouts,routes,lib,context,hooks,types}/
-└── mirroria-mobile/             # 🧊 CONGELADA desde 2026-11-04: no se edita ni se borra; ya no es compatible con la API
+└── mirroria-mobile/             # Expo SDK 58 — ver mirroria-mobile/AGENTS.md (clienta offline, pagos, reservas, probador Decart; APK en dist/)
 ```
 
 ## 4. MirrorIA (plataforma) vs. las tiendas
@@ -143,7 +143,7 @@ cd mirroria-backend && npx vitest run                # 466 unit (56 suites) · n
 cd mirroria-frontend && npx vitest run               # 293 unit (52 suites)
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
-python3 scripts/qa/qa_reglas.py     # 21 · qa_mostrador.py 14 · qa_aislamiento.py 84 · qa_marca.py 37
+python3 scripts/qa/qa_reglas.py     # 21 · qa_compra_reserva.py 26 · qa_aislamiento.py 84 · qa_marca.py 37
 
 # Tiendas demo (contra una API con las tablas 1b)
 PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.mjs --api http://localhost:3000/api/v1
@@ -170,6 +170,7 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de anomalías POS en caja; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets POS, 198 tests en frontend, 466 en backend).
 
 - **2026-11-06 — Fase 6b:** Rediseño UX/UI del panel admin para un gerente sin tecnicismos (solo frontend): menú lateral en acordeón (Inicio · Ventas · Productos · Análisis · Mi negocio, contraíble a íconos), Dashboard BI ("Resumen del negocio" con resumen en palabras y "Hoy en la tienda"), Predicciones ("Qué hacer esta semana", jerga técnica solo en "¿Cómo se calcula?") y Reportes con IA (markdown renderizado con `react-markdown`, lienzo con conclusión, cifras clave, barras con nombres completos, chat con conclusión corta + "Reporte listo"). Spec: vault `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. 293 tests front (52 suites).
+- **2026-11-07/08 — App móvil (rama `feat/app-movil`):** `mirroria-mobile/` rehecha desde cero con Expo SDK 58: espejo SQLite + `OutboxManager` (compra/reserva offline, conflicto `stock = 1`), pagos QR/Stripe/caja, reservas y Pase de Tienda, escáner de etiqueta, avisos de reposición, probador Decart en vivo (LiveKit) y APK Android compilado localmente.
 - **2026-11-07 — Documentación Parcial 2 (ICONIX & Omnicanal):** Especificación completa para SI2 Parcial 2 siguiendo guía de grupo #22 (Capítulos I al VII, 17 CUs Omnicanal unificados Web PWA + Móvil Expo, DDL SQL 30 tablas, 15 diagramas PNG alta resolución, compilador autónomo `compilar.py`, documento compilado en PDF de 66 páginas y DOCX Word editable en `docs/parcial2/`).
 
 ## 9. Dónde está cada cosa

@@ -61,25 +61,24 @@ classDiagram
     class ENCARGADO_SUCURSAL {
         <<Supervisor de Tienda>>
         Ámbito: Tenant + Sucursal
-        Canal: Web / Móvil Supervisor
+        Canal: Web (/admin)
         +ajustarStock()
         +recepcionarMercancia()
         +gestionarCitasProbador()
     }
 
     class CAJERO {
-        <<Operador de Mostrador / POS>>
+        <<Cajera de Sucursal>>
         Ámbito: Tenant + Sucursal
-        Canal: Web POS / Móvil POS
+        Canal: Solo Web (/admin/cobros, /admin/dashboard)
         +confirmarCobroEfectivo()
-        +atenderCitasEnCaja()
-        +registrarVentaPresencial()
+        +atenderCitasEnTienda()
     }
 
     class CUSTOMER {
         <<Clienta Boutique>>
         Ámbito: Tenant Específico (/t/:slug)
-        Canal: Web PWA y App Móvil Expo
+        Canal: Web PWA y App Móvil (Expo)
         +probarPrendasVTON()
         +reservarProbador()
         +procesarCheckoutDigital()
@@ -89,7 +88,7 @@ classDiagram
     class Visitante {
         <<Público Anónimo>>
         Ámbito: Global / Tenant
-        Canal: Web y App Móvil
+        Canal: Web y App Móvil (vitrina pública)
         +explorarLandingSaaS()
         +solicitarAltaBoutique()
         +navegarVitrinaPublica()
@@ -112,10 +111,10 @@ classDiagram
 |---|---|---|---|---|
 | **Superadministrador de Plataforma** | `DUENO_PLATAFORMA` | **Global** (`tenant_id = NULL`). Prohibido operar datos de tiendas (`403`). | • Web Desktop (`/plataforma/*`) | • Parametriza planes comerciales (Básico, Crecimiento, Cadena) y sus límites.<br>• Monitorea indicadores globales SaaS: MRR, ARR, Churn, GMV e inquilinos.<br>• Modera tiendas: suspende inquilinos morosos y restablece identidades infractoras.<br>• Administra el catálogo de ciudades capitales homologadas. |
 | **Dueño de Boutique / Administrador** | `ADMIN` | **Inquilino** (`tenant_id` obligatorio). | • Web Desktop / Tablet (`/admin/*`) | • Contrata y renueva la suscripción B2B de su boutique (Stripe / Wayra QR).<br>• Configura la identidad corporativa: paleta de colores (validación WCAG 2.1), tipografía, logo y modo de tienda.<br>• Administra sucursales físicas, catálogo maestro y personal operativo.<br>• Analiza métricas en la Consola Ejecutiva de BI y toma decisiones con soporte de Machine Learning y reportes dinámicos. |
-| **Encargado de Sucursal** | `ENCARGADO_SUCURSAL` | **Inquilino + Sucursal** (`sucursal_id` forzado en JWT). | • Web Admin (`/admin/*`)<br>• App Móvil (Gestión Tienda) | • Supervisa existencias y kardex inmutable de su tienda asignada.<br>• Recepciona pedidos de confeccionistas, incrementando el stock disponible.<br>• Realiza ajustes manuales justificados de inventario ante mermas.<br>• Controla el avance de las citas de probador (`CONFIRMADA`, `EN_TIENDA`). |
-| **Cajero / Operador POS** | `CAJERO` | **Inquilino + Sucursal** (`sucursal_id` forzado en JWT). | • Web POS (`/admin/dashboard`)<br>• App Móvil POS | • Atiende en mostrador físico.<br>• Consulta la agenda de citas del día en la Consola Operativa y atiende clientas con un solo clic.<br>• Confirma el cobro en efectivo de ventas y reservas.<br>• Registra compras presenciales de mostrador con descuento atómico de stock. |
-| **Clienta Digital** | `CUSTOMER` | **Inquilino** (`/t/:slug`). | • Web PWA (`/t/:slug/*`)<br>• App Móvil (Expo Storefront) | • Explora vitrinas digitales con la marca de la tienda elegida.<br>• Usa el Probador Virtual con IA generativa (Decart `lucy-vton-3.5`).<br>• Aparta reservas de prendas para prueba presencial sin pago previo.<br>• Gestiona su carrito, aplica cupones y procesa pagos (Stripe / QR Wayra).<br>• **Modo Offline:** Mantiene operatividad desconectada con sincronización diferida (IndexedDB en Web, SQLite en Móvil) e idempotencia. |
-| **Visitante / Usuario Anónimo** | *No autenticado* (`ANONYMOUS`) | **Público** (Sin sesión activa). | • Web Landing (`/`, `/planes`)<br>• App Móvil Pública | • Evalúa la propuesta de valor SaaS y compara planes.<br>• Solicita el alta automatizada de su boutique (`/registro-tienda`).<br>• Navega vitrinas públicas y consulta disponibilidad de stock por sucursal. |
+| **Encargado de Sucursal** | `ENCARGADO_SUCURSAL` | **Inquilino + Sucursal** (`sucursal_id` forzado en JWT). | • Web Admin (`/admin/*`) (sin app móvil) | • Supervisa existencias y kardex inmutable de su tienda asignada.<br>• Recepciona pedidos de confeccionistas, incrementando el stock disponible.<br>• Realiza ajustes manuales justificados de inventario ante mermas.<br>• Controla el avance de las citas de probador (`CONFIRMADA`, `EN_TIENDA`). |
+| **Cajera de Sucursal** | `CAJERO` | **Inquilino + Sucursal** (`sucursal_id` forzado en JWT). | • Solo Web (`/admin/cobros`, `/admin/dashboard`, `/admin/reservas`) | • Único rol que toca dinero, y solo desde la web: verifica que la clienta pagó en efectivo en la caja física y marca el cobro como pagado.<br>• Consulta la agenda de citas del día en la Consola de Caja y marca la llegada de la clienta (`EN_TIENDA`) buscando su Pase de Tienda por el código.<br>• **No registra ventas:** el sistema no tiene punto de venta; toda venta nace de una compra de la clienta (carrito o "Comprar lo que reservé"). |
+| **Clienta Digital** | `CUSTOMER` | **Inquilino** (`/t/:slug`). | • Web PWA (`/t/:slug/*`)<br>• App Móvil (Expo, solo clienta y visitante) | • Explora vitrinas digitales con la marca de la tienda elegida.<br>• Usa el Probador Virtual con IA generativa (Decart `lucy-vton-3.5`).<br>• Aparta reservas de prendas para prueba en tienda sin pago previo y, ya en la tienda, cierra con "Comprar lo que reservé".<br>• Gestiona su carrito, aplica cupones y procesa pagos (Stripe / QR Wayra).<br>• **Modo Offline:** Mantiene operatividad desconectada con sincronización diferida (IndexedDB en Web, SQLite en Móvil) e idempotencia. |
+| **Visitante / Usuario Anónimo** | *No autenticado* (`ANONYMOUS`) | **Público** (Sin sesión activa). | • Web Landing (`/`, `/planes`)<br>• App Móvil (vitrina sin sesión) | • Evalúa la propuesta de valor SaaS y compara planes.<br>• Solicita el alta automatizada de su boutique (`/registro-tienda`).<br>• Navega vitrinas públicas y consulta disponibilidad de stock por sucursal. |
 
 ---
 

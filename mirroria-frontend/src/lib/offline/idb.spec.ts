@@ -9,6 +9,7 @@ import {
   guardarEnOutbox,
   listarCatalogoCache,
   listarOutbox,
+  normalizarEstado,
   obtenerDeCatalogoCache,
 } from './idb'
 import type { OperacionOutbox } from './idb.types'
@@ -81,11 +82,14 @@ describe('IndexedDB: Capa Offline (idb.ts)', () => {
     const opEjemplo: OperacionOutbox = {
       id: 'op-1',
       tenantId: 'tiendaria',
+      usuarioId: 'clienta-1',
       idempotencyKey: 'idemp-uuid-1',
-      tipo: 'VENTA_PRESENCIAL',
-      endpoint: '/ventas/presencial',
+      tipo: 'CHECKOUT',
+      grupoId: null,
+      descripcion: '1 prenda: Vestido Seda Rosa M',
+      endpoint: '/ventas/carrito/clienta-1/checkout',
       metodo: 'POST',
-      payload: { sucursalId: 'suc-1', total: 350 },
+      payload: { sucursalId: 'suc-1', canal: 'WEB' },
       estado: 'PENDIENTE',
       reintentos: 0,
       codigoRespuesta: null,
@@ -113,16 +117,31 @@ describe('IndexedDB: Capa Offline (idb.ts)', () => {
     it('actualiza estado y respuesta en outbox', async () => {
       await guardarEnOutbox(opEjemplo)
       const actualizado = await actualizarOutbox('op-1', {
-        estado: 'SINCRONIZADO',
+        estado: 'CONFIRMADA',
         codigoRespuesta: 201,
         respuesta: { comprobante: 'V-001' },
       })
 
-      expect(actualizado?.estado).toBe('SINCRONIZADO')
+      expect(actualizado?.estado).toBe('CONFIRMADA')
       expect(actualizado?.codigoRespuesta).toBe(201)
 
       const pendientes = await listarOutbox({ estado: 'PENDIENTE' })
       expect(pendientes).toHaveLength(0)
+    })
+
+    it('normaliza los estados viejos de la Fase 3 al leer (SINCRONIZADO → CONFIRMADA)', async () => {
+      await guardarEnOutbox({ ...opEjemplo, estado: 'SINCRONIZADO' as unknown as OperacionOutbox['estado'] })
+      const [fila] = await listarOutbox()
+      expect(fila.estado).toBe('CONFIRMADA')
+      expect(normalizarEstado('COMPENSADO')).toBe('COMPENSADA')
+      expect(normalizarEstado('FALLIDO')).toBe('RECHAZADA')
+    })
+
+    it('filtra por clienta (usuarioId)', async () => {
+      await guardarEnOutbox(opEjemplo)
+      await guardarEnOutbox({ ...opEjemplo, id: 'op-otra', usuarioId: 'clienta-2' })
+      const propias = await listarOutbox({ usuarioId: 'clienta-1' })
+      expect(propias.map((o) => o.id)).toEqual(['op-1'])
     })
 
     it('elimina operaciones por id', async () => {

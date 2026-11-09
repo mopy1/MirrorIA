@@ -1,189 +1,202 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { abrirDB, listarOutbox } from './idb'
-import { EVENTO_CONFLICTO_STOCK, OutboxManager } from './outbox-manager'
+import type { ConflictoStockEvento } from './idb.types'
+import { EVENTO_COMPRA_CONFIRMADA, EVENTO_CONFLICTO_STOCK, OutboxManager } from './outbox-manager'
+import { CLAVE_SIN_RED } from './red-simulada'
 
-describe('OutboxManager (outbox-manager.ts)', () => {
+const CLIENTA = 'clienta-b'
+const respuesta = (status: number, body: unknown) => ({ ok: status < 300, status, json: () => Promise.resolve(body) })
+
+describe('OutboxManager: compra de la clienta sin red (opción B, stock = 1)', () => {
   let manager: OutboxManager
   const listeners: Record<string, ((e: Event) => void)[]> = {}
+  const localStore: Record<string, string> = {}
+
+  const iniciarSesion = (token: string, id = CLIENTA) => {
+    localStore.mirroria_token = token
+    localStore.mirroria_user = JSON.stringify({ id, tenant: { slug: 'tiendaria' } })
+  }
+  const sinRed = () => vi.stubGlobal('navigator', { onLine: false })
+  const conRed = () => vi.stubGlobal('navigator', { onLine: true })
+  const encolarCheckout = (extra: Record<string, unknown> = {}) =>
+    manager.encolarOperacion({
+      tenantId: 'tiendaria',
+      usuarioId: CLIENTA,
+      tipo: 'CHECKOUT',
+      endpoint: `/ventas/carrito/${CLIENTA}/checkout`,
+      payload: { sucursalId: 'suc-centro', canal: 'WEB' },
+      descripcion: '1 prenda: Vestido Gala M',
+      ...extra,
+    })
 
   beforeEach(async () => {
-    // Mock de localStorage
-    const localStore: Record<string, string> = {}
+    for (const k of Object.keys(localStore)) delete localStore[k]
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => localStore[k] ?? null,
       setItem: (k: string, v: string) => (localStore[k] = v),
       removeItem: (k: string) => delete localStore[k],
-      clear: () => {
-        for (const k of Object.keys(localStore)) delete localStore[k]
-      },
     })
-
-    // Mock de window EventTarget
     for (const key of Object.keys(listeners)) delete listeners[key]
-    const fakeWindow = {
-      addEventListener: (type: string, handler: (e: Event) => void) => {
-        if (!listeners[type]) listeners[type] = []
-        listeners[type].push(handler)
-      },
-      removeEventListener: (type: string, handler: (e: Event) => void) => {
-        if (listeners[type]) {
-          listeners[type] = listeners[type].filter((h) => h !== handler)
-        }
+    vi.stubGlobal('window', {
+      addEventListener: (type: string, h: (e: Event) => void) => (listeners[type] ??= []).push(h),
+      removeEventListener: (type: string, h: (e: Event) => void) => {
+        listeners[type] = (listeners[type] ?? []).filter((x) => x !== h)
       },
       dispatchEvent: (e: Event) => {
-        if (listeners[e.type]) {
-          listeners[e.type].forEach((h) => h(e))
-        }
+        ;(listeners[e.type] ?? []).forEach((h) => h(e))
         return true
       },
-      location: { pathname: '/' },
-    }
-    vi.stubGlobal('window', fakeWindow)
-    vi.stubGlobal('navigator', { onLine: true })
-
-    // Limpiar BD
+    })
+    conRed()
+    iniciarSesion('jwt-1')
     const db = await abrirDB()
     const tx = db.transaction(['outbox'], 'readwrite')
     tx.objectStore('outbox').clear()
-    await new Promise<void>((res) => {
-      tx.oncomplete = () => res()
-    })
-
+    await new Promise<void>((res) => (tx.oncomplete = () => res()))
     manager = new OutboxManager()
   })
 
   afterEach(() => {
+    manager.detener()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
-  it('encola una operación con Idempotency-Key y estado PENDIENTE', async () => {
-    // Simular offline para que no intente procesar de inmediato
-    vi.stubGlobal('navigator', { onLine: false })
-    const op = await manager.encolarOperacion({
-      tenantId: 'tiendaria',
-      tipo: 'VENTA_PRESENCIAL',
-      endpoint: '/ventas/presencial',
-      payload: { totalCents: 15000 },
-    })
-
-    expect(op.id).toBeDefined()
-    expect(op.idempotencyKey).toBeDefined()
+  it('sin red encola el checkout PENDIENTE con una Idempotency-Key UUID v4', async () => {
+    sinRed()
+    const op = await encolarCheckout()
     expect(op.estado).toBe('PENDIENTE')
-
-    const pendientes = await manager.obtenerPendientes('tiendaria')
-    expect(pendientes).toHaveLength(1)
-    expect(pendientes[0].id).toBe(op.id)
+    expect(op.idempotencyKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(await manager.obtenerPendientes('tiendaria')).toHaveLength(1)
   })
 
-  it('procesa cola enviando la cabecera Idempotency-Key y marca SINCRONIZADO en 201', async () => {
-    // Offline al encolar para controlar la ejecución manual de procesarCola
-    vi.stubGlobal('navigator', { onLine: false })
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 201,
-      json: () => Promise.resolve({ id: 'venta-123', comprobante: 'V-001' }),
-    })
+  it('al reconectar envía con su clave, tienda y JWT; queda CONFIRMADA y ofrece pagar', async () => {
+    sinRed()
+    await encolarCheckout({ idempotencyKey: 'clave-fija-123' })
+    const fetchMock = vi.fn().mockResolvedValue(respuesta(201, { id: 'venta-1', numeroComprobante: 'C-0001' }))
     vi.stubGlobal('fetch', fetchMock)
+    const confirmada = vi.fn()
+    window.addEventListener(EVENTO_COMPRA_CONFIRMADA, confirmada)
 
-    await manager.encolarOperacion({
-      tenantId: 'tiendaria',
-      tipo: 'VENTA_PRESENCIAL',
-      endpoint: '/ventas/presencial',
-      payload: { sucursalId: 'suc-1' },
-      idempotencyKey: 'clave-idempotencia-fija-123',
-    })
+    conRed()
+    await manager.procesarCola()
 
-    // Reconectar y procesar
-    vi.stubGlobal('navigator', { onLine: true })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain(`/ventas/carrito/${CLIENTA}/checkout`)
+    expect(init.headers).toMatchObject({ 'Idempotency-Key': 'clave-fija-123', 'X-Tenant': 'tiendaria', Authorization: 'Bearer jwt-1' })
+    const [fila] = await listarOutbox()
+    expect(fila.estado).toBe('CONFIRMADA')
+    expect(fila.respuesta).toEqual({ id: 'venta-1', numeroComprobante: 'C-0001' })
+    expect(confirmada).toHaveBeenCalledTimes(1)
+  })
+
+  it('reutiliza la MISMA clave en el reintento tras un error de red', async () => {
+    sinRed()
+    const op = await encolarCheckout()
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValueOnce(respuesta(201, { id: 'v' }))
+    vi.stubGlobal('fetch', fetchMock)
+    conRed()
+
+    await manager.procesarCola()
+    expect((await listarOutbox())[0]).toMatchObject({ estado: 'PENDIENTE', reintentos: 1 })
+    await manager.procesarCola()
+
+    const claves = fetchMock.mock.calls.map((c) => c[1].headers['Idempotency-Key'])
+    expect(claves).toEqual([op.idempotencyKey, op.idempotencyKey])
+    expect((await listarOutbox())[0].estado).toBe('CONFIRMADA')
+  })
+
+  it('409 STOCK_AGOTADO_CONFLICTO → COMPENSADA, abre el modal con las alternativas reales y no se reenvía', async () => {
+    sinRed()
+    await encolarCheckout()
+    const detalles = {
+      prendaNombre: 'Vestido Gala',
+      talla: 'M',
+      sucursalNombre: 'Sucursal Centro',
+      alternativas: {
+        otrasSucursales: [{ sucursalId: 'suc-equipetrol', sucursalNombre: 'Equipetrol', disponible: 2 }],
+        otrasTallas: [{ varianteId: 'v-s', talla: 'S', disponible: 1 }],
+      },
+    }
+    const fetchMock = vi.fn().mockResolvedValue(respuesta(409, { status: 409, codigo: 'STOCK_AGOTADO_CONFLICTO', message: 'Stock insuficiente', detalles }))
+    vi.stubGlobal('fetch', fetchMock)
+    let evento: ConflictoStockEvento | null = null
+    window.addEventListener(EVENTO_CONFLICTO_STOCK, (e) => (evento = (e as CustomEvent<ConflictoStockEvento>).detail))
+
+    conRed()
+    await manager.procesarCola()
     await manager.procesarCola()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const callArgs = fetchMock.mock.calls[0]
-    expect(callArgs[0]).toContain('/ventas/presencial')
-    const headers = callArgs[1].headers as Record<string, string>
-    expect(headers['Idempotency-Key']).toBe('clave-idempotencia-fija-123')
-
-    const items = await listarOutbox()
-    expect(items[0].estado).toBe('SINCRONIZADO')
-    expect(items[0].codigoRespuesta).toBe(201)
-    expect(items[0].respuesta).toEqual({ id: 'venta-123', comprobante: 'V-001' })
-    expect(items[0].sincronizadoEn).not.toBeNull()
+    expect((await listarOutbox())[0]).toMatchObject({ estado: 'COMPENSADA', codigoRespuesta: 409 })
+    expect(evento!.detalle).toEqual(detalles)
+    expect(evento!.operacion.tipo).toBe('CHECKOUT')
   })
 
-  it('ante 409 STOCK_AGOTADO_CONFLICTO marca COMPENSADO y despacha evento', async () => {
-    vi.stubGlobal('navigator', { onLine: false })
-
-    const detallesConflicto = {
-      prendaNombre: 'Vestido Gala Seda Rosa',
-      talla: 'M',
-      color: 'Rosa',
-      alternativas: {
-        otrasSucursales: [{ sucursalId: 'suc-2', sucursalNombre: 'Equipetrol', disponible: 3 }],
-        otrasTallas: [{ varianteId: 'v-s', talla: 'S', disponible: 2 }],
-      },
-    }
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 409,
-      json: () =>
-        Promise.resolve({
-          status: 409,
-          codigo: 'STOCK_AGOTADO_CONFLICTO',
-          message: 'Stock insuficiente para la variante',
-          detalles: detallesConflicto,
-        }),
+  it('si "agregar al carrito" se rechaza, el checkout del mismo grupo se cancela sin enviarse', async () => {
+    sinRed()
+    await manager.encolarOperacion({
+      tenantId: 'tiendaria', usuarioId: CLIENTA, tipo: 'CARRITO_AGREGAR', grupoId: 'g-1', descripcion: 'Vestido Gala M',
+      endpoint: `/ventas/carrito/${CLIENTA}/items`, payload: { varianteId: 'v-m', cantidad: 1 },
     })
+    await encolarCheckout({ grupoId: 'g-1' })
+    const fetchMock = vi.fn().mockResolvedValue(respuesta(409, { message: 'Podés llevar hasta 3 unidades' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    let eventoDisparado: CustomEvent | null = null
-    const handler = (e: Event) => {
-      eventoDisparado = e as CustomEvent
-    }
-    window.addEventListener(EVENTO_CONFLICTO_STOCK, handler)
-
-    await manager.encolarOperacion({
-      tenantId: 'tiendaria',
-      tipo: 'VENTA_PRESENCIAL',
-      endpoint: '/ventas/presencial',
-      payload: { varianteId: 'v-m', cantidad: 1 },
-    })
-
-    vi.stubGlobal('navigator', { onLine: true })
+    conRed()
     await manager.procesarCola()
 
-    const items = await listarOutbox()
-    expect(items[0].estado).toBe('COMPENSADO')
-    expect(items[0].codigoRespuesta).toBe(409)
-
-    expect(eventoDisparado).not.toBeNull()
-    expect(eventoDisparado!.detail).toEqual(detallesConflicto)
-
-    window.removeEventListener(EVENTO_CONFLICTO_STOCK, handler)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [agregar, checkout] = await listarOutbox()
+    expect(agregar).toMatchObject({ estado: 'RECHAZADA', error: 'Podés llevar hasta 3 unidades' })
+    expect(checkout).toMatchObject({ estado: 'RECHAZADA', error: 'Cancelada porque falló el paso anterior' })
   })
 
-  it('ante error de red mantiene en PENDIENTE e incrementa reintentos', async () => {
-    vi.stubGlobal('navigator', { onLine: false })
-
-    const fetchMock = vi.fn().mockRejectedValue(new Error('Failed to fetch (offline)'))
+  it('401 por JWT vencido pausa la cola hasta que entra una sesión nueva', async () => {
+    sinRed()
+    await encolarCheckout()
+    const fetchMock = vi.fn().mockResolvedValueOnce(respuesta(401, { message: 'Unauthorized' })).mockResolvedValueOnce(respuesta(201, { id: 'v' }))
     vi.stubGlobal('fetch', fetchMock)
+    conRed()
 
-    await manager.encolarOperacion({
-      tenantId: 'tiendaria',
-      tipo: 'VENTA_PRESENCIAL',
-      endpoint: '/ventas/presencial',
-      payload: {},
-    })
-
-    vi.stubGlobal('navigator', { onLine: true })
     await manager.procesarCola()
+    expect(manager.estaPausada()).toBe(true)
+    await manager.procesarCola()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await listarOutbox())[0].estado).toBe('PENDIENTE')
 
-    const items = await listarOutbox()
-    expect(items[0].estado).toBe('PENDIENTE')
-    expect(items[0].reintentos).toBe(1)
-    expect(items[0].error).toContain('Failed to fetch')
+    iniciarSesion('jwt-2')
+    await manager.procesarCola()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((await listarOutbox())[0].estado).toBe('CONFIRMADA')
+  })
+
+  it('409 IDEMPOTENCIA_EN_CURSO deja la operación PENDIENTE para reintentar', async () => {
+    sinRed()
+    await encolarCheckout()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respuesta(409, { codigo: 'IDEMPOTENCIA_EN_CURSO', message: 'en curso' })))
+    conRed()
+    await manager.procesarCola()
+    expect((await listarOutbox())[0]).toMatchObject({ estado: 'PENDIENTE', reintentos: 1 })
+  })
+
+  it('no envía operaciones de otra clienta ni con el modo demo "Simular sin red"', async () => {
+    sinRed()
+    await encolarCheckout({ usuarioId: 'clienta-a' })
+    await encolarCheckout()
+    const fetchMock = vi.fn().mockResolvedValue(respuesta(201, { id: 'v' }))
+    vi.stubGlobal('fetch', fetchMock)
+    conRed()
+
+    localStore[CLAVE_SIN_RED] = '1'
+    await manager.procesarCola()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    delete localStore[CLAVE_SIN_RED]
+    await manager.procesarCola()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const estados = (await listarOutbox()).map((o) => `${o.usuarioId}:${o.estado}`)
+    expect(estados.sort()).toEqual([`${CLIENTA}:CONFIRMADA`, 'clienta-a:PENDIENTE'].sort())
   })
 })

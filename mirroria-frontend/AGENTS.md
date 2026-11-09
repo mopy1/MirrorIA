@@ -13,9 +13,11 @@ directrices de forma obligatoria.
 
 > **Actualizado: 2026-11-06 (Fase 6 Interactivad Total en Dashboard & ML Gerencial Humanizado)**.
 > Las secciones 2 y 3 describen lo que existe hoy en `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`,
-> `src/features/*` y `src/layouts/site-header/*`. Tests: **198** en 34 suites (`npx vitest run`).
+> `src/features/*` y `src/layouts/site-header/*`. Tests: **312** en 56 archivos (`npx vitest run`, 2026-11-07).
+> - **2026-11-07 (rama `feat/app-movil`):** sin rastros de POS en la web, "Comprar lo que reservé" en Mis reservas y
+>   checkout/carrito/reserva **sin red** en la PWA vía outbox (ver §3 "Offline").
 > - Dashboard: filtros 100% interactivos por período (`hoy`, `7d`, `30d`, `mes_actual`, `mes_anterior`, `personalizado` con selector de fechas) y por sucursal (`SelectorSucursal`).
-> - ML: experiencia gerencial con textos comprensibles (sin lenguaje crudo de desarrollador en anomalías POS), controles de horizonte temporal y sucursal interactivos, y Validación Académica trasladada a una Ficha Técnica modal y secundaria sin estorbar la operativa diaria.
+> - ML: experiencia gerencial con textos comprensibles (sin lenguaje crudo de desarrollador en anomalías de cobros), controles de horizonte temporal y sucursal interactivos, y Validación Académica trasladada a una Ficha Técnica modal y secundaria sin estorbar la operativa diaria.
 
 ---
 
@@ -388,6 +390,11 @@ sin `usuarioId` ni en el DTO de alta ni en `OrdenCompra` — el backend usa el J
 (enriquece `{varianteId, cantidad}` con producto/variante en el cliente y expone `updateItem`),
 `components/{cart-item,cart-summary}/`, `pages/CartPage.tsx`. El estado global vive en
 `context/CartContext`. Stepper de cantidad `[-]` y `[+]` en `cart-item` (1 a 3 unidades con `PATCH /ventas/carrito/:usuarioId/items/:varianteId`), con precio unitario y subtotal.
+**Sin red (2026-11-07):** `addItem` encola `CARRITO_AGREGAR` y devuelve `"ENCOLADA"`; `context/use-carrito-en-cola.ts`
+(`mezclarCarrito`, +test) suma esos ítems al carrito del servidor con badge "Pendiente de confirmar"
+(`variantesPendientes`); cambiar/quitar necesita red (`bloqueado` en `cart-item`); `checkoutEnCola` bloquea otra compra.
+Si la lectura del carrito falla sin red, se conserva el último. `CartPage` lista las compras `PENDIENTE` sin `reservaId`
+(las de una reserva se pagan desde Mis reservas).
 
 ### `features/orders/` ↔ backend `ventas` ("Mis pedidos")
 `api/ordersApi.ts` (`getMisPedidos` vía `GET /ventas/mias`, `getPedidoById`), `types/orders.types.ts` (`Pedido`, `PedidoItem`, `EstadoPedido`),
@@ -410,12 +417,15 @@ ahora también devuelve `variantes` (sin segundo fetch del catálogo).
 
 ### `features/checkout/` ↔ backend `ventas` + `pagos`
 - `api/checkoutApi.ts`: `checkout(usuarioId, sucursalId, codigoCupon?)`, `getVenta`, `getVentas`.
-- `hooks/useCheckout.ts`: crea la venta (vacía el carrito) y según el método:
+- `hooks/useCheckout.ts`: **con red** crea la venta (vacía el carrito) y llama a `useIrAPagar` (payments):
   - `TARJETA` → `paymentsApi.iniciarTarjeta` → guarda `mirroria_pago_venta_id` en
     `sessionStorage` y redirige a Stripe; si falla (503 sin claves) navega a `/pago/:id` con
     `state.motivo`.
   - `QR` → `/pago/:id?metodo=QR`. `EFECTIVO` → `/pago/:id?metodo=EFECTIVO`.
-- `components/{order-summary,cupon-input}/`, `components/selector-metodo-pago.tsx` (consumo dinámico de `usePasarelas('checkout')`), `pages/CheckoutPage.tsx` (< 100 líneas, resumen, cupón, `BranchPicker`, selector modular).
+  **Sin red** encola `CHECKOUT` (`encolarCheckout`, método elegido en `meta`, nunca en el payload) y devuelve
+  `encolada` → `components/compra-encolada.tsx` (estado en vivo de la outbox, "Pendiente de confirmar", clave, "Ver pendientes";
+  al confirmarse, "Pagar ahora"). `components/avisos-checkout-sin-red.tsx`: avisos de sin red / compra ya en cola.
+- `components/{order-summary,cupon-input}/`, `components/selector-metodo-pago.tsx` (consumo dinámico de `usePasarelas('checkout')`), `pages/CheckoutPage.tsx` (~120 líneas, resumen, cupón, `BranchPicker`, selector modular).
 
 ### `features/payments/` ↔ backend `pagos` (Fase 2 Pasarelas Enchufables)
 - `api/pasarelasApi.ts`: `getPasarelas(contexto?: 'checkout' | 'suscripcion')` (`GET /pagos/pasarelas`).
@@ -478,8 +488,16 @@ sesión ni layout de la tienda (representa otra app). El token del QR es la úni
 - `components/reservar-en-tienda/`: `reservar-en-tienda.tsx` (JSX, siempre 1 unidad),
   `useReservarEnTienda.ts` (cupo, ventana, bloqueo, recarga tras cada intento),
   `cupo-reserva-info.tsx` ("Reservas activas: X de Y", motivo, aviso de tolerancia/falta).
-- `pages/MyReservationsPage.tsx`: lista con código `#XXXXXXXX`, cancelar, aviso si
-  `bloqueadaHasta`.
+- `pages/MyReservationsPage.tsx` (thin): `hooks/useMisReservas.ts` (reservas + `GET /ventas/mias` + reservas en la outbox;
+  relee al confirmarse una), `components/reserva-card.tsx` (código, prendas, estado; `COMPLETADA` → "Compraste y pagaste…"),
+  `components/reservas-en-cola.tsx` (reservas hechas sin red con `BadgeEstadoOutbox`), empty state con "Elegir una prenda".
+- **"Comprar lo que reservé" (2026-11-07):** `components/comprar-reserva.tsx` = botón primario en reservas `EN_TIENDA`
+  (si ya hay una compra `PENDIENTE` de esa reserva dice "Pagar mi compra (Bs X)" y no crea otra) → `ElegirPagoDialog`
+  (payments) → `hooks/useComprarReserva.ts` → `reservationsApi.comprar` (`POST /ventas/desde-reserva/:id`, `canal:'WEB'`)
+  → `useIrAPagar` (mismo pago que el checkout). Solo con red. `lib/comprarReserva.ts` (+test): `puedeComprarReserva`,
+  `ventaPendienteDeReserva`, `mensajeErrorCompraReserva` (403 → "otra cuenta", 409 legible del backend, sin red).
+  Al aprobarse el pago la reserva pasa a `COMPLETADA` (backend).
+- `useReservarEnTienda` sin red encola `RESERVA_CREAR` (feedback "pendiente de confirmar").
 
 ### `features/promotions/` ↔ backend `promociones`
 `api/promotionsApi.ts` (listar, crear, cambiar estado, validar), `hooks/useCupones.ts` (admin),
@@ -574,8 +592,9 @@ Solo `api/providersApi.ts` + `types/`; la UI está en `admin/pages/ProveedoresAd
   `EstadoAcciones` espeja las transiciones válidas del backend:
   - `PENDIENTE` → Confirmar, Cliente llegó (`EN_TIENDA`), Cancelar, Expirar.
   - `CONFIRMADA` → Cliente llegó, Cancelar, No asistió (`NO_SHOW`), Expirar.
-  - `EN_TIENDA` → No compró (`CANCELADA`, libera las prendas sin contar falta). Si compra, la
-    reserva se cierra sola al cobrar la venta presencial.
+  - `EN_TIENDA` → No compró (`CANCELADA`, libera las prendas sin contar falta). Si compra, lo hace **ella** desde
+    "Mis reservas" (`POST /ventas/desde-reserva/:id`); si paga en efectivo la cajera lo confirma en Cobros y la reserva
+    pasa sola a `COMPLETADA`. La fila lo dice ("Compra desde su reserva · efectivo en Cobros") y el subtítulo de la página también.
 - **Cobros (`CobrosAdminPage`):** lista `GET /pagos/pendientes` (solo efectivo desde que el QR
   se acredita solo) y confirma con `POST /pagos/:id/confirmar`.
 
@@ -615,9 +634,10 @@ inexistente (ficha de prenda).
 
 ## 🗺️ 5. Pendientes e inconsistencias conocidas (2026-11-05)
 
-- **Sin POS a propósito (decisión del usuario):** la tienda física tiene su propio sistema de caja;
-  `POST /ventas/presenciales` existe en el backend sin pantalla. La web solo verifica pagos en persona
-  (`/admin/cobros`) y resuelve reservas (`/admin/reservas`). No construir un POS.
+- **Sin POS, por seguridad (decisión del usuario):** nadie del personal registra ventas. `POST /ventas/presenciales` se
+  **borró** del backend (2026-11-07) y la web no tiene ningún cliente/tipo que apunte ahí. La cajera (`CAJERO`) solo
+  confirma el efectivo en `/admin/cobros` ("Cobros por confirmar"); el inicio del staff se llama "Hoy en la tienda".
+  El canal `PRESENCIAL` sigue solo como etiqueta histórica ("En tienda") en reportes y en la tabla de ventas. No construir un POS.
 - **Fase 2 (siguiente):** `/admin/suscripcion/activar` y el botón "Pagar" de `/admin/suscripcion` muestran las pasarelas
   como "Próximamente"; ahí se conectan las pasarelas enchufables.
 - **Login/registro:** falta botón para mostrar la contraseña. Dictado por voz de reportes sin probar en un navegador real.
@@ -625,8 +645,7 @@ inexistente (ficha de prenda).
   admin es "MirrorIA"; en el paso 2 del alta la vista previa no es sticky. En `/t/tiendaria/login` el panel de foto dice
   "Tiendaria / Tiendaria".
 - **`/probador/token`** es público (gasta crédito de Decart); el backend lo limita a 10 tokens cada 10 min por IP.
-- **App móvil:** `mirroria-mobile/` está congelada y se rehará desde cero; la web y el backend se optimizan como si no
-  existiera.
+- **App móvil:** la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`).
 
 ---
 
@@ -698,6 +717,34 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
   * Gestor Outbox (`src/lib/offline/outbox-manager.ts`): listener de conectividad `window.ononline`/`offline`, drenado FIFO de mutaciones enviando cabecera `Idempotency-Key: <uuid>`, manejo del choque `stock = 1` ante HTTP 409 `STOCK_AGOTADO_CONFLICTO` marcando `COMPENSADO` y emitiendo evento `mirroria:conflicto-stock`.
   * Cliente HTTP (`src/lib/api.ts`): inyección automática de `Idempotency-Key` en operaciones mutantes (`POST`, `PUT`, `PATCH`), captura tipada de `codigo` y `detalles` en `ApiError`.
   * UI (< 120 líneas, 100% Phosphor Icons): `EstadoConexionBadge` (indicador de red con conteo de pendientes en `AdminLayout` y `SiteHeader`), `ListaOutboxSheet` (panel lateral con historial y botón de sincronización manual), `ModalConflictoStock` (diálogo accesible en `App.tsx` para explicar y compensar choque de concurrencia con alternativas de sucursal y talla). Tests: 140 vitest (25 suites).
+- **2026-11-07 — Offline conectado de verdad (opción B del conflicto `stock = 1`), "Comprar lo que reservé" y sin POS:**
+  * **Outbox unificada con el móvil:** estados `PENDIENTE · ENVIANDO · CONFIRMADA · COMPENSADA · RECHAZADA` (las filas viejas
+    `SINCRONIZADO/COMPENSADO/FALLIDO…` se normalizan al leer, `normalizarEstado`). Fila con `usuarioId`, `tipo`
+    (`CARRITO_AGREGAR | CHECKOUT | RESERVA_CREAR`), `grupoId`, `descripcion`, `meta`.
+  * `lib/offline/operaciones-clienta.ts` (+spec): `encolarAgregarCarrito`, `encolarCheckout`, `encolarReserva`; grupo
+    "agregar sin red + confirmar" en `localStorage` (`mirroria:grupo-carrito:<usuario>`), lo cierra el checkout.
+  * `outbox-manager.ts`: FIFO estricto (`creadoEn` monotónico), solo envía las de la clienta en sesión y su tienda
+    (`X-Tenant` = la de la fila, `Authorization`, `Idempotency-Key` generada UNA vez al encolar), recupera `ENVIANDO`
+    huérfanas, cancela el resto del grupo si un paso cae, `COMPENSADA`/`RECHAZADA` nunca se reenvían, 401 → pausa
+    hasta que entra otro JWT (`AuthContext.login` la reanuda), 5xx/red/`IDEMPOTENCIA_EN_CURSO` → backoff 2-4-8-16-30 s,
+    timeout 15 s. Clasificación pura en `clasificar-respuesta.ts` (+test). Eventos: `mirroria:conflicto-stock`
+    (`{detalle, operacion}`), `mirroria:compra-confirmada`, `mirroria:abrir-outbox` (`abrirOutbox()`).
+  * `red-simulada.ts`: **"Simular sin red"** (modo demo, `localStorage mirroria:sin-red-demo`): `hayRed()` = red real y
+    no simulado; con el modo prendido `apiFetch` rechaza toda mutación antes del `fetch` (status 0) y la outbox no envía;
+    las lecturas siguen (en offline real las sirve `sw.js` desde caché).
+  * UI: `EstadoConexionBadge` ahora también en el header de escritorio de la tienda (oculto para visitantes con red) y
+    abre solo el sheet visible; `ListaOutboxSheet` = "Pendientes de este dispositivo" con interruptor demo
+    (`interruptor-sin-red.tsx`), aviso de sesión vencida + "Iniciar sesión", filas (`fila-outbox.tsx`: tipo, estado,
+    clave, HTTP, reintentos; "Pagar ahora" en un CHECKOUT confirmado; "Ver alternativas" en uno compensado), "Enviar ahora"
+    y "Quitar terminadas". `badge-estado-outbox.tsx` (RN09: "Pendiente de confirmar", nunca "comprado").
+    `ModalConflictoStock` usa `otrasSucursales` (con nombre) y `otrasTallas` reales del 409 (`alternativas-conflicto.tsx`):
+    primaria "Retirar en <sucursal>" (nuevo CHECKOUT con clave nueva), ghost "Cambiar talla en el carrito".
+    `features/payments/components/aviso-compra-confirmada.tsx` (montado en `TiendaRoot`): al confirmarse un CHECKOUT
+    encolado ofrece pagarlo (RN08) con `ElegirPagoDialog` y `hooks/useIrAPagar.ts`.
+  * **Sin POS:** textos de rol CAJERO, Ventas, ML ("Fraude en Cobros", "Cada venta nueva…"), constructor de reportes
+    ("Canal (Web / App / En tienda)"), tabla de ventas (WEB "Tienda web", MOVIL "App móvil", PRESENCIAL "En tienda") y
+    specs de `lib/offline` (ahora con la compra de la clienta). `useResourceList.reload` pasó a ser estable (`useCallback`).
+  * Tests: 312 (56 archivos). Capturas de QA en `~/.playwright-mcp/mirroria-web-qa/` (fuera del repo).
 
 ---
 

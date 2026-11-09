@@ -43,6 +43,7 @@ export class VarianteResponseDto {
   tallaNombre!: string;
   colorId!: string;
   colorNombre!: string;
+  colorHex?: string | null;
   sku!: string;
   activo!: boolean;
 }

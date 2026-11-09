@@ -340,7 +340,7 @@ describe('MotorConsultaService', () => {
 
     it('excluye las ventas sin cliente identificado', async () => {
       await service.ejecutar(ficha({ metrica: 'clientes_activos', agruparPor: 'sucursal' }));
-      // Una venta presencial puede no identificar al cliente. Sin esto,
+      // Una venta PRESENCIAL histórica puede no identificar al cliente. Sin esto,
       // "mis mejores clientes" mostraria un grupo vacio enorme. Ver spec 4-bis.5.
       expect(sqlDeLaLlamada()).toContain('v.cliente_id IS NOT NULL');
     });

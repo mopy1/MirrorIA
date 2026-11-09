@@ -6,14 +6,20 @@ import { reservationsApi } from "../../api/reservationsApi"
 import { useCupoReserva } from "../../hooks/useCupoReserva"
 import { estaEnVentana, ventanaReserva } from "../../lib/ventanaReserva"
 import { useRutaTienda } from "@/hooks/useRutaTienda"
+import { useTienda } from "@/hooks/useTienda"
+import { encolarReserva } from "@/lib/offline/operaciones-clienta"
+import { hayRed } from "@/lib/offline/red-simulada"
 
 /**
  * Lógica de `ReservarEnTienda`: cupo de la clienta, ventana válida de
  * horario y el POST. Siempre reserva 1 unidad (el backend rechaza más).
+ * Sin red la reserva va a la outbox (RESERVA_CREAR) "Pendiente de confirmar".
  */
-export function useReservarEnTienda(varianteId: string | null, sucursalId: string | null) {
+export function useReservarEnTienda(varianteId: string | null, sucursalId: string | null, descripcion = "Reserva") {
   const ruta = useRutaTienda()
-  const isAuthenticated = useSesionEnTienda() !== null
+  const user = useSesionEnTienda()
+  const isAuthenticated = user !== null
+  const { slug } = useTienda()
   const navigate = useNavigate()
   const { cupo, reload: recargarCupo } = useCupoReserva(isAuthenticated)
   const [fechaHora, setFechaHora] = useState("")
@@ -33,11 +39,14 @@ export function useReservarEnTienda(varianteId: string | null, sucursalId: strin
     }
     if (!varianteId || !sucursalId || !fechaHora || bloqueada) return
     setFeedback(null)
-    const result = await submit({
-      sucursalId,
-      fechaHoraPrevista: new Date(fechaHora).toISOString(),
-      items: [{ varianteId, cantidad: 1 }],
-    })
+    const dto = { sucursalId, fechaHoraPrevista: new Date(fechaHora).toISOString(), items: [{ varianteId, cantidad: 1 }] }
+    if (!hayRed() && user && slug) {
+      await encolarReserva({ tenantId: slug, usuarioId: user.id, descripcion, dto })
+      setFeedback('Sin conexión: la reserva quedó pendiente de confirmar. Se envía sola al volver la red (la ves en "Mis reservas").')
+      setFechaHora("")
+      return
+    }
+    const result = await submit(dto)
     if (result) {
       setFeedback('Reserva creada — la vas a ver en "Mis reservas".')
       setFechaHora("")

@@ -1,6 +1,6 @@
 # QA de reglas de negocio contra la API real (creado 2026-09-29, al día con la Fase 1b)
 
-Scripts que prueban de punta a punta las reglas de reservas, compras y mostrador
+Scripts que prueban de punta a punta las reglas de reservas, compras y cobros en caja
 contra un backend **local** con su Postgres local (nunca contra Azure: crean
 usuarias, reservas y ventas, y editan fechas/stock por SQL para simular el paso
 del tiempo).
@@ -9,7 +9,7 @@ del tiempo).
 docker start mirroria_postgres
 cd mirroria-backend && npm run build && node dist/main.js &   # API en :3000
 python3 scripts/qa/qa_reglas.py      # 21 escenarios: topes, ventana, vencimiento, faltas, tope de stock, compras
-python3 scripts/qa/qa_mostrador.py   # 14 escenarios: alcance por sucursal, En tienda, No compró, cobro en otra sucursal
+python3 scripts/qa/qa_compra_reserva.py # 26 escenarios: alcance por sucursal, En tienda, No compró, compra desde la reserva + efectivo confirmado por la cajera
 python3 scripts/qa/qa_aislamiento.py # 84 chequeos multi-tenant (Fase 1): dos tiendas nuevas, nada de A visible desde B
 python3 scripts/qa/qa_marca.py       # 37 chequeos de marca por tienda (Fase 1b)
 ```
@@ -30,6 +30,6 @@ python3 scripts/qa/qa_marca.py       # 37 chequeos de marca por tienda (Fase 1b)
   reiniciar el backend antes. Restaurar el dump después.
 
 - Usan `docker exec mirroria_postgres psql` para preparar datos y leer resultados.
-- `qa_mostrador.py` suma 20 unidades a todo el inventario local de `tiendaria` para tener stock libre.
+- `qa_compra_reserva.py` (antes `qa_mostrador.py`; renombrado el 2026-11-07 al quitar el POS) suma 20 unidades a todo el inventario local de `tiendaria` para tener stock libre.
 - Las fechas son `timestamp without time zone` y el backend escribe con la zona del
   proceso: por eso los `UPDATE` de fechas usan hora local (`local_ts`), no `now()`.

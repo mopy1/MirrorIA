@@ -57,19 +57,19 @@ Para garantizar la consistencia longitudinal del proyecto, se incorpora la matri
 | **CU07** | Gestionar Tallas y Colores | `ADMIN` | Catálogo normalizado de tallas ordenadas y colores con código HEX. | Alta |
 | **CU08** | Gestionar Productos y Variantes | `ADMIN` | Publicación de prendas maestras con imágenes y combinaciones SKU. | Alta |
 | **CU09** | Explorar Catálogo de Prendas | `CUSTOMER`, Visitante | Navegación de vitrinas, filtrado por categorías y fichas técnicas. | Alta |
-| **CU10** | Consultar Stock por Sucursal | `CUSTOMER`, `CAJERO` | Verificación de existencias físicas disponibles en cada tienda física. | Alta |
+| **CU10** | Consultar Stock por Sucursal | `CUSTOMER`, Visitante | Verificación de existencias físicas disponibles en cada tienda física. | Alta |
 | **CU11** | Gestionar Carrito de Compras | `CUSTOMER` | Adición de variantes a la bolsa `jsonb` con tope de 3 unidades. | Alta |
 | **CU12** | Procesar Checkout Digital | `CUSTOMER` | Conversión del carrito a venta `PENDIENTE` con descuento atómico. | Alta |
-| **CU13** | Registrar Venta Presencial en Caja | `CAJERO` | Venta física inmediata en mostrador emitiendo comprobante fiscal. | Alta |
+| **CU13** | ~~Registrar Venta Presencial en Caja~~ | — | **Retirado en el 2.º ciclo** por seguridad: el sistema no tiene punto de venta; toda venta nace de una compra de la clienta y la cajera solo confirma el efectivo desde la web. | — |
 | **CU14** | Consultar Historial de Compras | `CUSTOMER`, `ADMIN` | Vista detallada de pedidos y comprobantes emitidos en "Mis pedidos". | Media |
-| **CU15** | Gestionar Ciudades y Sucursales | `ADMIN` | Alta de puntos de venta físicos en las capitales de Bolivia. | Alta |
+| **CU15** | Gestionar Ciudades y Sucursales | `ADMIN` | Alta de sucursales físicas en las capitales de Bolivia. | Alta |
 | **CU16** | Gestionar Órdenes de Compra | `ADMIN` | Emisión de pedidos de confección incrementando el stock en tránsito. | Media |
 | **CU17** | Recepcionar Pedido de Proveedor | `ENCARGADO_SUCURSAL` | Llegada de mercancía a tienda aumentando la `cantidad_disponible`. | Alta |
 | **CU18** | Ajustar Stock Manualmente | `ENCARGADO`, `ADMIN` | Corrección de existencias por mermas con justificación explícita. | Media |
 | **CU19** | Auditar Kardex de Movimientos | `ADMIN`, `ENCARGADO` | Traza inmutable de movimientos (`VENTA`, `RESERVA`, `RECEPCION`, `AJUSTE`). | Alta |
 | **CU20** | Solicitar Reserva en Tienda | `CUSTOMER` | Bloqueo temporal de prendas en `cantidad_reservada` para probador. | Alta |
 | **CU21** | Gestionar Estado de Reserva | `ENCARGADO_SUCURSAL` | Avance del ciclo de vida de la cita (`CONFIRMADA`, `EN_TIENDA`). | Alta |
-| **CU22** | Cobrar Reserva en Punto POS | `CAJERO` | Cierre de reserva en mostrador mediante venta física y liberación de stock. | Alta |
+| **CU22** | Cerrar Reserva con Compra | `CUSTOMER`, `CAJERO` | **Reformulado en el 2.º ciclo:** la clienta toca "Comprar lo que reservé" (app o web) y paga; la cajera confirma el efectivo en la web y la reserva pasa a `COMPLETADA`. | Alta |
 | **CU23** | Cancelar Reserva de Prendas | `CUSTOMER`, `ENCARGADO` | Anulación de cita con restitución inmediata de unidades a stock libre. | Media |
 | **CU24** | Generar Reportes Dinámicos por IA | `ADMIN`, `ENCARGADO` | Formulación de consultas en lenguaje natural (texto o voz) con LLM. | Alta |
 

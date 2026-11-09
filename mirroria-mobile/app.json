@@ -6,26 +6,21 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mirroria",
-    "userInterfaceStyle": "light",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true
-    },
+    "userInterfaceStyle": "automatic",
     "android": {
-      "package": "com.mirroria.app",
+      "package": "bo.mirroria.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#281B89",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "CAMERA"
       ]
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -33,16 +28,36 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#281B89",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 150
         }
       ],
-      "expo-status-bar",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Para escanear la etiqueta de una prenda en la tienda"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#281B89"
+        }
+      ],
       "expo-secure-store",
-      "expo-dev-client",
-      "expo-asset",
+      "expo-font",
       "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "@livekit/react-native-expo-plugin",
         {
@@ -54,21 +69,19 @@
       [
         "@config-plugins/react-native-webrtc",
         {
-          "cameraPermission": "MirrorIA usa la cámara para probarte prendas en vivo con IA."
+          "cameraPermission": "Para verte con la prenda puesta en el probador con IA",
+          "microphonePermission": "El probador no usa el micrófono"
         }
       ],
-      "expo-sqlite",
-      "expo-sharing",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "MirrorIA usa el micrófono solo para dictar tus preguntas de reportes.",
-          "speechRecognitionPermission": "MirrorIA convierte tu voz en texto para armar el reporte que pediste."
-        }
-      ]
+      "expo-dev-client",
+      "./plugins/with-gradle-ram"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "reactCompiler": false
+    },
+    "ios": {
+      "supportsTablet": false
     }
   }
 }

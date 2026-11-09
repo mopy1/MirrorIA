@@ -1,4 +1,5 @@
 import { crearClavesDeIntento } from "./clave-intento"
+import { sinRedSimulado } from "./offline/red-simulada"
 import { getTiendaActiva } from "./tienda-activa"
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
@@ -87,8 +88,11 @@ function cabecerasIdempotencia(path: string, options: RequestInit): Record<strin
  */
 export async function apiFetch<T>(path: string, options: RequestInit = {}, modo: ModoTenant = "auto"): Promise<T> {
   const isAuthEndpoint = path.startsWith("/seguridad/auth/")
-
   const metodo = (options.method ?? "GET").toUpperCase()
+  // Demo "Simular sin red": ninguna mutación sale (lo encolable va por la outbox).
+  if (metodo !== "GET" && sinRedSimulado()) {
+    throw new ApiError(0, "Sin conexión: esta acción necesita internet")
+  }
   const cuerpo = String(options.body ?? "")
   const response = await fetch(`${API_URL}${path}`, {
     ...options,

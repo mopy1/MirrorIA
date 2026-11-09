@@ -1,348 +1,228 @@
-# 📱 MirrorIA Mobile — Arquitectura, Guía Técnica y Árbol de Carpetas
+# 📱 mirroria-mobile — App móvil de MirrorIA (Nivel 3)
 
-Este documento define la arquitectura técnica, las directrices de diseño y la estructura de carpetas de `mirroria-mobile`.
-Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas directrices de forma obligatoria.
+> **App solo para clienta (`CUSTOMER`) y visitante. Sin punto de venta.** Las cuentas de personal
+> (`ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`, `DUENO_PLATAFORMA`) se rechazan en el login: "usala en la web".
+> Spec cerrada: vault `U/2-2026/SI2/Parcial2/Movil_Spec.md` (manda sobre este archivo). Plan: `Plan_Movil.md`.
+> Estado: **M0 + M1 + M2 + M3 hechos** (scaffold, tema, acceso, espejo SQLite, vitrina/ficha offline, `OutboxManager`, carrito/checkout/reserva
+> encolables, `ModalConflictoStock`, Pendientes; **M3:** pago real QR Wayra/Stripe/"Pagar en caja", Mis pedidos, Mis reservas, Pase de Tienda
+> con recordatorio local, "Comprar lo que reservé" y dashboard con KPIs; probado de punta a punta en el POCO; **M4.1** escáner de etiqueta y
+> **M4.2** "Avisame cuando vuelva" + deslizar para quitar del carrito; **M4.3** *development build* Android local, **M4.4** probador Decart
+> en vivo y **M4.5** APK de entrega, 2026-11-08). **Desde M4.3 la app ya NO corre en Expo Go** (LiveKit es nativo): dev build o APK.
 
----
+## 1. Stack (versiones exactas, spec §1.1)
 
-## 🎯 Alcance: clientas + panel de la tienda (paridad con la web, 2026-11-08)
-- **Cambio de regla pedido por el usuario el 2026-11-08:** la app ya NO es solo para clientas. Todo lo del Segundo
-  Parcial que tiene la web está también en el teléfono (rama `movil-paridad`). La regla vieja "nunca panel admin en móvil" queda anulada.
-- **Clienta (`CUSTOMER`):** pestañas `(tabs)` de siempre + pagos QR (Wayra simulado), PayPal y Stripe, compras sin internet (SQLite).
-- **Equipo de la tienda (`ADMIN`, `ENCARGADO_SUCURSAL`, `CAJERO`):** al entrar va a `/admin` (`app/admin/*`). Menú por rol en
-  `src/features/admin/lib/menu-admin.ts`, mismas reglas que `admin-sidebar.data.ts` de la web; test de cero pantallas huérfanas.
-  Pantallas: Inicio (dashboards BI por rol), Mostrador (caja que vende SIN internet: cola SQLite `src/lib/offline/colaCaja.ts`,
-  misma `Idempotency-Key` y mismo cuerpo en línea y en la cola), Ventas, Cobros, Reservas, Cupones, Catálogo (+ `catalogo/[id]`),
-  Inventario, Proveedores, Reportes con IA (texto y voz con `expo-speech-recognition`, constructor, tabla dinámica, Excel/PDF),
-  Predicciones (ML), Sucursales, Equipo y permisos, Apariencia, Plan y suscripción.
-- **SaaS:** `app/saas/planes`, `app/saas/registro` (alta de tienda en 3 pasos), `app/saas/tiendas` (directorio y cambiar de tienda).
-  La tienda actual vive en `src/lib/tienda.ts` (`tiendaActual()` = cabecera `X-Tenant`, se guarda en el teléfono); la marca de la
-  tienda (nombre, logo, color) se aplica en toda la app.
-- **Panel de la plataforma (`/plataforma`, `DUENO_PLATAFORMA`) NO está en el móvil**: queda solo en la web.
-- **Ver la app en la PC:** `EXPO_PUBLIC_TIENDA=casa-andina npx expo start --web` (en web no hay SQLite: `expoBase.web.ts` es una base
-  vacía; el sin-internet solo funciona en el teléfono). Banco de pruebas con Playwright en `C:\dev\mirroria-qa\movil` (`BRIEF.md`).
-- La app abre en **Expo Go** (`npm run dev`, que arranca con `--go`). El probador (LiveKit/WebRTC) y el dictado por voz son nativos: en Expo Go quedan apagados (`src/lib/expoGo.ts`) y funcionan en el APK o en web.
+| Pieza | Versión |
+|---|---|
+| Expo SDK / RN / React | `expo` 58.0.23 · `react-native` 0.88.1 · `react` 19.3.0 (New Architecture) |
+| Navegación | `expo-router` 58.0.30 (rutas en `src/app/`, tabs JS de `expo-router/js-tabs`) |
+| UI | NativeWind 4.2.7 + Tailwind 3.4.19 · React Native Reusables (`@rn-primitives/*` 1.5.x) · íconos **Phosphor** 3.0.6 (nunca lucide) |
+| Animación | Reanimated 4.7.1 + Worklets 0.13.0 (una sola copia) |
+| Datos | TanStack Query 5.107.1 · react-hook-form 7.91.0 + zod 4.6.7 |
+| Local | `expo-sqlite` 58.0.15 (`mirroria_local.db`) · `expo-secure-store` 58.0.2 · `expo-crypto` 58.0.7 |
+| Red | `@react-native-community/netinfo` 12.0.1 |
+| Fuentes | Bricolage Grotesque (títulos MirrorIA/`geist`), Geist (cuerpo), Geist Mono (montos/SKU), Outfit, DM Sans, Playfair |
+| En uso desde M3 | `expo-notifications` (recordatorio local), `expo-web-browser` (Stripe), `react-native-qrcode-svg` (Pase), `expo-haptics` |
+| En uso desde M4 | `expo-camera` (escáner, QR + Code128), `react-native-gesture-handler` v3 (`usePanGesture`, deslizar en el carrito) |
+| Probador (M4.4) | `@decartai/sdk` 0.2.14 · `livekit-client` 2.20.1 · `@livekit/react-native` 3.1.0 · `@livekit/react-native-webrtc` 150.1.1 · plugins `@livekit/react-native-expo-plugin` 1.1.0 + `@config-plugins/react-native-webrtc` 15.0.2 |
+| Build nativo (M4.3) | `expo-dev-client` 58.0.18 · `expo-build-properties` 58.0.12 (`usesCleartextTraffic` para la API local por HTTP) · plugin propio `plugins/with-gradle-ram.js` |
 
----
+## 2. Levantar en el POCO X3 Pro (development build, ADB inalámbrico)
 
-## 🌟 Estrategia de Producto Móvil vs Web (Enfoque Diferenciado)
+Requisitos en WSL (ya instalados): JDK 21 (`/usr/lib/jvm/java-21-openjdk-amd64`), Android SDK en `~/Android/Sdk`
+(`platforms;android-37.0`, `build-tools;37.0.0`, NDK 27.1.12297006, cmake 3.22.1). `android/` es **CNG** (se genera, no se versiona).
 
-La app móvil **NO es un clon reducido de la tienda web**. Se diseñó como un **asistente personal de moda de bolsillo** que explota las capacidades táctiles y de movilidad del smartphone:
-
-| Dimensión | Web (`mirroria-frontend`) | Móvil (`mirroria-mobile`) |
-|---|---|---|
-| **Propósito Principal** | Compras con calma, filtros densos y administración completa del negocio. | Probarse ropa con IA en vivo, navegación táctil rápida y pase físico en sucursal. |
-| **Experiencia de Catálogo** | Cuadrícula e-commerce con filtros laterales de atributos y tablas. | Feed editorial para el pulgar con botón de un toque **"Probar"** que abre el Probador IA con esa prenda. |
-| **Probador Virtual** | Decart VTON en el navegador (`/probador`). | **Feature Estrella Central:** el mismo Decart VTON, con la cámara del celular (frontal o trasera). |
-| **Sucursales Físicas** | Consulta de mapa y horarios. | **Pase de Tienda:** Códigos de cita de prueba física en mano para mostrar al encargado/cajero. |
-
----
-
-## 🧭 Arquitectura de Navegación Móvil (Bottom Tabs)
-
-La app organiza la experiencia de la clienta en **4 pestañas inferiores fijas**, con el Probador IA como botón central destacado:
-
-1. **🏠 Feed (`/feed`):** Novedades, tendencias y colecciones de temporada con estética de revista boutique.
-2. **👗 Catálogo (`/catalogo`):** Vitrina visual optimizada para pulgar, con buscador rápido, filtro de categorías y badge dinámico de disponibilidad por sucursal física.
-3. **🪞 Probador IA (`/probador` - Botón Central Destacado):** la cámara en vivo pasa por Decart (`lucy-vton-3.5`) y la clienta se ve vestida con la foto real de la prenda elegida. Acepta `?productoId=` para abrir con una prenda puesta.
-4. **👤 Perfil & Reservas (`/perfil`):** Credenciales de la clienta, historial de pedidos y **Pase de Tienda** con las citas activas para probarse prendas en sucursal.
-
----
-
-## 🛠️ Stack Tecnológico
-- **Framework:** Expo SDK 57 + React Native 0.86.x + React 19 (subido desde SDK 56 el 2026-09-14, ver sección de troubleshooting al final de este documento — **si tu Expo Go del celular no está actualizado a la versión que corresponde a SDK 57, la conexión falla con un error de incompatibilidad**, no es un bug del proyecto).
-- **Routing:** Expo Router (File-based navigation con grupos y layouts).
-- **Styling:** NativeWind v4 (Tailwind CSS v3 compilado para React Native).
-- **Design System / Componentes:** React Native Reusables (RNR / `@rn-primitives`) + Lucide Icons (`lucide-react-native`).
-- **Formularios y Validación:** React Hook Form + Zod + `@hookform/resolvers`.
-- **Almacenamiento Seguro:** `expo-secure-store` con fallback transparente a `localStorage` para web.
-- **Networking:** `fetch` tipado con cliente unificado (`src/lib/api.ts`) que resuelve automáticamente la IP del host de Expo (`Constants.expoConfig?.hostUri`) para pruebas en celular físico mediante QR (Expo Go).
-
----
-
-## 🎨 Identidad Visual y Paleta (Consistente con `mirroria-frontend`)
-- **Acento Primario (Vino/Rosa Profundo):**
-  - Modo Claro: `hsl(348 65% 26%)` / `oklch(0.38 0.16 15)`
-  - Modo Oscuro: `hsl(348 70% 60%)` / `oklch(0.68 0.17 15)`
-  - Anillo de Foco: `hsl(348 60% 45%)`
-- **Tema Visual Fijo (Siempre Claro / Blanco):** Por directriz de marca boutique, la aplicación móvil opera permanentemente en modo claro (`light`). Se desactivó el modo oscuro en Expo (`userInterfaceStyle: "light"` en `app.json`), NativeWind (`setColorScheme('light')` en `_layout.tsx`) y se retiró el botón de alternancia del encabezado, garantizando una vitrina luminosa, limpia y consistente en cualquier teléfono.
-- **Radio de Bordes Unificado:** `--radius: 0.75rem` (12px, Shape Consistency Lock).
-- **Tipografía y Legibilidad:** Componentes nativos accesibles provistos por RNR (`Text`, `Label`, `Button`, `Card`, `Input`).
-
----
-
-## 📁 Arquitectura de Carpetas Real y Componentes Modulares
-
-```
-mirroria-mobile/
-├── AGENTS.md                         # Este documento de arquitectura
-├── app/                              # Rutas del Expo Router
-│   ├── _layout.tsx                   # Root Layout (AuthProvider + ThemeProvider + PortalHost)
-│   ├── index.tsx                     # Redirección inmediata a /(tabs)
-│   ├── +not-found.tsx                # Pantalla 404
-│   ├── +html.tsx                     # Template HTML para compilación web
-│   ├── (auth)/                       # Grupo de rutas de autenticación
-│   │   ├── _layout.tsx               # Stack sin header para auth
-│   │   ├── login.tsx                 # Ruta /login
-│   │   └── register.tsx              # Ruta /register
-│   │
-│   └── (tabs)/                       # 🧭 Barra de navegación inferior
-│       ├── _layout.tsx               # Tab bar con botón central destacado para el Probador IA
-│       ├── index.tsx                 # 🏠 Pestaña Feed (Novedades y colecciones)
-│       ├── catalogo.tsx              # 👗 Pestaña Catálogo (Vitrina táctil y stock)
-│       ├── probador.tsx              # 🪞 Pestaña Probador IA (Botón central destacado)
-│       └── perfil.tsx                # 👤 Pestaña Perfil & Reservas (Pase de tienda)
-│
-├── components/                       # Sistema de diseño y componentes UI compartidos
-│   ├── brand-logo.tsx                # Logotipo boutique MirrorIA unificado con web
-│   ├── common/                       # Componentes compartidos de navegación y estructura
-│   │   ├── AnimatedTabBar.tsx        # Dock flotante con cápsula deslizante y física de resorte (spring)
-│   │   ├── ScreenHeader.tsx          # Cabecera boutique con BrandLogo y fondo blanco fijo
-│   │   └── TabBarIcon.tsx            # Icono auxiliar tipado con soporte de badges
-│   │
-│   └── ui/                           # Primitivos React Native Reusables (RNR)
-│       ├── badge.tsx                 # Badge modular con variantes de color
-│       ├── button.tsx                # Botón con variantes (default, outline, ghost, etc.)
-│       ├── card.tsx                  # Tarjeta modular (Header, Title, Description, Content, Footer)
-│       ├── icon.tsx                  # Wrapper de Lucide con soporte NativeWind
-│       ├── input.tsx                 # Campo de texto estilizado
-│       ├── label.tsx                 # Etiqueta accesible (@rn-primitives/label)
-│       └── text.tsx                  # Tipografía responsiva
-│
-├── src/                              # Código fuente de negocio modular
-│   ├── context/                      # Contextos globales de la app
-│   │   ├── auth-context.ts           # Definición de interfaz y objeto AuthContext
-│   │   └── AuthContext.tsx           # Proveedor AuthProvider con persistencia segura
-│   │
-│   ├── hooks/                        # Hooks compartidos
-│   │   ├── useAuth.ts                # Consumo de sesión de usuario
-│   │   └── useKeyboard.ts            # Detección y animación suave de altura del teclado nativo
-│   │
-│   ├── lib/                          # Utilidades e infraestructura
-│   │   ├── webrtc.native.ts          # registerGlobals() de LiveKit (WebRTC nativo para Decart), importado en app/_layout.tsx
-│   │   ├── webrtc.ts                 # No-op en web (el navegador ya trae WebRTC)
-│   │   ├── api.ts                    # Cliente HTTP con interceptor JWT e IP adaptativa
-│   │   ├── money.ts                  # Formateador de moneda boliviana (BOB / Bs)
-│   │   ├── storage.ts                # Almacenamiento seguro multiplataforma (SecureStore + web)
-│   │   ├── theme.ts                  # Definición de temas claro/oscuro para React Navigation
-│   │   └── utils.ts                  # Helper cn() (clsx + tailwind-merge)
-│   │
-│   └── features/                     # Módulos de dominio de negocio (UI 100% modular)
-│       ├── auth/                     # ✅ Feature de Autenticación
-│       │   ├── api/authApi.ts        # Endpoints NestJS (/seguridad/auth/*)
-│       │   ├── types/auth.types.ts   # DTOs y tipos de usuario
-│       │   ├── hooks/{useLogin,useRegister}.ts
-│       │   ├── components/{LoginForm,RegisterForm}.tsx
-│       │   └── screens/{LoginScreen,RegisterScreen}.tsx
-│       │
-│       ├── feed/                     # 🏠 Feature de Feed y Portada Boutique
-│       │   ├── components/HeroBanner.tsx       # Banner editorial con degradé y CTA
-│       │   ├── components/QuickActionsBar.tsx  # Accesos rápidos táctiles
-│       │   ├── components/FeaturedCarousel.tsx # Carrusel de prendas con acceso al Probador IA
-│       │   ├── components/StorePassTeaser.tsx  # Teaser de Pase de Tienda
-│       │   └── screens/FeedScreen.tsx          # Pantalla orquestadora (< 80 líneas)
-│       │
-│       ├── catalog/                  # 👗 Feature de Catálogo Táctil y Novedades
-│       │   ├── api/catalogApi.ts     # GET /catalogo/productos y /catalogo/categorias
-│       │   ├── types/catalog.types.ts# Tipos de prendas, categorías y variantes
-│       │   ├── components/SearchInput.tsx        # Buscador con botón limpiar
-│       │   ├── components/CategoryChips.tsx      # Chips horizontales de categorías
-│       │   ├── components/ProductCardMobile.tsx  # Tarjeta boutique con imagen, badge de Probador IA y Bs
-│       │   ├── components/CatalogSkeleton.tsx    # Esqueleto de carga
-│       │   ├── components/CatalogEmptyState.tsx  # Estado vacío con reseteo
-│       │   └── screens/CatalogScreen.tsx         # Pantalla orquestadora (< 130 líneas)
-│       │
-│       ├── probador/                 # 🪞 Feature Estrella: Probador IA con Decart (ver sección dedicada abajo)
-│       │   ├── api/probadorApi.ts             # POST /probador/token (token efímero de Decart)
-│       │   ├── hooks/useCamaraLocal.ts        # getUserMedia de WebRTC (frontal/trasera), pide el permiso
-│       │   ├── hooks/useProbadorIA.ts         # Conexión realtime con Decart, expone la URL del video vestido
-│       │   ├── lib/promptDePrenda.ts          # Prompt VTON (mismo que la web) + qué prendas se pueden probar
-│       │   ├── components/ProbadorEscena.tsx  # RTCView del video vestido + miniatura de la cámara + estados
-│       │   ├── components/PrendaSelector.tsx  # Tira horizontal de prendas con foto
-│       │   ├── components/PrendaActual.tsx    # Nombre, precio y "Ver prenda" (ficha real con tallas/carrito)
-│       │   ├── components/PermisoCamara.tsx   # Cuando no se pudo abrir la cámara
-│       │   ├── components/ProbadorApagado.tsx # Estado inicial: no conecta con Decart hasta que se enciende
-│       │   ├── components/ProbadorHeader.tsx  # Título y estado de la IA
-│       │   └── screens/ProbadorScreen{.tsx,.web.tsx}  # Orquestador (la variante web solo deriva a la tienda web)
-│       │
-│       └── profile/                  # 👤 Feature de Perfil y Pase de Tienda
-│           ├── components/ProfileHeader.tsx          # Avatar con iniciales y rol CLIENTA
-│           ├── components/GuestPromptCard.tsx        # Invitación a crear cuenta para invitadas
-│           ├── components/StorePassCard.tsx          # Tarjeta digital con QR de cita en tienda
-│           ├── components/ProfileNavigationMenu.tsx  # Menú de pedidos, medidas y sucursales
-│           └── screens/ProfileScreen.tsx             # Pantalla orquestadora (< 40 líneas)
-│
-├── assets/                           # Iconos, splash screen e imágenes
-├── global.css                        # Tokens CSS Tailwind y variables HSL
-├── tailwind.config.js                # Configuración de NativeWind y rutas de contenido
-├── app.json                          # Configuración Expo de la aplicación
-└── package.json                      # Dependencias del proyecto
-```
-
----
-
-## 🪞 Probador IA — Decart VTON en vivo (reemplazó al Vestidor 3D el 2026-09-29)
-
-Mismo motor que el probador web (`mirroria-frontend/src/features/fitting/`): la API realtime de
-[Decart](https://platform.decart.ai), modelo `lucy-vton-3.5`, que viste el video de la cámara
-con la foto real del producto. El AR anterior (VisionCamera + detector de pose ML Kit en un
-módulo nativo propio + prendas `.glb` con three.js) **se eliminó entero, sin dejarlo como
-respaldo** — a pedido del usuario, igual que se hizo en la web. Si hiciera falta consultarlo,
-está en el historial de git (`28600a6` y siguientes, hasta `3f2455d`).
-
-### Pipeline
-
-```
-getUserMedia (@livekit/react-native-webrtc)      [hooks/useCamaraLocal.ts]
-  → POST /probador/token (backend, token efímero) [api/probadorApi.ts]
-  → createDecartClient({ apiKey }).realtime.connect(stream, { model: lucy-vton-3.5, mirror: false })
-  → set({ prompt, image: urlDeLaFoto, enhance: false })   al conectar y al cambiar de prenda
-  → onRemoteStream → stream.toURL() → <RTCView streamURL>  [components/ProbadorEscena.tsx]
-```
-
-### Decisiones y trampas
-
-- **`@decartai/sdk` trae build propio para React Native** (`exports["react-native"]`), que corre
-  sobre LiveKit: exige `@livekit/react-native` + `@livekit/react-native-webrtc` +
-  `livekit-client` y que se llame `registerGlobals()` **antes** de conectar (si no, el SDK tira
-  `REACT_NATIVE_SETUP_REQUIRED` con la lista de globals que faltan). Se llama una vez en
-  `src/lib/webrtc.native.ts`, importado desde `app/_layout.tsx`.
-- **No funciona en Expo Go**: WebRTC es código nativo. Hay que usar el dev build
-  (`com.mirroria.app`, `expo-dev-client`).
-- **`mirror` tiene que ir en `false`**: el SDK de RN no soporta espejar el video saliente. El
-  efecto espejo de la cámara frontal se hace al dibujar (`<RTCView mirror>`).
-- **La imagen de la prenda se pasa como URL https** a `set()`: el SDK la descarga y la convierte
-  a base64 él mismo (`fetch` + `FileReader`, ambos existen en RN).
-- **Cambiar de cámara abre un stream nuevo y reconecta con Decart** (la sesión depende del
-  stream); la prenda elegida se vuelve a aplicar sola cuando el estado pasa a `conectado`.
-- **Plugins nativos** en `app.json`: `@livekit/react-native-expo-plugin` (con
-  `audioType: "media"` — no se publica audio, así no pasa el teléfono a modo llamada) y
-  `@config-plugins/react-native-webrtc` (permisos). `LiveKitReactNative.setup` lo hace el plugin
-  con un `ApplicationLifecycleListener`, no hace falta tocar `MainApplication.kt`.
-- **Al regenerar `android/` con `expo prebuild`, restaurar `android/gradle.properties`**: el
-  prebuild pisa `org.gradle.workers.max=2` y `reactNativeArchitectures=arm64-v8a`, que existen a
-  propósito para que Gradle no agote los 8 GB de RAM de la laptop.
-- **Cada sesión gasta crédito real de la cuenta de Decart**, así que la sesión nunca arranca
-  sola: la pestaña abre "en pausa" (`ProbadorApagado`) y solo se conecta con "Encender
-  probador". Se apaga sola al salir de la pestaña (`useFocusEffect` — las pestañas de Expo
-  Router quedan montadas, sin esto la sesión seguía cobrando en segundo plano), al mandar la app
-  a segundo plano (`AppState`) y con el botón de apagado de la escena. Apagar = cortar la cámara;
-  sin stream, `useProbadorIA` desconecta.
-
----
-
-## 🌐 Conexión con el Backend NestJS (`mirroria-backend`)
-- Los endpoints consumidos son:
-  - `POST /api/v1/seguridad/auth/login`
-  - `POST /api/v1/seguridad/auth/register`
-  - `GET /api/v1/seguridad/auth/me`
-  - `GET /api/v1/catalogo/productos`
-  - `GET /api/v1/catalogo/categorias`
-  - `POST /api/v1/probador/token` (Probador IA, público)
-- **Conectividad Móvil Global (Cloudflare Tunnel):**
-  - Para evitar bloqueos de red local o Wi-Fi, la API se publica mediante Cloudflare Tunnel (`cloudflared tunnel --url http://localhost:3000`).
-  - La URL pública encriptada HTTPS se inyecta en `src/lib/api.ts` y `.env`, permitiendo que cualquier celular físico (Android o iOS) consuma la API en tiempo real mediante Expo Go o navegador web.
-
----
-
-## 🔧 Troubleshooting real (2026-09-14): bugs que solo pasaban en celular con Expo Go, nunca en la vista web
-
-### Síntoma reportado por el usuario
-Dos bugs reproducibles **únicamente** abriendo la app en un celular físico vía Expo Go (túnel de Cloudflare para el backend + `expo start --tunnel` para Metro). En `npm run web` (navegador) todo funcionaba perfecto:
-1. El círculo animado de `AnimatedTabBar.tsx` no quedaba centrado bajo el ícono de la pestaña seleccionada.
-2. En la pestaña Catálogo, filtrar por la categoría "Accesorios" dejaba la app sin responder (freeze/ANR).
-
-### Pregunta clave del usuario: ¿es Expo Go el que está mal, o la app?
-**Ninguno de los dos literalmente "está roto" — el proyecto tenía 3 dependencias nativas desalineadas respecto al Expo SDK que declaraba usar**, confirmado con `npx expo-doctor` (no es una suposición, es un diagnóstico verificable con esa herramienta oficial). Los tres bugs viven en la capa **nativa** (Hermes, módulos nativos vía autolinking), que la vista web (`react-native-web`, corre en el motor JS del navegador) se salta por completo — por eso el síntoma era 100% exclusivo del dispositivo físico.
-
-Hallazgos exactos de `expo-doctor` antes del fix:
-1. **`react-native-screens` duplicado**: `4.25.2` (raíz del proyecto) convivía con `4.27.0` (anidado dentro de `node_modules/expo-router`). Dos copias del módulo nativo de navegación compilando en el mismo build puede desincronizar medidas/layout de las pantallas nativas (candidato fuerte para el bug del círculo del tab bar, que depende de medir el layout real de cada pestaña).
-2. **Regresión de memoria conocida en Hermes V1** (`250829098.0.10`, afecta a toda versión ≤ `.15`) para exactamente esta build de Expo SDK 56 — bug documentado por el propio equipo de Expo, arreglado recién en `.16`. Hermes es el motor JS que corre **solo en el build nativo** (Expo Go); la web usa el motor del navegador. Candidato fuerte para el freeze de "Accesorios".
-3. **`expo-secure-store` en versión mayor incompatible**: `package.json` tenía `^57.0.4` (pensado para el próximo SDK) contra un proyecto en SDK 56, que esperaba `~56.0.4`. En web, `expo-secure-store` ni siquiera toca código nativo (usa un shim), por eso ahí nunca se manifestaba.
-
-### Fix aplicado (solo dependencias — **cero cambios de código de la app**, a pedido explícito del usuario)
 ```bash
-npx expo install --fix        # alineó expo-secure-store y react-native-screens al SDK vigente
-npm dedupe                     # colapsó las dos copias de react-native-screens en una sola
-npx expo install expo@^57.0.9 --fix   # upgrade completo a Expo SDK 57 (única forma real de arreglar el bug de Hermes)
+cp .env.example .env                                   # EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
+npx expo prebuild --platform android --no-install       # regenera android/ (aplica plugins/with-gradle-ram.js)
+docker stop mirroria_ml                                 # RAM: apagar lo que no hace falta mientras compila
+cd android && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug --no-daemon   # ~12 min la 1.ª vez
+adb devices -l                                          # 192.168.100.160:<puerto> (el puerto cambia)
+adb install -r app/build/outputs/apk/debug/app-debug.apk   # MIUI: "Instalar" ≈ adb shell input tap 310 2100 (10 s)
+adb reverse tcp:8081 tcp:8081 && adb reverse tcp:3000 tcp:3000
+npx expo start --dev-client --localhost
+adb shell am start -a android.intent.action.VIEW -d "mirroria://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081" bo.mirroria.app
 ```
-Resultado: `expo-doctor` pasó de 19/22 a **21/21 checks**. `tsc --noEmit` limpio. Verificado además con Playwright contra `npm run web` (0 errores de consola, mismos warnings preexistentes de siempre) tras el upgrade — sin regresiones visibles en la vista web.
+Deep links del dev build / APK: `mirroria://<ruta>` (p. ej. `mirroria://mis-cosas/pendientes`, `mirroria://vitrina/<id>?variante=<v>`).
+**APK de entrega (sin Metro):** `./gradlew assembleRelease --no-daemon` → `android/app/build/outputs/apk/release/app-release.apk`
+(bundle JS embebido, firmado con el keystore de *debug* que genera el prebuild; `EXPO_PUBLIC_API_URL` se incrusta al compilar
+desde `.env`). Copia en `dist/` (gitignored): ver §9.
+Cuentas: clienta `clienta@mirroria.com` (tiendaria) · personal para probar el rechazo `cajera.centro@mirroria.com` (clave dev en vault `Parcial1/App/Database.md`).
 
-**Versiones clave después del upgrade:** `expo@57.0.22`, `react-native@0.86.3`, `react-native-screens@4.26.2` (única copia), `react-native-reanimated@4.5.1`, `react-native-worklets@0.10.1`, `expo-secure-store@~57.0.4`, y el resto de paquetes `expo-*` realineados a `~57.x`.
+**Comandos de calidad:** `npx tsc --noEmit` · `npx expo lint` · `npx expo-doctor` · `npm test` (node:test + node:sqlite, sin deps).
 
-> [!IMPORTANT]
-> **Acción manual pendiente del lado del usuario, no resoluble desde el repo:** hay que actualizar la app **Expo Go** en el celular físico (Play Store / App Store) a la versión que soporta SDK 57. Con el Expo Go viejo (SDK 56), escanear el QR tira un error de incompatibilidad — es el comportamiento esperado del upgrade, no un bug nuevo.
+## 3. Árbol
 
-### Bug de código real encontrado pero NO corregido (a pedido explícito del usuario, queda pendiente)
-Durante la investigación se detectó que `ImagenProducto.esPrincipal` (usado en `ProductCardMobile.tsx`, `GarmentSelectorBar.tsx` y `FeaturedCarousel.tsx` vía `imagenes?.find((img) => img.esPrincipal)`) **es un campo que nunca existió en el backend real** — el DTO de `mirroria-backend` y el tipo de `mirroria-frontend` usan `esArAsset`, no `esPrincipal` (ver `mirroria-backend/AGENTS.md`, sección de `catalogo`). Como `.find()` siempre devuelve `undefined` para ese campo inexistente, el código cae siempre al fallback `imagenes?.[0]?.url` — funciona por accidente (no rompe nada visualmente hoy), pero ignora el campo real `orden` que indica cuál imagen es la principal. Se llegó a implementar y verificar un fix (tipo corregido a `esArAsset` + helper `getPrimaryImageUrl` que ordena por `orden`), pero **se revirtió a pedido del usuario** ("dejalo como estaba, sin tus modificaciones de código") para no arriesgar nada que ya andaba bien en la web mientras se resolvían las dependencias. **Si se retoma:** el fix correcto es ordenar `imagenes` por `orden` ascendente y tomar la primera, no buscar un campo `esPrincipal` que no existe. Revisar los 3 archivos mencionados arriba.
+```text
+mirroria-mobile/
+├── index.ts                   # entrada: livekit-bootstrap (registerGlobals) → expo-router/entry
+├── plugins/with-gradle-ram.js # config plugin: límites de RAM de Gradle en cada prebuild (CNG)
+├── android/                   # GENERADO por `expo prebuild` (gitignored) · dist/ = APK de entrega (gitignored)
+├── app.json · babel.config.js · metro.config.js · tailwind.config.js · components.json · eslint.config.js
+├── nativewind-env.d.ts · tsconfig.json (alias @/* → src/*) · .env.example
+├── docs/capturas/{m1,m2,m3,m4}/ # capturas del POCO para el PDF (m4: escáner, avisos, deslizar, dev build, probador, APK 01-35)
+└── src/
+    ├── global.css               # tokens por defecto (MirrorIA claro/oscuro) en "R G B"
+    ├── app/                     # SOLO rutas: `export { default } from '@/features/...'`
+    │   ├── _layout.tsx          # PantallaMovilApp: fuentes + SQLite + NetInfoListener → Query/Tienda/Sesión/Tema → Stack + PortalHost
+    │   ├── index.tsx            # redirector: sin tienda → /tiendas, con tienda → /vitrina
+    │   ├── tiendas.tsx          # selector de boutique (tema MirrorIA)
+    │   ├── acceso/{_layout,login,registro}.tsx
+    │   └── (tabs)/_layout.tsx   # Vitrina · Probador · Carrito (badge) · Mis cosas
+    │       ├── vitrina/{index, escanear, [productoId]/index, [productoId]/reservar}
+    │       ├── probador/index
+    │       ├── carrito/index
+    │       └── mis-cosas/{index, pedidos/{index,[ventaId]}, reservas/{index,[reservaId]}, pago/[ventaId], pendientes, avisos}
+    ├── components/
+    │   ├── ui/                  # RNR (button, text, card, badge, input, label, dialog, alert-dialog, tabs, separator,
+    │   │                        #  skeleton*, switch, avatar, progress, select, toggle(-group), textarea) + icon.tsx (Phosphor)
+    │   └── common/              # Pantalla, BarraRed, EncabezadoPantalla (← Volver), EstadoVacio, EstadoError, PedirSesion,
+    │                            # PantallaProximamente, Titulo, MonedaBs, LogoTienda, MonogramaTienda, PlataformaLogo, Velo,
+    │                            # BadgeEstadoOutbox (RN09), FilaOpcion (radio 56 px)
+    ├── contexts/                # TiendaContext · SesionContext · TemaContext
+    ├── lib/
+    │   ├── api/                 # cliente-http (apiFetch), contexto-http, errores (ApiError, ErrorSinRed), endpoints,
+    │   │                        #  con-cache (lectura con respaldo en configuracion_sync: ventas_json/reservas_json)
+    │   ├── db/                  # sqlite-local (SQLite Local + transaccionExclusiva), migraciones v1-v2 (+test), tipos-espejo,
+    │   │                        #  repos/{configuracion,espejo,vitrina,carrito,reservas,detalle (nombres de prendas/sucursales),
+    │   │                        #  escaner (buscarPorSku), avisos}
+    │   ├── outbox/              # OutboxManager: tipos, clasificar-respuesta (+test), repo-outbox, cola-outbox (núcleo puro, +test),
+    │   │                        #  outbox-manager (timers/NetInfo/AppState), enviar-operacion, sql-expo, operaciones (las 3 encolables),
+    │   │                        #  consultas, conflictos-store, use-outbox, use-motor-outbox
+    │   ├── reservas/            # horarios (+test): ventana +30 min/+48 h, 10-20 h La Paz · comprar-reserva (+test): accionPase,
+    │   │                        #  ventaDeReserva, codigoPase, momentoRecordatorio, etiquetas
+    │   ├── pagos/               # estado-pago (+test): vistaPago, intervaloConsulta (polling), bloqueoPago (RN08), metodosDisponibles ·
+    │   │                        #  resumen-clienta (KPIs del dashboard)
+    │   ├── notificaciones/      # use-abrir-notificacion (handler en primer plano + tocar el aviso abre `data.ruta`)
+    │   ├── vitrina/             # parsear-etiqueta (+test): SKU plano, `mirroria:v:<SKU>` o enlace `?sku=`/`?codigo=`
+    │   ├── avisos/              # decidir-avisos (+test, 0→>0 notifica, se re-arma al agotarse), sql-avisos (+test node:sqlite),
+    │   │                        #  revisar-avisos (tras cada snapshot: notificación local inmediata)
+    │   ├── red/                 # net-info-listener (NetInfoListener), use-estado-red
+    │   ├── sesion/              # sesion-store (SecureStore por tienda), jwt (+test)
+    │   ├── tema/                # color (+test, port web), derivar-tokens, tema-plataforma, tokens, fuentes, marca.types
+    │   ├── formato/             # dinero (+test) "Bs 1.250,00", fechas "hace 5 min"
+    │   ├── probador/            # livekit-bootstrap (registerGlobals), prendas (promptDePrenda = web, prendasProbables,
+    │   │                        #  elegirPrenda), fase-probador (faseProbador, SEGUNDOS_POR_SESION 60) (+test)
+    │   ├── config.ts            # API_URL, WEB_URL, urlImagen, TTL_ESPEJO_MS (7 días)
+    │   └── utils.ts             # cn()
+    └── features/
+        ├── tiendas/  {api,components,hooks,screens,types}
+        ├── auth/     {api,components,hooks,screens,types}
+        ├── espejo/   {api,hooks}
+        ├── vitrina/  {api,components,hooks,screens}   # + ReservarScreen (cupo, sucursal, horario), EscanearScreen
+        │                                        #  (components/escaner: VisorEtiqueta, PermisoCamara, CodigoManual, ResultadoEscaneo; useEscaner)
+        ├── avisos/   {components,hooks,screens} # AvisosScreen, FilaAviso, BadgeAviso, QuitarAviso, BannerPermiso; useAvisos,
+        │                                        #  useMutacionesAviso, useAvisoVariante, usePermisoNotificaciones
+        ├── carrito/  {api,components,hooks,screens}   # carrito (+ agregados sin red, FilaCarritoDeslizable + useQuitarDelCarrito), CheckoutScreen
+        ├── pagos/    {api,components,hooks,screens} # PagoScreen (usePago): ResumenPedido, SelectorMetodoPago, PanelQr/PanelCaja/
+        │                                        #  PanelMetodo, PiePago, CompraConfirmada, CancelarCompra
+        ├── pedidos/  {components,hooks,screens} # MisPedidosScreen, PedidoScreen, TarjetaPedido, BadgeEstadoVenta, useMisVentas/useVenta
+        ├── reservas/ {api,components,hooks,screens} # MisReservasScreen, PaseScreen (usePase), PaseQr, DetallesReserva, PieAccionesPase,
+        │                                        #  useRecordatorio, useComprarReserva
+        ├── mis-cosas/{components,hooks,screens} # dashboard: KpisClienta, ProximaCita, useResumenClienta
+        ├── sync/     {components,hooks,screens} # Pendientes, OperacionScreen (comprobante + línea de tiempo), ModalConflictoStock
+        └── probador/ {api,components,hooks,screens} # ProbadorScreen: VideoProbador (RTCView), ChipEstadoProbador, TiraPrendas,
+                                                 #  PanelEstadoProbador, PieProbador; useProbador, useCamaraFrontal, useSesionDecart,
+                                                 #  usePrendasProbador; obtenerTokenProbador (POST /probador/token)
+```
+`*` `skeleton.tsx` reescrito con Reanimated (sin clases de pulso de Tailwind).
 
-### Lección general para cualquier bug futuro de este estilo en el proyecto
-Si un bug **solo** se reproduce en Expo Go/dispositivo físico y **nunca** en `npm run web`, sospechar primero de desalineación de dependencias nativas (`npx expo-doctor` es el primer comando a correr, no leer código a ciegas) antes de asumir que es un bug de lógica JS — la vista web de Expo Router se salta Hermes, autolinking de módulos nativos, y la capa de `react-native-screens`/navegación nativa por completo, así que cualquier bug que dependa de esas capas es invisible ahí por diseño, no porque "la web tape el bug".
+## 4. Rutas → pantalla → fuente de datos
 
----
+| Ruta | Pantalla | Datos / endpoints | Estado |
+|---|---|---|---|
+| `/tiendas` | `TiendasScreen` | `GET /saas/tiendas?limite=50` 🧭 (+ caché `directorio_json`) | M1 ✅ |
+| `/acceso/login` · `/acceso/registro` | `LoginScreen` · `RegistroScreen` | `POST /seguridad/auth/login` · `/register` con `X-Tenant` | M1 ✅ |
+| `/vitrina` | `VitrinaScreen` | SQLite `catalogo_local` + `v_stock_libre` | M1 ✅ |
+| `/vitrina/[productoId]?variante=` | `FichaScreen` | SQLite (variantes + stock por sucursal); "Agregar" → outbox `CARRITO_AGREGAR`; agotada → "Avisame cuando vuelva" (`avisos_local`) | M2 ✅ · M4.2 ✅ |
+| `/vitrina/[id]/reservar?variante=` | `ReservarScreen` | SQLite (`reservas.repo`) + `GET /reservas/mias/cupo` (caché `cupo_json:<usuario>`); "Reservar" → outbox `RESERVA_CREAR` | M2 ✅ |
+| `/vitrina/reserva/[outboxId]` · `/carrito/compra/[outboxId]` · `/mis-cosas/pendientes/[outboxId]` | `OperacionScreen` | outbox (`outbox_local` + `outbox_eventos`) | M2 ✅ |
+| `/vitrina/escanear?codigo=` | `EscanearScreen` | `expo-camera` (QR/Code128) o código escrito → SQLite `variantes_local.sku` → ficha con `?variante=` (sin red también) | M4.1 ✅ |
+| `/probador?prenda=` | `ProbadorScreen` | SQLite (`probador.repo`: prendas con foto) + `POST /probador/token` 🧭 (token efímero) + Decart `lucy-vton-3.5` (WebRTC/LiveKit) | M4.4 ✅ |
+| `/carrito` | `CarritoScreen` | `carrito_local` + `CARRITO_AGREGAR` sin confirmar (badge "Pendiente") + aviso de compra en curso; deslizar → "Quitar" (`DELETE /ventas/carrito/:u/items/:v`, solo con red) | M2 ✅ · M4.2 ✅ |
+| `/carrito/checkout` | `CheckoutScreen` | SQLite (`stockParaRetiro`) + `POST /promociones/cupones/validar` (solo con red); "Confirmar" → outbox `CHECKOUT` | M2 ✅ |
+| `/carrito/pago/[ventaId]` · `/mis-cosas/pago/[ventaId]` | `PagoScreen` | `GET /ventas/:id` (polling) · `GET /pagos/pasarelas` · `POST /pagos/ventas/:id/{qr,sesion,manual,cancelar}` · `GET /pagos/qr/:pagoId` | M3 ✅ |
+| `/mis-cosas` | `MisCosasScreen` (dashboard) | `GET /ventas/mias`, `GET /reservas/mias`, cupo (con caché) + espejo | M3 ✅ |
+| `/mis-cosas/pendientes` | `PendientesScreen` | outbox + `NetInfoListener` + modo demo "Sin red"; "Sincronizar ahora", "Borrar terminadas" | M2 ✅ |
+| `/mis-cosas/pedidos` · `pedidos/[ventaId]` | `MisPedidosScreen` · `PedidoScreen` | `GET /ventas/mias` · `GET /ventas/:id` (+ `CHECKOUT` en la outbox) | M3 ✅ |
+| `/mis-cosas/reservas` · `reservas/[reservaId]` | `MisReservasScreen` · `PaseScreen` | `GET /reservas/mias` (+ `RESERVA_CREAR` en la outbox), `GET /reservas/:id` c/15 s, `PATCH …/cancelar`, `POST /ventas/desde-reserva/:id` | M3 ✅ |
+| `/mis-cosas/avisos` | `AvisosScreen` | SQLite `avisos_local` + `v_stock_libre` (sin endpoint nuevo) | M4.2 ✅ |
 
-## 🚇 Troubleshooting de Conectividad Móvil y Túneles (2026-09-15)
+Toda pantalla no raíz tiene `EncabezadoPantalla` con "← Volver" (`router.back()` o la ruta de respaldo).
 
-### Síntoma: `CommandError: failed to start tunnel: session closed / remote gone away`
-Al ejecutar `npx expo start --tunnel`, el proceso falla abruptamente con `session closed` y remite a la página de estado de ngrok.
+## 5. Lógica por feature
 
-### Causa Raíz Investigada y Verificada
-1. **Token compartido saturado en Ngrok:** Expo CLI tiene quemado en su código (`AsyncNgrok.ts`) un token corporativo general (`5W1bR67GNbWcXqmxZzBG1_56GezNeaX6sSRvn8npeQ8`, dominio `exp.direct`) compartido con todos los desarrolladores de Expo del mundo.
-2. Al ejecutar con `DEBUG=expo*`, ngrok respondió exactamente:
-   ```text
-   ERR_NGROK_108: Your account is limited to 5000 simultaneous ngrok agent sessions.
-   ```
-   En horas pico, los desarrolladores a nivel global superan las 5.000 sesiones simultáneas de la cuenta comunitaria de Expo, provocando que ngrok cierre la conexión remota de inmediato.
-3. El comando `ngrok` tampoco existe globalmente en el `PATH` del sistema (solo el binario interno de Expo en `node_modules`).
+- **Arranque (`_layout.tsx`):** espera fuentes + `obtenerDb()` (migra con `PRAGMA user_version`) + `NetInfoListener.iniciar()`. El Stack se monta UNA vez (si se desmontara al cambiar de tienda se perdería la navegación).
+- **TiendaContext:** tienda + marca en `configuracion_sync` (`tienda_slug`, `tienda_json`) → al reabrir se pinta sin parpadeo. Fija `contextoHttp.tenantSlug` (`X-Tenant`).
+- **SesionContext:** una sesión por tienda en SecureStore (`mirroria.sesion.<slug>`); descarta JWT vencidos o de personal; un 401 con sesión la cierra (M2: pausa la cola). Al cambiar de tienda, el token se anula hasta leer el de la nueva.
+- **TemaContext:** `/tiendas` (o sin tienda) = MirrorIA y sigue al sistema; el resto = marca de la tienda con su `modo` FIJO. `derivarTemaTienda` (port de la web) → `vars()` de NativeWind en el View raíz (colores "R G B" para que funcione `bg-primary/10`). Radio RECTO 4 · SUAVE 12 · REDONDO 20. Títulos con `Titulo` (fuente de la marca); semánticos `success/warning/danger/info` fijos.
+- **auth:** `useLogin/useRegistro` → si `role !== 'CUSTOMER'` lanza `ErrorCuentaPersonal` y **no** guarda el token. Mensajes: 401, 429, 409.
+- **espejo:** `useSincronizacionEspejo` (query `['espejo','sync',tiendaId,usuarioId]`): baja sucursales, `?conVariantes=true`, inventario, categorías, tallas y carrito → `reemplazarEspejo` en UNA transacción → invalida `['vitrina']`; también refresca la marca. Disparadores: elegir tienda/login (cambia la clave), reconexión, cada 5 min, pull-to-refresh. Sin red queda en pausa.
+- **vitrina:** `useVitrina`/`useFicha` leen solo SQLite (`networkMode: 'always'`). TTL 7 días → `AvisoEspejo` "Datos desactualizados"; nunca sincronizada + sin red → `VitrinaVacia` (CU46 4b). Visitante: `PedirSesion` al agregar/reservar.
+- **red:** `online = !modoSinRed && !(isConnected === false || isInternetReachable === false)` (`null` = desconocido). Alimenta `onlineManager`, el cliente HTTP (rechaza antes del `fetch` con `ErrorSinRed`) y `BarraRed`.
 
-### Soluciones Validadas para Desarrollar
-1. **Modo LAN (Recomendada y 100% estable):** Si la PC y el teléfono están en la misma red Wi-Fi, no se necesita túnel alguno:
-   ```bash
-   npm run dev
-   # o: npx expo start --lan
-   ```
-   Genera directamente la URL local `exp://<IP_LOCAL>:8081` con carga instantánea y sin pasar por intermediarios.
-2. **Túnel Oficial V2 de Expo (Sin Ngrok):** Expo posee un motor WebSocket propio (`@expo/ws-tunnel`) independiente de ngrok:
-   ```bash
-   npx expo login
-   EXPO_UNSTABLE_TUNNEL_V2=1 npx expo start --tunnel
-   ```
-3. **Authtoken personal de Ngrok:** Registrar un token gratuito propio en `~/.ngrok2/ngrok.yml` si se requiere exponer túneles directos.
+- **pagos (M3.1):** `usePago` guarda el cobro iniciado en `configuracion_sync` (`cobro:<ventaId>`: QR, instrucciones de caja o "tarjeta abierta") para que al volver se vea lo mismo. La app nunca da nada por pagado: consulta `GET /ventas/:id` (QR 3 s, tarjeta 4 s, caja 5 s, eligiendo 30 s) y el QR (`GET /pagos/qr/:pagoId`) hasta que el backend acredita (aviso Wayra, webhook Stripe o la cajera en `/admin/cobros`). Al acreditarse: háptico, invalida `ventas`, `reservas` y el espejo. "Pagar en caja" muestra `#` + 8 primeros del id de la venta (lo que ve la cajera; el backend devuelve el id entero). Stripe: `WebBrowser.openBrowserAsync` y al volver se refresca. RN08: sin red todo deshabilitado con motivo; 401 → "Tu sesión venció".
+- **pedidos/reservas (M3.2/M3.4):** listas con `conCache` (sin red muestran lo último guardado: el pase sirve sin señal en la tienda); nombres de prenda/sucursal desde SQLite (`detalle.repo`). Pase: QR negro sobre blanco con SOLO el código (D11), `useFocusEffect` + `refetchInterval` 15 s.
+- **recordatorio (M3.2):** `expo-notifications` local, trigger DATE 1 h antes (`momentoRecordatorio`), id en `recordatorio:<reservaId>`; se quita solo si la reserva deja de estar PENDIENTE/CONFIRMADA; tocarlo abre el pase (`data.ruta`).
+- **comprar lo reservado (M3.3):** `accionPase` decide la primaria: `EN_TIENDA` → "Comprar lo que reservé" (solo con red, cupón opcional, una `Idempotency-Key` por intento) o "Pagar mi compra" si ya hay una `PENDIENTE`; `COMPLETADA` → "Compra pagada · ver pedido".
+- **escáner (M4.1, D10):** `useEscaner` con candado (una lectura → una ficha; se libera al volver a enfocar o con "Escanear otra"). `parsearEtiqueta` → `buscarPorSku` (SQLite) → `router.push('/vitrina/[productoId]', {variante})` + háptico Light. No encontrado/código ajeno → `ResultadoEscaneo` con el código leído, la fecha del espejo y "Escanear otra"/"Ver la vitrina". Espejo vacío → "Primero abrí la vitrina con internet". Permiso explicado (o "Abrir ajustes" si se negó para siempre), linterna, "Escribir código". `?codigo=` (deep link) se lee igual que la cámara: sirve para QA (`exp://127.0.0.1:8081/--/vitrina/escanear?codigo=mirroria%3Av%3APANTAL-L-NEG`). Etiquetas de prueba: `uv run scripts/qa/etiquetas_qr.py [--tienda nomada] [--solo-agotadas]` → `scripts/qa/etiquetas/<tienda>/{<SKU>.png,index.html}` (ignorado en git).
+- **avisos (M4.2):** por dispositivo y tienda (`avisos_local`, sin FK a `variantes_local` para sobrevivir al reemplazo del espejo; uno por variante). Crear pide el permiso de notificaciones (si se niega, el aviso igual queda y la lista lo muestra). `useSincronizacionEspejo` llama `revisarAvisos` tras cada snapshot (login, reconexión, cada 5 min, pull-to-refresh, CONFIRMADA de la outbox, volver a la app tras > 60 s por `staleTime`): `decidirAvisos` notifica los armados con libre > 0 (`trigger: null`, `data.ruta = /vitrina/<id>?variante=<v>`) y re-arma los ya notificados que volvieron a 0. Expo Go no corre JS en segundo plano: la notificación llega al volver a abrir la app o con ella abierta.
+- **deslizar en el carrito (M4.2):** `FilaCarritoDeslizable` (pan propio `usePanGesture` v3 + Reanimated, umbral 48 px o velocidad) descubre "Quitar" (96 px, `danger`); tocarlo → `useQuitarDelCarrito` (DELETE, copia el carrito devuelto a `carrito_local`). Deshabilitado sin red, con unidades "Pendiente" o con una compra en curso; el pie de la lista lo explica.
+- **probador (M4.4):** `useProbador` orquesta: encendido EXPLÍCITO ("Encender el probador", o "Probármelo" en la ficha → `?prenda=` nuevo lo enciende con esa prenda) para no gastar créditos al tocar la tab. `useCamaraFrontal` pide el permiso con `expo-camera` y abre `mediaDevices.getUserMedia` (frontal, `fps`/`width`/`height` del modelo) solo mientras está encendido; `useSesionDecart` pide el token efímero (la `DECART_API_KEY` nunca sale del backend ni va en el APK) y hace `client.realtime.connect(stream, { model, preferredVideoCodec: 'vp8', initialState: {prompt, image}, onRemoteStream })`; cambiar de prenda = `set({ prompt, image, enhance:false })` sobre la misma conexión (prompt idéntico a la web: `Substitute the current <categoría> with: <título>. <descripción>`). `RTCView` espejado (el `mirror` saliente no existe en RN). Sesión de 60 s con cuenta regresiva → "Se terminó la sesión · Seguir probando". Se corta al salir de la tab (`useFocusEffect`), al ir a `background` (solo con el permiso ya concedido: el diálogo de permiso también manda la app a `background`) y con "Terminar". `faseProbador` (puro, con test) decide una sola fase visible: sin red → "no disponible", inicio, permiso, permiso negado (Abrir ajustes), abriendo cámara, conectando, en vivo, error (429 del backend con su mensaje, 503 sin clave, corte de conexión) con "Reintentar".
+- **outbox (M2):** ver §6 abajo. Las pantallas que encolan (`useAgregarCarrito`, `useCheckout`, `useReservar`, `useResolverConflicto`) llaman a `lib/outbox/operaciones` y navegan al comprobante (`OperacionScreen`). `useMotorOutbox` (layout raíz) pasa la sesión al manager, invalida `['outbox']`/`['vitrina']` en cada cambio, re-snapshot del espejo tras una CONFIRMADA, háptico Success/Error y abre `ModalConflictoStock` (vía `conflictosStore`).
 
----
+## 6. Protocolo offline (resumen; detalle en spec §5)
 
-## 🧪 QA de flujo completo en celular real (2026-09-29)
+1. SQLite es la fuente de lectura; la red solo refresca el espejo. 2. `v_stock_libre` = snapshot − outbox `PENDIENTE/ENVIANDO`. 3. (M2) `OutboxManager`: siempre se encola, FIFO estricto, `Idempotency-Key` = `Crypto.randomUUID()` guardada una vez. 4. Estados `PENDIENTE · ENVIANDO · CONFIRMADA · COMPENSADA · RECHAZADA`. 5. 409 `STOCK_AGOTADO_CONFLICTO` → `COMPENSADA` + `ModalConflictoStock`; 409 `IDEMPOTENCIA_EN_CURSO` → reintento con la misma clave. 6. 5xx/timeout → backoff 2-4-8-16-30 s. 7. 401 → pausa y reanuda tras login. 8. `ENVIANDO` al arrancar → `PENDIENTE`. 9. El pago nunca es offline (RN08). 10. "Pendiente de confirmar" hasta que el servidor concilia (RN09).
 
-Recorrido completo por ADB en el TECNO_LJ6 contra el backend de Azure: registro → catálogo →
-ficha → carrito → checkout → pago en efectivo → mis pedidos → reserva → pase de tienda →
-cancelar reserva → modo invitado. Bugs reales encontrados y arreglados:
+**Implementación M2 (`lib/outbox`):**
+- `ColaOutbox` (núcleo puro sobre `BaseSql`, lo usan la app con expo-sqlite y los tests con `node:sqlite`): `encolar` inserta `outbox_local` + `outbox_items` + evento en UNA transacción (id y clave = UUID, `creado_en` estrictamente creciente); `procesar(tenant, usuario, forzar)` toma la cabeza FIFO `PENDIENTE` de esa clienta y tienda → `ENVIANDO` → `enviarOperacion` (mismo cuerpo, misma `Idempotency-Key`) → `clasificarRespuesta`. 2xx: `CONFIRMADA` + `aplicarConfirmacion` (DESCUENTA → `disponible −= n`, RESERVA → `reservada += n`, CHECKOUT vacía `carrito_local`, CARRITO_AGREGAR copia el carrito devuelto). 409 stock: `COMPENSADA` (el stock vuelve solo por `v_stock_libre`) y sigue. Otro 4xx: `RECHAZADA` y sigue. Los dos cancelan lo que sigue de su grupo y cierran `grupo_carrito:<usuario>`. 409 en curso / 5xx / 0 (sin red, timeout): `PENDIENTE`, `reintentos+1`, `proximo_intento_en` con backoff, corta el ciclo. 401 / 403 de tienda: `PENDIENTE` sin contar reintento y pausa.
+- `OutboxManager` (singleton): `iniciar()` (ENVIANDO → PENDIENTE, NetInfo, AppState, timer 30 s), `ponerContexto({tenantId, usuarioId, token})` (un token distinto levanta la pausa del 401), `procesarCola(forzar)` con candado + "otra vez", timer de reintento, y si un ciclo falla localmente (SQLite) recupera ENVIANDO y reintenta en 2 s. `reenviarMismaClave` (solo `__DEV__`, deja un evento con HTTP y `X-Cache-Idempotency`). `borrarTerminadas`.
+- Migración **v2**: `outbox_local.descripcion`, `outbox_local.meta_json` (prenda, sucursal, líneas, total: no viajan) y `outbox_eventos` (línea de tiempo).
+- Grupo: "agregar al carrito" y "confirmar compra" comparten `grupo_carrito:<usuarioId>` (en `configuracion_sync`); el checkout lo cierra.
 
-1. **Catálogo: nombre y precio desaparecían en algunas tarjetas.** El bloque de texto tenía
-   `flex-1` dentro de una tarjeta de alto automático; en Android eso le da base 0 y, según
-   cuándo termina de cargar la foto, queda con 0 px. Regla: **no usar `flex-1` en el eje vertical
-   de un contenedor sin alto fijo**.
-2. **Carrito siempre vacío (no se podía comprar).** El carrito del backend solo guarda
-   `{varianteId, cantidad}` y el listado `GET /catalogo/productos` **no trae variantes** (solo el
-   detalle `GET /catalogo/productos/:id`). Se resuelve con `catalog/lib/indiceVariantes.ts`
-   (varianteId → producto, cacheado 5 min), mismo cruce que la web.
-3. **Pantallas del Stack (producto, carrito, pago, pedidos, sucursales) bajo la barra de
-   estado**: toda ruta fuera de `(tabs)` tiene que envolverse en `SafeAreaView`.
-4. **JWT vencido (1 h) con la app mostrándose logueada**: se descarta al arrancar
-   (`AuthContext`), y un 401 en acciones lleva al login.
-5. **"Mañana 10:00" en la reserva era "ahora + 24 h".** Ahora es la hora real.
+## 7. Trampas
 
-Trampa de desarrollo (no es bug de la app): **en WSL, Metro no detecta ediciones hechas con
-`sed -i`** (reemplaza el archivo por uno nuevo y el watcher no se entera); con un editor normal o
-escribiendo el archivo en el lugar sí recarga. Si un cambio "no aparece", relanzar la app.
-Relanzar el dev client con el deep link `mirroria://expo-development-client/?url=...` mientras la
-app ya está abierta tira `App react context shouldn't be created before` — cerrar la app antes.
+- **`database is locked` (SQLite)**: `withExclusiveTransactionAsync` abre OTRA conexión; dos a la vez (outbox + re-snapshot del espejo al reconectar) chocan. Toda transacción exclusiva pasa por `transaccionExclusiva()` (`lib/db/sqlite-local.ts`: candado JS + reintento) y la conexión principal tiene `busy_timeout = 5000`.
+- **Tests con `node --experimental-strip-types`**: nada de *parameter properties* (`constructor(private x)`) ni `enum` en lo que importan los tests; los imports entre archivos de `lib/outbox` llevan `.ts` (`allowImportingTsExtensions` en `tsconfig`).
+- **Rutas tipadas** (`.expo/types`): se regeneran al arrancar Metro; una ruta nueva da error de `tsc` hasta entonces.
+- **Metro en WSL** no ve cambios hechos con `sed -i`: editar con el editor/Write. Para recargar desde la PC: `adb shell am force-stop host.exp.exponent` + `am start … exp://127.0.0.1:8081`.
+- `KEYCODE_MENU` (82) en MIUI abre "recientes", no el menú de Expo. El botón flotante "Tools" de Expo Go se apaga desde su menú (tapa las capturas).
+- **Prohibidas las clases `animate-*`** (nativewind#1875): Skeleton con Reanimated. El warning "ImageBackground is deprecated" (nativewind#1881) es inofensivo.
+- `adb shell input text`: el teclado puede pegar campos; los formularios tienen "Siguiente" (Enter pasa al próximo campo). `!` se escapa como `\!`.
+- **Modo avión por ADB inalámbrico corta el ADB**: para la demo usar el modo "Sin red" o `adb reverse --remove tcp:3000` (backend inalcanzable).
+- Logos `/images/*` necesitan el frontend Docker + `adb reverse tcp:8080 tcp:80`; si no cargan se muestra el monograma.
+- `react-native-reusables` trae clases `dark:` y de animación web: se quitaron (los colores salen de los tokens, no del esquema del sistema).
+- React Compiler **desactivado** en `app.json` (la plantilla 58 lo trae activo) para no mezclarlo con css-interop de NativeWind.
+- **Expo Go 58 + `setNotificationChannelAsync`** tira `NullPointerException` nativo: el recordatorio cae al canal por defecto (funciona igual).
+- **Teclado:** `tabBarHideOnKeyboard` en las tabs y `keyboardShouldPersistTaps="handled"` en los ScrollView con input (si no, el primer toque a "Aplicar" solo cierra el teclado).
+- **Chrome primer arranque** en el POCO: la Custom Tab de Stripe abre la bienvenida de Chrome y Expo Go puede volver a su inicio; reabrir con deep link `exp://127.0.0.1:8081/--/mis-cosas/pago/<ventaId>` (el cobro quedó en SQLite).
+- **JWT de 1 h**: tras una pausa larga la sesión vence (401); la app la descarta al arrancar y el pago muestra "Tu sesión venció".
+- **Ya no se usa Expo Go** (M4.3): `registerGlobals()` necesita el módulo nativo de LiveKit. Las trampas de Expo Go de abajo quedan como historia.
+- **Gradle en 8 GB** (M4.3): con el daemon de Kotlin aparte, un *Gradle Worker Daemon* no respondió en 120 s (swap) y el build falló a los 11 min; con `kotlin.compiler.execution.strategy=in-process`, 2 workers, `-Xmx2560m` y solo `arm64-v8a` compila (~12 min en frío, Docker ML apagado). Nunca editar `android/gradle.properties` a mano: lo reescribe `plugins/with-gradle-ram.js` en cada prebuild.
+- **`adb shell input text` en el dev build** sin un campo enfocado: las letras llegan como atajos del menú de desarrollo ("rr" de `mirroria` = Reload). Tocar el campo y esperar antes de escribir.
+- **Diálogo de permisos de Android = `AppState` `background`**: si el probador se apagara en todo cambio de AppState, se apaga al pedir la cámara.
+- **Expo Go 58.0.5 se cae al TOCAR una notificación local** (`LauncherActivity`: `IllegalStateException: Cannot access database on the main thread`, nativo de Expo Go): termina en el escritorio. La notificación SÍ se muestra; la ruta de `data.ruta` se verificó por deep link. Afecta también al recordatorio de M3. **En el development build funciona** (2026-11-08: "Volvió tu talla M" → abre la ficha con la variante).
+- **`ReanimatedSwipeable` (RNGH 3.3) dibujaba las acciones en el flujo** (arriba e izquierda de la fila) en esta app: se reemplazó por un pan propio (`FilaCarritoDeslizable`) con la acción en `style` absoluto.
+- **Fast Refresh recrea el `QueryClient`** de `_layout.tsx` si se edita un módulo de su cadena: las mutaciones invalidan un caché sin observadores y la UI "no se actualiza". Antes de dar por roto algo de datos, `am force-stop` y reabrir.
+- **Deep link con el mismo `?codigo=`** a una pantalla ya abierta no re-dispara el efecto (el parámetro no cambió): reabrir la app en frío o usar otro código.
+- **Volver a la app por "recientes"**: Expo Go tiene dos tareas (la experiencia y su `HomeActivity`); para reanudar sin adivinar coordenadas usar `am start -d exp://127.0.0.1:8081/--/<ruta>`.
 
-### Reglas anti-acaparamiento en móvil (2026-09-29)
-Espejo de las reglas del backend (ver `mirroria-backend/AGENTS.md`): la hoja de reserva carga
-`GET /reservas/mias/cupo`, solo ofrece horarios dentro de +30 min / +48 h, muestra el motivo si la
-clienta no puede reservar (2 activas o bloqueo por faltas) y avisa que no presentarse cuenta como
-falta. El Pase de Tienda muestra un pase por cada reserva activa (hasta 2) y el aviso de bloqueo.
-Si el checkout se rechaza por compras sin pagar, el carrito ofrece ir a Mis pedidos.
-Trampa de QA por ADB: el teclado del TECNO aplica mayúscula automática a la primera letra de lo
-que se inyecta con `adb shell input text`, incluso en campos con `autoCapitalize="none"` — para
-probar login usar contraseñas que empiecen con número.
+## 8. Checklist QA (spec §8.5)
+
+`tsc` · `expo lint` · `expo-doctor` (20/20) · `npm test` (59: migraciones, outbox, clasificación, horarios, formato, jwt, color, estado-pago, KPIs, comprar-reserva, **parsear-etiqueta, decidir-avisos, sql-avisos, probador**) limpios; `grep -rn "lucide\|animate-" src` vacío; ningún componente propio > 120 líneas (los primitivos RNR `select/dialog/alert-dialog` se dejan como vienen); ninguna referencia a `/ventas/presenciales`, `/pagos/pendientes`, `/dashboard/operativo`; recorrer cada ruta y su "← Volver"; capturas del POCO en `docs/capturas/`.
+
+## 9. APK de entrega (M4.5)
+
+| Archivo (gitignored) | API incrustada | Firma | Cómo usarlo |
+|---|---|---|---|
+| `mirroria-mobile/dist/mirroria-m4.5-local-api.apk` (78 MB, release, solo `arm64-v8a`, sha256 `43fcc659a7fe3e2e…`) | `http://localhost:3000/api/v1` | keystore de **debug** del prebuild (`android/app/debug.keystore`): válido para la entrega académica, NO para Play Store | backend Docker arriba + `adb reverse tcp:3000 tcp:3000`; no necesita Metro |
+
+- **Azure** (`https://mirroria.duckdns.org/api/v1`) no respondía el 2026-11-08 (timeout): no se generó el APK contra Azure. Para hacerlo cuando
+  la VM esté arriba y desplegada con la rama `feat/app-movil`: `EXPO_PUBLIC_API_URL=https://mirroria.duckdns.org/api/v1` y
+  `EXPO_PUBLIC_WEB_URL=https://mirroria.duckdns.org` en `.env` → `cd android && ./gradlew assembleRelease --no-daemon` (el bundle JS se
+  vuelve a generar; ~5 min si lo nativo ya está compilado) → copiar a `dist/mirroria-azure.apk`. Sin la rama en Azure fallan
+  `/ventas/desde-reserva` y los cambios de idempotencia/409 de M2.
+- La clave de Decart **no** está en el APK (verificado buscando su prefijo en `index.android.bundle`): el probador pide `POST /probador/token`.
+- Instalar: `adb install -r dist/mirroria-m4.5-local-api.apk` → MIUI "Instalar" (≈ `input tap 310 2100`) → Play Protect: "No enviar".
+- Probado sin Metro en el POCO (capturas `docs/capturas/m4/28-35`): tiendas → vitrina → ficha → carrito → pendientes → Mis cosas → probador
+  (sesión en vivo de ~15 s y "Terminar").

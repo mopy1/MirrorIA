@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { authApi } from "@/features/auth/api/authApi"
 import type { UsuarioResponse } from "@/features/auth/types/auth.types"
 import { ApiError, TOKEN_KEY, USER_KEY } from "@/lib/api"
+import { outboxManager } from "@/lib/offline/outbox-manager"
 import { AuthContext, type AuthContextValue } from "./auth-context"
 
 function readStoredUser(): UsuarioResponse | null {
@@ -46,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(TOKEN_KEY, auth.accessToken)
         localStorage.setItem(USER_KEY, JSON.stringify(auth.usuario))
         setUser(auth.usuario)
+        // Si la cola estaba en pausa por un 401, la sesión nueva la reanuda (mismas claves).
+        void outboxManager.procesarCola()
       },
       logout: () => {
         localStorage.removeItem(TOKEN_KEY)

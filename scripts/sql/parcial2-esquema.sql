@@ -41,8 +41,6 @@ CREATE INDEX IF NOT EXISTS idx_cobros_suscripcion_inquilino ON public.cobros_sus
 CREATE INDEX IF NOT EXISTS idx_cobros_suscripcion_ref_externa ON public.cobros_suscripcion (referencia_externa);
 
 ALTER TABLE public.ventas ADD COLUMN IF NOT EXISTS clave_idempotencia varchar(128);
-ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS precio_anterior_cents integer;
-ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS precio_cambiado_en timestamp;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ventas_tenant_clave ON public.ventas (tenant_id, clave_idempotencia);
 
 COMMIT;

@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Valores por defecto = MirrorIA claro. En tiempo de ejecución TemaContext
+   (lib/tema) los reemplaza con vars() de NativeWind: plataforma o marca de la tienda.
+   Formato "R G B" para que funcionen los modificadores de opacidad. */
+:root {
+  --background: 249 250 254;
+  --foreground: 19 21 47;
+  --card: 255 255 255;
+  --card-foreground: 19 21 47;
+  --popover: 255 255 255;
+  --popover-foreground: 19 21 47;
+  --primary: 40 27 137;
+  --primary-foreground: 249 250 254;
+  --secondary: 238 240 248;
+  --secondary-foreground: 19 21 47;
+  --muted: 238 240 248;
+  --muted-foreground: 95 98 117;
+  --accent: 230 234 252;
+  --accent-foreground: 19 21 47;
+  --brand-accent: 195 247 76;
+  --brand-accent-foreground: 19 21 47;
+  --destructive: 190 18 60;
+  --destructive-foreground: 255 255 255;
+  --border: 222 225 236;
+  --input: 222 225 236;
+  --ring: 66 59 192;
+  --success: 21 128 61;
+  --warning: 180 83 9;
+  --danger: 190 18 60;
+  --info: 29 78 216;
+  --radius: 12px;
+}
+
+.dark:root {
+  --background: 11 13 35;
+  --foreground: 243 245 251;
+  --card: 21 24 49;
+  --card-foreground: 243 245 251;
+  --popover: 21 24 49;
+  --popover-foreground: 243 245 251;
+  --primary: 169 233 50;
+  --primary-foreground: 11 13 35;
+  --secondary: 30 33 60;
+  --secondary-foreground: 243 245 251;
+  --muted: 30 33 60;
+  --muted-foreground: 168 172 196;
+  --accent: 36 39 70;
+  --accent-foreground: 243 245 251;
+  --brand-accent: 169 233 50;
+  --brand-accent-foreground: 11 13 35;
+  --destructive: 251 113 133;
+  --destructive-foreground: 11 13 35;
+  --border: 44 47 76;
+  --input: 52 56 88;
+  --ring: 169 233 50;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 251 113 133;
+  --info: 96 165 250;
+}

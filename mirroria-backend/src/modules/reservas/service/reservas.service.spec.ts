@@ -89,4 +89,57 @@ describe('ReservasService — concurrencia y disponibilidad', () => {
     expect(r.estado).toBe(EstadoReserva.PENDIENTE);
     expect(inventario.ajustarReserva).toHaveBeenCalledTimes(1);
   });
+
+  describe('compra desde la reserva', () => {
+    const enTienda = { id: 'r1', clienteId: 'c1', estado: EstadoReserva.EN_TIENDA, sucursalId: 's1' };
+
+    it('paraComprar: dueña + EN_TIENDA + sin compra pendiente → sucursal e ítems, con lock', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda });
+      manager.query.mockResolvedValue([]);
+      const r = await service.paraComprar('r1', 'c1', manager as never);
+      expect(r).toEqual({ sucursalId: 's1', items: [{ varianteId: 'v1', cantidad: 1 }] });
+      expect(reservaRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ lock: { mode: 'pessimistic_write' } }));
+      expect(manager.query).toHaveBeenCalledWith(expect.stringMatching(/FROM ventas .*tenant_id = \$2/), ['r1', TENANT_PRUEBA]);
+    });
+
+    it('paraComprar rechaza la reserva de otra clienta (403)', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda, clienteId: 'otra' });
+      await expect(service.paraComprar('r1', 'c1', manager as never)).rejects.toBeInstanceOf(ForbiddenActionException);
+    });
+
+    it('paraComprar exige EN_TIENDA (409)', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda, estado: EstadoReserva.CONFIRMADA });
+      await expect(service.paraComprar('r1', 'c1', manager as never)).rejects.toBeInstanceOf(OperacionInvalidaException);
+    });
+
+    it('paraComprar no deja dos compras pendientes de la misma reserva (409)', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda });
+      manager.query.mockResolvedValue([{ '?column?': 1 }]);
+      await expect(service.paraComprar('r1', 'c1', manager as never)).rejects.toThrow(/esperando el pago/);
+    });
+
+    it('"No compró" (EN_TIENDA → CANCELADA) se bloquea mientras la compra espera el cobro', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda });
+      manager.query.mockResolvedValue([{ '?column?': 1 }]);
+      await expect(service.cambiarEstado('r1', EstadoReserva.CANCELADA)).rejects.toThrow(/esperando el pago/);
+      expect(inventario.ajustarReserva).not.toHaveBeenCalled();
+    });
+
+    it('la barrida no cierra una reserva EN_TIENDA con compra pendiente', async () => {
+      reservaRepo.find
+        .mockResolvedValueOnce([]) // PENDIENTE/CONFIRMADA vencidas
+        .mockResolvedValueOnce([{ ...enTienda, tenantId: TENANT_PRUEBA }]); // EN_TIENDA olvidada
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda });
+      manager.query.mockResolvedValue([{ '?column?': 1 }]);
+      await expect(service.expirarVencidas()).resolves.toBe(0);
+      expect(inventario.ajustarReserva).not.toHaveBeenCalled();
+    });
+
+    it('completarPorVenta (al pagarse) libera lo reservado y deja COMPLETADA', async () => {
+      reservaRepo.findOne.mockResolvedValue({ ...enTienda });
+      await service.completarPorVenta('r1', 's1', manager as never);
+      expect(inventario.ajustarReserva).toHaveBeenCalledWith(expect.objectContaining({ cantidad: -1 }));
+      expect(reservaRepo.save).toHaveBeenCalledWith(expect.objectContaining({ estado: EstadoReserva.COMPLETADA }));
+    });
+  });
 });

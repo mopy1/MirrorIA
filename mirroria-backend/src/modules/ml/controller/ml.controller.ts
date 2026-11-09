@@ -85,7 +85,7 @@ export class MlController {
   @ApiBearerAuth()
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'M4: Detección de Transacciones Anómalas en POS (Isolation Forest)',
+    summary: 'M4: Detección de Transacciones Anómalas en ventas y cobros (Isolation Forest)',
   })
   obtenerAnomalias(@CurrentUser() user: JwtPayload): Promise<AnomaliasMlResponseDto> {
     return this.mlService.obtenerKpisAnomalias(user);

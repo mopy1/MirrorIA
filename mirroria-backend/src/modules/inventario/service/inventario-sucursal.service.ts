@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import {
   type DetallesStockInsuficiente,
   StockInsuficienteException,
 } from '../../../core/exception/stock-insuficiente.exception.js';
 import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
+import { VarianteProducto } from '../../catalogo/entities/variante-producto.entity.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
+import { Sucursal } from '../../sucursales/entities/sucursal.entity.js';
 import { SucursalesService } from '../../sucursales/service/sucursales.service.js';
 import type { InventarioSucursalResponseDto, ItemMostradorDto } from '../dto/inventario-response.dto.js';
 import { InventarioSucursal } from '../entities/inventario-sucursal.entity.js';
@@ -148,30 +150,9 @@ export class InventarioSucursalService {
 
       let detallesExtra: Partial<DetallesStockInsuficiente> | undefined;
       try {
-        const variante = await this.productosService.findVarianteById(params.varianteId, manager).catch(() => null);
-        const sucursal = await this.sucursalesService.findOne(params.sucursalId, manager).catch(() => null);
-
-        const otrasSucursalesFilas = await invRepo.find({
-          where: soloTenant({ varianteId: params.varianteId }),
-        });
-        const otrasSucursales = otrasSucursalesFilas
-          .filter((f) => f.sucursalId !== params.sucursalId && (f.cantidadDisponible - f.cantidadReservada) > 0)
-          .map((f) => ({
-            sucursalId: f.sucursalId,
-            disponible: f.cantidadDisponible - f.cantidadReservada,
-          }));
-
-        detallesExtra = {
-          prendaNombre: (variante as any)?.producto?.titulo ?? (variante as any)?.producto?.nombre,
-          talla: (variante as any)?.talla?.nombre ?? (variante as any)?.tallaId,
-          color: (variante as any)?.color?.nombre ?? (variante as any)?.colorId,
-          sucursalNombre: sucursal?.nombre,
-          alternativas: {
-            otrasSucursales,
-          },
-        };
+        detallesExtra = await this.alternativasDeStock(manager, params.varianteId, params.sucursalId);
       } catch {
-        // En caso de mock en tests o fallo secundario, continuamos sin metadata adicional
+        // Fallo secundario (o mock en tests): el 409 sale igual, sin metadata extra.
       }
 
       throw new StockInsuficienteException(
@@ -199,6 +180,61 @@ export class InventarioSucursalService {
     );
 
     return fila;
+  }
+
+  /**
+   * Datos para la transacción compensatoria del 409 (CU11, H6): nombres de la
+   * prenda y la sucursal, otras sucursales con unidades libres (con nombre) y
+   * otras tallas del mismo color con unidades libres en esta sucursal.
+   */
+  private async alternativasDeStock(
+    manager: EntityManager,
+    varianteId: string,
+    sucursalId: string,
+  ): Promise<Partial<DetallesStockInsuficiente>> {
+    // Todo con la conexión de la transacción: pedir otra al pool dentro de
+    // ella cuelga la API con compras simultáneas (ver 9c1c581).
+    const invRepo = manager.getRepository(InventarioSucursal);
+    const libre = (f: InventarioSucursal) => f.cantidadDisponible - f.cantidadReservada;
+    const varRepo = manager.getRepository(VarianteProducto);
+    const variante = await varRepo.findOne({
+      where: soloTenant({ id: varianteId }),
+      relations: { producto: true, talla: true, color: true },
+    });
+    if (!variante) return {};
+    const hermanasEnt = await varRepo.find({
+      where: soloTenant({ producto: { id: variante.producto.id }, color: { id: variante.color.id }, activo: true }),
+      relations: { talla: true },
+    });
+    const hermanas = hermanasEnt
+      .filter((v) => v.id !== varianteId)
+      .map((v) => ({ id: v.id, tallaNombre: v.talla?.nombre }));
+    const propia = { tallaNombre: variante.talla?.nombre, colorNombre: variante.color?.nombre };
+    const producto = variante.producto;
+    const enOtras = await invRepo.find({ where: soloTenant({ varianteId }) });
+    const enEsta = hermanas.length
+      ? await invRepo.find({ where: soloTenant({ sucursalId, varianteId: In(hermanas.map((v) => v.id)) }) })
+      : [];
+    const sucursales = await manager.getRepository(Sucursal).find({ where: soloTenant({}) });
+    const nombreDe = (id: string) => sucursales.find((x) => x.id === id)?.nombre;
+    return {
+      prendaNombre: producto.titulo,
+      talla: propia?.tallaNombre,
+      color: propia?.colorNombre,
+      sucursalNombre: nombreDe(sucursalId),
+      alternativas: {
+        otrasSucursales: enOtras
+          .filter((f) => f.sucursalId !== sucursalId && libre(f) > 0 && nombreDe(f.sucursalId))
+          .map((f) => ({ sucursalId: f.sucursalId, sucursalNombre: nombreDe(f.sucursalId), disponible: libre(f) })),
+        otrasTallas: enEsta
+          .filter((f) => libre(f) > 0)
+          .map((f) => ({
+            varianteId: f.varianteId,
+            talla: hermanas.find((v) => v.id === f.varianteId)?.tallaNombre,
+            disponible: libre(f),
+          })),
+      },
+    };
   }
 
   /** Crea la fila en 0 si no existe; si otra transacción la crea a la vez, no falla. */
@@ -230,9 +266,9 @@ export class InventarioSucursalService {
    * es la disponibilidad real "para llevar hoy"); liberar (`cantidad`
    * negativo, al cancelar/expirar/completar una reserva) nunca deja el
    * contador en negativo. `cantidadDisponible` no se toca acá — reservar no
-   * saca stock físico, solo lo aparta; el stock físico recién baja cuando la
-   * reserva se concreta en una venta (ver `ventas.registrarPresencial` con
-   * `reservaId`).
+   * saca stock físico, solo lo aparta; el stock físico recién baja cuando se
+   * aprueba el pago de la compra desde la reserva (ver
+   * `VentasService.marcarPagada`).
    */
   async ajustarReserva(params: AjustarReservaParams): Promise<InventarioSucursal> {
     await this.sucursalesService.assertExists(params.sucursalId, params.manager);

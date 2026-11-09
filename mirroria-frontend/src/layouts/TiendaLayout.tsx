@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom"
 import { PageFallback } from "@/components/common/PageFallback"
 import { CartProvider } from "@/context/CartContext"
 import { TenantProvider } from "@/context/TenantContext"
+import { AvisoCompraConfirmada } from "@/features/payments/components/aviso-compra-confirmada"
 import { StorefrontLayout } from "./StorefrontLayout"
 
 /**
@@ -14,6 +15,7 @@ export function TiendaRoot() {
   return (
     <TenantProvider>
       <CartProvider>
+        <AvisoCompraConfirmada />
         <Outlet />
       </CartProvider>
     </TenantProvider>

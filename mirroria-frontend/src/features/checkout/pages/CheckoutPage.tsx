@@ -1,10 +1,15 @@
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CircleNotch } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
+import { useCart } from "@/hooks/useCart"
+import { useOutbox } from "@/lib/offline/use-outbox"
 import { BranchPicker } from "@/features/branches/components/branch-picker"
 import { useCartLineItems } from "@/features/cart/hooks/useCartLineItems"
 import type { MetodoPago } from "@/features/payments/types/payments.types"
 import { useValidarCupon } from "@/features/promotions/hooks/useValidarCupon"
+import { AvisosCheckoutSinRed } from "../components/avisos-checkout-sin-red"
+import { CompraEncolada } from "../components/compra-encolada"
 import { CuponInput } from "../components/cupon-input"
 import { OrderSummary } from "../components/order-summary"
 import { SelectorMetodoPago } from "../components/selector-metodo-pago"
@@ -12,7 +17,9 @@ import { useCheckout } from "../hooks/useCheckout"
 
 export function CheckoutPage() {
   const { lineItems, isLoading: cartLoading, error: cartError } = useCartLineItems()
-  const { sucursalId, setSucursalId, confirmar, isLoading, error } = useCheckout()
+  const { sucursalId, setSucursalId, confirmar, isLoading, error, encolada } = useCheckout()
+  const { checkoutEnCola } = useCart()
+  const { online } = useOutbox()
   const [metodo, setMetodo] = useState<MetodoPago>("TARJETA")
   const {
     codigo,
@@ -30,12 +37,25 @@ export function CheckoutPage() {
   const hayNoDisponibles = lineItems.some((i) => !i.disponible)
 
   function handleConfirmar() {
-    confirmar(metodo, cuponAplicado?.codigo)
+    const unidades = lineItems.reduce((n, i) => n + i.cantidad, 0)
+    const nombres = lineItems.map((i) => `${i.productoTitulo} ${i.tallaNombre}`).join(", ")
+    confirmar(metodo, cuponAplicado?.codigo, `${unidades} prenda${unidades === 1 ? "" : "s"}: ${nombres}`)
+  }
+
+  if (encolada) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:py-14 space-y-6">
+        <h1 className="text-3xl font-semibold tracking-tight">Confirmar compra</h1>
+        <CompraEncolada operacion={encolada} />
+      </div>
+    )
   }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:py-14 space-y-6">
       <h1 className="text-3xl font-semibold tracking-tight">Confirmar compra</h1>
+
+      <AvisosCheckoutSinRed online={online} checkoutEnCola={checkoutEnCola} />
 
       {cartError && (
         <Alert variant="destructive">
@@ -90,10 +110,11 @@ export function CheckoutPage() {
       <Button
         size="lg"
         className="w-full"
-        disabled={!sucursalId || lineItems.length === 0 || hayNoDisponibles || isLoading}
+        disabled={!sucursalId || lineItems.length === 0 || hayNoDisponibles || isLoading || checkoutEnCola}
         onClick={handleConfirmar}
       >
-        {isLoading ? "Procesando pedido..." : "Confirmar pedido"}
+        {isLoading && <CircleNotch className="size-4 animate-spin" />}
+        {isLoading ? "Procesando pedido..." : online ? "Confirmar pedido" : "Guardar pedido sin conexión"}
       </Button>
     </div>
   )

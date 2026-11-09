@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 /**
  * Fetch-on-mount + recargar bajo demanda, genérico. Se promovió acá (no vive
@@ -32,5 +32,7 @@ export function useResourceList<T>(fetchFn: () => Promise<T[]>) {
     }
   }, [reloadKey])
 
-  return { items, isLoading, error, reload: () => setReloadKey((k) => k + 1) }
+  // Estable: se puede usar como dependencia de un efecto sin bucles.
+  const reload = useCallback(() => setReloadKey((k) => k + 1), [])
+  return { items, isLoading, error, reload }
 }

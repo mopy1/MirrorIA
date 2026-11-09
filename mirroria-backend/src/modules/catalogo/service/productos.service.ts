@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { RecursoDuplicadoException } from '../../../core/exception/recurso-duplicado.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
 import { assertDentroDelPlan, bloquearCupoDelPlan } from '../../../core/tenancy/limites-plan.js';
-import { soloTenant } from '../../../core/tenancy/tenant-context.js';
+import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
 import type {
   ProductoResponseDto,
   VarianteResponseDto,
@@ -83,13 +83,34 @@ export class ProductosService {
     return this.toResponse(producto, []);
   }
 
-  async findAll(): Promise<ProductoResponseDto[]> {
+  async findAll(conVariantes = false): Promise<ProductoResponseDto[]> {
+    if (conVariantes) return this.findAllConVariantes();
     const productos = await this.productoRepository.find({
       where: soloTenant({ activo: true }),
       relations: { categoria: true, coleccion: true },
       order: { createdAt: 'DESC' },
     });
     return productos.map((p) => this.toResponse(p));
+  }
+
+  // H1 (espejo SQLite del móvil): catálogo activo con variantes en UNA
+  // consulta (LEFT JOIN, sin N+1). Producto no declara la relación inversa,
+  // por eso leftJoinAndMapMany; tenant en el WHERE como en SQL crudo.
+  private async findAllConVariantes(): Promise<ProductoResponseDto[]> {
+    const productos = await this.productoRepository
+      .createQueryBuilder('p')
+      .innerJoinAndSelect('p.categoria', 'cat')
+      .innerJoinAndSelect('p.coleccion', 'col')
+      .leftJoinAndMapMany('p.variantes', VarianteProducto, 'v', 'v.producto_id = p.id AND v.tenant_id = p.tenant_id')
+      .leftJoinAndSelect('v.talla', 't')
+      .leftJoinAndSelect('v.color', 'c')
+      .where('p.tenant_id = :tenantId AND p.activo = true', { tenantId: tenantActual() })
+      .orderBy('p.createdAt', 'DESC')
+      .addOrderBy('v.sku', 'ASC')
+      .getMany();
+    return (productos as (Producto & { variantes?: VarianteProducto[] })[]).map((p) =>
+      this.toResponse(p, p.variantes ?? []),
+    );
   }
 
   async findOne(id: string, verInactivo = false): Promise<ProductoResponseDto> {
@@ -155,11 +176,7 @@ export class ProductosService {
 
     if (dto.titulo !== undefined) producto.titulo = dto.titulo;
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion;
-    if (dto.precioCents !== undefined && dto.precioCents !== producto.precioCents) {
-      producto.precioAnteriorCents = producto.precioCents;
-      producto.precioCambiadoEn = new Date();
-      producto.precioCents = dto.precioCents;
-    }
+    if (dto.precioCents !== undefined) producto.precioCents = dto.precioCents;
     if (dto.imagenes !== undefined) {
       producto.imagenes = dto.imagenes.map((img, index) => ({
         url: img.url,
@@ -280,6 +297,7 @@ export class ProductosService {
       tallaNombre: talla.nombre,
       colorId: color.id,
       colorNombre: color.nombre,
+      colorHex: color.hexCode ?? null,
       sku: variante.sku,
       activo: variante.activo,
     };

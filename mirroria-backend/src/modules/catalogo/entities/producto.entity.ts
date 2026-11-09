@@ -44,13 +44,6 @@ export class Producto extends TenantBaseEntity {
   })
   precioCents!: number;
 
-  /** Precio previo al último cambio: valida las ventas de caja hechas sin conexión antes del cambio. */
-  @Column({ name: 'precio_anterior_cents', type: 'integer', nullable: true })
-  precioAnteriorCents!: number | null;
-
-  @Column({ name: 'precio_cambiado_en', type: 'timestamp', nullable: true })
-  precioCambiadoEn!: Date | null;
-
   @Column({ type: 'jsonb', default: () => "'[]'" })
   imagenes!: ImagenProducto[];
 

@@ -1,7 +1,6 @@
 import { List, ShoppingBag, Receipt, CalendarBlank, SignOut, Storefront } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { EstadoConexionBadge } from "@/components/common/estado-conexion-badge"
 import { LogoTiendaActual } from "@/components/marca/logo-tienda-actual"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -65,7 +64,6 @@ export function HeaderMobileDrawer() {
               <Link to={ruta("/login")} onClick={cerrar} className="rounded-full border border-border py-2 text-center font-medium text-foreground">Iniciar sesión</Link>
             </div>
           )}
-          <div className="pt-2 flex justify-center"><EstadoConexionBadge /></div>
         </div>
       </SheetContent>
     </Sheet>

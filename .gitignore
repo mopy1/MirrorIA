@@ -63,3 +63,6 @@ __pycache__/
 .playwright-mcp/
 *.tsbuildinfo
 *.dump
+
+# Etiquetas generadas por scripts/qa/etiquetas_qr.py (M4.1)
+scripts/qa/etiquetas/

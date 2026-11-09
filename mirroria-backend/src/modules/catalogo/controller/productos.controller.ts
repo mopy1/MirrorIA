@@ -7,9 +7,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
 import { JwtOpcionalGuard } from '../../../core/security/jwt-opcional.guard.js';
@@ -41,9 +42,12 @@ export class ProductosController {
     return this.productosService.create(dto);
   }
 
+  // ?conVariantes=true: el catálogo con sus variantes en una sola consulta
+  // (espejo offline de la app móvil, H1). Sin el parámetro, como siempre.
   @Get()
-  findAll(): Promise<ProductoResponseDto[]> {
-    return this.productosService.findAll();
+  @ApiQuery({ name: 'conVariantes', required: false, type: Boolean })
+  findAll(@Query('conVariantes') conVariantes?: string): Promise<ProductoResponseDto[]> {
+    return this.productosService.findAll(conVariantes === 'true');
   }
 
   // Público, pero un producto inactivo solo lo ve el ADMIN (el resto: 404).

@@ -26,7 +26,7 @@ export function VentasAdminPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ventas</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Historial de pedidos presenciales y digitales en todas las sucursales.
+            Historial de compras de las clientas (tienda web y app) en todas las sucursales.
           </p>
         </div>
 

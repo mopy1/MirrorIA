@@ -1,62 +1,42 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { useSesionEnTienda } from "@/hooks/useSesionEnTienda"
 import { useCart } from "@/hooks/useCart"
+import { useTienda } from "@/hooks/useTienda"
 import { ApiError } from "@/lib/api"
-import { paymentsApi } from "@/features/payments/api/paymentsApi"
+import type { OperacionOutbox } from "@/lib/offline/idb.types"
+import { encolarCheckout } from "@/lib/offline/operaciones-clienta"
+import { hayRed } from "@/lib/offline/red-simulada"
+import { useIrAPagar } from "@/features/payments/hooks/useIrAPagar"
 import type { MetodoPago } from "@/features/payments/types/payments.types"
 import { checkoutApi } from "../api/checkoutApi"
-import { useRutaTienda } from "@/hooks/useRutaTienda"
 
+/**
+ * Confirmar el carrito. Con red: crea la venta PENDIENTE y lleva a pagar.
+ * Sin red: encola la ORDEN (CHECKOUT, con su Idempotency-Key) y la muestra
+ * "Pendiente de confirmar"; el pago se ofrece cuando el servidor la confirme (RN08).
+ */
 export function useCheckout() {
-  const ruta = useRutaTienda()
   const user = useSesionEnTienda()
+  const { slug } = useTienda()
   const { refresh } = useCart()
-  const navigate = useNavigate()
+  const irAPagar = useIrAPagar()
   const [sucursalId, setSucursalId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [encolada, setEncolada] = useState<OperacionOutbox | null>(null)
 
-  async function confirmar(metodo: MetodoPago, codigoCupon?: string) {
+  async function confirmar(metodo: MetodoPago, codigoCupon?: string, descripcion = "Compra del carrito") {
     if (!user || !sucursalId) return
     setIsLoading(true)
     setError(null)
     try {
+      if (!hayRed() && slug) {
+        setEncolada(await encolarCheckout({ tenantId: slug, usuarioId: user.id, sucursalId, codigoCupon, metodoPago: metodo, descripcion }))
+        return
+      }
       const venta = await checkoutApi.checkout(user.id, sucursalId, codigoCupon)
       await refresh()
-
-      if (metodo === "TARJETA" || metodo === "PAYPAL") {
-        try {
-          const { url } = await (metodo === "PAYPAL" ? paymentsApi.iniciarPaypal(venta.id) : paymentsApi.iniciarTarjeta(venta.id))
-          // La pasarela vuelve a una URL fija (sin la venta en la ruta ni en
-          // query params) — guardamos de cuál venta se trata para poder
-          // consultar su estado real al volver, en vez de confiar en la URL.
-          sessionStorage.setItem("mirroria_pago_venta_id", venta.id)
-          // "Continuar pago" del carrito tiene que volver a la misma pasarela.
-          sessionStorage.setItem(`mirroria_pasarela_${venta.id}`, metodo)
-          window.location.href = url
-          return
-        } catch (err) {
-          // El servidor de la demo puede no tener claves de Stripe (503): es un
-          // caso esperado, no un error random. Pero dejarla acá era un callejón
-          // sin salida: el checkout ya creó la venta, descontó el stock, consumió
-          // el cupón y VACIÓ EL CARRITO, así que no puede reintentar nada desde
-          // esta pantalla — no queda carrito que comprar. Se la manda al pago de
-          // la venta ya creada, que es el único camino que sigue abierto: pagar
-          // en efectivo no necesita carrito.
-          navigate(ruta(`/pago/${venta.id}`), {
-            state: {
-              motivo:
-                err instanceof ApiError
-                  ? err.message
-                  : "No se pudo iniciar el pago en línea",
-            },
-          })
-          return
-        }
-      }
-
-      navigate(ruta(`/pago/${venta.id}?metodo=${metodo}`))
+      await irAPagar(venta.id, metodo)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo completar la compra")
     } finally {
@@ -64,5 +44,5 @@ export function useCheckout() {
     }
   }
 
-  return { sucursalId, setSucursalId, confirmar, isLoading, error }
+  return { sucursalId, setSucursalId, confirmar, isLoading, error, encolada }
 }

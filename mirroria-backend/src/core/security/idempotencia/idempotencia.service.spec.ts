@@ -36,7 +36,7 @@ describe('IdempotenciaService', () => {
     const res = await service.registrarIntento({
       tenantId: 'ten-1',
       clave: 'key-100',
-      ruta: '/api/v1/ventas/presencial',
+      ruta: '/api/v1/ventas/carrito/u1/checkout',
       metodo: 'post',
       hashCuerpo: 'hash-abc',
     });
@@ -44,7 +44,7 @@ describe('IdempotenciaService', () => {
     expect(res).toMatchObject({
       tenantId: 'ten-1',
       clave: 'key-100',
-      ruta: '/api/v1/ventas/presencial',
+      ruta: '/api/v1/ventas/carrito/u1/checkout',
       metodo: 'POST',
       hashCuerpo: 'hash-abc',
       estado: EstadoIdempotencia.EN_PROCESO,

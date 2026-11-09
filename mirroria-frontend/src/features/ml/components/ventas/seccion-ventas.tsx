@@ -49,7 +49,7 @@ export function SeccionVentas({ data, isLoading, error, onReintentar }: SeccionV
         <EstadoError que="las ventas recientes" onReintentar={onReintentar} />
       ) : ventas.length === 0 ? (
         <EstadoVacio icono={Receipt} titulo="Todavía no hay ventas para revisar">
-          Cada venta que registres en caja se compara con las anteriores; si alguna se ve rara, aparece acá.
+          Cada venta nueva se compara con las anteriores; si alguna se ve rara, aparece acá.
         </EstadoVacio>
       ) : (
         <>

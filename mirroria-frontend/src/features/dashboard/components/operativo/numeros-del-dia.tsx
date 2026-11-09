@@ -4,7 +4,7 @@ import { KpiItem } from "../shared/kpi-item"
 
 const n = (cant: number, uno: string, varios: string) => `${cant} ${cant === 1 ? uno : varios}`
 
-/** Los 4 números del día, en lenguaje de mostrador. */
+/** Los 4 números del día, en lenguaje simple. */
 export function NumerosDelDia({ kpis, isLoading }: { kpis?: KpisOperativoDto; isLoading?: boolean }) {
   const cargando = isLoading || !kpis
   const v = kpis?.ventas

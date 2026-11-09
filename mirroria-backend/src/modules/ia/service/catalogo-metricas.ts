@@ -107,11 +107,11 @@ const JOIN_PRODUCTO_DESDE_INV =
 const JOIN_PAGOS_APROBADOS =
   "LEFT JOIN pagos pg ON pg.venta_id = v.id AND pg.estado = 'APROBADO'";
 
-/** Expresión segura para método de pago con fallback de ventas presenciales de caja. */
+/** Método de pago; las ventas PRESENCIAL históricas (sin fila en pagos) cuentan como efectivo. */
 const EXPR_METODO_PAGO =
   "COALESCE(pg.metodo, CASE WHEN v.canal = 'PRESENCIAL' THEN 'EFECTIVO' ELSE 'DESCONOCIDO' END)";
 
-/** Expresión segura para proveedor de cobro con fallback de cobro manual de caja. */
+/** Proveedor de cobro; las ventas PRESENCIAL históricas cuentan como cobro MANUAL. */
 const EXPR_PROVEEDOR_PAGO =
   "COALESCE(pg.proveedor_pago, CASE WHEN v.canal = 'PRESENCIAL' THEN 'MANUAL' ELSE 'DESCONOCIDO' END)";
 

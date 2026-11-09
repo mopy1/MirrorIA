@@ -1,99 +1,51 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, ScrollView, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { catalogApi } from '@/src/features/catalog/api/catalogApi';
-import type {
-  CategoriaResponseDto,
-  ProductoResponseDto,
-} from '@/src/features/catalog/types/catalog.types';
-import { getPrimaryImageUrl } from '@/src/lib/images';
-import { ProbadorHeader } from '../components/ProbadorHeader';
-import { ProbadorEscena } from '../components/ProbadorEscena';
-import { PermisoCamara } from '../components/PermisoCamara';
-import { ProbadorApagado } from '../components/ProbadorApagado';
-import { PrendaSelector } from '../components/PrendaSelector';
-import { PrendaActual } from '../components/PrendaActual';
-import { useCamaraLocal, type Lado } from '../hooks/useCamaraLocal';
-import { useProbadorIA } from '../hooks/useProbadorIA';
-import { esProbable, promptDePrenda } from '../lib/promptDePrenda';
+import { StatusBar } from 'expo-status-bar';
+import { useIsFocused } from 'expo-router';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BarraRed } from '@/components/common/BarraRed';
+import { Text } from '@/components/ui/text';
+import { ChipEstadoProbador } from '../components/ChipEstadoProbador';
+import { PanelEstadoProbador } from '../components/PanelEstadoProbador';
+import { PieProbador } from '../components/PieProbador';
+import { TiraPrendas } from '../components/TiraPrendas';
+import { VideoProbador } from '../components/VideoProbador';
+import { useProbador } from '../hooks/use-probador';
 
-export function ProbadorScreen() {
-  const { productoId } = useLocalSearchParams<{ productoId?: string }>();
-  const [encendido, setEncendido] = useState(false);
-  const [lado, setLado] = useState<Lado>('user');
-  const [intento, setIntento] = useState(0);
-  const [prendas, setPrendas] = useState<ProductoResponseDto[]>([]);
-  const [categorias, setCategorias] = useState<CategoriaResponseDto[]>([]);
-  const [seleccionada, setSeleccionada] = useState<ProductoResponseDto | null>(null);
-
-  const { stream, estado: estadoCamara } = useCamaraLocal(encendido, lado, intento);
-
-  // Decart cobra mientras la sesión está abierta: se apaga al salir de la
-  // pestaña (las pestañas quedan montadas) y al mandar la app a segundo plano.
-  useFocusEffect(useCallback(() => () => setEncendido(false), []));
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s !== 'active') setEncendido(false);
-    });
-    return () => sub.remove();
-  }, []);
-  const { remotoUrl, estado, probarPrenda } = useProbadorIA(stream);
-
-  useEffect(() => {
-    Promise.all([catalogApi.getProductos(), catalogApi.getCategorias().catch(() => [])])
-      .then(([productos, cats]) => {
-        setPrendas(productos.filter(esProbable));
-        setCategorias(cats);
-      })
-      .catch((err) => console.error('[Probador] Error cargando prendas:', err));
-  }, []);
-
-  // La prenda que llega desde el catálogo (`?productoId=`) se pone sola.
-  useEffect(() => {
-    const pedida = prendas.find((p) => p.id === productoId);
-    if (pedida) setSeleccionada(pedida);
-  }, [prendas, productoId]);
-
-  // Se (re)aplica al conectar y en cada cambio de prenda: una reconexión
-  // (cambio de cámara, reintento) arranca sin prenda puesta.
-  useEffect(() => {
-    if (estado !== 'conectado' || !seleccionada) return;
-    const url = getPrimaryImageUrl(seleccionada.imagenes);
-    if (!url) return;
-    const categoria = categorias.find((c) => c.id === seleccionada.categoriaId)?.nombre;
-    probarPrenda(url, promptDePrenda(seleccionada, categoria));
-  }, [estado, seleccionada, categorias, probarPrenda]);
-
-  const reintentar = () => setIntento((n) => n + 1);
-
+/** Tab Probador (M4.4): Decart `lucy-vton-3.5` en vivo con la cámara frontal y las prendas de la vitrina. */
+export default function ProbadorScreen() {
+  const p = useProbador();
+  const enfocada = useIsFocused();
+  const prendas = p.prendas.data ?? [];
+  const conVideo = p.fase === 'en-vivo' || p.fase === 'conectando' || p.fase === 'abriendo-camara';
   return (
-    <View className="flex-1 bg-background">
-      <ProbadorHeader estado={estado} />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 36 }}
-      >
-        {!encendido ? (
-          <ProbadorApagado onEncender={() => setEncendido(true)} />
-        ) : estadoCamara === 'sin-permiso' ? (
-          <PermisoCamara onReintentar={reintentar} />
-        ) : (
-          <ProbadorEscena
-            local={stream}
-            remotoUrl={remotoUrl}
-            estado={estado}
-            espejo={lado === 'user'}
-            onCambiarCamara={() => setLado((l) => (l === 'user' ? 'environment' : 'user'))}
-            onReconectar={reintentar}
-            onApagar={() => setEncendido(false)}
-          />
-        )}
-
-        <PrendaActual prenda={seleccionada} />
-
-        <PrendaSelector prendas={prendas} seleccionada={seleccionada} onSelect={setSeleccionada} />
-      </ScrollView>
+    <View className="flex-1 bg-black">
+      {enfocada ? <StatusBar style="light" /> : null}
+      {conVideo ? <VideoProbador local={p.camara.stream} remoto={p.sesion.remoto} conectando={p.fase !== 'en-vivo'} /> : null}
+      <SafeAreaView edges={['top']} className="flex-1">
+        <View className="bg-background">
+          <BarraRed />
+        </View>
+        <View className="px-5 pt-3">
+          <ChipEstadoProbador fase={p.fase} restante={p.restante} />
+        </View>
+        <View className="flex-1">
+          {conVideo ? null : (
+            <PanelEstadoProbador
+              fase={p.fase}
+              error={p.sesion.error}
+              hayPrendas={prendas.length > 0}
+              onEncender={p.encender}
+              onPermiso={() => void p.camara.pedirPermiso()}
+              onReintentar={p.reintentar}
+            />
+          )}
+        </View>
+        <View className="gap-3 bg-black/55 pb-4 pt-3">
+          {p.fase === 'en-vivo' && p.sesion.error ? <Text className="px-5 text-xs text-white/85">{p.sesion.error}</Text> : null}
+          {prendas.length > 0 ? <TiraPrendas prendas={prendas} elegidaId={p.elegida?.id ?? null} onElegir={p.elegir} /> : null}
+          {p.fase === 'en-vivo' ? <PieProbador prenda={p.elegida} onTerminar={() => p.apagar()} /> : null}
+        </View>
+      </SafeAreaView>
     </View>
   );
 }

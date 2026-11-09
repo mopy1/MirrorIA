@@ -23,7 +23,7 @@ import { ReservaItem } from '../entities/reserva-item.entity.js';
 // origen es terminal (no admite más transiciones).
 const TRANSICIONES_MANUALES: Partial<Record<EstadoReserva, EstadoReserva[]>> = {
   // EN_TIENDA directo desde PENDIENTE: si la clienta llega antes de que la
-  // tienda confirmara, el cajero no tiene que hacer dos pasos en el mostrador.
+  // tienda confirmara, el personal no tiene que hacer dos pasos.
   [EstadoReserva.PENDIENTE]: [
     EstadoReserva.CONFIRMADA,
     EstadoReserva.EN_TIENDA,
@@ -242,7 +242,8 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
    * llegara: CONFIRMADA → NO_SHOW (la tienda la esperaba), PENDIENTE →
    * EXPIRADA (nunca se llegó a confirmar). Las dos cuentan como falta y las dos
    * liberan el stock reservado. EN_TIENDA recién se cierra (CANCELADA, sin
-   * falta) si pasaron `horasMaximasEnTienda` sin que se cobrara la venta.
+   * falta) si pasaron `horasMaximasEnTienda` sin compra, y nunca mientras tenga
+   * una compra PENDIENTE de pago.
    *
    * Recorre TODAS las tiendas (corre sin request): lee id + tenant_id y cierra
    * cada una dentro de conTenant con el tenant de su propia fila.
@@ -279,6 +280,9 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
             // Se relee con bloqueo: otra barrida o el staff pudo moverla recién.
             const actual = await this.bloquear(reserva.id, manager);
             if (actual.estado !== reserva.estado) return;
+            // EN_TIENDA con una compra esperando el cobro (efectivo hasta 1 día):
+            // no se cierra; la venta, al pagarse, la completa.
+            if (await this.tieneCompraPendiente(actual, manager)) return;
             await this.transicionar(actual, destino, manager);
             cerradas++;
           }),
@@ -364,9 +368,9 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
       if (reserva.clienteId !== clienteId) {
         throw new ForbiddenActionException('No podés cancelar la reserva de otro cliente');
       }
-      // Ya en la tienda la cierra el staff (con la venta o con "No compró"): si
-      // la clienta la cancelara desde el celular mientras se prueba, la venta
-      // del cajero con esa reserva fallaría.
+      // Ya en la tienda se cierra comprando (POST /ventas/desde-reserva/:id) o
+      // con "No compró" del personal: cancelarla desde el celular mientras se
+      // prueba dejaría a la tienda sin saber qué pasó con las prendas.
       if (reserva.estado === EstadoReserva.EN_TIENDA) {
         throw new OperacionInvalidaException(
           'Ya estás en la tienda con esta reserva: pedile al personal que la cierre',
@@ -376,9 +380,43 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  // Llamado por VentasService cuando una venta presencial referencia una
-  // reserva: la cierra y libera el stock reservado (el stock físico ya lo
-  // descontó la venta por su cuenta, vía ajustarStock).
+  /**
+   * Compra desde la reserva (CU de la clienta en la tienda): valida, con la
+   * reserva bloqueada, que sea suya, que esté EN_TIENDA y que no tenga ya otra
+   * compra esperando el cobro. Devuelve sucursal e ítems para que ventas arme
+   * la venta PENDIENTE. El stock sigue apartado por la reserva hasta el pago.
+   */
+  async paraComprar(
+    id: string,
+    clienteId: string,
+    manager: EntityManager,
+  ): Promise<{ sucursalId: string; items: { varianteId: string; cantidad: number }[] }> {
+    const reserva = await this.bloquear(id, manager);
+    if (reserva.clienteId !== clienteId) {
+      throw new ForbiddenActionException('No podés comprar la reserva de otra clienta');
+    }
+    if (reserva.estado !== EstadoReserva.EN_TIENDA) {
+      throw new OperacionInvalidaException(
+        'Solo se compra una reserva cuando el personal te marcó en la tienda',
+      );
+    }
+    if (await this.tieneCompraPendiente(reserva, manager)) {
+      throw new OperacionInvalidaException(
+        'Ya tenés una compra de esta reserva esperando el pago: pagala o cancelala desde Mis pedidos',
+      );
+    }
+    const items = await manager
+      .getRepository(ReservaItem)
+      .find({ where: soloTenant({ reserva: { id } }) });
+    return {
+      sucursalId: reserva.sucursalId,
+      items: items.map((i) => ({ varianteId: i.varianteId, cantidad: i.cantidad })),
+    };
+  }
+
+  // Llamado por VentasService al aprobarse el pago de una compra desde la
+  // reserva: la cierra y libera el stock reservado (el stock físico lo
+  // descuenta la venta en el mismo momento, vía ajustarStock).
   async completarPorVenta(id: string, sucursalId: string, manager: EntityManager): Promise<void> {
     const reserva = await this.bloquear(id, manager);
     // Sin esto se podía cobrar en una sucursal la reserva de otra: el stock se
@@ -396,6 +434,16 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     await this.transicionar(reserva, EstadoReserva.COMPLETADA, manager);
   }
 
+  // SQL crudo (con tenant) para no importar la entidad Venta de otro módulo.
+  private async tieneCompraPendiente(reserva: Reserva, manager: EntityManager): Promise<boolean> {
+    if (reserva.estado !== EstadoReserva.EN_TIENDA) return false;
+    const filas: unknown[] | undefined = await manager.query(
+      "SELECT 1 FROM ventas WHERE reserva_id = $1 AND tenant_id = $2 AND estado = 'PENDIENTE' LIMIT 1",
+      [reserva.id, tenantActual()],
+    );
+    return (filas?.length ?? 0) > 0;
+  }
+
   private async transicionar(
     reserva: Reserva,
     nuevoEstado: EstadoReserva,
@@ -407,6 +455,13 @@ export class ReservasService implements OnModuleInit, OnModuleDestroy {
     if (!permitidos.includes(nuevoEstado) && !esCompletarDesdeEnTienda) {
       throw new OperacionInvalidaException(
         `No se puede pasar la reserva de ${reserva.estado} a ${nuevoEstado}`,
+      );
+    }
+    // "No compró" mientras su compra espera el cobro dejaría vendida una
+    // prenda que ya no está apartada: primero se paga o se cancela la compra.
+    if (nuevoEstado === EstadoReserva.CANCELADA && (await this.tieneCompraPendiente(reserva, manager))) {
+      throw new OperacionInvalidaException(
+        'La clienta tiene una compra de esta reserva esperando el pago: confirmá el cobro o esperá a que se cancele',
       );
     }
 

@@ -41,7 +41,8 @@ export function ReservasAdminPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Reservas</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Gestión de citas para probarse prendas en sucursales físicas (RF09-12).
+            Citas para probarse prendas en la sucursal. Cuando la clienta llega, marcala "Cliente llegó": ella compra lo
+            reservado desde su cuenta y, si paga en efectivo, lo confirmás en Cobros por confirmar.
           </p>
         </div>
         <Badge variant="secondary" className="gap-1.5 py-1 px-3 text-xs font-normal w-fit">

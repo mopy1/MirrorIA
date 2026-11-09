@@ -20,7 +20,7 @@ export const DIMENSIONES_DISPONIBLES: OpcionSelector[] = [
   { id: "categoria", label: "Categoría" },
   { id: "producto", label: "Producto" },
   { id: "sucursal", label: "Sucursal" },
-  { id: "canal", label: "Canal (Web / Presencial)" },
+  { id: "canal", label: "Canal (Web / App / En tienda)" },
   { id: "metodo_pago", label: "Método de Pago (QR, Tarjeta, Efectivo)" },
   { id: "proveedor_pago", label: "Pasarela / Proveedor de Pago" },
   { id: "proveedor", label: "Proveedor de Colección" },

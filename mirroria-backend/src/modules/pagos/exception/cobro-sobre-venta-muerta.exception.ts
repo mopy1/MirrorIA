@@ -8,7 +8,7 @@ import { BusinessException } from '../../../core/exception/business.exception.js
  *
  * El pago queda guardado y marcado para reembolso — la constancia de que entro
  * dinero no se puede perder —, y este error existe para que la persona que
- * esta del otro lado del mostrador se entere de que tiene que devolverlo. Es la
+ * esta del otro lado de la caja se entere de que tiene que devolverlo. Es la
  * diferencia deliberada con el webhook: alla no hay nadie esperando y devolver
  * un error solo provocaria reintentos; aca hay una clienta enfrente.
  */

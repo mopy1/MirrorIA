@@ -6,11 +6,12 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { assertOwnUser } from '../../../core/security/assert-own-user.js';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
@@ -20,7 +21,7 @@ import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { CheckoutCarritoDto } from '../dto/checkout-carrito.dto.js';
-import { CreateVentaPresencialDto } from '../dto/create-venta-presencial.dto.js';
+import { ComprarReservaDto } from '../dto/comprar-reserva.dto.js';
 import type { VentaResponseDto } from '../dto/ventas-response.dto.js';
 import { VentasService } from '../service/ventas.service.js';
 
@@ -28,27 +29,6 @@ import { VentasService } from '../service/ventas.service.js';
 @Controller('ventas')
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
-
-  // RF17/RF18: el cajero registra la venta después de que el cliente se
-  // prueba las prendas y decide qué comprar. cajeroId sale del token, no del
-  // body — evita que alguien registre una venta "como" otro cajero.
-  @Post('presenciales')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'CAJERO')
-  registrarPresencial(
-    @Body() dto: CreateVentaPresencialDto,
-    @CurrentUser() user: JwtPayload,
-    @Headers('idempotency-key') clave?: string,
-  ): Promise<VentaResponseDto> {
-    // Un cajero cobra en su sucursal: si no, descontaría stock de otra.
-    const propia = sucursalDelStaff(user);
-    if (propia && dto.sucursalId !== propia) {
-      throw new ForbiddenActionException('Solo podés registrar ventas en tu sucursal');
-    }
-    return this.ventasService.registrarPresencial(dto, user.sub, clave);
-  }
 
   // RF15/RF16: compra digital desde web o móvil, a partir del carrito activo.
   // Cualquier usuario autenticado puede comprar, pero solo el dueño del
@@ -66,6 +46,25 @@ export class VentasController {
   ): Promise<VentaResponseDto> {
     assertOwnUser(usuarioId, user);
     return this.ventasService.checkoutCarrito(usuarioId, dto, clave);
+  }
+
+  // Compra desde la reserva: la clienta, ya EN_TIENDA, compra lo que reservó.
+  // Venta PENDIENTE que se paga como el checkout; al aprobarse el pago la
+  // reserva pasa a COMPLETADA. La dueña sale del token.
+  @Post('desde-reserva/:reservaId')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Comprar lo reservado (reserva propia EN_TIENDA): venta PENDIENTE que se paga en caja (efectivo), con Stripe o QR Wayra',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  comprarReserva(
+    @Param('reservaId', ParseUUIDPipe) reservaId: string,
+    @Body() dto: ComprarReservaDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<VentaResponseDto> {
+    return this.ventasService.comprarReserva(reservaId, user.sub, dto);
   }
 
   // Consulta de ventas: dato interno (RF24 — reportes), no del cliente final.
@@ -104,8 +103,8 @@ export class VentasController {
     @CurrentUser() user: JwtPayload,
   ): Promise<VentaResponseDto> {
     const venta = await this.ventasService.findOne(id);
-    // `?? ''` para que una venta presencial sin cliente (mostrador) no sea
-    // legible por nadie que no sea staff.
+    // `?? ''` para que una venta histórica sin cliente no sea legible por
+    // nadie que no sea staff.
     if (user.role === 'CUSTOMER') {
       assertOwnUser(venta.clienteId ?? '', user);
     } else {

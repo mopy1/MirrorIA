@@ -38,7 +38,7 @@ graph TB
         end
 
         subgraph Cliente_Movil["Cliente Móvil (Expo)"]
-            APP["React Native / Expo SDK\n(Storefront & POS Móvil)"]
+            APP["React Native / Expo SDK\n(Tienda de la Clienta)"]
             NETINFO["NetInfo Listener\n(Detector Online/Offline)"]
             SQLITE[("SQLite Local\n(Espejo Catálogo + Outbox FIFO)")]
             APP <--> NETINFO
@@ -60,14 +60,14 @@ graph TB
             MOD_INV["módulo inventario\n(Kardex, Stock Atómico, Órdenes Proveedor)"]
             MOD_SUC["módulo sucursales\n(Ciudades Globales, Red de Tiendas)"]
             MOD_PROV["módulo proveedores\n(Talleres y Confección)"]
-            MOD_VEN["módulo ventas\n(Carrito, Checkout, Ventas Presenciales)"]
+            MOD_VEN["módulo ventas\n(Carrito, Checkout, Compra desde Reserva)"]
             MOD_RES["módulo reservas\n(Probador Físico, FSM, No-Show)"]
             MOD_PAG["módulo pagos\n(Registro Pasarelas: Stripe, Wayra QR, Efectivo)"]
             MOD_PROB["módulo probador\n(Decart AI VTON Gateway)"]
         end
 
         subgraph Modulos_Analitica["Analítica Avanzada & Inteligencia"]
-            MOD_BI["módulo bi\n(Consolas Ejecutiva & Operativa POS)"]
+            MOD_BI["módulo bi\n(Consola Ejecutiva & Consola de Caja)"]
             MOD_IA["módulo ia\n(DeepSeek LLM, DuckDB What-If, ExcelJS)"]
             MOD_ML_PROXY["módulo ml\n(Proxy Resiliente con Fallback Heurístico)"]
         end
@@ -82,7 +82,7 @@ graph TB
         M1["M1: Random Forest Regressor (Demanda 30d)"]
         M2["M2: Logistic Regression L2 (No-Show Citas)"]
         M3["M3: K-Means (Segmentación RFM)"]
-        M4["M4: Isolation Forest (Anomalías POS)"]
+        M4["M4: Isolation Forest (Anomalías de caja/cobros)"]
         FASTAPI --> M1 & M2 & M3 & M4
     end
 
@@ -124,12 +124,12 @@ En el marco metodológico de ICONIX, el soporte móvil se modela como un **canal
 | **04** | `proveedores` | `proveedores` | Registro de talleres de confección y proveedores textiles. En el alta de tienda crea automáticamente "Producción propia". |
 | **05** | `sucursales` | `ciudades` (global), `sucursales` | Ciudades capitales (globales) y sucursales físicas por tienda con validación de cuotas del plan. |
 | **06** | `inventario` | `inventario_sucursal`, `movimientos_inventario`, `ordenes_compra` | Existencias (`disponible`, `reservado`, `transito`) con `UPDATE` condicionado. Órdenes a talleres con recepción parcial/total y kardex inmutable. |
-| **07** | `ventas` | `carritos` (jsonb), `ventas`, `venta_items` | Carrito persistente, checkout digital (`PENDIENTE`), ventas presenciales POS (`PAGADA`), comprobantes `C-XXXXXXXX` y cancelación con rollback. |
+| **07** | `ventas` | `carritos` (jsonb), `ventas`, `venta_items` | Carrito persistente, checkout digital (`PENDIENTE`), compra desde reserva (`PENDIENTE` ligada a la reserva), comprobantes `C-XXXXXXXX` y cancelación con rollback. |
 | **08** | `reservas` | `reservas`, `reserva_items` | Apartado de hasta 3 prendas para probador físico en sucursal (máx 2 citas). Máquina de estados finitos y sanción de 30 días ante 2 inasistencias (`NO_SHOW`). |
 | **09** | `promociones` | `cupones` | Cupones porcentuales o monto fijo con compra mínima y límite de usos. Validación protegida contra fuerza bruta (30 peticiones/5 min). |
 | **10** | `pagos` | `pagos` | **Registro Central de Pasarelas (`IPasarelaProveedor`)**: Stripe (sesión alojada y webhook), Wayra QR (HMAC-SHA256) y efectivo. Barrida periódica de impagas. |
 | **11** | `probador` | *(Sin tablas; consume Decart AI)* | Gateway hacia Decart (`lucy-vton-3.5`). Tokens efímeros de 5 min (10 peticiones/10 min por IP). |
-| **12** | `bi` | *(Consultas SQL analíticas en tiempo real)* | **Consola Ejecutiva:** Ingresos con deltas simétricos, rotación, conversión probador $\to$ venta, Recharts y uso de plan.<br>**Consola Operativa POS:** Corte diario local `America/La_Paz`, alertas de stock crítico $\le 2$ u. y agenda con atención en 1 clic. |
+| **12** | `bi` | *(Consultas SQL analíticas en tiempo real)* | **Consola Ejecutiva:** Ingresos con deltas simétricos, rotación, conversión probador $\to$ venta, Recharts y uso de plan.<br>**Consola de Caja (web):** Corte diario local `America/La_Paz`, alertas de stock crítico $\le 2$ u. y agenda con atención en 1 clic. |
 | **13** | `ia` | `interacciones_ia` | Reportes por lenguaje natural (23 métricas parametrizadas, sin SQL directo generado por LLM), agente What-If en DuckDB `:memory:` y exportación Excel (.xlsx) contable con `exceljs`. |
 | **14** | `ml` | *(Proxy HTTP hacia microservicio :8002)* | Proxy multi-tenant hacia `mirroria-ml` con **fallback heurístico resiliente** (`X-ML-Fallback: true`). |
 
@@ -141,7 +141,7 @@ FastAPI + Scikit-Learn sobre dataset calibrado ($N=10.000$, `seed=42`, RAM $\app
 1. **M1 — Demanda a 30 Días (Supervisado - Regresión):** `RandomForestRegressor` ($R^2=0.9566$, MAE 1.91) $\to$ Evita quiebres de percha.
 2. **M2 — Inasistencia No-Show (Supervisado - Clasificación):** `LogisticRegression` L2 (ROC-AUC 0.7978, $F_1=0.7440$) $\to$ Semáforo de citas en probador.
 3. **M3 — Segmentación RFM (No Supervisado - Clustering):** `KMeans(K=4)` (Silueta 0.6823) $\to$ Clústeres de clientas para fidelización.
-4. **M4 — Detección de Anomalías POS (No Supervisado - Outliers):** `IsolationForest` (contaminación 0.03) $\to$ Auditoría de fraude y descuadres en caja.
+4. **M4 — Detección de Anomalías de Caja y Cobros (No Supervisado - Outliers):** `IsolationForest` (contaminación 0.03) $\to$ Auditoría de fraude y descuadres en caja.
 
 ---
 
@@ -152,7 +152,7 @@ Tanto el cliente **Web (PWA)** como el cliente **Móvil (Expo)** comparten el mi
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as Clienta / Cajero (Web o Móvil)
+    actor U as Clienta (Web PWA o App Móvil)
     participant APP as Frontend (PWA o App Móvil)
     participant LOC as Almacén Local (IndexedDB / SQLite)
     participant API as Backend NestJS
@@ -160,12 +160,12 @@ sequenceDiagram
     participant BD as Inventario (PostgreSQL)
 
     Note over U,LOC: Modo Offline (Desconectado)
-    U->>APP: Ejecuta compra / venta
+    U->>APP: Confirma compra (checkout) o reserva
     APP->>LOC: Guarda en Outbox FIFO con Idempotency-Key (UUIDv4)
-    APP-->>U: Confirma registro local (Estado: PENDIENTE_SYNC)
+    APP-->>U: Confirma registro local (Estado: PENDIENTE)
 
     Note over APP,API: Reconexión (Evento Online / NetInfo)
-    APP->>API: POST /ventas con cabecera Idempotency-Key
+    APP->>API: POST /ventas/carrito/:usuarioId/checkout con cabecera Idempotency-Key
     API->>IDEM: Comprueba hash canónico SHA-256
     alt Cache HIT (Petición ya procesada)
         IDEM-->>API: Respuesta cacheada
@@ -176,11 +176,11 @@ sequenceDiagram
             BD-->>API: 1 fila afectada
             API->>IDEM: Registra respuesta exitosa
             API-->>APP: HTTP 201 Created (X-Cache-Idempotency: MISS)
-            APP->>LOC: Marca mutación como SINCRONIZADA
+            APP->>LOC: Marca mutación como CONFIRMADA
         else Conflicto Concurrente (stock = 1 agotado)
             BD-->>API: 0 filas afectadas
             API-->>APP: HTTP 409 (STOCK_AGOTADO_CONFLICTO + alternativas)
-            APP->>LOC: Transacción Compensatoria: Marca COMPENSADO (Rollback)
+            APP->>LOC: Transacción Compensatoria: Marca COMPENSADA (Rollback)
             APP-->>U: Muestra ModalConflictoStock con opciones sustitutas
         end
     end

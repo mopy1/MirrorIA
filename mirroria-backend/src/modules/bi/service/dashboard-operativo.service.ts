@@ -150,7 +150,7 @@ export class DashboardOperativoService {
         [tenantId, sucursalId, inicioHoy, finHoy],
       ) as Promise<FilaCajaHoy[]>,
 
-      // 3.2 Cobros pendientes en mostrador de la sucursal
+      // 3.2 Cobros en efectivo pendientes de confirmar en caja (sucursal)
       this.dataSource.query(
         `SELECT 
           COUNT(id)::int AS cantidad,
