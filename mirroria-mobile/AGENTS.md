@@ -21,7 +21,7 @@ Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE**
 - **Panel de la plataforma (`/plataforma`, `DUENO_PLATAFORMA`) NO está en el móvil**: queda solo en la web.
 - **Ver la app en la PC:** `EXPO_PUBLIC_TIENDA=casa-andina npx expo start --web` (en web no hay SQLite: `expoBase.web.ts` es una base
   vacía; el sin-internet solo funciona en el teléfono). Banco de pruebas con Playwright en `C:\dev\mirroria-qa\movil` (`BRIEF.md`).
-- El dictado por voz y los archivos usan módulos nativos: **hace falta un APK nuevo** (Expo Go no los trae).
+- La app abre en **Expo Go** (`npm run dev`, que arranca con `--go`). El probador (LiveKit/WebRTC) y el dictado por voz son nativos: en Expo Go quedan apagados (`src/lib/expoGo.ts`) y funcionan en el APK o en web.
 
 ---
 
