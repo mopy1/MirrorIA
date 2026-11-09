@@ -1,6 +1,15 @@
 import { useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import type * as Reconocimiento from 'expo-speech-recognition';
+import { EN_EXPO_GO } from '@/src/lib/expoGo';
+
+// expo-speech-recognition es nativo y Expo Go no lo trae: ahí ni se importa (importarlo revienta)
+// y el dictado queda "no disponible"; se escribe la pregunta. En el APK y en web funciona.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const modulo: typeof Reconocimiento | null = EN_EXPO_GO ? null : require('expo-speech-recognition');
+const ExpoSpeechRecognitionModule = modulo?.ExpoSpeechRecognitionModule;
+const useSpeechRecognitionEvent: typeof Reconocimiento.useSpeechRecognitionEvent =
+  modulo?.useSpeechRecognitionEvent ?? (() => {});
 
 const MENSAJES_ERROR: Record<string, string> = {
   'not-allowed':
@@ -29,6 +38,7 @@ async function estadoPermisoWeb(): Promise<'granted' | 'denied' | 'prompt'> {
 }
 
 function reconocimientoDisponible(): boolean {
+  if (!ExpoSpeechRecognitionModule) return false;
   try {
     return ExpoSpeechRecognitionModule.isRecognitionAvailable();
   } catch {
@@ -75,16 +85,16 @@ export function useDictado({ onTextoFinal, onTextoParcial }: { onTextoFinal: (t:
 
   function arrancar() {
     setError(null);
-    ExpoSpeechRecognitionModule.start({ lang: 'es-ES', interimResults: true, continuous: true });
+    ExpoSpeechRecognitionModule?.start({ lang: 'es-ES', interimResults: true, continuous: true });
   }
 
   /** Primer toque al micrófono: si falta el permiso, muestra el aviso; si ya está, escucha. */
   async function alternar() {
     if (escuchando) {
-      ExpoSpeechRecognitionModule.stop();
+      ExpoSpeechRecognitionModule?.stop();
       return;
     }
-    if (!disponible) {
+    if (!disponible || !ExpoSpeechRecognitionModule) {
       setError(NO_DISPONIBLE);
       return;
     }
@@ -110,6 +120,7 @@ export function useDictado({ onTextoFinal, onTextoParcial }: { onTextoFinal: (t:
     setAvisoPermiso(false);
     // En web el propio navegador pide el permiso al arrancar.
     if (Platform.OS === 'web') return arrancar();
+    if (!ExpoSpeechRecognitionModule) return setError(NO_DISPONIBLE);
     try {
       const permiso = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (permiso.granted) arrancar();
