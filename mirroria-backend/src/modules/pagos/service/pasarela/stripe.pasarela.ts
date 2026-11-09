@@ -49,8 +49,13 @@ export class PasarelaStripe implements IPasarelaProveedor, Pasarela {
     };
   }
 
+  /**
+   * Basta la clave secreta: el pago se confirma al volver de Stripe
+   * (`confirmar-tarjeta` recupera la sesión). El webhook es un respaldo
+   * opcional y sin su secreto `verificarEvento` rechaza los avisos.
+   */
   estaConfigurada(): boolean {
-    return this.cliente !== null && Boolean(this.secretoWebhook);
+    return this.cliente !== null;
   }
 
   async iniciarCobro(params: IniciarCobroParams): Promise<IniciarCobroResultado> {
