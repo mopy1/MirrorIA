@@ -42,8 +42,6 @@ export interface OperacionOutbox<TPayload = Record<string, unknown>, TRespuesta 
   error: string | null
   creadoEn: number
   sincronizadoEn: number | null
-  /** Un rechazo se muestra hasta que alguien lo lee. */
-  avisado?: boolean
 }
 
 export interface AlternativasConflictoStock {

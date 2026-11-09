@@ -1,6 +1,6 @@
 import {
   Briefcase, CalendarBlank, ChartLineUp, ChartPieSlice, CreditCard, House, Money, Package, PaintBrush,
-  CashRegister, Receipt, ShoppingBag, Sparkle, Storefront, TShirt, Ticket, Truck, Users, Warehouse, type Icon,
+  Receipt, ShoppingBag, Sparkle, Storefront, TShirt, Ticket, Truck, Users, Warehouse, type Icon,
 } from "@phosphor-icons/react"
 import type { UsuarioRole } from "@/features/auth/types/auth.types"
 
@@ -37,7 +37,6 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     title: "Ventas",
     icon: ShoppingBag,
     items: [
-      { label: "Mostrador", href: "/admin/mostrador", icon: CashRegister, roles: ["ADMIN", "CAJERO"] },
       { label: "Ventas", href: "/admin/ventas", icon: Receipt, roles: GESTION },
       { label: "Cobros por confirmar", href: "/admin/cobros", icon: Money, roles: ["ADMIN", "CAJERO"] },
       { label: "Reservas", href: "/admin/reservas", icon: CalendarBlank, roles: STAFF },

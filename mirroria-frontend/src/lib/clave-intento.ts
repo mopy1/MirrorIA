@@ -1,6 +1,6 @@
 const RUTAS_DE_DINERO = [
   /^\/ventas\/carrito\/[^/]+\/checkout$/,
-  /^\/ventas\/presenciales$/,
+  /^\/ventas\/desde-reserva\/[^/]+$/,
   /^\/pagos\//,
   /^\/saas\/mi-suscripcion\/cobro/,
 ]

@@ -154,8 +154,8 @@ export async function limpiarDatosOffline(): Promise<void> {
     const req = outbox.getAll()
     req.onsuccess = () => {
       for (const op of req.result as OperacionOutbox[]) {
-        // Un rechazo sin leer se conserva: la próxima persona en la caja tiene que verlo.
-        if (op.estado === 'SINCRONIZADO' || op.estado === 'COMPENSADO' || (op.estado === 'FALLIDO' && op.avisado)) outbox.delete(op.id)
+        // Lo PENDIENTE queda: es de esa clienta y se envía cuando vuelva a entrar.
+        if (op.estado === 'CONFIRMADA' || op.estado === 'COMPENSADA' || op.estado === 'RECHAZADA') outbox.delete(op.id)
       }
     }
     tx.oncomplete = () => resolve()

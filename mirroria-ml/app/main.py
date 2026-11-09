@@ -110,7 +110,7 @@ async def predict_rfm(request: RfmPredictRequest) -> RfmPredictResponse:
 @app.post("/predict/anomalias", response_model=AnomaliasPredictResponse, tags=["M4 - Anomalías"])
 async def predict_anomalias(request: AnomaliasPredictRequest) -> AnomaliasPredictResponse:
     """
-    Detecta transacciones atípicas o sospechosas en el POS mediante IsolationForest (contamination=0.03).
+    Detecta ventas atípicas o sospechosas mediante IsolationForest (contamination=0.03).
     Identifica descuentos abusivos, horarios no comerciales o errores de digitación.
     """
     if not ml_manager.anomalias_model:

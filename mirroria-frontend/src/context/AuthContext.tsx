@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(USER_KEY)
         // Lo guardado para trabajar sin red no queda para la próxima persona;
-        // la cola pendiente sí, porque son ventas ya cobradas.
+        // la cola pendiente sí: se envía cuando esa clienta vuelva a entrar.
         void limpiarDatosOffline().catch(() => {})
         setUser(null)
       },

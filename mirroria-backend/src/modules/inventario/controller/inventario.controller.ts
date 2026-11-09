@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ForbiddenActionException } from '../../../core/exception/forbidden-action.exception.js';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
@@ -8,7 +8,7 @@ import { Roles } from '../../../core/security/roles.decorator.js';
 import { RolesGuard } from '../../../core/security/roles.guard.js';
 import { sucursalDelStaff } from '../../../core/security/sucursal-del-staff.js';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto.js';
-import type { InventarioSucursalResponseDto, ItemMostradorDto } from '../dto/inventario-response.dto.js';
+import type { InventarioSucursalResponseDto } from '../dto/inventario-response.dto.js';
 import { TipoMovimientoInventario } from '../entities/movimiento-inventario.entity.js';
 import { InventarioSucursalService } from '../service/inventario-sucursal.service.js';
 
@@ -24,22 +24,6 @@ export class InventarioController {
     @Query('sucursalId') sucursalId?: string,
   ): Promise<InventarioSucursalResponseDto[]> {
     return this.inventarioSucursalService.findAll({ varianteId, sucursalId });
-  }
-
-  /** Foto del stock de una sucursal para vender en caja: también alimenta el modo sin conexión. */
-  @Get('mostrador')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'CAJERO')
-  catalogoMostrador(
-    @Query('sucursalId') sucursalId: string,
-    @CurrentUser() user: JwtPayload,
-  ): Promise<ItemMostradorDto[]> {
-    const sucursal = sucursalDelStaff(user) ?? sucursalId;
-    if (!sucursal || !/^[0-9a-f-]{36}$/i.test(sucursal)) {
-      throw new BadRequestException('Indicá la sucursal (sucursalId)');
-    }
-    return this.inventarioSucursalService.catalogoMostrador(sucursal);
   }
 
   // Ajuste manual (mermas, conteos físicos, correcciones) — no pasa por

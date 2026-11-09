@@ -1,4 +1,3 @@
-import { outboxManager } from "@/lib/offline/outbox-manager"
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AuthProvider } from '@/context/AuthContext'
@@ -12,8 +11,6 @@ createRoot(document.getElementById('root')!).render(
     </AuthProvider>
   </StrictMode>,
 )
-
-outboxManager.iniciar()
 
 // Registro de Service Worker para capacidades PWA y Offline
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

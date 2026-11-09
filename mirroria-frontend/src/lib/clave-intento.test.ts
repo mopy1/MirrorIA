@@ -45,7 +45,7 @@ describe("clave de intento", () => {
 
   it("reconoce las operaciones de dinero", () => {
     expect(esOperacionDeDinero(CHECKOUT)).toBe(true)
-    expect(esOperacionDeDinero("/ventas/presenciales")).toBe(true)
+    expect(esOperacionDeDinero("/ventas/desde-reserva/r1")).toBe(true)
     expect(esOperacionDeDinero("/pagos/p1/confirmar")).toBe(true)
     expect(esOperacionDeDinero("/pagos/ventas/v1/qr")).toBe(true)
     expect(esOperacionDeDinero("/saas/mi-suscripcion/cobro")).toBe(true)

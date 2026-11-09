@@ -241,7 +241,7 @@ def train_anomalias():
             "score_medio_normales": round(score_normales, 4),
             "score_medio_anomalos": round(score_anomalos, 4),
         },
-        "kpi_asociado": "Reducción de Merma, Fraude y Errores de Caja POS",
+        "kpi_asociado": "Reducción de Merma, Fraude y Errores en Ventas Atípicas",
     }
 
 

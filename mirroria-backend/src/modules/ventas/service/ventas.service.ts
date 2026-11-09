@@ -4,7 +4,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 import { OperacionInvalidaException } from '../../../core/exception/operacion-invalida.exception.js';
 import { RecursoNoEncontradoException } from '../../../core/exception/recurso-no-encontrado.exception.js';
-import { soloTenant, tenantActual } from '../../../core/tenancy/tenant-context.js';
+import { soloTenant } from '../../../core/tenancy/tenant-context.js';
 import { ProductosService } from '../../catalogo/service/productos.service.js';
 import { InventarioSucursalService } from '../../inventario/service/inventario-sucursal.service.js';
 import { TipoMovimientoInventario } from '../../inventario/entities/movimiento-inventario.entity.js';

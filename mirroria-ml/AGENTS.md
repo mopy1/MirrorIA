@@ -45,7 +45,7 @@ mirroria-ml/
 | **M1** | Demanda Prendas | `RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)` | Unidades demandadas a 30 días | **Stockout Rate (↓)**: Reducir quiebres de percha de 18.4% a < 5% | **Rotación de Inventario (↑)** con reabastecimiento buffer 20% | Breiman, L. (2001) |
 | **M2** | No-Show Reservas | `LogisticRegression(class_weight='balanced', random_state=42)` | Probabilidad inasistencia $P \in [0, 1]$ | **Tasa de No-Show (↓)**: Disminuir inasistencia de 24.5% a < 10% | **Conversión Probador a Venta (↑)** con semáforo y alerta WhatsApp | Cox, D. R. (1958) |
 | **M3** | Segmentación RFM | `KMeans(n_clusters=4)` + `StandardScaler` | 4 Clusters (VIP, Potencial, En Riesgo, Ocasional) | **Retención de Clientas (CRR ↑)** | **Customer Lifetime Value (CLV ↑)** | MacQueen, J. (1967) |
-| **M4** | Detección Anomalías | `IsolationForest(contamination=0.03, random_state=42)` | Score $s(x)$ y flag de irregularidad | **Tasa de Merma / Fraude (↓)**: Descuentos abusivos y horarios nocturnos | **Auditoría POS en tiempo real** | Liu, F. T. et al. (2008) |
+| **M4** | Detección Anomalías | `IsolationForest(contamination=0.03, random_state=42)` | Score $s(x)$ y flag de irregularidad | **Tasa de Merma / Fraude (↓)**: Descuentos abusivos y horarios nocturnos | **Auditoría de ventas atípicas** | Liu, F. T. et al. (2008) |
 
 ---
 

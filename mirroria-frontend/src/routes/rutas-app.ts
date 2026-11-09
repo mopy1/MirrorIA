@@ -11,7 +11,7 @@ import { MyOrdersPage } from "@/features/orders/pages/MyOrdersPage"
 import { PagoPage } from "@/features/payments/pages/PagoPage"
 import { MyReservationsPage } from "@/features/reservations/pages/MyReservationsPage"
 import {
-  MostradorPage, ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, MlDashboardPage, ProbadorPage, ProveedoresAdminPage,
+  ActivarPlanPage, AparienciaAdminPage, CatalogoAdminPage, CobrosAdminPage, CuponesAdminPage, DashboardAdminPage, InventarioAdminPage, MlDashboardPage, ProbadorPage, ProveedoresAdminPage,
   ReportesAdminPage, ReservasAdminPage, SucursalesAdminPage, SuscripcionAdminPage, UsuariosAdminPage, VentasAdminPage,
 } from "./lazy-pages"
 import { TiendaAdminRedirect } from "./TiendaAdminRedirect"
@@ -58,7 +58,6 @@ export const ADMIN_ROUTES: { path: string; Component: ComponentType }[] = [
 export const STAFF_ROUTES: { path: string; Component: ComponentType; allowedRoles?: UsuarioRole[] }[] = [
   { path: "dashboard", Component: DashboardAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"] },
   { path: "inventario", Component: InventarioAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
-  { path: "mostrador", Component: MostradorPage, allowedRoles: ["ADMIN", "CAJERO"] },
   { path: "ventas", Component: VentasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL"] },
   { path: "reservas", Component: ReservasAdminPage, allowedRoles: ["ADMIN", "ENCARGADO_SUCURSAL", "CAJERO"] },
   { path: "cobros", Component: CobrosAdminPage, allowedRoles: ["ADMIN", "CAJERO"] },

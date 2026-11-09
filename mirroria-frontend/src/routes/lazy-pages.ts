@@ -30,7 +30,6 @@ export const SucursalesAdminPage = diferida(
   "SucursalesAdminPage",
 )
 export const UsuariosAdminPage = diferida(() => import("@/features/admin/pages/UsuariosAdminPage"), "UsuariosAdminPage")
-export const MostradorPage = diferida(() => import("@/features/mostrador/pages/MostradorPage"), "MostradorPage")
 export const VentasAdminPage = diferida(() => import("@/features/admin/pages/VentasAdminPage"), "VentasAdminPage")
 export const ProbadorPage = diferida(() => import("@/features/fitting/pages/ProbadorPage"), "ProbadorPage")
 export const WayraPagoPage = diferida(() => import("@/features/wayra/pages/WayraPagoPage"), "WayraPagoPage")

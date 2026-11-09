@@ -32,14 +32,3 @@ export class OrdenCompraResponseDto {
   fechaEsperada!: string | null;
   fechaRecepcion!: Date | null;
 }
-
-export class ItemMostradorDto {
-  varianteId!: string;
-  productoId!: string;
-  titulo!: string;
-  talla!: string;
-  color!: string;
-  sku!: string;
-  precioCents!: number;
-  disponible!: number;
-}
