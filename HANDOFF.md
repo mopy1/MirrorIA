@@ -1,6 +1,6 @@
 # HANDOFF — punto de entrada para una IA nueva
 
-> Actualizado: 2026-11-06, Fase 6b (rama `main`). Si el código cambió después, el código manda:
+> Actualizado: 2026-11-09, integración del Parcial 2 (rama `integracion-parcial2` → `main`; una sola rama). Si el código cambió después, el código manda:
 > verificá con los comandos de la sección 4 y corregí este archivo.
 
 ## 1. Qué es esto (en 6 líneas)
@@ -29,20 +29,21 @@
 | 2 — Pasarelas enchufables | ✅ cerrada, commit `b4eaa0a` (registro centralizado, adaptadores Stripe y Wayra funcionales, stubs 503 para PayPal y QR Bancario, nueva tabla `cobros_suscripcion`). |
 | 3 — Offline/PWA, idempotencia y conflictos | ✅ cerrada, commit `48b1e54` (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria). |
 | 4 — Reportes dinámicos (+ Excel) | ✅ cerrada, commit `bafea4c` (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en vivo; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`). |
-| 5 — BI: dashboards por rol | ✅ cerrada, commit `b8a6263` (`BiModule`, `GET /dashboard/ejecutivo` y `GET /dashboard/operativo`; experiencia diferenciada en `/admin/dashboard`: consola ejecutiva para `ADMIN` con KPIs, deltas simétricos, rotación, conversión, Recharts de tendencia, pasarelas, top prendas y top proveedores; y consola operativa POS para `CAJERO`/`ENCARGADO` con agenda cronológica de reservas, atención en 1 clic y alertas de stock crítico $\le 2$). |
-| 6 — Machine Learning por KPIs | ✅ cerrada (`mirroria-ml/` con FastAPI :8002 y scikit-learn; dataset sintético `seed=42`, $N=10.000$; 4 modelos: M1 Demanda Random Forest, M2 No-Show Regresión Logística, M3 RFM KMeans, M4 Anomalías Isolation Forest; `MlModule` en NestJS con fallback resiliente `X-ML-Fallback: true`; vistas en `/admin/ml` y reservas POS; 6 pytest + 466 tests back + 190 front). |
+| 5 — BI: dashboards por rol | ✅ cerrada, commit `b8a6263` (`BiModule`, `GET /dashboard/ejecutivo` y `GET /dashboard/operativo`; experiencia diferenciada en `/admin/dashboard`: consola ejecutiva para `ADMIN` con KPIs, deltas simétricos, rotación, conversión, Recharts de tendencia, pasarelas, top prendas y top proveedores; y consola operativa "Hoy en la tienda" para `CAJERO`/`ENCARGADO` con agenda cronológica de reservas, atención en 1 clic y alertas de stock crítico $\le 2$). |
+| 6 — Machine Learning por KPIs | ✅ cerrada (`mirroria-ml/` con FastAPI :8002 y scikit-learn; dataset sintético `seed=42`, $N=10.000$; 4 modelos: M1 Demanda Random Forest, M2 No-Show Regresión Logística, M3 RFM KMeans, M4 Anomalías Isolation Forest; `MlModule` en NestJS con fallback resiliente `X-ML-Fallback: true`; vistas en `/admin/ml` y en reservas; 6 pytest + 466 tests back + 190 front). |
 | 6b — Rediseño UX/UI del admin (gerente sin tecnicismos) | ✅ cerrada (solo frontend): menú lateral en acordeón, Dashboard BI (Resumen del negocio / Hoy en la tienda), Predicciones en lenguaje de negocio (técnico tras "¿Cómo se calcula?") y Reportes con IA (markdown renderizado, lienzo de informe, chat con conclusión corta). Spec `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. |
+| Integración 2026-11-09 | ✅ `main` de Santiago (PayPal real en compras y suscripciones, Stripe `STRIPE_MONEDA=usd` + `TIPO_CAMBIO_BOB_USD`, exportar reportes a PDF, ML con datos reales por tienda, idempotencia con clave atada a persona y ruta, concurrencia de compras, PWA sin red, pago simulado solo fuera de producción, `scripts/sql/parcial2-esquema.sql`) + `feat/app-movil` (sin POS, comprar lo que reservé, outbox PWA de la clienta, app móvil SDK 58). Se descartaron el POS de `main` (`/admin/mostrador`, `GET /inventario/mostrador`, venta de caja sin conexión) y su app móvil. |
 | **7 — Documento ICONIX + UML 2.5 → PDF** | ⏭️ **la siguiente**. Capítulos 01 a 07; modelo de dominio, casos de uso, robustez, secuencia, clases y componentes para la entrega final. |
 
-Números verificados: **113 rutas** HTTP, **30 tablas**, **466** tests unitarios backend (56 archivos),
-**293** tests frontend (52 archivos), 6 tests pytest en ML, e2e backend 62/62.
+Números verificados (2026-11-09): **121 rutas** HTTP, **30 tablas**, **568** tests unitarios backend (66 archivos),
+**346** tests frontend (62 archivos), **59** tests de la app móvil, 6 tests pytest en ML; QA `qa_compra_reserva.py` 26/26.
 
 ## 3. Orden de lectura
 
 1. Este archivo.
 2. `AGENTS.md` (raíz): árbol del monorepo, puertos, comandos, mapa front ↔ back.
 3. El `AGENTS.md` del paquete que vas a tocar: `mirroria-backend/AGENTS.md` (módulos y tabla de las 101 rutas)
-   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). Móvil: `mirroria-mobile/AGENTS.md` (Expo SDK 58, rehecha desde cero 2026-11-07; **M0–M4.5 hechos** en la rama `feat/app-movil`: offline con SQLite + outbox, pagos, reservas, escáner, avisos, probador Decart; ya no corre en Expo Go, se usa el *development build* o el APK de `mirroria-mobile/dist/`).
+   o `mirroria-frontend/AGENTS.md` (rutas, guards, features). Móvil: `mirroria-mobile/AGENTS.md` (Expo SDK 58, rehecha desde cero 2026-11-07, solo clienta/visitante; **M0–M4.5 hechos** e integrados a `main` el 2026-11-09: offline con SQLite + outbox, pagos, reservas, escáner, avisos, probador Decart; ya no corre en Expo Go, se usa el *development build* o el APK de `mirroria-mobile/dist/`).
 4. En el vault: `U/2-2026/SI2/Parcial2/Plan_Parcial2.md` y la spec de la fase en curso
    (`Fase1_Spec_MultiTenant.md`, `Fase1b_Spec_Personalizacion_Tiendaria.md` son el modelo a seguir).
 5. Contratos y datos: vault `U/2-2026/SI2/Parcial1/App/` (`Endpoints.md`, `Database.md`, `Reglas_de_Negocio.md`,
@@ -54,7 +55,7 @@ Números verificados: **113 rutas** HTTP, **30 tablas**, **466** tests unitarios
 cd /home/lmc/projects/MirrorIA
 docker compose up -d --build --force-recreate   # mirroria_postgres :5435 · mirroria_backend :3000 · mirroria_frontend :80
 # o en dev: docker compose up -d postgres-db ; (cd mirroria-backend && npm run start:dev) ; (cd mirroria-frontend && npm run dev)  → web :5174
-docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 106
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l     # 121
 curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos                  # toda ruta de negocio necesita la tienda
 ```
 
@@ -66,14 +67,17 @@ curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos          
   `U/2-2026/SI2/Parcial1/App/Database.md` → "Estado de la BD local". Atajos: `admin@mirroria.com` (ADMIN de Tiendaria),
   `rosa@casa-andina.bo`, `camila@nomada.bo` (ADMIN de las tiendas demo). La cuenta de plataforma
   `plataforma@mirroria.com` (rol `DUENO_PLATAFORMA`) usa `PLATAFORMA_PASSWORD` de `mirroria-backend/.env`.
+- BD de producción (o una local sin `synchronize`): correr antes `scripts/sql/parcial2-esquema.sql` (idempotente: `idempotencia`,
+  `cobros_suscripcion`, `ventas.clave_idempotencia` + índice único). Aplicado a la BD local el 2026-11-09.
 - `NODE_ENV=development` en el `.env` local **a propósito** (activa `synchronize` de TypeORM y Swagger). Azure usa `production`.
 
 **Tests y QA:**
 
 ```bash
-cd mirroria-backend && npx vitest run          # 483 unit (60 archivos)
+cd mirroria-backend && npx vitest run          # 568 unit (66 archivos)
 cd mirroria-backend && npm run test:e2e        # 62 e2e, necesita Postgres (escribe en la BD local)
-cd mirroria-frontend && npx vitest run         # 293 (52 archivos)
+cd mirroria-frontend && npx vitest run         # 346 (62 archivos)
+cd mirroria-mobile && npx tsc --noEmit && npm test   # 59
 cd mirroria-frontend && npx tsc -b --noEmit && npm run lint
 python3 scripts/qa/qa_reglas.py      # 21  · qa_compra_reserva.py 26 · qa_aislamiento.py 84 · qa_marca.py 37
 ```
@@ -97,17 +101,19 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - **Documentación viva:** endpoint nuevo o cambiado → vault `U/2-2026/SI2/Parcial1/App/Endpoints.md`; error complejo resuelto →
   `.../App/Troubleshooting.md` (Síntoma, Causa, Solución); actualizar el `AGENTS.md` afectado; luego sincronizar Qdrant:
   `/home/lmc/vault-brain/.venv/bin/python /home/lmc/vault-brain/sync_vault.py --sync`.
-- Git: `main` es la rama estable; **la app móvil se trabaja en la rama `feat/app-movil`** (creada 2026-11-07 para no chocar con cambios del compañero en `main`). Commits y push cuando el usuario lo pide.
+- Git: **una sola rama `main`** (el 2026-11-09 se integró `feat/app-movil` sobre el `main` de Santiago en `integracion-parcial2`). Ramas de compañeros: preguntar antes de mergear. Commits y push cuando el usuario lo pide.
 
 ## 6. Decisiones tomadas (no re-discutir)
 
 - Multi-tenant con **BD compartida + `tenant_id`** (los otros dos enfoques solo se comparan en la doc).
 - Tienda pública por ruta `/t/<slug>`; el "cliente" del SaaS es el dueño de la tienda (ADMIN del inquilino).
-- Móvil: **Expo SDK 58 + SQLite**, rehecha desde cero (spec vault `U/2-2026/SI2/Parcial2/Movil_Spec.md`). **Solo clienta/visitante, sin POS** (el modo Mostrador se eliminó el 2026-11-07). Build Android **local** con Gradle (sin EAS); APK de entrega firmado con el keystore de debug.
+- Móvil: **Expo SDK 58 + SQLite**, rehecha desde cero (spec vault `U/2-2026/SI2/Parcial2/Movil_Spec.md`). **Solo clienta/visitante, sin POS** (el modo Mostrador se eliminó el 2026-11-07; la app de Santiago con panel del personal y caja se descartó al integrar, queda en el historial). Build Android **local** con Gradle (sin EAS); APK de entrega firmado con el keystore de debug.
 - **Decart** (`lucy-vton-3.5`) es el único probador virtual; el AR viejo se borró.
 - **Sin POS** (punto de venta), por seguridad: la tienda física tiene su caja; solo la cajera (`CAJERO`), en la web, confirma el efectivo
-  (`/admin/cobros`) y el personal resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` se **borró** el 2026-11-07: la clienta
+  (`/admin/cobros`) y el personal resuelve reservas (`/admin/reservas`). `POST /ventas/presenciales` se **borró** el 2026-11-07 (y al integrar `main` el 2026-11-09 también `/admin/mostrador`, `GET /inventario/mostrador` y la caja offline de la PWA): la clienta
   en tienda compra lo reservado con `POST /ventas/desde-reserva/:reservaId` (venta `PENDIENTE`; al pagarse, la reserva pasa a `COMPLETADA`).
+- **Stripe:** lógica de Santiago — `STRIPE_MONEDA` (default `usd`) convierte los Bs con `TIPO_CAMBIO_BOB_USD` (vacío = 6.96); con `bob` cobra en bolivianos.
+  **PayPal** real (sandbox) en compras y suscripciones (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` opcional, `PAYPAL_ENTORNO`).
 - Machine Learning en un **servicio Python aparte** (`mirroria-ml`, FastAPI + scikit-learn), consumido por el backend.
 - Se mantiene el monolito modular; los microservicios se documentan como camino futuro.
 - IA de reportes: DeepSeek arma una "ficha" y el motor corre SQL parametrizado (el modelo nunca escribe SQL).
@@ -126,7 +132,7 @@ Avisale al usuario que no use la app mientras se restaura. Detalle en `scripts/q
 - El proceso de Nest se llama `MainThread` (no `node`) para `pgrep`.
 - Fechas `timestamp` sin zona: un `UPDATE … now()` desde psql (UTC) queda corrido 4 h frente a la app (-04).
 - **Azure:** el próximo despliegue tiene un checklist obligatorio (JWT_SECRET, NODE_ENV, backfill multi-tenant,
-  SQL de marca, SQL de renombre `renombre-tiendaria.sql`, env de plataforma) en vault `U/2-2026/SI2/Parcial1/App/Despliegue_Azure.md`. **Recordáselo al usuario
+  SQL de marca, SQL de renombre `renombre-tiendaria.sql`, `parcial2-esquema.sql`, env de plataforma y de PayPal/`STRIPE_MONEDA`) en vault `U/2-2026/SI2/Parcial1/App/Despliegue_Azure.md`. **Recordáselo al usuario
   cuando diga que va a desplegar.** Los despliegues los corre él (`bash scripts/deploy-azure.sh`).
 
 ## 8. Pendientes conocidos (no bloquean)

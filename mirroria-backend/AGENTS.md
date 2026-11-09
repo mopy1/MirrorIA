@@ -1,10 +1,10 @@
 # 🪞 mirroria-backend (API de MirrorIA) — Arquitectura, módulos y endpoints
 
-Fuente de verdad técnica del backend. Actualizado 2026-11-07 (rama `feat/app-movil`: sin POS, compra desde la reserva). Si sos una IA nueva, leé antes
+Fuente de verdad técnica del backend. Actualizado 2026-11-09 (integración de `main` de Santiago + `feat/app-movil`: sin POS, compra desde la reserva, PayPal, PDF, ML real). Si sos una IA nueva, leé antes
 `../HANDOFF.md` y `../AGENTS.md`. Contrato completo de cada ruta (request/response JSON): vault
 `U/2-2026/SI2/Parcial1/App/Endpoints.md`. Esquema y DBML de las 28 tablas: vault `U/2-2026/SI2/Parcial1/App/Database.md`.
 
-> **App móvil:** la app móvil vieja se **borró** el 2026-11-07 y `mirroria-mobile/` se rehace desde cero (plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Los contratos del backend son la referencia; la app nueva se adapta a ellos.
+> **App móvil:** `mirroria-mobile/` es la app nueva (Expo SDK 58, solo clienta/visitante; plan: vault `U/2-2026/SI2/Parcial2/Plan_Movil.md`). Los contratos del backend son la referencia; la app se adapta a ellos. La app de Santiago (panel del personal y caja) se descartó al integrar.
 > El único probador virtual es Decart (`modules/probador`).
 
 ## 1. Stack
@@ -13,8 +13,8 @@ NestJS 12 (Node 24, TypeScript 6, **ESM real**), TypeORM 1.x + PostgreSQL 16 (`s
 sin migraciones), Passport + JWT (1 h, revalidado contra la BD en cada request), `class-validator`, `bcrypt`, Swagger
 (`/api/docs`, solo si `NODE_ENV !== 'production'`), Vitest, oxlint. Integraciones: `stripe` (tarjeta), `qrcode` (PNG del
 QR), `@decartai/sdk` (probador), DeepSeek por `fetch` nativo (reportes IA), `@duckdb/node-api` in-process (simulaciones
-_what-if_), `exceljs` (exportación corporativa .xlsx). **116 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
-Tests: **483 unitarios** en 60 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
+_what-if_), `exceljs` (exportación corporativa .xlsx), `pdfkit` (reportes en PDF), PayPal Orders v2 por `fetch`. **121 rutas** (`docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l`).
+Tests: **568 unitarios** en 66 archivos (`npx vitest run`) + **56 e2e** (`npm run test:e2e`, necesitan Postgres).
 
 > [!IMPORTANT]
 > **ESM puro** (`"type": "module"`, `module/moduleResolution: nodenext`): todo import **relativo** dentro de `src/`
@@ -271,6 +271,17 @@ clienta además exigen ser la dueña del recurso), `IP n/t` = límite por IP. **
 > **2026-11-07 (rama `feat/app-movil`, sin POS):** se borró `POST /ventas/presenciales` (ninguna ruta crea ventas `PAGADA` sin un pago)
 > y la fila 48 pasó a ser la **compra desde la reserva**. `GET /catalogo/productos` acepta `?conVariantes=true` (H1). Filas 114–116 existían
 > en el código pero faltaban en esta tabla. Total: **116 rutas**.
+>
+> **2026-11-09 (integración con `main`):** +5 rutas de Santiago → **121**: `POST /pagos/ventas/:ventaId/paypal` (JWT dueña, 201 `{url}`),
+> `POST /pagos/ventas/:ventaId/confirmar-tarjeta` (JWT dueña, 200 `{estado}`: consulta Stripe/PayPal al volver),
+> `POST /saas/mi-suscripcion/cobro/:cobroId/confirmar` (ADMIN, 200), `POST /saas/webhooks/paypal` (🧭 público, firma `PAYPAL_WEBHOOK_ID`),
+> `POST /ia/reportes/exportar-pdf` (ADMIN, ENCARGADO_SUCURSAL, IP 30/5 min). `simular-pago` de suscripción → 403 en producción.
+> Se quitó el POS que traía `main`: `GET /inventario/mostrador` (y `ItemMostradorDto`/`catalogoMostrador`) y la venta de caja
+> sin conexión (`vendidaEn`, `precioDeVenta`, columnas `productos.precio_anterior_cents`/`precio_cambiado_en`).
+> Esquema nuevo para producción: `scripts/sql/parcial2-esquema.sql` (idempotente).
+> De `main` también: checkout con `Idempotency-Key` guardada en `ventas.clave_idempotencia` (reintento → la misma venta), ítems
+> ordenados por `varianteId` al bloquear (sin deadlocks), validaciones dentro de la transacción con su `manager` (el 409 H6 con
+> alternativas también), pool `DB_POOL_MAX` (default 30) y `TZ=UTC` en `main.ts`.
 
 ## 7. Detalle de `modules/pagos/` y Pasarelas Enchufables (Fase 2)
 
@@ -288,16 +299,17 @@ modules/pagos/
 ├── exception/                    # venta-no-pagable, cobro-qr-no-pagable, cobro-sobre-venta-muerta (409),
 │                                 # firma-webhook-invalida (400), pasarela-no-configurada (503)
 └── service/
-    ├── pagos.service.ts          # tarjeta (Stripe) + efectivo (confirmación de cajero), soporte nombre de tienda
+    ├── pagos.service.ts          # tarjeta (Stripe), PayPal, confirmar al volver (confirmarTarjeta) + efectivo (confirmación de cajero)
     ├── expiracion.service.ts     # barrida cada 5 min de ventas PENDIENTE vencidas + cancelarVenta()
     ├── pasarela/                 # Arquitectura de Pasarelas Enchufables (Strategy + Service Locator)
     │   ├── pasarela.interface.ts # IPasarelaProveedor + PasarelaMetadata + IniciarCobroParams/Resultado + legados
     │   ├── registro-pasarelas.service.ts # Registro central singleton con listar, obtener, asegurarDisponible
-    │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, sesión alojada). Cobra en `bob` (STRIPE_MONEDA, default bob);
-    │   │                         #  con `usd` convierte con STRIPE_TIPO_CAMBIO (6.96) y muestra los Bs (`lineaDeCobro`, checkout y suscripción)
+    │   ├── stripe.pasarela.ts    # PasarelaStripe (DISPONIBLE, sesión alojada). STRIPE_MONEDA (default `usd`): con `usd` convierte
+    │   │                         #  los Bs con TIPO_CAMBIO_BOB_USD (moneda.ts, vacío = 6.96); los planes usan su precio en USD; `bob` sin convertir
     │   ├── wayra.pasarela.ts     # WayraPasarela (DISPONIBLE, QR interoperable nacional)
     │   ├── manual.pasarela.ts    # ManualPasarela (DISPONIBLE, efectivo en sucursal, solo checkout)
-    │   ├── paypal.pasarela.ts    # PaypalPasarela (Orders v2 por REST, solo suscripciones; aprobar no cobra, cobra la captura)
+    │   ├── paypal.pasarela.ts    # PaypalPasarela (Orders v2 por REST, compras y suscripciones; aprobar no cobra, cobra la captura;
+    │   │                         #  PAYPAL_CLIENT_ID/SECRET, PAYPAL_ENTORNO=sandbox, webhook /saas/webhooks/paypal con PAYPAL_WEBHOOK_ID)
     │   ├── qr-bancario.pasarela.ts # QrBancarioPasarela (EN_DESARROLLO, stub HTTP 503)
     │   └── simulada.pasarela.ts  # Solo para tests unitarios
     ├── qr/
@@ -825,7 +837,8 @@ true })`) o la firma del webhook no valida nunca — Stripe firma sobre los byte
   webhook a propósito, no un error: ningún reintento de la pasarela va a arreglar esto solo, lo
   resuelve una persona viendo el registro.
 - **La moneda de Stripe es configurable** (`STRIPE_MONEDA`) y cae en `usd` — el boliviano puede
-  no estar habilitado en una cuenta de prueba de Stripe.
+  no estar habilitado en una cuenta de prueba de Stripe. Con `usd` los Bs se convierten con `TIPO_CAMBIO_BOB_USD`
+  (2026-11-09: se descartó el `STRIPE_TIPO_CAMBIO` de `feat/app-movil`, queda la lógica de `main`).
 
 **Hasta 2026-10-26 el QR no era una integración** (una imagen fija `PAGOS_QR_URL`, confirmada
 a mano por un cajero). Ya no existe: ver la sección siguiente.

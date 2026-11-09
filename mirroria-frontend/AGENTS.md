@@ -11,9 +11,12 @@ leé antes `../HANDOFF.md` y `../AGENTS.md`.
 Cualquier agente IA o desarrollador que trabaje en esta base de código **DEBE** seguir estas
 directrices de forma obligatoria.
 
-> **Actualizado: 2026-11-06 (Fase 6 Interactivad Total en Dashboard & ML Gerencial Humanizado)**.
+> **Actualizado: 2026-11-09 (integración de `main` de Santiago + `feat/app-movil`, una sola rama `main`, sin POS)**.
 > Las secciones 2 y 3 describen lo que existe hoy en `src/`, verificado contra `src/App.tsx`, `src/routes/rutas-app.ts`,
-> `src/features/*` y `src/layouts/site-header/*`. Tests: **312** en 56 archivos (`npx vitest run`, 2026-11-07).
+> `src/features/*` y `src/layouts/site-header/*`. Tests: **346** en 62 archivos (`npx vitest run`, 2026-11-09).
+> - **2026-11-09 (integración):** entran de `main` PayPal en compras y suscripciones, regreso de pasarela que confirma con el backend,
+>   exportar reportes a PDF, claves de intento (`lib/clave-intento.ts`), "Simular sin red" y caché de la tienda sin red; se quitó
+>   su POS (`features/mostrador`, `/admin/mostrador`, aviso de venta de caja rechazada). Ver §6 "2026-11-09".
 > - **2026-11-07 (rama `feat/app-movil`):** sin rastros de POS en la web, "Comprar lo que reservé" en Mis reservas y
 >   checkout/carrito/reserva **sin red** en la PWA vía outbox (ver §3 "Offline").
 > - Dashboard: filtros 100% interactivos por período (`hoy`, `7d`, `30d`, `mes_actual`, `mes_anterior`, `personalizado` con selector de fechas) y por sucursal (`SelectorSucursal`).
@@ -745,6 +748,18 @@ Solo lo que explica por qué el código es como es; el detalle de cada sesión q
     ("Canal (Web / App / En tienda)"), tabla de ventas (WEB "Tienda web", MOVIL "App móvil", PRESENCIAL "En tienda") y
     specs de `lib/offline` (ahora con la compra de la clienta). `useResourceList.reload` pasó a ser estable (`useCallback`).
   * Tests: 312 (56 archivos). Capturas de QA en `~/.playwright-mcp/mirroria-web-qa/` (fuera del repo).
+- **2026-11-09 — Integración de `main` (Santiago) con `feat/app-movil`:**
+  * **Pagos:** `paymentsApi.iniciarPaypal` (`POST /pagos/ventas/:id/paypal`) y `confirmarTarjeta` al volver (`regreso-pasarela`,
+    `useVentaDeRegreso`); `hooks/useIrAPagar.ts` es el único camino a pagar una venta ya creada (checkout, "Comprar lo que
+    reservé", compra confirmada de la outbox): TARJETA → Stripe, PAYPAL → PayPal (guarda `mirroria_pasarela_<ventaId>` para
+    "Continuar pago"), QR/EFECTIVO → `/pago/:id`. Suscripción: `useRegresoCobro` + `lib/regreso-cobro.ts` confirman el cobro al volver.
+  * **Reportes:** "Exportar PDF" (`reportsApi` → `POST /ia/reportes/exportar-pdf`) y `lib/formato-pedido.ts` (pedir el PDF/Excel en la pregunta).
+  * **Red:** `lib/clave-intento.ts` — en rutas de dinero (checkout, `/ventas/desde-reserva/:id`, `/pagos/*`, cobro de suscripción)
+    el doble clic y el reintento mandan la misma `Idempotency-Key` hasta una respuesta definitiva. `features/saas/lib/cache-tienda.ts`:
+    la tienda abre sin red. La outbox es la de la clienta (`outbox-manager.ts` de `feat/app-movil`; `clasificar-respuesta` también
+    pausa con `codigo: TIENDA_NO_DISPONIBLE`); al cerrar sesión `limpiarDatosOffline` borra catálogo y operaciones terminadas.
+  * **Sin POS:** se borraron `features/mostrador/`, la ruta y el ítem de menú `/admin/mostrador`, `aviso-operacion-rechazada.tsx`
+    y `outbox-sync.spec.ts` (cola de la caja). La cajera solo ve Cobros por confirmar y Reservas.
 
 ---
 

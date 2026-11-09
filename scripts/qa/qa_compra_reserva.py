@@ -4,7 +4,7 @@ exec(open(__file__.replace("qa_compra_reserva.py","qa_reglas.py")).read().split(
 ok=0; fail=0
 def check(name, cond, extra=""):
     global ok, fail
-    print(("PASS " if cond else "FAIL ")+name+("" if cond else f"  -> {extra}")); ok+=cond; fail+=(not cond)
+    print(("PASS " if cond else "FAIL ")+name+("" if cond else f"  -> {extra}")); ok+=bool(cond); fail+=(not cond)
 def reqk(m, path, body, tok, clave):
     # Igual que req() pero con Idempotency-Key; devuelve también la cabecera de caché.
     r=urllib.request.Request(API+path, method=m, data=json.dumps(body).encode(),
@@ -47,7 +47,14 @@ s,b=req("PATCH",f"/reservas/{rA['id']}/estado",{"estado":"CANCELADA"},cajA); che
 check("No compró libera lo reservado", stock(va[0],A)[1]==r0-1, (r0, stock(va[0],A)))
 
 # 3. Sin POS: la ruta vieja ya no existe
-s,_=req("POST","/ventas/presenciales",{"sucursalId":A,"items":[{"varianteId":va[1],"cantidad":1}]},cajA)
+def status_de(m, path, body, tok):
+    # Solo el código: el 404 de una ruta inexistente no trae JSON.
+    r=urllib.request.Request(API+path, method=m, data=json.dumps(body).encode(),
+        headers={"Content-Type":"application/json","X-Tenant":TENANT,"Authorization":"Bearer "+tok})
+    try:
+        with urllib.request.urlopen(r) as resp: return resp.status
+    except urllib.error.HTTPError as e: return e.code
+s=status_de("POST","/ventas/presenciales",{"sucursalId":A,"items":[{"varianteId":va[1],"cantidad":1}]},cajA)
 check("POST /ventas/presenciales ya no existe -> 404", s==404, s)
 
 # 4. Compra desde la reserva + efectivo confirmado por la cajera

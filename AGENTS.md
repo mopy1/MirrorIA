@@ -3,7 +3,7 @@
 > **Si sos una IA nueva en este proyecto, leé [`HANDOFF.md`](./HANDOFF.md) primero** (estado, reglas del usuario,
 > decisiones tomadas y trampas). Este archivo es el mapa técnico del monorepo.
 >
-> Actualizado: 2026-11-06 (Fase 6b) · rama única `main`.
+> Actualizado: 2026-11-09 (integración `main` + `feat/app-movil`, sin POS) · rama única `main`.
 
 ## 1. Qué es
 
@@ -13,7 +13,7 @@
 **MirrorIA** es una plataforma **SaaS multi-tenant** (*Software as a Service*: un solo sistema que atiende a muchas
 tiendas, cada una aislada como "inquilino") de e-commerce de moda femenina multi-sucursal: probador virtual por IA
 (Decart `lucy-vton-3.5`), reservas para probarse en tienda, carrito y checkout con cupones, pagos (tarjeta Stripe,
-QR dinámico con el banco simulado Wayra, efectivo), reportes por IA en lenguaje natural (DeepSeek + DuckDB) y un
+PayPal, QR dinámico con el banco simulado Wayra, efectivo confirmado por la cajera), reportes por IA en lenguaje natural (DeepSeek + DuckDB, exportables a Excel y PDF) y un
 panel de plataforma para el dueño del SaaS.
 
 **Tiendaria es una tienda más** (slug `tiendaria`, `/t/tiendaria`, marca vino/rosa, datos del Parcial 1). El repo, los
@@ -44,7 +44,7 @@ U/2-2026/SI2/
 | Backend | NestJS 12, Node 24, TypeScript ESM, TypeORM 1.x | `127.0.0.1:3000` (`/api/v1`, Swagger `/api/docs` fuera de prod) | `mirroria_backend` |
 | Machine Learning | Python 3.12, FastAPI, scikit-learn, pandas, joblib | `127.0.0.1:8002` (FastAPI interno / proxy en backend) | `mirroria_ml` |
 | Frontend | React 19, Vite, Tailwind v4, shadcn/ui (Base UI), Phosphor | `5174` en dev · `80` en Docker (Nginx + proxy `/api/`) | `mirroria_frontend` |
-| Móvil | Expo SDK 58 (RN 0.88, New Arch) + SQLite + Decart/LiveKit — app de clienta, *development build* / APK Android (rama `feat/app-movil`) | `8081` (Metro del dev build) | — |
+| Móvil | Expo SDK 58 (RN 0.88, New Arch) + SQLite + Decart/LiveKit — solo clienta/visitante, *development build* / APK Android | `8081` (Metro del dev build) | — |
 | Despliegue | Azure VM (`https://mirroria.duckdns.org`), `scripts/deploy-azure.sh` | 443 | override `docker-compose.prod.yml` |
 
 Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, password en `.env` de la raíz
@@ -70,8 +70,9 @@ Credenciales de Postgres de desarrollo: usuario `mirroria`, base `mirroria_db`, 
 │   ├── sql/fase1-multitenant-backfill.sql   # tenant_id + datos a la tienda demo (id …0001; hoy "tiendaria")
 │   ├── sql/fase1b-marca.sql     # Azure: inquilino_marca, eventos_plataforma, planes.nivel_marca/destacado
 │   ├── sql/renombre-tiendaria.sql  # Azure: tienda demo "MirrorIA"/mirroria → "Tiendaria"/tiendaria (idempotente)
-│   └── qa/                      # QA contra la API real: reglas 21, mostrador 14, aislamiento 84, marca 37 (ver su README)
-├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las 113 rutas)
+│   ├── sql/parcial2-esquema.sql # idempotencia, cobros_suscripcion, ventas.clave_idempotencia (idempotente; correr antes del backend nuevo)
+│   └── qa/                      # QA contra la API real: reglas 21, compra_reserva 26, aislamiento 84, marca 37 (ver su README)
+├── mirroria-backend/            # NestJS — ver mirroria-backend/AGENTS.md (módulos + tabla de las rutas; 121 en total)
 │   └── src/{core,modules}/      # core: config, database, exception, security, tenancy · 14 módulos de negocio (incluye bi y ml)
 ├── mirroria-ml/                 # Python 3.12 + FastAPI + scikit-learn — ver mirroria-ml/AGENTS.md (puerto 8002)
 │   └── {app,dataset,models,scripts,tests}/ # 4 modelos M1-M4 entrenados con seed=42 y atados a KPIs
@@ -107,9 +108,9 @@ Tiendas locales: `tiendaria` (Cadena ACTIVA hasta 2027-12-31, datos del Parcial 
 | `payments`, `wayra` | `/t/:slug/pago/*`, `/wayra/pagar/:token` | `pagos` → `/pagos/*`, `/wayra/*` |
 | `reservations` | `/t/:slug/reservas` + botón en la ficha | `reservas` → `/reservas/*` |
 | `fitting` | `/t/:slug/probador[/:productoId]` | `probador` → `/probador/token` |
-| `dashboard` | `/admin/dashboard` (redirección `/admin`) | `bi` → `/dashboard/*` (Fase 5: ejecutivo y operativo POS) |
+| `dashboard` | `/admin/dashboard` (redirección `/admin`) | `bi` → `/dashboard/*` (Fase 5: ejecutivo y operativo "Hoy en la tienda") |
 | `ml` | `/admin/ml` | `ml` → `/ml/*` (Fase 6: demanda, no-show, RFM, anomalías) |
-| `reports` | `/admin/reportes` | `ia` → `/ia/*` |
+| `reports` | `/admin/reportes` | `ia` → `/ia/*` (Excel y PDF: `/ia/reportes/exportar-{excel,pdf}`) |
 | `admin`, `inventory`, `promotions`, `providers` | `/admin/{catalogo,proveedores,sucursales,cupones,usuarios,inventario,ventas,reservas,cobros}` | `catalogo`, `proveedores`, `sucursales`, `promociones`, `seguridad/usuarios`, `inventario`, `ventas`, `reservas`, `pagos` |
 
 Cliente HTTP: `mirroria-frontend/src/lib/api.ts` (`apiFetch`) manda `X-Tenant` = tienda navegada (o la de la sesión) y
@@ -126,7 +127,8 @@ el JWT solo si la sesión es de esa tienda.
 4. Catálogo exclusivamente femenino: no hay campo ni tabla de género.
 5. Seguridad: `JWT_SECRET` obligatorio (≥ 32 caracteres), límites por IP (login, cupón, IA, probador, alta de tienda),
    nunca 0 ADMIN activos, staff acotado a su sucursal.
-6. Sin POS a propósito: la web confirma efectivo (`/admin/cobros`) y resuelve reservas (`/admin/reservas`).
+6. **Sin POS** a propósito (ni web, ni backend, ni móvil): la cajera solo confirma efectivo (`/admin/cobros`) y el personal
+   resuelve reservas (`/admin/reservas`); la clienta en tienda compra lo reservado con `POST /ventas/desde-reserva/:reservaId`.
 
 ## 7. Comandos rápidos
 
@@ -136,11 +138,13 @@ docker compose up -d postgres-db                     # solo la BD
 cd mirroria-backend && npm run start:dev             # API en :3000
 cd mirroria-frontend && npm run dev                  # web en :5174
 curl -H 'X-Tenant: tiendaria' localhost:3000/api/v1/catalogo/productos
-docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 106 rutas
+docker logs mirroria_backend 2>&1 | grep -oE 'Mapped \{[^}]+\}' | sort -u | wc -l   # 121 rutas
 
 # Tests
-cd mirroria-backend && npx vitest run                # 466 unit (56 suites) · npm run test:e2e → 62 (usa la BD local)
-cd mirroria-frontend && npx vitest run               # 293 unit (52 suites)
+cd mirroria-backend && npx vitest run                # 568 unit (66 suites) · npm run test:e2e → 62 (usa la BD local)
+cd mirroria-frontend && npx vitest run               # 346 unit (62 suites)
+cd mirroria-mobile && npx tsc --noEmit && npm test   # 59
+cd mirroria-ml && .venv/bin/python -m pytest -q      # 6
 
 # QA contra la API local (ensucia la BD: pg_dump antes, pg_restore --clean después)
 python3 scripts/qa/qa_reglas.py     # 21 · qa_compra_reserva.py 26 · qa_aislamiento.py 84 · qa_marca.py 37
@@ -166,16 +170,18 @@ PLATAFORMA_EMAIL=… PLATAFORMA_PASSWORD=… node scripts/sembrar-tiendas-demo.m
 - **2026-11-05 — Fase 2 (`b4eaa0a`):** Pasarelas enchufables (`RegistroPasarelasService`, adaptadores Stripe y Wayra QR unificados para checkout y suscripciones, stubs 503 para PayPal y QR Bancario, cobros de suscripción B2B en `/admin/suscripcion/activar`, tabla `cobros_suscripcion`, 105 rutas, 29 tablas, 385 tests back, 127 tests front).
 - **2026-11-06 — Fase 3 (`48b1e54`):** Offline, PWA, Idempotencia y Conflictos (PWA + Service Worker con cache App Shell, IndexedDB con TTL 7d y outbox FIFO, tabla `idempotencia` en backend con hashing SHA-256 canónico, interceptor HIT/MISS/422/409, resolución de conflicto `stock = 1` con error 409 tipado y transacción compensatoria, 105 rutas, 30 tablas, 404 tests back, 140 tests front).
 - **2026-11-06 — Fase 4:** Reportes dinámicos, tabla pivote, métricas cruzadas y exportación a Excel (`TablaDinamicaReporte` con ordenación interactiva, filtrado y repivoteo en caliente; `ConstructorReporteDialog` estructurado sin coste de LLM; exportación nativa a `.xlsx` con `exceljs` con formato contable `"Bs" #,##0.00`, fórmulas de totales y auto-ajuste; nuevas dimensiones `metodo_pago`, `proveedor_pago` y `proveedor`, 106 rutas, 30 tablas, 425 tests back, 159 tests front).
-- **2026-11-06 — Fase 5:** BI y Dashboards diferenciados (Ejecutivo ADMIN con KPIs de facturación, ticket promedio, rotación y conversión, y Operativo POS con agenda cronológica de reservas, cobros pendientes y alertas de quiebre de stock por sucursal).
-- **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de anomalías POS en caja; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets POS, 198 tests en frontend, 466 en backend).
+- **2026-11-06 — Fase 5:** BI y Dashboards diferenciados (Ejecutivo ADMIN con KPIs de facturación, ticket promedio, rotación y conversión, y Operativo "Hoy en la tienda" con agenda cronológica de reservas, cobros pendientes y alertas de quiebre de stock por sucursal).
+- **2026-11-06 — Fase 6:** Machine Learning Operativo + Microservicio Python FastAPI :8002 (Random Forest Regressor para demanda a 30d, Regresión Logística L2 para riesgo de No-Show, K-Means para segmentación RFM, Isolation Forest para auditoría de ventas atípicas; datasets reproducibles `seed=42`, $N=10.000$; rediseño de Storefront Luxury Navbar y Dashboard ML con toolbar unificada `ml-toolbar.tsx`, sin pestañas apiladas, Ficha Técnica SI2 modal secundaria y humanización integral de nombres de prendas y tickets, 198 tests en frontend, 466 en backend).
 
 - **2026-11-06 — Fase 6b:** Rediseño UX/UI del panel admin para un gerente sin tecnicismos (solo frontend): menú lateral en acordeón (Inicio · Ventas · Productos · Análisis · Mi negocio, contraíble a íconos), Dashboard BI ("Resumen del negocio" con resumen en palabras y "Hoy en la tienda"), Predicciones ("Qué hacer esta semana", jerga técnica solo en "¿Cómo se calcula?") y Reportes con IA (markdown renderizado con `react-markdown`, lienzo con conclusión, cifras clave, barras con nombres completos, chat con conclusión corta + "Reporte listo"). Spec: vault `Parcial2/Fase6b_Spec_Rediseno_UX_Admin.md`. 293 tests front (52 suites).
 - **2026-11-07/08 — App móvil (rama `feat/app-movil`):** `mirroria-mobile/` rehecha desde cero con Expo SDK 58: espejo SQLite + `OutboxManager` (compra/reserva offline, conflicto `stock = 1`), pagos QR/Stripe/caja, reservas y Pase de Tienda, escáner de etiqueta, avisos de reposición, probador Decart en vivo (LiveKit) y APK Android compilado localmente.
+- **2026-11-07/08 — `main` (Santiago):** PayPal real en compras y suscripciones, Stripe con `STRIPE_MONEDA=usd` + `TIPO_CAMBIO_BOB_USD`, exportar reportes a PDF (`pdfkit`), ML con los datos reales de cada tienda, idempotencia atada a persona y ruta, compras simultáneas sin colgar la API (pool `DB_POOL_MAX`), PWA sin red, pago simulado solo fuera de producción, `scripts/sql/parcial2-esquema.sql`.
+- **2026-11-09 — Integración (`integracion-parcial2`):** `feat/app-movil` sobre `main`; queda la app móvil nueva (SDK 58, solo clienta) y se quita el POS que traía `main` (`/admin/mostrador`, `GET /inventario/mostrador`, caja offline, columnas de precio anterior). 121 rutas, 568 tests back, 346 front, 59 móvil.
 - **2026-11-07 — Documentación Parcial 2 (ICONIX & Omnicanal):** Especificación completa para SI2 Parcial 2 siguiendo guía de grupo #22 (Capítulos I al VII, 17 CUs Omnicanal unificados Web PWA + Móvil Expo, DDL SQL 30 tablas, 15 diagramas PNG alta resolución, compilador autónomo `compilar.py`, documento compilado en PDF de 66 páginas y DOCX Word editable en `docs/parcial2/`).
 
 ## 9. Dónde está cada cosa
 
-- Reglas de negocio (topes, vencimientos, mostrador, planes, marca): vault `Parcial1/App/Reglas_de_Negocio.md`.
+- Reglas de negocio (topes, vencimientos, compra desde la reserva, planes, marca): vault `Parcial1/App/Reglas_de_Negocio.md`.
 - Contrato de cada ruta: vault `Parcial1/App/Endpoints.md`. Esquema + DBML + cuentas locales: `Parcial1/App/Database.md`.
 - Despliegue y **checklist obligatorio del próximo despliegue**: vault `Parcial1/App/Despliegue_Azure.md`.
 - Errores resueltos: vault `Parcial1/App/Troubleshooting.md`.
