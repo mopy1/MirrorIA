@@ -66,3 +66,7 @@ __pycache__/
 
 # Etiquetas generadas por scripts/qa/etiquetas_qr.py (M4.1)
 scripts/qa/etiquetas/
+
+# Archivos de trabajo locales (capturas, pruebas)
+.trabajo/
+__pycache__/
