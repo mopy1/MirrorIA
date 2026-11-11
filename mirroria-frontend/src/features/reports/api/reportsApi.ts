@@ -46,6 +46,23 @@ export const reportsApi = {
       body: JSON.stringify(ficha),
     }),
 
+  /** Pasar a texto una pregunta grabada (respaldo del dictado del navegador; transcribe Gemini en el backend). */
+  transcribir: async (audio: Blob): Promise<{ texto: string }> => {
+    const form = new FormData()
+    form.append("audio", audio, "pregunta")
+    const res = await fetch(`${API_URL}/ia/reportes/transcribir`, {
+      method: "POST",
+      headers: cabecerasTenant("auto"),
+      body: form,
+    })
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as { message?: string | string[] } | null
+      const msg = err?.message || "No se pudo transcribir el audio"
+      throw new ApiError(res.status, Array.isArray(msg) ? msg.join(", ") : msg)
+    }
+    return (await res.json()) as { texto: string }
+  },
+
   /** Exportar el reporte a PDF. */
   exportarPdf: async (payload: ExportarReportePayload): Promise<Blob> => {
     const res = await fetch(`${API_URL}/ia/reportes/exportar-pdf`, {

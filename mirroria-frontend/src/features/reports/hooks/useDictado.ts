@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useGrabacionVoz } from "./useGrabacionVoz"
 
 const MENSAJES_ERROR: Record<string, string> = {
   "not-allowed": "El navegador no tiene permiso para usar el micrófono.",
@@ -8,11 +9,18 @@ const MENSAJES_ERROR: Record<string, string> = {
   "language-not-supported": "El navegador no soporta el idioma configurado para dictar.",
 }
 
+/** Errores en los que el navegador no puede dictar: se pasa a grabar y transcribir en el servidor. */
+const PASAR_A_GRABACION = new Set(["network", "service-not-allowed", "language-not-supported"])
+
 /**
  * Dictado con la Web Speech API del navegador: cero dependencias y la
  * transcripcion ocurre en el cliente, como fija el diseño de BD (el backend
  * recibe texto, nunca audio). Donde la API no exista, `soportado` es false y
  * la pantalla simplemente no muestra el boton.
+ *
+ * Respaldo: si el navegador no tiene la API o no llega a su servicio de voz
+ * (Brave y Opera dan siempre `network`), se graba el audio y lo transcribe el
+ * backend con Gemini (`useGrabacionVoz`). Desde ese momento se queda en ese modo.
  *
  * `es-ES` (no `es-419` ni `es-BO`): un tag de idioma regional o generico no
  * siempre esta soportado por el motor de reconocimiento de cada navegador —
@@ -58,10 +66,22 @@ export function useDictado({
     typeof window !== "undefined"
       ? ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition)
       : undefined
-  const soportado = Boolean(Reconocedor)
+  const grabacion = useGrabacionVoz((texto) => {
+    onTextoParcialRef.current?.(texto)
+    onTextoFinalRef.current(texto)
+  })
+  // Modo servidor: sin Web Speech, o despues de que fallo por red.
+  const [porServidor, setPorServidor] = useState(!Reconocedor)
+  const iniciarGrabacionRef = useRef(grabacion.iniciar)
+  const puedeGrabarRef = useRef(grabacion.soportada)
+  useEffect(() => {
+    iniciarGrabacionRef.current = grabacion.iniciar
+    puedeGrabarRef.current = grabacion.soportada
+  }, [grabacion.iniciar, grabacion.soportada])
+  const soportado = Boolean(Reconocedor) || grabacion.soportada
 
   useEffect(() => {
-    if (!soportado) return
+    if (!Reconocedor) return
     const r = new Reconocedor()
     r.lang = "es-ES"
     // `false` cortaba la escucha solo con detectar cualquier pausa/silencio
@@ -105,15 +125,27 @@ export function useDictado({
       // eslint-disable-next-line no-console
       console.error("[dictado] onerror", e.error)
       setEscuchando(false)
+      if (PASAR_A_GRABACION.has(e.error) && puedeGrabarRef.current) {
+        // El navegador no puede dictar: seguimos grabando y transcribe el servidor.
+        setError(null)
+        setPorServidor(true)
+        void iniciarGrabacionRef.current()
+        return
+      }
       setError(MENSAJES_ERROR[e.error] ?? `No se pudo dictar (${e.error}).`)
     }
     reconocedorRef.current = r
     return () => {
       r.abort()
     }
-  }, [soportado, Reconocedor])
+  }, [Reconocedor])
 
   function iniciar() {
+    if (porServidor) {
+      setError(null)
+      void grabacion.iniciar()
+      return
+    }
     const r = reconocedorRef.current
     if (!r || escuchando) return
     setError(null)
@@ -122,6 +154,10 @@ export function useDictado({
   }
 
   function detener() {
+    if (porServidor) {
+      grabacion.detener()
+      return
+    }
     const r = reconocedorRef.current
     if (!r || !escuchando) return
     r.stop()
@@ -129,9 +165,17 @@ export function useDictado({
   }
 
   function alternar() {
-    if (escuchando) detener()
+    if (escuchando || grabacion.grabando) detener()
     else iniciar()
   }
 
-  return { soportado, escuchando, error, alternar, iniciar, detener }
+  return {
+    soportado,
+    escuchando: escuchando || grabacion.grabando,
+    transcribiendo: grabacion.transcribiendo,
+    error: error ?? grabacion.error,
+    alternar,
+    iniciar,
+    detener,
+  }
 }

@@ -10,6 +10,7 @@ import { ExportadorPdfService } from './service/exportador-pdf.service.js';
 import { IaAgenteService } from './service/ia-agente.service.js';
 import { IaService } from './service/ia.service.js';
 import { MotorConsultaService } from './service/motor-consulta.service.js';
+import { TranscriptorService } from './service/transcriptor.service.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([InteraccionIa])],
@@ -21,6 +22,7 @@ import { MotorConsultaService } from './service/motor-consulta.service.js';
     IaAgenteService,
     ExportadorExcelService,
     ExportadorPdfService,
+    TranscriptorService,
     { provide: PROVEEDOR_IA, useClass: DeepSeekProveedor },
   ],
   exports: [IaService, DuckDbService, IaAgenteService, ExportadorExcelService],

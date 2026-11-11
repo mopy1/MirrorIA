@@ -1,7 +1,8 @@
 import {
-  Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UseGuards, ValidationPipe,
+  Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UploadedFile, UseGuards, UseInterceptors, ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../../../core/security/current-user.decorator.js';
 import { JwtAuthGuard } from '../../../core/security/jwt-auth.guard.js';
@@ -18,6 +19,7 @@ import { ReporteHibridoResponseDto } from '../dto/reporte-hibrido-response.dto.j
 import { ExportadorExcelService } from '../service/exportador-excel.service.js';
 import { ExportadorPdfService } from '../service/exportador-pdf.service.js';
 import { IaService } from '../service/ia.service.js';
+import { TranscriptorService } from '../service/transcriptor.service.js';
 
 const PIPE_FICHA = new ValidationPipe({
   whitelist: true,
@@ -32,6 +34,7 @@ export class IaController {
     private readonly iaService: IaService,
     private readonly exportadorExcelService: ExportadorExcelService,
     private readonly exportadorPdfService: ExportadorPdfService,
+    private readonly transcriptorService: TranscriptorService,
   ) {}
 
   @Post('reportes')
@@ -69,6 +72,23 @@ export class IaController {
       metatype: FichaConsultaDto,
     })) as FichaConsultaDto;
     return this.iaService.consultar(ficha, user);
+  }
+
+  // Respaldo del dictado: el navegador graba y Gemini transcribe. 1 MB alcanza para ~1 min de opus
+  // y queda dentro del client_max_body_size por defecto de nginx.
+  @Post('reportes/transcribir')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, LimitePorIp(30, 10 * 60_000))
+  @Roles('ADMIN', 'ENCARGADO_SUCURSAL')
+  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 1_000_000, files: 1 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Pasar a texto una pregunta dictada (Gemini), cuando el navegador no puede dictar' })
+  async transcribir(
+    @UploadedFile() audio: { buffer: Buffer; mimetype: string } | undefined,
+  ): Promise<{ texto: string }> {
+    const texto = await this.transcriptorService.transcribir(audio?.buffer, audio?.mimetype);
+    return { texto };
   }
 
   @Post('reportes/exportar-excel')

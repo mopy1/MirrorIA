@@ -42,7 +42,11 @@ export function ChatInput({ pregunta, onPreguntaChange, onSubmit, cargando, dict
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <p className="hidden pl-1 text-[11px] text-muted-foreground sm:block">
-            {dictado.escuchando ? "Escuchando… tocá el micrófono para terminar" : "Enter envía · Shift+Enter, otra línea"}
+            {dictado.escuchando
+              ? "Escuchando… tocá el micrófono para terminar"
+              : dictado.transcribiendo
+                ? "Pasando tu voz a texto…"
+                : "Enter envía · Shift+Enter, otra línea"}
           </p>
           <div className="ml-auto flex items-center gap-1.5">
             {dictado.soportado && (
@@ -50,7 +54,7 @@ export function ChatInput({ pregunta, onPreguntaChange, onSubmit, cargando, dict
                 type="button"
                 variant={dictado.escuchando ? "secondary" : "ghost"}
                 size="icon-sm"
-                disabled={cargando}
+                disabled={cargando || dictado.transcribiendo}
                 onClick={dictado.alternar}
                 aria-pressed={dictado.escuchando}
                 aria-label={dictado.escuchando ? "Terminar el dictado" : "Dictar la pregunta"}

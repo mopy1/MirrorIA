@@ -40,6 +40,7 @@ describe('IaController', () => {
       iaService as unknown as IaService,
       exportadorExcelService as unknown as ExportadorExcelService,
       {} as never,
+      {} as never,
     );
   });
 
